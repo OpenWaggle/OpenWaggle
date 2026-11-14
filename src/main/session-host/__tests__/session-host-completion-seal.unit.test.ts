@@ -88,6 +88,27 @@ describe('Session Host completion seal', () => {
         ),
     },
     {
+      name: 'high-water mark with a key it does not define',
+      mutate: (target: HostSqliteDatabase) =>
+        target.exec(
+          `UPDATE session_host_schema_metadata SET source_high_watermark_json = '${JSON.stringify({ sessions: 1, nodes: 2, sourceSchemaRevision: 25, extra: 0 })}'`,
+        ),
+    },
+    {
+      name: 'fresh seal whose high-water mark is not empty',
+      mutate: (target: HostSqliteDatabase) =>
+        target
+          .prepare('UPDATE session_host_schema_metadata SET migration_revision = ?')
+          .run(SESSION_HOST_FRESH_REVISION),
+    },
+    {
+      name: 'fractional high-water count',
+      mutate: (target: HostSqliteDatabase) =>
+        target.exec(
+          `UPDATE session_host_schema_metadata SET source_high_watermark_json = '${JSON.stringify({ sessions: 1.5, nodes: 2, sourceSchemaRevision: 25 })}'`,
+        ),
+    },
+    {
       name: 'incompatible schema revision',
       mutate: (target: HostSqliteDatabase) =>
         target.exec('UPDATE session_host_schema_metadata SET schema_revision = 999'),

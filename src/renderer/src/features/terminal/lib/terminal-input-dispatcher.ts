@@ -20,6 +20,7 @@ import type {
   TerminalInputDispatcher,
   TerminalInputDispatcherOptions,
   TerminalInputWriter,
+  TerminalProjectActionEnqueueResult,
 } from './terminal-input-dispatch-types'
 import { hasQueuedTerminalProjectAction } from './terminal-input-queue'
 import {
@@ -32,14 +33,9 @@ import {
 import { drainTerminalInput } from './terminal-input-transport'
 
 export type {
-  TerminalInputClient,
-  TerminalInputDispatcher,
   TerminalInputDispatcherOptions,
-  TerminalInputDispatchSnapshot,
   TerminalInputEnqueueResult,
-  TerminalProjectActionEnqueueResult,
 } from './terminal-input-dispatch-types'
-
 const MAX_PENDING_ASYNC_INPUT_OPERATIONS = 8
 
 function getOrCreate(
@@ -55,14 +51,11 @@ function getOrCreate(
   return state
 }
 
-function createClient(
-  context: TerminalInputDispatcherContext,
-  state: TerminalInputState,
-): TerminalInputClient {
+function createClient(context: TerminalInputDispatcherContext, state: TerminalInputState) {
   let released = false
   const inactive = () => released || state.disposed
   state.clients += 1
-  return {
+  const client: TerminalInputClient = {
     generation: state.generation,
     get inputIncarnation() {
       return state.inputIncarnation
@@ -89,7 +82,7 @@ function createClient(
     },
     enqueueProjectAction(data, executionId) {
       if (inactive()) {
-        return Promise.resolve({
+        return Promise.resolve<TerminalProjectActionEnqueueResult>({
           status: 'rejected',
           reason: 'inactive',
           error: 'Terminal input is no longer available.',
@@ -136,6 +129,7 @@ function createClient(
       deleteTerminalInputStateIfUnused(context, state)
     },
   }
+  return client
 }
 
 function assertOwnerMigrationAvailable(
@@ -193,7 +187,7 @@ function positiveInteger(value: number, label: string) {
 export function createTerminalInputDispatcher(
   write: TerminalInputWriter,
   options: TerminalInputDispatcherOptions = {},
-): TerminalInputDispatcher {
+) {
   const context: TerminalInputDispatcherContext = {
     states: new Map(),
     write,
@@ -219,7 +213,7 @@ export function createTerminalInputDispatcher(
     migrateOwner: (fromOwnerKey, toOwnerKey, terminalIds) =>
       migrateOwner(context, fromOwnerKey, toOwnerKey, terminalIds),
     clearOwner: (ownerKey) => clearOwner(context, ownerKey),
-  }
+  } satisfies TerminalInputDispatcher
 }
 
 export const terminalInputDispatcher = createTerminalInputDispatcher(

@@ -17,6 +17,7 @@ import {
   compareWorkspaceDocumentWithDisk,
   reloadWorkspaceDocument,
   restoreWorkspaceDraftOverDisk,
+  synchronizeWorkspaceDocumentFromDisk,
 } from './workspace-document-recovery-actions'
 import {
   AUTOSAVE_DELAY_MS,
@@ -104,37 +105,21 @@ function useSaveQueueValues(projectPath: string, file: WorkspaceTextFileReadResu
   }
 }
 
-function useSaveQueueLifecycle(context: WorkspaceSaveQueueContext, changeSequence: number) {
+function useSaveQueueLifecycle(
+  context: WorkspaceSaveQueueContext,
+  input: {
+    readonly projectPath: string
+    readonly file: WorkspaceTextFileReadResult
+    readonly changeSequence: number
+    readonly mountedRef: WorkspaceSaveQueueContext['mounted']
+  },
+) {
+  const { projectPath, file, changeSequence, mountedRef } = input
   const flushFromEffect = useEffectEvent(() => flushWorkspaceEdits(context))
   const persistFromEffect = useEffectEvent(() => persistPendingJournal(context))
-  const synchronizeFromEffect = useEffectEvent((file: WorkspaceTextFileReadResult) => {
-    if (file.revision === context.revision.current) return
-    if (
-      context.pending.current.length > 0 ||
-      context.latestContent.current !== context.savedContent.current
-    ) {
-      context.conflict.current = true
-      context.setStatus('conflict')
-      context.setErrorMessage(
-        'The file changed on disk. Compare it with your draft before choosing a version.',
-      )
-      persistFromEffect()
-      return
-    }
-    context.revision.current = file.revision
-    context.persistedVersion.current = file.documentVersion
-    context.nextVersion.current = file.documentVersion + 1
-    context.latestContent.current = file.content
-    context.latestSnapshot.current = null
-    context.savedContent.current = file.content
-    context.encoding.current = file.fidelity.encoding
-    context.setEditorRevision(file.revision)
-    context.setContent(file.content)
-    context.setSavedContent(file.content)
-    context.setNormalizationRequired(file.fidelity.lineEnding === 'mixed')
-    context.setEncoding(file.fidelity.encoding)
-    context.setLineEnding(file.fidelity.lineEnding)
-  })
+  const synchronizeFromEffect = useEffectEvent((file: WorkspaceTextFileReadResult) =>
+    synchronizeWorkspaceDocumentFromDisk(context, file),
+  )
 
   useEffect(() => {
     if (changeSequence === 0) return
@@ -145,22 +130,19 @@ function useSaveQueueLifecycle(context: WorkspaceSaveQueueContext, changeSequenc
     return () => window.clearTimeout(timer)
   }, [changeSequence])
 
-  const mounted = context.mounted
   useEffect(() => {
-    mounted.current = true
+    mountedRef.current = true
     return () => {
-      mounted.current = false
+      mountedRef.current = false
       persistFromEffect()
       void flushFromEffect().catch(() => undefined)
     }
-  }, [mounted])
+  }, [mountedRef])
 
-  const file = context.file
   useEffect(() => {
     synchronizeFromEffect(file)
   }, [file])
 
-  const projectPath = context.projectPath
   useEffect(
     () =>
       registerWorkspaceEditorSave({
@@ -174,7 +156,12 @@ function useSaveQueueLifecycle(context: WorkspaceSaveQueueContext, changeSequenc
 
 export function useWorkspaceFileSaveQueue(projectPath: string, file: WorkspaceTextFileReadResult) {
   const { context, state } = useSaveQueueValues(projectPath, file)
-  useSaveQueueLifecycle(context, state.changeSequence)
+  useSaveQueueLifecycle(context, {
+    projectPath,
+    file,
+    changeSequence: state.changeSequence,
+    mountedRef: context.mounted,
+  })
 
   return {
     content: state.content,

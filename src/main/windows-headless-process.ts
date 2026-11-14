@@ -45,15 +45,24 @@ export function windowsHeadlessCommandLine(command: string, args: readonly strin
  * controlled diagnostic line, never from unrestricted stderr.
  */
 export class WindowsHeadlessLaunchError extends Error {
+  readonly stage: string
+  readonly win32Code: number | null
+  readonly exitCode: number | null
+  readonly signalCode: NodeJS.Signals | null
+
   constructor(
     message: string,
-    readonly stage: string,
-    readonly win32Code: number | null,
-    readonly exitCode: number | null = null,
-    readonly signalCode: NodeJS.Signals | null = null,
+    stage: string,
+    win32Code: number | null,
+    exitCode: number | null = null,
+    signalCode: NodeJS.Signals | null = null,
     options?: ErrorOptions,
   ) {
     super(message, options)
+    this.stage = stage
+    this.win32Code = win32Code
+    this.exitCode = exitCode
+    this.signalCode = signalCode
     this.name = 'WindowsHeadlessLaunchError'
   }
 }
@@ -72,9 +81,7 @@ function helperFailure(stderr: string, exitCode: number | null, signalCode: Node
   )
 }
 
-export async function launchWindowsHeadlessProcess(
-  input: WindowsHeadlessLaunchInput,
-): Promise<void> {
+export async function launchWindowsHeadlessProcess(input: WindowsHeadlessLaunchInput) {
   const commandLine = windowsHeadlessCommandLine(input.command, input.args)
   if (
     Object.entries(input.environment).some(

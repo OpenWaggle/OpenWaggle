@@ -1,5 +1,6 @@
 import { withoutCommentLines } from './comment-stripping'
 import type { Violation } from './violation'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 /**
  * OpenWaggle opens its own SQLite files only with better-sqlite3, the library of the Session
@@ -49,7 +50,9 @@ const OTHER_SQLITE_LOAD = moduleLoadPattern(OTHER_SQLITE_LIBRARIES)
 const HOST_SQLITE_LOAD = moduleLoadPattern(HOST_SQLITE_LIBRARIES)
 
 function loadedLibraries(source: string, pattern: RegExp) {
-  return [...source.matchAll(pattern)].flatMap((match) => match.groups?.['library'] ?? [])
+  return [...source.matchAll(pattern)].flatMap(
+    (match) => namedGroups(match, ['library'])?.library ?? [],
+  )
 }
 
 function isOwner(file: string) {
@@ -58,14 +61,14 @@ function isOwner(file: string) {
   )
 }
 
-export function collectSqliteLibraryViolations(file: string, contents: string): Violation[] {
+export function collectSqliteLibraryViolations(file: string, contents: string) {
   const normalized = file.replaceAll('\\', '/')
   if (!CODE_FILE.test(normalized) || !CHECKED_ROOTS.some((root) => normalized.startsWith(root))) {
-    return []
+    return [] satisfies Violation[]
   }
   const source = withoutCommentLines(contents)
   const loaded = loadedLibraries(source, OTHER_SQLITE_LOAD)
-  if (loaded.length === 0) return []
+  if (loaded.length === 0) return [] satisfies Violation[]
   if (!isOwner(normalized)) {
     return [
       {
@@ -74,10 +77,10 @@ export function collectSqliteLibraryViolations(file: string, contents: string): 
         message:
           "Open SQLite with better-sqlite3 (the Host's library; see src/main/session-host/host-sqlite-database.ts). A second SQLite library in one process can drop the Host's file locks and corrupt its database (#371).",
       },
-    ]
+    ] satisfies Violation[]
   }
   const hostLibraries = loadedLibraries(source, HOST_SQLITE_LOAD)
-  if (hostLibraries.length === 0) return []
+  if (hostLibraries.length === 0) return [] satisfies Violation[]
   return [
     {
       file: normalized,
@@ -85,5 +88,5 @@ export function collectSqliteLibraryViolations(file: string, contents: string): 
       message:
         'This file may use another SQLite library only because it never opens files with better-sqlite3; using both opens SQLite files with two SQLite copies in one process (#371).',
     },
-  ]
+  ] satisfies Violation[]
 }

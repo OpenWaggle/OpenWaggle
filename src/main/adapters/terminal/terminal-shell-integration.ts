@@ -38,7 +38,7 @@ export async function prepareTerminalShellLaunch(
   candidate: TerminalShellCandidate,
   environment: Readonly<Record<string, string>>,
   readinessNonce: string,
-): Promise<PreparedTerminalShellLaunch> {
+) {
   assertReadinessNonce(readinessNonce)
   const shell = shellExecutableName(candidate.command).toLowerCase()
 
@@ -57,21 +57,28 @@ export async function prepareTerminalShellLaunch(
     return prepareCmdLaunch(candidate, environment, readinessNonce)
   }
 
-  return {
+  const launch: PreparedTerminalShellLaunch = {
     args: candidate.args,
     environment: { ...environment },
     integrated: false,
     cleanup: noCleanup,
   }
+  return launch
+}
+
+/** The variables a shell's startup files are found by. */
+interface ShellStartupEnvironment {
+  readonly ZDOTDIR?: string
+  readonly HOME?: string
 }
 
 async function prepareZshLaunch(
   candidate: TerminalShellCandidate,
   environment: Readonly<Record<string, string>>,
   readinessNonce: string,
-): Promise<PreparedTerminalShellLaunch> {
+) {
   const directory = await makePrivateIntegrationDirectory('zsh')
-  const originalZdotdir = environment.ZDOTDIR
+  const { ZDOTDIR: originalZdotdir }: ShellStartupEnvironment = environment
   const scripts = buildZshStartupScripts({ directory, originalZdotdir, readinessNonce })
 
   try {
@@ -85,21 +92,23 @@ async function prepareZshLaunch(
     throw error
   }
 
-  return {
+  const launch: PreparedTerminalShellLaunch = {
     args: candidate.args,
     environment: { ...environment, ZDOTDIR: directory },
     integrated: true,
     cleanup: cleanupDirectoryOnce(directory),
   }
+  return launch
 }
 
 async function prepareBashLaunch(
   candidate: TerminalShellCandidate,
   environment: Readonly<Record<string, string>>,
   readinessNonce: string,
-): Promise<PreparedTerminalShellLaunch> {
+) {
   const directory = await makePrivateIntegrationDirectory('bash')
-  const originalHome = environment.HOME ?? homedir()
+  const { HOME }: ShellStartupEnvironment = environment
+  const originalHome = HOME ?? homedir()
 
   try {
     await writePrivateFile(
@@ -115,32 +124,33 @@ async function prepareBashLaunch(
     throw error
   }
 
-  return {
+  const launch: PreparedTerminalShellLaunch = {
     args: candidate.args,
     environment: { ...environment, HOME: directory },
     integrated: true,
     cleanup: cleanupDirectoryOnce(directory),
   }
+  return launch
 }
 
 function prepareFishLaunch(
   candidate: TerminalShellCandidate,
   environment: Readonly<Record<string, string>>,
   readinessNonce: string,
-): PreparedTerminalShellLaunch {
+) {
   return {
     args: [...candidate.args, '--init-command', buildFishPromptIntegration(readinessNonce)],
     environment: { ...environment },
     integrated: true,
     cleanup: noCleanup,
-  }
+  } satisfies PreparedTerminalShellLaunch
 }
 
 function preparePowerShellLaunch(
   candidate: TerminalShellCandidate,
   environment: Readonly<Record<string, string>>,
   readinessNonce: string,
-): PreparedTerminalShellLaunch {
+) {
   return {
     args: [
       ...candidate.args,
@@ -151,14 +161,14 @@ function preparePowerShellLaunch(
     environment: { ...environment },
     integrated: true,
     cleanup: noCleanup,
-  }
+  } satisfies PreparedTerminalShellLaunch
 }
 
 async function prepareCmdLaunch(
   candidate: TerminalShellCandidate,
   environment: Readonly<Record<string, string>>,
   readinessNonce: string,
-): Promise<PreparedTerminalShellLaunch> {
+) {
   const directory = await makePrivateIntegrationDirectory('cmd')
   const scriptPath = join(directory, 'prompt-readiness.cmd')
   try {
@@ -167,12 +177,13 @@ async function prepareCmdLaunch(
     await removeIntegrationDirectory(directory)
     throw error
   }
-  return {
+  const launch: PreparedTerminalShellLaunch = {
     args: [...candidate.args, '/K', scriptPath],
     environment: { ...environment },
     integrated: true,
     cleanup: cleanupDirectoryOnce(directory),
   }
+  return launch
 }
 
 function assertReadinessNonce(readinessNonce: string) {

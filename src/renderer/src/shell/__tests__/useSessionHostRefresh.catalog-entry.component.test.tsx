@@ -25,7 +25,7 @@ beforeAll(async () => {
 
 const ACTIVE = SessionId('session-active')
 
-function listChanged(sequence: number, catalogOnly?: true): SessionHostEventEnvelope {
+function listChanged(sequence: number, catalogOnly?: true) {
   return {
     cursor: { hostInstanceId: 'host', sequence },
     timestamp: 1,
@@ -35,7 +35,7 @@ function listChanged(sequence: number, catalogOnly?: true): SessionHostEventEnve
       change: 'updated',
       ...(catalogOnly ? { catalogOnly } : {}),
     },
-  }
+  } satisfies SessionHostEventEnvelope
 }
 
 function renderRefresh() {

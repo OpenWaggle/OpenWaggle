@@ -96,7 +96,7 @@ export function mergeWagglePresets(input: {
   readonly builtIns?: readonly WagglePreset[]
   readonly globalPresets?: readonly WagglePreset[]
   readonly projectPresets?: readonly WagglePreset[]
-}): readonly WagglePreset[] {
+}) {
   const mergedById = new Map<string, WagglePreset>()
 
   for (const preset of input.builtIns ?? BUILT_IN_WAGGLE_PRESETS) {
@@ -109,5 +109,6 @@ export function mergeWagglePresets(input: {
     mergedById.set(preset.id, preset)
   }
 
-  return [...mergedById.values()]
+  const result: readonly WagglePreset[] = [...mergedById.values()]
+  return result
 }

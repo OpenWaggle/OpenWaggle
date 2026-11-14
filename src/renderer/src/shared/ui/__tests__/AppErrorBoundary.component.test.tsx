@@ -12,7 +12,8 @@ vi.mock('@/shared/lib/logger', () => ({
 }))
 vi.mock('@/shared/lib/error-reporting', () => errorReportingMock)
 
-function ThrowingChild(): never {
+// An arrow, so the inferred return type is `never` and it is a valid component.
+const ThrowingChild = () => {
   throw new Error('Renderer exploded')
 }
 

@@ -10,7 +10,7 @@ const PI_PACKAGE_SEGMENTS = ['@earendil-works', 'pi-coding-agent'] as const
 const PI_PACKAGE_TOP_LEVEL_ASSETS = ['README.md', 'docs', 'examples'] as const
 
 /** `onNodeModuleFile` for electron-builder: keep Pi's own top-level documentation. */
-export function forceIncludePiPackageAsset(filePath: string): boolean {
+export function forceIncludePiPackageAsset(filePath: string) {
   const name = path.basename(filePath)
   if (!PI_PACKAGE_TOP_LEVEL_ASSETS.some((asset) => asset === name)) return false
   const packageDirectory = path.dirname(filePath)
@@ -34,7 +34,7 @@ export const PACKAGED_PI_ASSET_ENTRIES = [
   '/node_modules/@earendil-works/pi-coding-agent/examples',
 ] as const
 
-export function missingPackagedPiAssets(asarEntries: readonly string[]): string[] {
+export function missingPackagedPiAssets(asarEntries: readonly string[]) {
   const entries = new Set(asarEntries)
   return PACKAGED_PI_ASSET_ENTRIES.filter((entry) => !entries.has(entry))
 }

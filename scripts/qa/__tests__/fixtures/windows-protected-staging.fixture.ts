@@ -20,9 +20,10 @@ try {
 } catch { process.exitCode = 1; }
 `
 
-const [directory] = process.argv.slice(2)
-prepareDesktopUi(app)
-if (!directory) throw new Error('Protected-staging probe requires its private directory.')
+const [directoryArgument] = process.argv.slice(2)
+prepareDesktopUi()
+if (!directoryArgument) throw new Error('Protected-staging probe requires its private directory.')
+const directory = directoryArgument
 app.setPath('userData', path.join(directory, 'profile'))
 
 function failure(stage: string, error: unknown) {

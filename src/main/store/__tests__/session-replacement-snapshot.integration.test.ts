@@ -29,7 +29,7 @@ function messageNode(input: {
   readonly role: 'assistant' | 'user'
   readonly text: string
   readonly order: number
-}): ProjectedSessionNodeInput {
+}) {
   return {
     id: input.id,
     parentId: input.parentId,
@@ -44,7 +44,7 @@ function messageNode(input: {
     metadataJson: '{}',
     pathDepth: input.order,
     createdOrder: input.order,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 beforeEach(async () => {

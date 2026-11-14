@@ -1,6 +1,9 @@
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
+import { createRendererLogger } from './logger'
 import { createSessionControlQueryReader } from './session-control-query-reader'
 import { createSessionDetailReader } from './session-detail-reader'
+
+const logger = createRendererLogger('ipc')
 
 /**
  * Type-safe access to the preload API.
@@ -46,7 +49,7 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
  * an error flowed through keeps it: a reader wrapping an already-wrapped call must not rename
  * it, and a report later in a chain names the call that first failed.
  */
-function reportingApiMethod(method: string, call: ApiMethod): ApiMethod {
+function reportingApiMethod(method: string, call: ApiMethod) {
   return (...args: never[]) => {
     const result = call(...args)
     if (!isThenable(result)) return result
@@ -60,7 +63,7 @@ function reportingApiMethod(method: string, call: ApiMethod): ApiMethod {
 }
 
 /** Wrap `value`, the bridge's `method`, so its rejections are attributable. */
-function reportingApiMethodValue(method: string, value: unknown): unknown {
+function reportingApiMethodValue(method: string, value: unknown) {
   if (!isApiMethod(value)) return value
   const wrapped = apiMethodWrappers.get(method)
   if (wrapped) return wrapped
@@ -74,14 +77,14 @@ function reportingApiMethodValue(method: string, value: unknown): unknown {
  * this bridge. Error reports read it to tag the event, so a stackless unhandled rejection from
  * an IPC call still names the method that failed.
  */
-export function rejectedApiMethodOf(error: unknown): string | undefined {
+export function rejectedApiMethodOf(error: unknown) {
   return typeof error === 'object' && error !== null ? rejectedApiMethods.get(error) : undefined
 }
 
 function createMissingApiMethod(prop: string) {
   return (..._args: unknown[]) => {
-    const message = `[ipc] window.api unavailable; attempted to call "${prop}". Ensure Electron main/preload have been restarted.`
-    console.error(message)
+    const message = `window.api unavailable; attempted to call "${prop}". Ensure Electron main/preload have been restarted.`
+    logger.error(message)
     if (prop.startsWith('on')) {
       return () => {}
     }
@@ -102,10 +105,12 @@ function createApiProxy(base?: OpenWaggleApi) {
       return base !== undefined && Reflect.has(base, prop)
     },
     get(_target, prop) {
-      if (prop === 'getSessionDetail' && readSessionDetail)
+      if (prop === 'getSessionDetail' && readSessionDetail) {
         return reportingApiMethodValue('getSessionDetail', readSessionDetail)
-      if (prop === 'querySessionControl' && querySessionControl)
+      }
+      if (prop === 'querySessionControl' && querySessionControl) {
         return reportingApiMethodValue('querySessionControl', querySessionControl)
+      }
       if (base) {
         const value = Reflect.get(base, prop)
         if (value !== undefined) {

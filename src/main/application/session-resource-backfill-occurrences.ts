@@ -15,7 +15,7 @@ import { collectExplicitResources } from './session-resource-extraction'
 export function backfillProgressOccurrenceSelectors(
   sessionId: SessionId,
   projectedMessages: readonly ProjectedResourceMessage[],
-): readonly SessionResourceOccurrenceSelector[] {
+) {
   const selectors: SessionResourceOccurrenceSelector[] = []
   for (const { message, nodeId, branchId } of projectedMessages) {
     if (message.role === 'user') {

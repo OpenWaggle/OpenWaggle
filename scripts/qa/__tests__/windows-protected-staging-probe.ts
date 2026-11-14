@@ -97,8 +97,9 @@ export async function probeWindowsProtectedStaging() {
     },
   })
   const executable: unknown = createRequire(import.meta.url)('electron')
-  if (typeof executable !== 'string')
+  if (typeof executable !== 'string') {
     throw new Error('Node did not resolve the Electron executable.')
+  }
   await runFixture(executable, fixturePath, directory)
   const result: unknown = JSON.parse(await fs.readFile(path.join(directory, 'result.json'), 'utf8'))
   assertMatching(

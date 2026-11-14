@@ -5,18 +5,20 @@ import * as Effect from 'effect/Effect'
 import { SessionAuthorizationTargetRepositoryError } from '../errors'
 import { authorizedSessionScope } from './sqlite-session-query-support'
 
-function decodeCapabilities(value: string): readonly SessionCapability[] {
+function decodeCapabilities(value: string) {
   try {
     const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed)
+    const result: readonly SessionCapability[] = Array.isArray(parsed)
       ? parsed.filter(
           (candidate): candidate is SessionCapability =>
             typeof candidate === 'string' &&
             SESSION_CAPABILITIES.some((capability) => capability === candidate),
         )
       : []
+    return result
   } catch {
-    return []
+    const result: readonly SessionCapability[] = []
+    return result
   }
 }
 

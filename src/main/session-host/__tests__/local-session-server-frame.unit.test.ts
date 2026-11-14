@@ -32,7 +32,7 @@ class FrameWriteSocket extends EventEmitter {
     }
   }
 
-  write(segment: Buffer, callback: (error?: Error) => void): boolean {
+  write(segment: Buffer, callback: (error?: Error) => void) {
     if (this.destroyed) {
       setImmediate(() => callback(streamDestroyed()))
       return false

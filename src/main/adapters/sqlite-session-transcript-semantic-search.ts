@@ -123,10 +123,12 @@ export class SqliteSessionTranscriptSemanticSearch {
   readonly projection: SqliteSessionTranscriptSemanticProjection
   readonly #indexCache: SessionTranscriptSemanticIndexCache
 
-  constructor(
-    private readonly sql: SqlClient.SqlClient,
-    private readonly model: SessionEmbeddingModel,
-  ) {
+  private readonly sql: SqlClient.SqlClient
+  private readonly model: SessionEmbeddingModel
+
+  constructor(sql: SqlClient.SqlClient, model: SessionEmbeddingModel) {
+    this.sql = sql
+    this.model = model
     this.projection = new SqliteSessionTranscriptSemanticProjection(sql, model)
     this.#indexCache = new SessionTranscriptSemanticIndexCache(sql, model)
   }
@@ -147,7 +149,7 @@ export class SqliteSessionTranscriptSemanticSearch {
     })
   }
 
-  readiness(scope: TranscriptSemanticScope): Effect.Effect<SemanticDiscoveryReadiness, SqlError> {
+  readiness(scope: TranscriptSemanticScope) {
     return Effect.gen(this, function* () {
       const staleSessionIds = yield* staleTranscriptScopeSessionIds(this.sql, scope.sessionIds)
       if (staleSessionIds.length > 0) {

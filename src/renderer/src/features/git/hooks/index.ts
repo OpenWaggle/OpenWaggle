@@ -1,3 +1,3 @@
-export { useActiveWorkingPath, useRepositoryPath } from './useActiveWorkingPath'
+export { useActiveWorkingPath } from './useActiveWorkingPath'
 export { useGit } from './useGit'
 export { useGitRefresh } from './useGitRefresh'

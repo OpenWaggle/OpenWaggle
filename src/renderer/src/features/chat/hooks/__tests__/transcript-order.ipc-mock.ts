@@ -12,9 +12,9 @@ type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 export type RunCompletedPayload = IpcEventChannelMap['agent:run-completed']['payload']
 
 const apiMock = (() => {
-  const agentEventHandlers: Array<(payload: AgentEventPayload) => void> = []
-  const runCompletedHandlers: Array<(payload: RunCompletedPayload) => void> = []
-  const resyncHandlers: Array<() => void> = []
+  const agentEventHandlers: ((payload: AgentEventPayload) => void)[] = []
+  const runCompletedHandlers: ((payload: RunCompletedPayload) => void)[] = []
+  const resyncHandlers: (() => void)[] = []
   function subscribe<Handler>(handlers: Handler[]) {
     return (handler: Handler) => {
       handlers.push(handler)
@@ -31,18 +31,22 @@ const apiMock = (() => {
     onAgentEvent: vi.fn(subscribe(agentEventHandlers)),
     onRunCompleted: vi.fn(subscribe(runCompletedHandlers)),
     onSessionHostResyncRequired: vi.fn(subscribe(resyncHandlers)),
-    listActiveRuns: vi.fn(async (): Promise<ActiveRunInfo[]> => []),
-    getBackgroundRun: vi.fn(async (_id: string): Promise<BackgroundRunSnapshot | null> => null),
-    getSessionDetail: vi.fn(async (_id: string): Promise<SessionDetail | null> => null),
-    sendMessage: vi.fn(
-      async (
+    listActiveRuns: vi.fn<() => Promise<ActiveRunInfo[]>>(async () => []),
+    getBackgroundRun: vi.fn<(_id: string) => Promise<BackgroundRunSnapshot | null>>(
+      async (_id: string) => null,
+    ),
+    getSessionDetail: vi.fn<(_id: string) => Promise<SessionDetail | null>>(
+      async (_id: string) => null,
+    ),
+    sendMessage: vi.fn<
+      (
         _id: string,
         _payload: unknown,
         _model: unknown,
-      ): Promise<{ readonly outcome: 'delivered'; readonly runId?: string }> => ({
-        outcome: 'delivered',
-      }),
-    ),
+      ) => Promise<{ readonly outcome: 'delivered'; readonly runId?: string }>
+    >(async (_id: string, _payload: unknown, _model: unknown) => ({
+      outcome: 'delivered',
+    })),
     cancelAgent: vi.fn(async () => undefined),
     querySessionControl: vi.fn(
       async (request: {

@@ -50,7 +50,7 @@ export interface PiProjectionFreshness {
 const INITIAL_REVISION = 0
 const FIRST_RECORDED_REVISION = 1
 
-export function statPiSessionFile(file: string | undefined): PiSessionFileState | null {
+export function statPiSessionFile(file: string | undefined) {
   if (!file) return null
   try {
     const stats = statSync(file)
@@ -145,7 +145,7 @@ interface PiProjectionRow {
   readonly tail_projection_version: number | null
 }
 
-function projectionTailOf(row: PiProjectionRow): PiProjectionTail | null {
+function projectionTailOf(row: PiProjectionRow) {
   if (
     row.tail_offset === null ||
     row.tail_line_start === null ||
@@ -174,10 +174,17 @@ export function readPiProjectionFreshnessWithSql(sql: SqlClient.SqlClient, sessi
       FROM pi_session_file_projections
       WHERE session_id = ${sessionId} LIMIT 1
     `,
-    (rows): PiProjectionFreshness => {
+    (rows) => {
       const row = rows[0]
-      if (!row) return { revision: INITIAL_REVISION, fingerprint: null, tail: null }
-      return {
+      if (!row) {
+        const initial: PiProjectionFreshness = {
+          revision: INITIAL_REVISION,
+          fingerprint: null,
+          tail: null,
+        }
+        return initial
+      }
+      const freshness: PiProjectionFreshness = {
         revision: row.revision,
         fingerprint:
           row.file_size === null || row.file_mtime_ms === null
@@ -185,6 +192,7 @@ export function readPiProjectionFreshnessWithSql(sql: SqlClient.SqlClient, sessi
             : { size: row.file_size, mtimeMs: row.file_mtime_ms },
         tail: projectionTailOf(row),
       }
+      return freshness
     },
   )
 }
@@ -194,7 +202,7 @@ export async function recordUnchangedPiProjection(
   sessionId: SessionId,
   expectedRevision: number,
   fingerprint: PiSessionFileState,
-): Promise<boolean> {
+) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

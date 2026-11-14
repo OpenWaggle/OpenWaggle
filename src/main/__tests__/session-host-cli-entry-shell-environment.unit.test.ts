@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => {
     })),
     disableHardwareAcceleration: vi.fn(),
     installSessionBus: vi.fn(() => void order.push('session-bus')),
-    refreshedSince: vi.fn((): number | undefined => undefined),
+    refreshedSince: vi.fn<() => number | undefined>(() => undefined),
     whenReady: vi.fn(async () => void order.push('when-ready')),
     initFileLogger: vi.fn(async () => void order.push('init-logger')),
     drainFileLogger: vi.fn(async () => void order.push('drain-logger')),
@@ -71,10 +71,12 @@ vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 vi.mock('../env', () => ({
   env: {},
   logLevel: 'error',
-  installDesktopShellEnvironment: (options?: { readonly cacheFile?: string }) =>
-    mocks.installShellEnvironment(options),
   installLinuxSessionBusEnvironment: () => mocks.installSessionBus(),
   takeShellEnvironmentRefreshedSince: () => mocks.refreshedSince(),
+}))
+vi.mock('../desktop-shell-environment-process', () => ({
+  installDesktopShellEnvironment: (options?: { readonly cacheFile?: string }) =>
+    mocks.installShellEnvironment(options),
 }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,

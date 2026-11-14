@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type { FileHandle } from 'node:fs/promises'
 import fs from 'node:fs/promises'
-import type { WorkspaceDirectoryIdentity } from '../domain/workspace-generation'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import {
   abortValidatedChild,
@@ -88,7 +88,7 @@ function spawnOwnedFileHelper(
   directoryIdentity: string,
 ) {
   return spawn(
-    process.execPath,
+    childScriptRuntime.executable(),
     [
       '-e',
       OWNED_FILE_HELPER,
@@ -102,7 +102,7 @@ function spawnOwnedFileHelper(
     ],
     {
       cwd: input.directory,
-      env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+      env: childScriptRuntime.environment(getSafeChildEnv()),
       stdio: ['pipe', 'pipe', 'pipe', input.sourceHandle?.fd ?? 'ignore'],
     },
   )
@@ -113,9 +113,7 @@ function spawnOwnedFileHelper(
  * `dev:ino` string next to it pins the directory only within this process: macOS renumbers
  * volumes at mount, so `st_dev` changes across reboots.
  */
-export async function readDurableDirectoryIdentity(
-  directoryHandle: FileHandle,
-): Promise<WorkspaceDirectoryIdentity> {
+export async function readDurableDirectoryIdentity(directoryHandle: FileHandle) {
   const stats = await directoryHandle.stat({ bigint: true })
   return {
     device: stats.dev.toString(),
@@ -171,12 +169,13 @@ async function runOwnedFileOperation(input: {
       throw error
     }
     const exitCode = await exitCodePromise
-    if (exitCode === OWNED_FILE_MISSING_EXIT_CODE)
+    if (exitCode === OWNED_FILE_MISSING_EXIT_CODE) {
       return {
         result: undefined,
         directoryIdentity: `${stats.dev}:${stats.ino}`,
         durableDirectoryIdentity,
       }
+    }
     if (exitCode !== 0) throw new Error('Protected credential storage changed during access.')
     return {
       result: output.match(/result=([^\n]*)$/)?.[1] ?? '',

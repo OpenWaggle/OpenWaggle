@@ -5,7 +5,23 @@ import {
   WAGGLE_AGENT_COLORS,
   WAGGLE_INHERIT_MODEL,
 } from '@openwaggle/waggle-core'
-import { type SessionId, SupportedModelId, type WagglePresetId } from './brand'
+import type { SchemaType } from '@shared/schema'
+import type {
+  waggleAgentSlotDomainSchema,
+  waggleConfigDomainSchema,
+  waggleHandoffRequestDomainSchema,
+  waggleInvocationDomainSchema,
+  waggleInvocationMetadataSchema,
+  waggleMetadataSchema,
+  wagglePresetDomainSchema,
+} from '@shared/schemas/waggle'
+import type {
+  waggleConsensusCheckResultSchema,
+  waggleFileConflictWarningSchema,
+  waggleStreamMetadataSchema,
+  waggleTurnEventSchema,
+} from '@shared/schemas/waggle-events'
+import { SupportedModelId } from './brand'
 import type { SupportedModelId as SupportedModelIdType } from './llm'
 
 export { WAGGLE_AGENT_COLORS, WAGGLE_INHERIT_MODEL }
@@ -15,7 +31,7 @@ export type WaggleAgentColor = CoreWaggleAgentColor
 export type WaggleStopCondition = CoreWaggleStopCondition
 export type WaggleModelBinding = typeof WAGGLE_INHERIT_MODEL | SupportedModelIdType
 
-export function createWaggleModelBinding(model: string): WaggleModelBinding {
+export function createWaggleModelBinding(model: string) {
   return model === WAGGLE_INHERIT_MODEL ? WAGGLE_INHERIT_MODEL : SupportedModelId(model)
 }
 
@@ -25,62 +41,17 @@ export function isInheritedWaggleModelBinding(
   return model === WAGGLE_INHERIT_MODEL
 }
 
-export interface WaggleAgentSlot {
-  readonly label: string
-  readonly model: WaggleModelBinding
-  readonly roleDescription: string
-  readonly color: WaggleAgentColor
-}
-
-export interface WaggleStopConfig {
-  readonly primary: WaggleStopCondition
-  readonly maxTurnsSafety: number
-}
-
-export interface WaggleConfig {
-  readonly mode: WaggleCollaborationMode
-  readonly agents: readonly [WaggleAgentSlot, WaggleAgentSlot]
-  readonly stop: WaggleStopConfig
-}
-
-export interface WagglePreset {
-  readonly id: WagglePresetId
-  readonly name: string
-  readonly description: string
-  readonly config: WaggleConfig
-  readonly isBuiltIn: boolean
-  readonly createdAt: number
-  readonly updatedAt: number
-}
-
-export type WaggleInvocationSource = 'user' | 'agent'
-
-export interface WaggleInvocationMetadata {
-  readonly presetId: string
-  readonly presetName: string
-  readonly source: WaggleInvocationSource
-}
-
-export interface WaggleInvocation extends WaggleInvocationMetadata {
-  readonly config: WaggleConfig
-}
-
-/** JSON wire shape before provider/model identifiers are branded at the main-process boundary. */
-export interface WaggleInvocationInput extends WaggleInvocationMetadata {
-  readonly config: {
-    readonly mode: WaggleCollaborationMode
-    readonly agents: readonly [
-      Omit<WaggleAgentSlot, 'model'> & { readonly model: string },
-      Omit<WaggleAgentSlot, 'model'> & { readonly model: string },
-    ]
-    readonly stop: WaggleStopConfig
-  }
-}
-
-export interface WaggleHandoffRequest extends WaggleInvocation {
-  readonly kind: 'waggle-handoff'
-  readonly prompt: string
-}
+/*
+ * Inferred from the schemas in `@shared/schemas/waggle` and `@shared/schemas/waggle-events`. The
+ * wire schemas decode a slot's model as a plain string; the domain types carry it branded, as
+ * `toWaggleConfig` makes it.
+ */
+export type WaggleAgentSlot = SchemaType<typeof waggleAgentSlotDomainSchema>
+export type WaggleConfig = SchemaType<typeof waggleConfigDomainSchema>
+export type WagglePreset = SchemaType<typeof wagglePresetDomainSchema>
+export type WaggleInvocationMetadata = SchemaType<typeof waggleInvocationMetadataSchema>
+export type WaggleInvocation = SchemaType<typeof waggleInvocationDomainSchema>
+export type WaggleHandoffRequest = SchemaType<typeof waggleHandoffRequestDomainSchema>
 
 export const WAGGLE_COLLABORATION_STATUSES = [
   'idle',
@@ -92,71 +63,8 @@ export const WAGGLE_COLLABORATION_STATUSES = [
 ] as const
 export type WaggleCollaborationStatus = (typeof WAGGLE_COLLABORATION_STATUSES)[number]
 
-export interface WaggleFileConflictWarning {
-  readonly path: string
-  readonly previousAgent: string
-  readonly currentAgent: string
-  readonly turnNumber: number
-}
-
-export interface WaggleConsensusSignal {
-  readonly type: 'explicit-agreement' | 'no-new-information' | 'action-convergence' | 'turn-limit'
-  readonly confidence: number
-  readonly reason: string
-}
-
-export interface WaggleConsensusCheckResult {
-  readonly reached: boolean
-  readonly confidence: number
-  readonly reason: string
-  readonly signals: readonly WaggleConsensusSignal[]
-}
-
-export interface WaggleStreamMetadata {
-  readonly agentIndex: number
-  readonly agentLabel: string
-  readonly agentColor: WaggleAgentColor
-  readonly agentModel: SupportedModelId
-  readonly turnNumber: number
-  readonly collaborationMode: WaggleCollaborationMode
-  readonly sessionId?: string
-}
-
-export interface WaggleMessageMetadata {
-  readonly agentIndex: number
-  readonly agentLabel: string
-  readonly agentColor: WaggleAgentColor
-  readonly agentModel?: SupportedModelId
-  readonly turnNumber: number
-  /** Unique ID for this waggle session. Groups turns that belong to the same waggle run. */
-  readonly sessionId?: string
-}
-
-export type WaggleTurnEvent =
-  | {
-      readonly type: 'collaboration-pending'
-      readonly sessionId: SessionId
-      readonly invocation: WaggleInvocation
-    }
-  | {
-      readonly type: 'turn-start'
-      readonly turnNumber: number
-      readonly agentIndex: number
-      readonly agentLabel: string
-    }
-  | {
-      readonly type: 'turn-end'
-      readonly turnNumber: number
-      readonly agentIndex: number
-      readonly agentLabel: string
-      readonly agentColor: WaggleAgentColor
-      readonly agentModel: SupportedModelId
-    }
-  | { readonly type: 'consensus-reached'; readonly result: WaggleConsensusCheckResult }
-  | { readonly type: 'file-conflict'; readonly warning: WaggleFileConflictWarning }
-  | {
-      readonly type: 'collaboration-complete'
-      readonly reason: string
-      readonly totalTurns: number
-    }
-  | { readonly type: 'collaboration-stopped'; readonly reason: string }
+export type WaggleFileConflictWarning = SchemaType<typeof waggleFileConflictWarningSchema>
+export type WaggleConsensusCheckResult = SchemaType<typeof waggleConsensusCheckResultSchema>
+export type WaggleStreamMetadata = SchemaType<typeof waggleStreamMetadataSchema>
+export type WaggleMessageMetadata = SchemaType<typeof waggleMetadataSchema>
+export type WaggleTurnEvent = SchemaType<typeof waggleTurnEventSchema>

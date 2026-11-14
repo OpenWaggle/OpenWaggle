@@ -51,8 +51,8 @@ lines.on('line', (line) => {
 })
 `
 
-function fail(message: string): never {
-  throw new Error(`Pi main bundle smoke: ${message}`)
+function smokeFailure(message: string) {
+  return new Error(`Pi main bundle smoke: ${message}`)
 }
 
 function resultText(result: { readonly content: readonly { readonly type: string }[] }) {
@@ -84,7 +84,7 @@ interface BundledWaggle {
   readonly preset: Awaited<ReturnType<typeof loadWaggleCore>>['BUILT_IN_WAGGLE_PRESETS'][number]
 }
 
-async function loadBundledWaggle(): Promise<BundledWaggle> {
+async function loadBundledWaggle() {
   const [extension, loop, modeState, protocol, core] = await Promise.all([
     loadPiWaggleExtension(),
     loadPiWaggleLoop(),
@@ -93,8 +93,9 @@ async function loadBundledWaggle(): Promise<BundledWaggle> {
     loadWaggleCore(),
   ])
   const preset = core.BUILT_IN_WAGGLE_PRESETS[0]
-  if (!preset) fail('waggle-core has no built-in Waggle preset')
-  return { extension, loop, modeState, protocol, preset }
+  if (!preset) throw smokeFailure('waggle-core has no built-in Waggle preset')
+  const waggle: BundledWaggle = { extension, loop, modeState, protocol, preset }
+  return waggle
 }
 
 /** The desktop Waggle run's loop, as `waggle-run.ts` builds it, with no turns driven. */
@@ -121,24 +122,29 @@ const nextMacrotask = () => new Promise<void>((resolve) => setImmediate(resolve)
  * desktop run's turn-start failure path does.
  */
 async function checkDesktopWaggleLoop(loop: DesktopWaggleLoop) {
-  let settled: 'resolved' | 'rejected' | null = null
+  // Held in an object because the callbacks, not this function's flow, set it.
+  const observed: { settled: 'resolved' | 'rejected' | null } = { settled: null }
   loop.done.then(
     () => {
-      settled = 'resolved'
+      observed.settled = 'resolved'
     },
     () => {
-      settled = 'rejected'
+      observed.settled = 'rejected'
     },
   )
   await nextMacrotask()
-  if (settled !== null) fail(`the desktop Waggle loop ${settled} before any turn ran`)
+  if (observed.settled !== null) {
+    throw smokeFailure(`the desktop Waggle loop ${observed.settled} before any turn ran`)
+  }
   const stop = new Error('pi main bundle smoke stopped the loop')
   loop.fail(stop)
   const outcome = await loop.done.then(
-    () => fail('the desktop Waggle loop completed instead of failing'),
+    () => {
+      throw smokeFailure('the desktop Waggle loop completed instead of failing')
+    },
     (error: unknown) => error,
   )
-  if (outcome !== stop) fail(`the desktop Waggle loop failed with ${String(outcome)}`)
+  if (outcome !== stop) throw smokeFailure(`the desktop Waggle loop failed with ${String(outcome)}`)
   return 'desktop loop bound and stoppable'
 }
 
@@ -148,10 +154,12 @@ type BundledSession = Awaited<ReturnType<PiSdk['createAgentSession']>>['session'
 function checkBundledWaggleExtension(session: BundledSession, waggle: BundledWaggle) {
   const commands = session.extensionRunner.getRegisteredCommands().map((command) => command.name)
   for (const name of ['waggle', 'standard']) {
-    if (!commands.includes(name)) fail(`pi-waggle did not register /${name}; commands: ${commands.join(', ')}`)
+    if (!commands.includes(name)) {
+      throw smokeFailure(`pi-waggle did not register /${name}; commands: ${commands.join(', ')}`)
+    }
   }
   if (!session.extensionRunner.getMessageRenderer(waggle.protocol.PI_WAGGLE_TURN_CUSTOM_TYPE)) {
-    fail('pi-waggle did not register its turn renderer')
+    throw smokeFailure('pi-waggle did not register its turn renderer')
   }
   return 'commands /waggle and /standard, turn renderer'
 }
@@ -160,11 +168,14 @@ function checkBundledWaggleExtension(session: BundledSession, waggle: BundledWag
 function checkWaggleModeState(session: BundledSession, waggle: BundledWaggle) {
   waggle.modeState.appendPiWaggleModeState(
     session.sessionManager,
-    waggle.modeState.enabledPiWaggleModeState({ config: waggle.preset.config, presetId: waggle.preset.id }),
+    waggle.modeState.enabledPiWaggleModeState({
+      config: waggle.preset.config,
+      presetId: waggle.preset.id,
+    }),
   )
   const state = waggle.modeState.latestPiWaggleModeStateFromBranch(session.sessionManager)
   if (!state?.enabled || state.presetId !== waggle.preset.id) {
-    fail(`Waggle mode state did not read back: ${JSON.stringify(state)}`)
+    throw smokeFailure(`Waggle mode state did not read back: ${JSON.stringify(state)}`)
   }
   return `mode state ${state.presetId}`
 }
@@ -173,7 +184,11 @@ function checkWaggleModeState(session: BundledSession, waggle: BundledWaggle) {
  * The desktop loop in a session of its own: OpenWaggle never loads it beside the package's default
  * extension (`pi-waggle-package-dedupe.ts`), whose context handler would run a second loop.
  */
-async function runDesktopWaggleLoopSession(pi: PiSdk, waggle: BundledWaggle, workDirectory: string) {
+async function runDesktopWaggleLoopSession(
+  pi: PiSdk,
+  waggle: BundledWaggle,
+  workDirectory: string,
+) {
   const loop = desktopWaggleLoop(waggle)
   const agentDir = path.join(workDirectory, 'waggle-agent')
   const settingsManager = pi.SettingsManager.inMemory()
@@ -204,7 +219,7 @@ async function runDesktopWaggleLoopSession(pi: PiSdk, waggle: BundledWaggle, wor
     await session.bindExtensions({})
     // The loop advances on `agent_settled`, so a factory that never ran would leave no handler.
     if (!session.extensionRunner.hasHandlers('agent_settled')) {
-      fail('the desktop Waggle loop registered no agent_settled handler')
+      throw smokeFailure('the desktop Waggle loop registered no agent_settled handler')
     }
     return `${checkWaggleModeState(session, waggle)}, ${await checkDesktopWaggleLoop(loop)}`
   } finally {
@@ -248,7 +263,9 @@ async function resizeThroughImageWorker() {
     })
     const text = JSON.stringify(response)
     if (!text.includes('"width":1') || !text.includes('"originalWidth":2')) {
-      fail(`the image resize worker did not resize with Photon: ${text.slice(0, 300)}`)
+      throw smokeFailure(
+        `the image resize worker did not resize with Photon: ${text.slice(0, 300)}`,
+      )
     }
     return 'resized 2x2 to 1x1'
   } finally {
@@ -263,16 +280,25 @@ async function resizeThroughImageWorker() {
  */
 function checkPiPackageAssets(pi: PiSdk) {
   const packageDirectory = pi.getPackageDir()
-  const manifest: unknown = JSON.parse(readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'))
-  const name = typeof manifest === 'object' && manifest !== null && 'name' in manifest ? manifest.name : undefined
-  if (name !== '@earendil-works/pi-coding-agent') fail(`Pi's package directory is ${packageDirectory} (${String(name)})`)
+  const manifest: unknown = JSON.parse(
+    readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'),
+  )
+  const name =
+    typeof manifest === 'object' && manifest !== null && 'name' in manifest
+      ? manifest.name
+      : undefined
+  if (name !== '@earendil-works/pi-coding-agent') {
+    throw smokeFailure(`Pi's package directory is ${packageDirectory} (${String(name)})`)
+  }
   for (const asset of [
     path.join(pi.getDocsPath(), 'codemode.md'),
     pi.getReadmePath(),
     path.join(packageDirectory, 'dist', 'core', 'export-html'),
     path.join(packageDirectory, 'dist', 'modes', 'interactive', 'theme'),
   ]) {
-    if (!existsSync(asset)) fail(`Pi asset missing from its package directory: ${asset}`)
+    if (!existsSync(asset)) {
+      throw smokeFailure(`Pi asset missing from its package directory: ${asset}`)
+    }
   }
   return `${pi.VERSION} at ${packageDirectory}`
 }
@@ -283,7 +309,7 @@ async function waitForTool(names: () => readonly string[], name: string) {
     if (names().includes(name)) return
     await new Promise((resolve) => setTimeout(resolve, MCP_POLL_MS))
   }
-  fail(`${name} never registered; tools: ${names().join(', ')}`)
+  throw smokeFailure(`${name} never registered; tools: ${names().join(', ')}`)
 }
 
 async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory: string) {
@@ -343,14 +369,14 @@ async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory
     session.setActiveToolsByName([...session.getActiveToolNames(), 'codemode', SMOKE_TOOL_NAME])
     const tool = (name: string) => {
       const found = session.agent.state.tools.find((candidate) => candidate.name === name)
-      if (!found) fail(`${name} is not an active tool`)
+      if (!found) throw smokeFailure(`${name} is not an active tool`)
       return found
     }
     const mcp = resultText(await tool(SMOKE_TOOL_NAME).execute('smoke-mcp', { text: 'bundled' }))
-    if (!mcp.includes('echo:bundled')) fail(`MCP tool returned ${mcp}`)
+    if (!mcp.includes('echo:bundled')) throw smokeFailure(`MCP tool returned ${mcp}`)
     const read = await tool('read').execute('smoke-read', { path: imagePath })
     if (!read.content.some((block) => block.type === 'image')) {
-      fail(`read returned no image block for a PNG: ${resultText(read)}`)
+      throw smokeFailure(`read returned no image block for a PNG: ${resultText(read)}`)
     }
     // Nested tool calls are attributed to the assistant message that issued the codemode call.
     session.agent.state.messages = [
@@ -358,7 +384,12 @@ async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory
       {
         role: 'assistant',
         content: [
-          { type: 'toolCall', id: 'smoke-codemode', name: 'codemode', arguments: { code: CODEMODE_SCRIPT } },
+          {
+            type: 'toolCall',
+            id: 'smoke-codemode',
+            name: 'codemode',
+            arguments: { code: CODEMODE_SCRIPT },
+          },
         ],
         api: 'openai-responses',
         provider: 'smoke',
@@ -375,7 +406,9 @@ async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory
         timestamp: Date.now(),
       },
     ]
-    const codemodeResult = await tool('codemode').execute('smoke-codemode', { code: CODEMODE_SCRIPT })
+    const codemodeResult = await tool('codemode').execute('smoke-codemode', {
+      code: CODEMODE_SCRIPT,
+    })
     const codemode = {
       result: resultText(codemodeResult),
       hasImage: codemodeResult.content.some((block) => block.type === 'image'),
@@ -386,7 +419,7 @@ async function runBundledSession(pi: PiSdk, waggle: BundledWaggle, workDirectory
       !codemode.result.includes('echo:from-codemode') ||
       !codemode.hasImage
     ) {
-      fail(`codemode script did not complete with an image: ${codemode.result}`)
+      throw smokeFailure(`codemode script did not complete with an image: ${codemode.result}`)
     }
     return { mcp, codemode: codemode.result, waggle: waggleCheck }
   } finally {
@@ -414,11 +447,17 @@ async function main() {
     const pi = await loadPi()
     const packageAssets = checkPiPackageAssets(pi)
     const bundledWaggle = await loadBundledWaggle()
-    const { codemode, mcp, waggle: waggleExtension } = await runBundledSession(pi, bundledWaggle, workDirectory)
+    const {
+      codemode,
+      mcp,
+      waggle: waggleExtension,
+    } = await runBundledSession(pi, bundledWaggle, workDirectory)
     const waggle = `${waggleExtension}, ${await runDesktopWaggleLoopSession(pi, bundledWaggle, workDirectory)}`
     const outputFiles = await readdir(temporaryDirectory)
     if (!outputFiles.some((file) => /^pi-codemode-[0-9a-f]+\.png$/.test(file))) {
-      fail(`codemode wrote its image outside the smoke's temporary directory: ${outputFiles.join(', ')}`)
+      throw smokeFailure(
+        `codemode wrote its image outside the smoke's temporary directory: ${outputFiles.join(', ')}`,
+      )
     }
     const imageWorker = await resizeThroughImageWorker()
     process.stdout.write(
@@ -432,7 +471,9 @@ async function main() {
 main().then(
   () => process.exit(0),
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+    process.stderr.write(
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    )
     process.exit(1)
   },
 )

@@ -7,8 +7,8 @@ import {
   scheduleFromDraft,
 } from '../schedule-presets'
 
-function draft(patch: Partial<ScheduleDraft>): ScheduleDraft {
-  return { ...defaultScheduleDraft('heartbeat'), ...patch }
+function draft(patch: Partial<ScheduleDraft>) {
+  return { ...defaultScheduleDraft('heartbeat'), ...patch } satisfies ScheduleDraft
 }
 
 describe('scheduleFromDraft', () => {

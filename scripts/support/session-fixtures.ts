@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import type { SupportedModelId } from '../../src/shared/types/llm'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './object-fields'
 
 const DATABASE_FILE_NAME = path.join('session-host', 'session-host.sqlite')
 const DB_WAIT_RETRY_DELAY_MS = 100
@@ -21,7 +23,7 @@ const TREE_SIDEBAR_EXPANDED = 0
 const SQLITE_TRUE = 1
 const SQLITE_FALSE = 0
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null
 }
 
@@ -80,11 +82,11 @@ export interface SeedHiveResult {
   readonly workerSessionIds: readonly string[]
 }
 
-export function getDatabasePath(userDataDir: string): string {
+export function getDatabasePath(userDataDir: string) {
   return path.join(userDataDir, DATABASE_FILE_NAME)
 }
 
-function openDatabase(userDataDir: string): Database.Database {
+function openDatabase(userDataDir: string) {
   const database = new Database(getDatabasePath(userDataDir))
   database.exec('PRAGMA foreign_keys = ON')
   return database
@@ -93,7 +95,7 @@ function openDatabase(userDataDir: string): Database.Database {
 /**
  * Wait for the database file to exist and for the Pi session projection schema to be ready.
  */
-async function waitForDatabase(userDataDir: string): Promise<void> {
+async function waitForDatabase(userDataDir: string) {
   const dbPath = getDatabasePath(userDataDir)
   const startedAt = Date.now()
 
@@ -118,15 +120,15 @@ async function waitForDatabase(userDataDir: string): Promise<void> {
   throw new Error('Database file did not become ready within timeout')
 }
 
-function mainBranchId(sessionId: string): string {
+function mainBranchId(sessionId: string) {
   return `${sessionId}:${MAIN_BRANCH_NAME}`
 }
 
-function fixtureWorkspaceId(projectPath: string): string {
+function fixtureWorkspaceId(projectPath: string) {
   return `e2e-workspace-${crypto.createHash('sha256').update(projectPath).digest('hex').slice(0, 20)}`
 }
 
-function insertSessionRow(database: Database.Database): SessionRowFixture {
+function insertSessionRow(database: Database.Database) {
   const id = crypto.randomUUID()
   const now = Date.now()
   const branchId = mainBranchId(id)
@@ -162,10 +164,11 @@ function insertSessionRow(database: Database.Database): SessionRowFixture {
       null,
       branchId,
     )
-  return { id, branchId, createdAt: now }
+  const fixture: SessionRowFixture = { id, branchId, createdAt: now }
+  return fixture
 }
 
-function readStringField(record: { readonly [key: string]: unknown }, key: string): string {
+function readStringField(record: Readonly<Record<string, unknown>>, key: string) {
   const value = record[key]
   if (typeof value !== 'string') {
     throw new Error(`Expected string field "${key}" in session fixture`)
@@ -173,39 +176,48 @@ function readStringField(record: { readonly [key: string]: unknown }, key: strin
   return value
 }
 
-function readOptionalStringField(
-  record: { readonly [key: string]: unknown },
-  key: string,
-): string | undefined {
+function readOptionalStringField(record: Readonly<Record<string, unknown>>, key: string) {
   const value = record[key]
-  return typeof value === 'string' ? value : undefined
+  const result: string | undefined = typeof value === 'string' ? value : undefined
+  return result
 }
 
-function readOptionalNumberField(
-  record: { readonly [key: string]: unknown },
-  key: string,
-): number | undefined {
+function readOptionalNumberField(record: Readonly<Record<string, unknown>>, key: string) {
   const value = record[key]
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  const result: number | undefined =
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  return result
 }
 
-function readOptionalRecordField(
-  record: { readonly [key: string]: unknown },
-  key: string,
-): { readonly [key: string]: unknown } | undefined {
+function readOptionalRecordField(record: Readonly<Record<string, unknown>>, key: string) {
   const value = record[key]
-  return isRecord(value) ? value : undefined
+  const readonly: Readonly<Record<string, unknown>> | undefined = isRecord(value)
+    ? value
+    : undefined
+  return readonly
 }
 
-function readParts(messageValue: { readonly [key: string]: unknown }): readonly unknown[] {
-  const parts = messageValue.parts
-  return Array.isArray(parts) ? parts : []
+const messagePartsSchema = Schema.Struct({ parts: unknownField })
+
+function readParts(messageValue: Readonly<Record<string, unknown>>) {
+  const { parts } = objectFields(messagePartsSchema, messageValue) ?? {}
+  const result: readonly unknown[] = Array.isArray(parts) ? parts : []
+  return result
 }
 
-function messageKind(role: string): string {
-  if (role === 'user') return USER_MESSAGE_KIND
-  if (role === 'assistant') return ASSISTANT_MESSAGE_KIND
-  if (role === 'system') return SYSTEM_MESSAGE_KIND
+function messageKind(role: string) {
+  if (role === 'user') {
+    const result: string = USER_MESSAGE_KIND
+    return result
+  }
+  if (role === 'assistant') {
+    const result: string = ASSISTANT_MESSAGE_KIND
+    return result
+  }
+  if (role === 'system') {
+    const result: string = SYSTEM_MESSAGE_KIND
+    return result
+  }
   throw new Error(`Unsupported session role in fixture: ${role}`)
 }
 
@@ -214,7 +226,7 @@ function seedSessionRow(
   row: SessionRowFixture,
   sessionInput: SeedSessionInput,
   defaultProjectPath: string,
-): void {
+) {
   database.exec('BEGIN')
 
   try {
@@ -256,18 +268,28 @@ function seedSessionRow(
         row.id,
       )
 
-    const workingPath = sessionInput.environmentMode === 'worktree' && sessionInput.worktreePath
-      ? sessionInput.worktreePath
-      : projectPath
+    const workingPath =
+      sessionInput.environmentMode === 'worktree' && sessionInput.worktreePath
+        ? sessionInput.worktreePath
+        : projectPath
     const workspaceKind = workingPath === projectPath ? 'local' : 'managed-worktree'
-    const workspaceId = fixtureWorkspaceId(workingPath === projectPath ? projectPath : `${projectPath}\0${workingPath}`)
+    const workspaceId = fixtureWorkspaceId(
+      workingPath === projectPath ? projectPath : `${projectPath}\0${workingPath}`,
+    )
     database
       .prepare(
         `INSERT OR IGNORE INTO workspace_resources (
            id, project_path, kind, working_path, lifecycle_state, created_at, updated_at
          ) VALUES (?, ?, ?, ?, 'ready', ?, ?)`,
       )
-      .run(workspaceId, projectPath, workspaceKind, workingPath, row.createdAt, sessionInput.updatedAt)
+      .run(
+        workspaceId,
+        projectPath,
+        workspaceKind,
+        workingPath,
+        row.createdAt,
+        sessionInput.updatedAt,
+      )
     database
       .prepare(
         `INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
@@ -422,12 +444,7 @@ function seedSessionRow(
             updated_at = excluded.updated_at
         `,
       )
-      .run(
-        row.id,
-        EXPANDED_NODE_IDS_DEFAULT_JSON,
-        TREE_SIDEBAR_EXPANDED,
-        sessionInput.updatedAt,
-      )
+      .run(row.id, EXPANDED_NODE_IDS_DEFAULT_JSON, TREE_SIDEBAR_EXPANDED, sessionInput.updatedAt)
 
     if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
 
@@ -439,10 +456,7 @@ function seedSessionRow(
 }
 
 /** Returns the seeded session id, which live agent events have to be addressed to. */
-export async function seedSingleSession(
-  userDataDir: string,
-  sessionInput: SeedSessionInput,
-): Promise<string> {
+export async function seedSingleSession(userDataDir: string, sessionInput: SeedSessionInput) {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
   try {
@@ -457,7 +471,7 @@ export async function seedSingleSession(
 export async function seedSessions(
   userDataDir: string,
   sessionInputs: readonly SeedSessionInput[],
-): Promise<void> {
+) {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
 
@@ -476,7 +490,7 @@ export async function seedHive(
   userDataDir: string,
   queenInput: SeedSessionInput,
   workerInputs: readonly SeedHiveWorkerInput[],
-): Promise<SeedHiveResult> {
+) {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
   try {
@@ -574,10 +588,11 @@ export async function seedHive(
       database.exec('ROLLBACK')
       throw error
     }
-    return {
+    const result: SeedHiveResult = {
       queenSessionId: queen.id,
       workerSessionIds: workers.map(({ row }) => row.id),
     }
+    return result
   } finally {
     database.close()
   }
@@ -587,11 +602,13 @@ function workerParent(
   queen: SessionRowFixture,
   workers: readonly { readonly row: SessionRowFixture; readonly input: SeedHiveWorkerInput }[],
   index: number,
-): SessionRowFixture {
+) {
   const parentIndex = workers[index]?.input.parentWorkerIndex
   if (parentIndex === undefined) return queen
   const parent = parentIndex < index ? workers[parentIndex] : undefined
-  if (!parent) throw new Error(`Hive fixture Worker ${index} must name an earlier Worker as its parent.`)
+  if (!parent) {
+    throw new Error(`Hive fixture Worker ${index} must name an earlier Worker as its parent.`)
+  }
   return parent.row
 }
 

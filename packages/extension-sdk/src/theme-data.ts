@@ -264,7 +264,6 @@ export const EXTENSION_THEME_COLOR_KEYS = [
   'progress',
   'neutral',
 ] as const
-export const EXTENSION_THEME_TYPOGRAPHY_KEYS = ['sansFamily', 'monoFamily'] as const
 export const EXTENSION_THEME_TYPE_SCALE_KEYS = ['xs', 'sm', 'base', 'lg', 'xl', 'twoXl'] as const
 export const EXTENSION_THEME_TYPE_SCALE_ENTRY_KEYS = ['fontSize', 'lineHeight'] as const
 export const EXTENSION_THEME_SPACING_KEYS = ['unit'] as const

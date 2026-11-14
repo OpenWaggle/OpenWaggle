@@ -11,7 +11,7 @@ function applyMigration(database: Database.Database) {
 
 function termColumns(database: Database.Database) {
   return database
-    .prepare<[], Record<string, unknown>>(
+    .prepare<[], { readonly name: unknown }>(
       "SELECT name FROM pragma_table_info('session_transcript_terms') ORDER BY cid",
     )
     .all()

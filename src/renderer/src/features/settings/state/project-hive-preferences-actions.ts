@@ -33,14 +33,14 @@ async function setProjectParentConcurrencyLimit(
   set((state) => ({ settings: { ...state.settings, sessionHostParentConcurrencyLimitsByProject } }))
 }
 
-export function createProjectHivePreferencesActions(
-  set: PreferencesSet,
-  get: PreferencesGet,
-): Pick<PreferencesActions, 'setProjectMultiAgentEnabled' | 'setProjectParentConcurrencyLimit'> {
+export function createProjectHivePreferencesActions(set: PreferencesSet, get: PreferencesGet) {
   return {
     setProjectMultiAgentEnabled: (path, enabled) =>
       setProjectMultiAgentEnabled(path, enabled, set, get),
     setProjectParentConcurrencyLimit: (path, limit) =>
       setProjectParentConcurrencyLimit(path, limit, set, get),
-  }
+  } satisfies Pick<
+    PreferencesActions,
+    'setProjectMultiAgentEnabled' | 'setProjectParentConcurrencyLimit'
+  >
 }

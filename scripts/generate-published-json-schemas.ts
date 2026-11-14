@@ -1,7 +1,7 @@
 /**
  * Writes the published JSON Schemas to `website/public/schemas/`. `published-json-schemas.unit.test.ts`
  * fails, through `stalePublishedJsonSchemas`, when a committed file differs from what the runtime
- * schemas generate, so `pnpm test:unit` and `pnpm verify` catch drift.
+ * schemas generate, so `bun run test:unit` and `bun run verify` catch drift.
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'

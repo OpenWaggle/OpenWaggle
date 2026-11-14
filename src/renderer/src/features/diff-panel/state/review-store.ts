@@ -1,5 +1,4 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { ReviewComment } from '@shared/types/review'
 import { create } from 'zustand'
 import type { ReviewCommentWithSnippet } from '@/features/diff-panel/lib/review-comment-payload'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
@@ -84,9 +83,7 @@ function withoutEmptyThreads(byReviewKey: Record<string, ReviewThread>) {
 }
 
 /** Keep the first occurrence of each comment id, preserving order. */
-function dedupeById(
-  comments: readonly ReviewCommentWithSnippet[],
-): readonly ReviewCommentWithSnippet[] {
+function dedupeById(comments: readonly ReviewCommentWithSnippet[]) {
   const seen = new Set<string>()
   return comments.filter((comment) => {
     if (seen.has(comment.id)) return false
@@ -201,7 +198,7 @@ export const useReviewStore = create<ReviewState>((set) => ({
  * panel started reading an empty thread while the user's comments sat under the old key, invisible,
  * unreachable, and never pruned because they were not empty.
  */
-export function reviewKeyFor(threadKey: string | null, selection: DiffScopeSelection): string {
+export function reviewKeyFor(threadKey: string | null, selection: DiffScopeSelection) {
   const scope = matchBy(selection, 'kind')
     .with('branch', (value) => `branch:${value.baseRef ?? ''}`)
     .with('turn', (value) => `turn:${value.turnId}`)
@@ -211,12 +208,6 @@ export function reviewKeyFor(threadKey: string | null, selection: DiffScopeSelec
 }
 
 /** Read one pending review, defaulting to empty rather than undefined. */
-export function selectReviewThread(
-  state: Pick<ReviewState, 'byReviewKey'>,
-  reviewKey: string,
-): ReviewThread {
+export function selectReviewThread(state: Pick<ReviewState, 'byReviewKey'>, reviewKey: string) {
   return state.byReviewKey[reviewKey] ?? EMPTY_THREAD
 }
-
-/** Legacy alias kept so callers that only need the base shape still compile. */
-export type { ReviewComment }

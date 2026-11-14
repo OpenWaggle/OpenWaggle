@@ -18,8 +18,9 @@ export function dispatchScheduledTaskCommand(input: {
     { readonly contract: 'session-control-v2' | 'session-lifecycle-v2' }
   >
 }) {
-  return Effect.suspend(
-    (): Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =>
-      dispatchNonHostUiLocalSessionCommand(input),
-  )
+  return Effect.suspend(() => {
+    const command: Effect.Effect<LocalSessionCommandResult, unknown, SessionToolDependencies> =
+      dispatchNonHostUiLocalSessionCommand(input)
+    return command
+  })
 }

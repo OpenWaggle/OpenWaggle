@@ -20,13 +20,12 @@ vi.mock('../pi-session-prompt-origin', () => ({
 }))
 vi.mock('../local-session-command-dispatcher', () => ({ dispatchLocalSessionCommand: vi.fn() }))
 
-const { dispatchHostBackedSessionGuiOperation } = await import(
-  '../host-ui-session-operation-dispatcher'
-)
+const { dispatchHostBackedSessionGuiOperation } =
+  await import('../host-ui-session-operation-dispatcher')
 
 const SESSION = SessionId('session-1')
 
-function node(id: string, parentId: string | null, order: number): SessionNode {
+function node(id: string, parentId: string | null, order: number) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION,
@@ -45,7 +44,7 @@ function node(id: string, parentId: string | null, order: number): SessionNode {
     },
     contentJson: '{"parts":[]}',
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 const nodes = [node('a', null, 0), node('b', 'a', 1), node('c', 'b', 2)]
@@ -79,7 +78,7 @@ function run<A>(
       fromPartial<SessionProjectionRepositoryShape>(services.projections ?? {}),
     ),
   )
-  return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof provided>(provided))
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof provided>(provided))
 }
 
 describe('Host UI Session data reads (B5/D5)', () => {
@@ -101,7 +100,7 @@ describe('Host UI Session data reads (B5/D5)', () => {
     const result = await run(
       dispatchHostBackedSessionGuiOperation('sessions:get-workspace', [
         SESSION,
-        undefined,
+        {},
         {
           window: { minEntries: 2 },
           cached: { nodeMutationRevision: 6, nodeIds: [SessionNodeId('b')] },

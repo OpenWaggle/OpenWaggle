@@ -93,7 +93,7 @@ function deleteRequiringArchived() {
       },
     },
   }).pipe(Effect.provide(testLayer()))
-  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown>, typeof effect>(effect))
 }
 
 describe('Deleting from Archived items', () => {

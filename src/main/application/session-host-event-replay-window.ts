@@ -23,10 +23,13 @@ export class SessionHostEventReplayWindow {
   #size = 0
   #bytes = 0
 
-  constructor(
-    private readonly capacity: number,
-    private readonly byteCapacity: number,
-  ) {}
+  private readonly capacity: number
+  private readonly byteCapacity: number
+
+  constructor(capacity: number, byteCapacity: number) {
+    this.capacity = capacity
+    this.byteCapacity = byteCapacity
+  }
 
   first() {
     return this.#size === 0 ? undefined : this.#entries.get(this.#head)

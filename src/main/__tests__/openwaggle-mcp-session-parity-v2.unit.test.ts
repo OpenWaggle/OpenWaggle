@@ -5,8 +5,8 @@ import {
   buildMcpSessionPayloadV2,
   mcpTransientAuthority,
   type SessionToolInputV2,
-  sessionInputSchemaV2,
 } from '../openwaggle-mcp-session-tool-v2'
+import { acceptsSessionInput } from './openwaggle-mcp-session-input.test-support'
 
 describe('OpenWaggle MCP Session Control v2 CLI parity', () => {
   it('maps stable branch-scoped item pagination through the native query contract', () => {
@@ -22,7 +22,7 @@ describe('OpenWaggle MCP Session Control v2 CLI parity', () => {
       limit: 5,
     } as const
 
-    expect(sessionInputSchemaV2.safeParse(input).success).toBe(true)
+    expect(acceptsSessionInput(input)).toBe(true)
     expect(buildMcpSessionPayloadV2(input)).toMatchObject({
       contract: 'session-query-v2',
       request: {
@@ -99,7 +99,7 @@ describe('OpenWaggle MCP Session Control v2 CLI parity', () => {
       attachmentPaths: ['/repo/replace.txt'],
     },
   ])('maps attachment paths for $operation through the native transport', (input) => {
-    expect(sessionInputSchemaV2.safeParse(input).success).toBe(true)
+    expect(acceptsSessionInput(input)).toBe(true)
     expect(buildMcpSessionPayloadV2(input)).toMatchObject({
       transport: { attachmentPaths: input.attachmentPaths },
     })
@@ -111,35 +111,35 @@ describe('OpenWaggle MCP Session Control v2 CLI parity', () => {
       (_, index) => `/repo/attachment-${String(index)}.txt`,
     )
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'message',
         attachmentPaths: maximumPaths,
-      }).success,
+      }),
     ).toBe(true)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'message',
         attachmentPaths: [...maximumPaths, '/repo/one-too-many.txt'],
-      }).success,
+      }),
     ).toBe(false)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'message',
         attachmentPaths: ['/repo/repeated.txt', '/repo/repeated.txt'],
-      }).success,
+      }),
     ).toBe(false)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'message',
         attachmentPaths: ['p'.repeat(SESSION_QUERY_MAX_PATH_LENGTH + 1)],
-      }).success,
+      }),
     ).toBe(false)
     expect(
-      sessionInputSchemaV2.safeParse({
+      acceptsSessionInput({
         operation: 'archive',
         sessionId: 'session-1',
         attachmentPaths: ['/repo/not-applicable.txt'],
-      }).success,
+      }),
     ).toBe(false)
   })
 

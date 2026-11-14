@@ -1,7 +1,6 @@
 import { wagglePresetSchema } from '@shared/schemas/waggle'
 import { Schema } from 'effect'
 import {
-  type JsonSchemaNode,
   type JsonSchemaOverlay,
   jsonSchemaFromEffect,
   publishedSchemaRoot,
@@ -19,7 +18,7 @@ const AGENT_SLOT_DESCRIPTIONS = {
   color: { description: 'Color of the agent’s turns.' },
 }
 
-function agentSlotOverlay(index: number): JsonSchemaOverlay {
+function agentSlotOverlay(index: number) {
   const slot = `${PRESET}/properties/config/properties/agents/prefixItems/${String(index)}`
   return Object.fromEntries(
     Object.entries(AGENT_SLOT_DESCRIPTIONS).map(([field, patch]) => [
@@ -32,8 +31,11 @@ function agentSlotOverlay(index: number): JsonSchemaOverlay {
 /** The file around the presets, as `@openwaggle/pi-waggle` reads and writes it. */
 function wagglePresetsFileSchema() {
   return Schema.Struct({
-    wagglePresets: Schema.optional(Schema.Array(wagglePresetSchema)),
-    hiddenBuiltInPresetIds: Schema.optional(Schema.Array(Schema.String.pipe(Schema.minLength(1)))),
+    wagglePresets: Schema.optionalWith(Schema.Array(wagglePresetSchema), { exact: true }),
+    hiddenBuiltInPresetIds: Schema.optionalWith(
+      Schema.Array(Schema.String.pipe(Schema.minLength(1))),
+      { exact: true },
+    ),
   })
 }
 
@@ -77,7 +79,7 @@ const WAGGLE_OVERLAY: JsonSchemaOverlay = {
 export const WAGGLE_PRESETS_SCHEMA_FILE = 'waggle-presets.schema.json'
 
 /** The Waggle presets file, from the schema the app keeps each preset with. */
-export function wagglePresetsJsonSchema(): JsonSchemaNode {
+export function wagglePresetsJsonSchema() {
   return publishedSchemaRoot(
     {
       fileName: WAGGLE_PRESETS_SCHEMA_FILE,

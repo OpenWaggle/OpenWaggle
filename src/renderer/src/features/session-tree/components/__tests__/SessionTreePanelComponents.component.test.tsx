@@ -13,6 +13,7 @@ import { SessionTreePanelContent } from '../SessionTreePanelContent'
 import { SessionTreePanelFilters } from '../SessionTreePanelFilters'
 import { SessionTreePanelHeader } from '../SessionTreePanelHeader'
 import { SessionTreeRows } from '../SessionTreeRows'
+import { required } from '@/test-utils/required'
 
 const BRANCH_ID = SessionBranchId('main-branch')
 
@@ -151,8 +152,8 @@ describe('Session Tree panel components', () => {
       />,
     )
 
-    fireEvent.click(screen.getAllByText('assistant message')[0])
-    fireEvent.click(screen.getAllByRole('button')[0])
+    fireEvent.click(required(screen.getAllByText('assistant message')[0]))
+    fireEvent.click(required(screen.getAllByRole('button')[0]))
 
     expect(screen.getAllByText('Assistant')).toHaveLength(2)
     expect(screen.getByText('Active')).toBeInTheDocument()

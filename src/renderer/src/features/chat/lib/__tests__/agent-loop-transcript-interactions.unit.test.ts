@@ -90,3 +90,40 @@ describe('rehydrating an authorization request', () => {
     expect(parsed?.kind === 'confirm' && parsed.purpose).toBe('user-input')
   })
 })
+
+describe('rehydrating with the tolerant fields', () => {
+  it.each([
+    {
+      name: 'leaves out a malformed timeout',
+      input: { ...persisted, timeoutMs: 'soon' },
+      expected: { ...persisted, purpose: 'authorization' },
+    },
+    {
+      name: 'never renders a replayed custom interaction and keeps only its overlay flag',
+      input: {
+        ...persisted,
+        kind: 'custom',
+        customType: 42,
+        payload: { ok: true },
+        renderer: { kind: 'other', supported: true, overlay: true },
+      },
+      expected: {
+        createdAt: 1,
+        interactionId: 'auth-1',
+        kind: 'custom',
+        runId: 'run-1',
+        sessionId: 'session-1',
+        source: 'pi-ui',
+        customType: 'pi-tui-custom',
+        payload: { ok: true },
+        renderer: { kind: 'pi-tui-custom', supported: false, overlay: true },
+      },
+    },
+  ])('$name', ({ input, expected }) => {
+    expect(parseInteraction(input)).toEqual(expected)
+  })
+
+  it('rejects an interaction without its identity', () => {
+    expect(parseInteraction({ ...persisted, sessionId: 7 })).toBeNull()
+  })
+})

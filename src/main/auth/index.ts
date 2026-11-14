@@ -1,10 +1,5 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
-import type {
-  OAuthAccountInfo,
-  OAuthFlowStatus,
-  OAuthInputPrompt,
-  OAuthProvider,
-} from '@shared/types/auth'
+import type { OAuthFlowStatus, OAuthInputPrompt, OAuthProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
 import { openExternal } from '../desktop-ui'
 import { runGuiEffect } from '../gui-runtime'
@@ -33,7 +28,7 @@ let authLifecycleTimer: ReturnType<typeof setInterval> | null = null
 let authLifecycleFirstCheck: ReturnType<typeof setTimeout> | null = null
 let authLifecycleTickInFlight = false
 
-export function submitCode(provider: OAuthProvider, code: string): void {
+export function submitCode(provider: OAuthProvider, code: string) {
   const handler = pendingInputHandlers.get(provider)
   if (handler) {
     pendingInputHandlers.delete(provider)
@@ -41,10 +36,7 @@ export function submitCode(provider: OAuthProvider, code: string): void {
   }
 }
 
-export async function startOAuth(
-  provider: OAuthProvider,
-  emitStatus: StatusEmitter,
-): Promise<void> {
+export async function startOAuth(provider: OAuthProvider, emitStatus: StatusEmitter) {
   if (inFlightOAuthFlows.has(provider)) {
     const message = 'A sign-in attempt is already in progress for this provider.'
     emitStatus({ type: 'error', provider, message })
@@ -60,10 +52,7 @@ export async function startOAuth(
   await flowPromise
 }
 
-export async function cancelOAuth(
-  provider: OAuthProvider,
-  emitStatus: StatusEmitter,
-): Promise<void> {
+export async function cancelOAuth(provider: OAuthProvider, emitStatus: StatusEmitter) {
   const flow = inFlightOAuthFlows.get(provider)
   if (!flow) {
     emitStatus({ type: 'idle' })
@@ -101,7 +90,7 @@ function stopAuthLifecycleTimers() {
  * window has opened: it loads Pi and builds a model runtime in this process (≈95 ms of the main
  * thread on a cold start, W11), and the window lists the accounts itself once Settings load.
  */
-export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
+export function startAuthLifecycle(emitStatus: StatusEmitter) {
   stopAuthLifecycleTimers()
 
   authLifecycleFirstCheck = setTimeout(() => {
@@ -129,12 +118,13 @@ async function runOAuthFlow(
   // The latest sign-in link and its instructions, shown with every later prompt so a user whose
   // browser runs elsewhere (copy-code sign-in) can open it there.
   let link: { readonly authUrl: string; readonly instructions?: string } | null = null
-  const awaitingInput = (prompt?: OAuthInputPrompt): OAuthFlowStatus => ({
-    type: 'awaiting-code',
-    provider,
-    ...(link ?? {}),
-    ...(prompt ? { prompt } : {}),
-  })
+  const awaitingInput = (prompt?: OAuthInputPrompt) =>
+    ({
+      type: 'awaiting-code',
+      provider,
+      ...link,
+      ...(prompt ? { prompt } : {}),
+    }) satisfies OAuthFlowStatus
 
   try {
     await runGuiEffect(
@@ -143,7 +133,7 @@ async function runOAuthFlow(
         yield* authService.login(provider, {
           onAuthUrl: (url, instructions) => {
             link = { authUrl: url, ...(instructions ? { instructions } : {}) }
-            void openExternal(url).catch((error) => {
+            void openExternal(url).catch((error: unknown) => {
               logger.warn('Failed to open OAuth URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),
@@ -154,7 +144,7 @@ async function runOAuthFlow(
             emitStatus(awaitingInput())
           },
           onDeviceCode: (deviceCode) => {
-            void openExternal(deviceCode.verificationUri).catch((error) => {
+            void openExternal(deviceCode.verificationUri).catch((error: unknown) => {
               logger.warn('Failed to open OAuth device-code URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),
@@ -296,13 +286,13 @@ async function logoutOAuthProvider(provider: OAuthProvider) {
   )
 }
 
-export async function disconnect(provider: OAuthProvider): Promise<void> {
+export async function disconnect(provider: OAuthProvider) {
   await logoutOAuthProvider(provider)
 
   logger.info('Disconnected OAuth provider', { provider })
 }
 
-export async function getAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo> {
+export async function getAccountInfo(provider: OAuthProvider) {
   return runGuiEffect(
     Effect.gen(function* () {
       const authService = yield* ProviderOAuthService

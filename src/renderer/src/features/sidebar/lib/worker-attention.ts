@@ -58,7 +58,7 @@ export function workerAttentionByQueen(
 export function queenWorkerAttention(
   byQueen: ReadonlyMap<string, QueenWorkerAttention>,
   queenId: string,
-): QueenWorkerAttention {
+) {
   return byQueen.get(queenId) ?? NO_QUEEN_WORKER_ATTENTION
 }
 
@@ -67,7 +67,7 @@ export function queenWorkerAttention(
  * (ADR 0051), or null. Only a Spawn-lineage Worker has one; a legacy task-runner Worker is not
  * in the Hive panel, so its parent is no Hive home.
  */
-export function hiveHomeQueenId(session: SessionSummary | undefined): string | null {
+export function hiveHomeQueenId(session: SessionSummary | undefined) {
   const lineage = session?.lineage
   if (lineage?.role !== 'worker' || lineage.historical === true) return null
   const queenId = lineage.hiveRootSessionId ?? lineage.parentSessionId

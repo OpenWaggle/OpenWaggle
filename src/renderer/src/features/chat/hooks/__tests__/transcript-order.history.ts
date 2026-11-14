@@ -10,22 +10,25 @@ export const HISTORY_RUN_ID = 'history'
 /** Texts later Runs repeat: a prompt or answer matched by text must not take one of these. */
 const HISTORY_TEXTS = ['continue', 'Done.', 'ok', 'ok', 'continue', 'Done.']
 
-export function historyEntries(): Array<Omit<TruthEntry, 'order' | 'runId' | 'timestamp'>> {
-  return HISTORY_TEXTS.map((text, index) => ({
-    role: index % 2 === 0 ? 'user' : 'assistant',
-    text,
-    liveId: `live-history-${String(index)}`,
-    piId: `pi-history-${String(index)}`,
-    toolCallIds: [],
-  }))
+export function historyEntries() {
+  const omit: Omit<TruthEntry, 'order' | 'runId' | 'timestamp'>[] = HISTORY_TEXTS.map(
+    (text, index) => ({
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      text,
+      liveId: `live-history-${String(index)}`,
+      piId: `pi-history-${String(index)}`,
+      toolCallIds: [],
+    }),
+  )
+  return omit
 }
 
 /** The summary entry of a compaction, the `index`th log entry. */
 export function summaryEntry(
   index: number,
   entry: Pick<TruthEntry, 'order' | 'runId' | 'timestamp'>,
-): TruthEntry {
-  return {
+) {
+  const result: TruthEntry = {
     role: 'assistant',
     text: `Compaction summary\n\nsummary ${String(index)}`,
     liveId: `live-summary-${String(index)}`,
@@ -34,4 +37,5 @@ export function summaryEntry(
     toolCallIds: [],
     compactionSummary: true,
   }
+  return result
 }

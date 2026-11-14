@@ -15,7 +15,7 @@ type SettlingAuthProvider = AuthProvider & { readonly settled?: () => Promise<vo
 export function withHardenedTokenRefresh(
   provider: SettlingAuthProvider,
   storedToken: () => Promise<string | undefined>,
-): SettlingAuthProvider {
+) {
   return {
     token: async () => {
       await provider.settled?.()
@@ -25,14 +25,11 @@ export function withHardenedTokenRefresh(
       ? { onUnauthorized: (context) => provider.onUnauthorized?.(context) ?? Promise.resolve() }
       : {}),
     ...(provider.settled ? { settled: () => provider.settled?.() ?? Promise.resolve() } : {}),
-  }
+  } satisfies SettlingAuthProvider
 }
 
 /** `withHardenedTokenRefresh` for a configured server, reading its token from the sign-in store. */
-export function hardenedMcpAuthProvider(
-  entry: McpServerEntry,
-  provider: AuthProvider | undefined,
-): AuthProvider | undefined {
+export function hardenedMcpAuthProvider(entry: McpServerEntry, provider: AuthProvider | undefined) {
   const url = mcpOAuthUrl(entry)
   if (!provider || !url) return provider
   return withHardenedTokenRefresh(provider, async () => {

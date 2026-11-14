@@ -20,7 +20,7 @@ export interface LogEntry {
   readonly reason?: 'manual' | 'threshold' | 'overflow'
 }
 
-function entryMessage(entry: LogEntry, createdOrder: number): Message {
+function entryMessage(entry: LogEntry, createdOrder: number) {
   if (entry.kind === 'compaction') {
     const summary = `Checkpoint ${entry.id}`
     return {
@@ -31,7 +31,7 @@ function entryMessage(entry: LogEntry, createdOrder: number): Message {
       metadata: {
         compactionSummary: { summary, tokensBefore: 4_200, reason: entry.reason ?? 'manual' },
       },
-    }
+    } satisfies Message
   }
   return {
     id: MessageId(entry.id),
@@ -39,11 +39,11 @@ function entryMessage(entry: LogEntry, createdOrder: number): Message {
     parts: [{ type: 'text', text: entry.id }],
     createdAt: createdOrder + 1,
     metadata: { sessionNodeCreatedOrder: createdOrder },
-  }
+  } satisfies Message
 }
 
-function sessionNodes(log: readonly LogEntry[], sessionId: SessionId): SessionNode[] {
-  return log.map((entry, index) => ({
+function sessionNodes(log: readonly LogEntry[], sessionId: SessionId) {
+  const node: SessionNode[] = log.map((entry, index) => ({
     id: SessionNodeId(entry.id),
     sessionId,
     parentId: index === 0 ? null : SessionNodeId(log[index - 1]?.id ?? ''),
@@ -65,6 +65,7 @@ function sessionNodes(log: readonly LogEntry[], sessionId: SessionId): SessionNo
     ),
     metadataJson: '{}',
   }))
+  return node
 }
 
 function pathToHead(nodes: readonly SessionNode[]) {
@@ -79,8 +80,8 @@ export function sessionDetailFor(
   sessionId: SessionId,
   log: readonly LogEntry[],
   updatedAt: number,
-): SessionDetail {
-  return {
+) {
+  const detail: SessionDetail = {
     id: sessionId,
     title: 'Compacted Session',
     projectPath: '/tmp/project',
@@ -90,6 +91,7 @@ export function sessionDetailFor(
       node.message ? [node.message] : [],
     ),
   }
+  return detail
 }
 
 /** `getSessionWorkspace` at the Session head of the main branch. */
@@ -97,11 +99,11 @@ export function sessionWorkspaceFor(
   sessionId: SessionId,
   log: readonly LogEntry[],
   updatedAt: number,
-): SessionWorkspace {
+) {
   const branchId = mainBranchId(sessionId)
   const nodes = sessionNodes(log, sessionId)
   const head = nodes.at(-1)?.id ?? null
-  return {
+  const workspace: SessionWorkspace = {
     tree: {
       session: {
         id: sessionId,
@@ -136,4 +138,5 @@ export function sessionWorkspaceFor(
       isActive: node.id === head,
     })),
   }
+  return workspace
 }

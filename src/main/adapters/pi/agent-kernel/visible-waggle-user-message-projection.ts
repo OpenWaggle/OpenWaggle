@@ -1,6 +1,7 @@
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
-import { safeDecodeUnknown } from '@shared/schema'
+import { safeDecodeUnknown, Schema } from '@shared/schema'
 import { waggleInvocationMetadataSchema } from '@shared/schemas/waggle'
+import { Option } from 'effect'
 import { toJsonValue } from '../pi-message-mapper'
 import type { PiEntryProjection } from './entry-projections'
 import {
@@ -15,15 +16,22 @@ type VisibleWaggleUserEntry = Pick<
   'customType' | 'content' | 'display' | 'details'
 >
 
+/** The `details` fields of a visible Waggle user request; each is decoded where it is used. */
+const decodeVisibleWaggleUserDetails = Schema.decodeUnknownOption(
+  Schema.Struct({
+    waggleInvocation: Schema.optionalWith(Schema.Unknown, { exact: true }),
+    userInput: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  }),
+)
+
 /** The display parts and invocation a visible Waggle user request shows in the transcript. */
 export function visibleWaggleUserMessageDisplay(entry: VisibleWaggleUserEntry) {
   const details = toJsonValue(entry.details ?? null)
-  const detailsRecord =
-    typeof details === 'object' && details !== null && !Array.isArray(details) ? details : null
-  const decodedInvocation = detailsRecord
-    ? safeDecodeUnknown(waggleInvocationMetadataSchema, detailsRecord.waggleInvocation)
+  const fields = Option.getOrUndefined(decodeVisibleWaggleUserDetails(details))
+  const decodedInvocation = fields
+    ? safeDecodeUnknown(waggleInvocationMetadataSchema, fields.waggleInvocation)
     : null
-  const displayParts = detailsRecord ? decodeUserInputProjection(detailsRecord.userInput) : null
+  const displayParts = fields ? decodeUserInputProjection(fields.userInput) : null
   return {
     details,
     parts: displayParts ?? piTextAndImageContentToParts(entry.content),
@@ -33,7 +41,7 @@ export function visibleWaggleUserMessageDisplay(entry: VisibleWaggleUserEntry) {
 
 export function visibleWaggleUserMessageProjection(
   entry: Extract<SessionEntry, { type: 'custom_message' }>,
-): PiEntryProjection {
+) {
   const display = visibleWaggleUserMessageDisplay(entry)
   return {
     kind: 'user_message',
@@ -48,5 +56,5 @@ export function visibleWaggleUserMessageProjection(
             details: display.details,
           },
     ),
-  }
+  } satisfies PiEntryProjection
 }

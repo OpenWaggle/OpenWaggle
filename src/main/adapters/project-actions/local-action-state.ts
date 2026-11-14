@@ -15,21 +15,23 @@ export const localActionStateSchema = Schema.Struct({
   pending: Schema.NullOr(
     Schema.Struct({
       workspacePath: Schema.String,
-      publication: Schema.optional(
+      publication: Schema.optionalWith(
         Schema.Struct({
           id: Schema.UUID,
           device: Schema.String,
           inode: Schema.String,
           birthtime: Schema.String,
         }),
+        { exact: true },
       ),
-      workspaceIdentity: Schema.optional(
+      workspaceIdentity: Schema.optionalWith(
         Schema.Struct({
           device: Schema.String,
           inode: Schema.String,
           birthtime: Schema.String,
           resourceId: Schema.NullOr(Schema.String),
         }),
+        { exact: true },
       ),
       previousSharedRevision: Schema.String,
       nextShared: actionManifestSchema,
@@ -56,6 +58,6 @@ export interface ActionStatePersistence {
   ) => Promise<StoredActionState>
 }
 
-export function decodeLocalActionState(raw: string): LocalActionState {
+export function decodeLocalActionState(raw: string) {
   return decodeUnknownExactOrThrow(localActionStateSchema, parseJsonUnknown(raw))
 }

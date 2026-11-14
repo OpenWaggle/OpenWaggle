@@ -134,7 +134,7 @@ describe('SessionResourceViewer', () => {
         orderRevision: 'branch-b:1',
       })
     useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    const view = renderViewer('session-1', new Set(), 'branch-a')
+    const view = renderViewer('session-1', 'branch-a')
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: active-branch-a.png' }),
     ).toBeInTheDocument()
@@ -171,12 +171,7 @@ describe('SessionResourceViewer', () => {
     })
     useUIStore.getState().openResourceViewer('session-1', target.id)
 
-    renderViewer(
-      'session-1',
-      new Set(selection.pathNodeIds),
-      selection.branchId,
-      selection.pathNodeIds,
-    )
+    renderViewer('session-1', selection.branchId, selection.pathNodeIds)
 
     expect(await screen.findByRole('dialog', { name: 'Image viewer: hidden.png' })).toBeVisible()
     expect(screen.getByText('2 of 3')).toBeVisible()
@@ -204,10 +199,7 @@ describe('SessionResourceViewer', () => {
       })
     })
     useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    const view = renderViewer('session-1', new Set(['root-node', 'first-leaf']), 'session-1:main', [
-      'root-node',
-      'first-leaf',
-    ])
+    const view = renderViewer('session-1', 'session-1:main', ['root-node', 'first-leaf'])
     expect(
       await screen.findByRole('dialog', { name: 'Image viewer: first-leaf.png' }),
     ).toBeVisible()
@@ -218,20 +210,6 @@ describe('SessionResourceViewer', () => {
       await screen.findByRole('dialog', { name: 'Image viewer: second-leaf.png' }),
     ).toBeVisible()
     expect(listSessionResourcePage).toHaveBeenCalledTimes(2)
-  })
-
-  it('places images from the active transcript path before images from other branches', async () => {
-    listSessionResources.mockResolvedValue([
-      image('image-2', 'other-branch.png', 'hidden-message'),
-      image('image-1', 'active-branch.png', 'active-message'),
-    ])
-    useUIStore.getState().openResourceViewer('session-1', 'image-1')
-    renderViewer('session-1', new Set(['active-message']))
-
-    expect(
-      await screen.findByRole('dialog', { name: 'Image viewer: active-branch.png' }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('1 of 2')).toBeInTheDocument()
   })
 
   it('shows provenance and preserves local original actions beside the managed image', async () => {

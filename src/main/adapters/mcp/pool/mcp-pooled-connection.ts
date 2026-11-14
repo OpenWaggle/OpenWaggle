@@ -24,12 +24,14 @@ import {
   isJsonRpcNotification,
   isJsonRpcRequest,
   JSON_RPC_ERROR_CODES,
+  type JsonRpcId,
   type JsonRpcMessage,
   type JsonRpcNotification,
   type JsonRpcRequest,
   type JsonRpcResponse,
   toError,
 } from './mcp-wire'
+import { mcpMessageFields } from './mcp-message-fields'
 
 /** How long a retiring connection waits for its open requests before it closes anyway. */
 const RETIRE_GRACE_MS = 30_000
@@ -69,7 +71,10 @@ export class McpPooledConnection {
   private readonly handshake: McpConnectionHandshake
   private readonly router: McpServerRequestRouter
 
-  constructor(private readonly options: McpPooledConnectionOptions) {
+  private readonly options: McpPooledConnectionOptions
+
+  constructor(options: McpPooledConnectionOptions) {
+    this.options = options
     this.handshake = new McpConnectionHandshake({
       request: (method, params) => this.sendInternal(method, params),
       notify: (message) => this.sendUpstream(message),
@@ -219,13 +224,9 @@ export class McpPooledConnection {
 
   private sendInternal(method: string, params: unknown, signal?: AbortSignal) {
     const id = this.ledger.allocate()
-    const response = this.ledger.waitForInternal(id, signal, () => {
-      void this.sendUpstream({
-        jsonrpc: '2.0',
-        method: CANCELLED,
-        params: { requestId: id },
-      }).catch(() => undefined)
-    })
+    const response = this.ledger.waitForInternal(id, signal, () =>
+      this.cancelUpstream({ requestId: id }),
+    )
     const request: JsonRpcRequest = {
       jsonrpc: '2.0',
       id,
@@ -257,7 +258,7 @@ export class McpPooledConnection {
     if (message.method === INITIALIZED) return this.handshake.initialized(message)
     if (message.method === CANCELLED) {
       const params = isRecord(message.params) ? message.params : {}
-      const upstreamId = this.ledger.upstreamId(lease, params.requestId)
+      const upstreamId = this.ledger.upstreamId(lease, mcpMessageFields(params)?.requestId)
       if (upstreamId === undefined) return
       this.ledger.forget(upstreamId)
       try {
@@ -273,14 +274,15 @@ export class McpPooledConnection {
     this.leases.delete(lease)
     for (const id of this.ledger.openRequests(lease)) {
       this.ledger.forget(id)
-      void this.sendUpstream({
-        jsonrpc: '2.0',
-        method: CANCELLED,
-        params: { requestId: id, reason: 'The client detached' },
-      }).catch(() => undefined)
+      this.cancelUpstream({ requestId: id, reason: 'The client detached' })
     }
     this.router.detach(lease)
     this.closeIfRetiredAndIdle()
+  }
+
+  /** Tells the server to stop a request nobody waits for; a failed send leaves nothing to stop. */
+  private cancelUpstream(params: { readonly requestId: JsonRpcId; readonly reason?: string }) {
+    void this.sendUpstream({ jsonrpc: '2.0', method: CANCELLED, params }).catch(() => undefined)
   }
 
   /** A retiring connection closes once no request is left to settle, not after the grace. */

@@ -3,19 +3,18 @@ import type { ActionManagementScope } from '@shared/types/action-management'
 import type { ProjectAction, ProjectActionUpdate } from '@shared/types/project-actions'
 import { actionExecutionKey } from '@shared/utils/action-execution-key'
 import { queryOptions, useQuery } from '@tanstack/react-query'
-import type { OpenWaggleQueryOptions } from '@/queries/query-options'
 import { api } from '@/shared/lib/ipc'
 import { actionInvocationLabel } from '../lib/native-action-display'
 import { useActionScope, useEditActionCatalog, useNativeActions } from './useNativeActions'
 
 /** Shortcut/command-palette presentation. Execution always uses the native action ID. */
-function shortcutAction(definition: ActionDefinition): ProjectAction {
+function shortcutAction(definition: ActionDefinition) {
   return {
     ...definition,
     executionKey: actionExecutionKey(definition),
     command: actionInvocationLabel(definition.invocation),
     runOnWorktreeCreate: false,
-  }
+  } satisfies ProjectAction
 }
 const projectActionsQueryKey = (projectPath: string | null, scope?: ActionManagementScope | null) =>
   ['native-actions', projectPath, scope ?? null, 'shortcut-presentation'] as const
@@ -23,19 +22,14 @@ const projectActionsQueryKey = (projectPath: string | null, scope?: ActionManage
 export function projectActionsQueryOptions(
   projectPath: string | null,
   scope?: ActionManagementScope | null,
-): OpenWaggleQueryOptions<
-  readonly ProjectAction[],
-  Error,
-  readonly ProjectAction[],
-  ReturnType<typeof projectActionsQueryKey>
-> {
+) {
   return queryOptions({
     queryKey: projectActionsQueryKey(projectPath, scope),
     // Read on mount, focus, and Host Session-state changes; never on a timer (B7/D9).
     refetchOnWindowFocus: true,
     enabled: projectPath !== null,
-    queryFn: async (): Promise<readonly ProjectAction[]> => {
-      if (!projectPath) return []
+    queryFn: async () => {
+      if (!projectPath) return [] satisfies readonly ProjectAction[]
       const result = await api.manageProjectActions({
         scope: scope ?? { projectPath },
         operation: { type: 'catalog' },

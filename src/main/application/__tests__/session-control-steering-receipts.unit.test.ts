@@ -65,11 +65,13 @@ function receiptLayer(receipt: AgentSteerDeliveryReceipt) {
     Layer.succeed(SessionControlOperationJournal, {
       claim: (input) =>
         Effect.sync(() => {
-          if (completedOutcome)
+          if (completedOutcome) {
             return { status: 'completed', replayed: true, outcome: completedOutcome } as const
+          }
           const decision = input.decide(state)
-          if (!decision.accepted)
+          if (!decision.accepted) {
             return { status: 'completed', replayed: false, outcome: decision.outcome } as const
+          }
           return { status: 'claimed', stateRevision: state.revision } as const
         }),
       complete: (input) =>

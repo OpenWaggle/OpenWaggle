@@ -9,7 +9,7 @@ import * as Layer from 'effect/Layer'
 import { ThinkingLevelDefaultService } from '../../ports/thinking-level-default-service'
 import { SettingsService } from '../../services/settings-service'
 
-function nextSetting<T>(current: T, partial: T | undefined): T {
+function nextSetting<T>(current: T, partial: T | undefined) {
   return partial === undefined ? current : partial
 }
 
@@ -137,7 +137,7 @@ function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) 
   }
 }
 
-function mergeSettings(current: Settings, partial: Partial<Settings>): Settings {
+function mergeSettings(current: Settings, partial: Partial<Settings>) {
   return {
     ...mergeGeneralSettings(current, partial),
     ...mergeSessionHostSettings(current, partial),
@@ -173,7 +173,7 @@ function mergeSettings(current: Settings, partial: Partial<Settings>): Settings 
   }
 }
 
-function cloneSettings(settings: Settings): Settings {
+function cloneSettings(settings: Settings) {
   return {
     ...settings,
     favoriteModels: [...settings.favoriteModels],
@@ -201,7 +201,7 @@ function cloneSettings(settings: Settings): Settings {
       ...settings.appearancePreferences,
       typography: { ...settings.appearancePreferences.typography },
     },
-  }
+  } satisfies Settings
 }
 
 /** Pi's default thinking level, held in memory: what extensions see as `thinkingLevel`. */

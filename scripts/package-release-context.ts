@@ -34,10 +34,7 @@ function assertCommitSha(value: string, label: string) {
   }
 }
 
-export async function readPackageReleaseParent(
-  sourceSha: string,
-  runGitCommand: RunGitCommand,
-) {
+export async function readPackageReleaseParent(sourceSha: string, runGitCommand: RunGitCommand) {
   const versionCommitSha = await runGitCommand([
     'rev-list',
     '--first-parent',
@@ -53,7 +50,7 @@ export async function readPackageReleaseParent(
 export async function resolvePackageReleaseContext(
   input: PackageReleaseContextInput,
   dependencies: PackageReleaseContextDependencies,
-): Promise<PackageReleaseContext> {
+) {
   if (input.ref !== 'refs/heads/main') {
     throw new Error('Package releases must run from main.')
   }
@@ -90,7 +87,7 @@ function runGit(args: readonly string[], allowFailure = false) {
   })
 }
 
-function createDependencies(): PackageReleaseContextDependencies {
+function createDependencies() {
   const runGitCommand: RunGitCommand = async (args) => (await runGit(args)).stdout
   return {
     isAncestorOfMain: async (sha) =>
@@ -100,7 +97,7 @@ function createDependencies(): PackageReleaseContextDependencies {
       const result = await runGit(['rev-parse', `${sha}^{commit}`])
       return result.stdout
     },
-  }
+  } satisfies PackageReleaseContextDependencies
 }
 
 export async function runPackageReleaseContextCli(args: readonly string[]) {
@@ -123,9 +120,12 @@ export async function runPackageReleaseContextCli(args: readonly string[]) {
     { eventBefore, eventName, eventSha, recoveryReleaseSha, ref },
     createDependencies(),
   )
-  const githubOutput = process.env.GITHUB_OUTPUT
+  const { GITHUB_OUTPUT: githubOutput } = process.env
   if (githubOutput !== undefined) {
-    await appendFile(githubOutput, `before_sha=${context.beforeSha}\nsource_sha=${context.sourceSha}\n`)
+    await appendFile(
+      githubOutput,
+      `before_sha=${context.beforeSha}\nsource_sha=${context.sourceSha}\n`,
+    )
   }
   return context
 }

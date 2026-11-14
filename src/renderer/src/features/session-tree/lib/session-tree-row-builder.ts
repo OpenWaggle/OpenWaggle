@@ -229,14 +229,14 @@ function pushRows(context: SessionTreeRowBuilderContext, input: PushRowsInput) {
   })
 }
 
-function buildRowBuilderContext(input: BuildSessionTreeRowsInput): SessionTreeRowBuilderContext {
+function buildRowBuilderContext(input: BuildSessionTreeRowsInput) {
   const nodeById = new Map(input.nodes.map((node) => [sessionTreeNodeKey(node), node]))
   const expandedNodeIdSet = new Set(input.expandedNodeIds.map(String))
   const displayedNodes = input.filteredNodes.filter(
     (node) => !isHiddenByCollapsedAncestor(node, nodeById, expandedNodeIdSet),
   )
 
-  return {
+  const context: SessionTreeRowBuilderContext = {
     activePathIds: input.activePathIds,
     displayedChildrenByParentId: buildChildrenByVisibleParent({ nodes: displayedNodes, nodeById }),
     expandableChildrenByParentId: buildChildrenByVisibleParent({
@@ -246,11 +246,10 @@ function buildRowBuilderContext(input: BuildSessionTreeRowsInput): SessionTreeRo
     originalOrderById: new Map(input.nodes.map((node, index) => [sessionTreeNodeKey(node), index])),
     rows: [],
   }
+  return context
 }
 
-export function getVisibleSessionTreeRows(
-  input: BuildSessionTreeRowsInput,
-): readonly SessionTreeRow[] {
+export function getVisibleSessionTreeRows(input: BuildSessionTreeRowsInput) {
   const context = buildRowBuilderContext(input)
   const roots = getOrderedChildren(context, context.displayedChildrenByParentId, null)
 
@@ -273,11 +272,12 @@ export function getVisibleSessionTreeRows(
 export function getVisibleSessionTreeNodes(
   nodes: readonly SessionTreeNode[],
   expandedNodeIds: readonly SessionNodeId[],
-): readonly SessionTreeNode[] {
-  return getVisibleSessionTreeRows({
+) {
+  const result: readonly SessionTreeNode[] = getVisibleSessionTreeRows({
     nodes,
     filteredNodes: nodes,
     expandedNodeIds,
     activePathIds: new Set(),
   }).map((row) => row.node)
+  return result
 }

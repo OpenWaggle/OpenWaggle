@@ -22,7 +22,7 @@ export const USER_NODE: SessionNode = {
 }
 export const ASSISTANT_NODE = node({ id: 'assistant', parentId: 'user', depth: 2, order: 3 })
 
-export function branch(): SessionBranch {
+export function branch() {
   return {
     id: SessionBranchId('branch-1'),
     sessionId: SESSION_ID,
@@ -32,11 +32,11 @@ export function branch(): SessionBranch {
     isMain: false,
     createdAt: 1,
     updatedAt: 2,
-  }
+  } satisfies SessionBranch
 }
 
-export function tree(): SessionTree {
-  return {
+export function tree() {
+  const result: SessionTree = {
     session: {
       id: SESSION_ID,
       title: 'Session tree',
@@ -49,9 +49,10 @@ export function tree(): SessionTree {
     branchStates: [],
     uiState: treeUiState({ expandedNodeIds: ['root'], expandedNodeIdsTouched: true }),
   }
+  return result
 }
 
-export function workspace(): SessionWorkspace {
+export function workspace() {
   const sessionTree = tree()
   return {
     tree: sessionTree,
@@ -62,5 +63,5 @@ export function workspace(): SessionWorkspace {
       { node: USER_NODE, isActive: true },
       { node: ASSISTANT_NODE, isActive: true },
     ],
-  }
+  } satisfies SessionWorkspace
 }

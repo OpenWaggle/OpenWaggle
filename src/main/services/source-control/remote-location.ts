@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 import { isSourceControlHostName, sourceControlHostKey } from '@shared/types/source-control'
 
 /** Where a Git remote points, as OpenWaggle needs it to address the provider. */
@@ -28,14 +29,21 @@ function splitRepositoryPath(rawPath: string) {
 }
 
 /** `user@host:owner/repo`; a single-letter host is a Windows drive, not a remote. */
-function parseScpRemote(remoteUrl: string): RemoteLocation | null {
-  const scp = SCP_REMOTE.exec(remoteUrl)
-  const host = scp?.groups?.host
-  const path = scp?.groups?.path ? splitRepositoryPath(scp.groups.path) : null
+function parseScpRemote(remoteUrl: string) {
+  const scp = namedGroups(SCP_REMOTE.exec(remoteUrl), ['host', 'path'])
+  const host = scp?.host
+  const path = scp?.path ? splitRepositoryPath(scp.path) : null
   if (!host || !path || WINDOWS_DRIVE.test(host)) return null
   const key = sourceControlHostKey(host)
   if (!isSourceControlHostName(key)) return null
-  return { host: key, webAuthority: key, sshTransport: true, authority: key, ...path }
+  const location: RemoteLocation | null = {
+    host: key,
+    webAuthority: key,
+    sshTransport: true,
+    authority: key,
+    ...path,
+  }
+  return location
 }
 
 function parseUrl(value: string) {
@@ -55,7 +63,7 @@ function decodedPath(pathname: string) {
   }
 }
 
-function parseUrlRemote(remoteUrl: string): RemoteLocation | null {
+function parseUrlRemote(remoteUrl: string) {
   const url = parseUrl(remoteUrl)
   if (!url || !NETWORK_SCHEMES.has(url.protocol.toLowerCase()) || !url.hostname) return null
   const path = splitRepositoryPath(decodedPath(url.pathname))
@@ -65,20 +73,24 @@ function parseUrlRemote(remoteUrl: string): RemoteLocation | null {
   const webAuthority = http ? sourceControlHostKey(url.host) : host
   // Only plain hostnames ever reach a CLI argument, a settings key, or a terminal command.
   if (!isSourceControlHostName(host) || !isSourceControlHostName(webAuthority)) return null
-  return {
+  const location: RemoteLocation | null = {
     host,
     webAuthority,
     sshTransport: !http && url.protocol !== 'git:',
     authority: sourceControlHostKey(url.host),
     ...path,
   }
+  return location
 }
 
 /**
  * Host, owner, and repository from an SCP-style or URL Git remote; null for local paths and for
  * any host that is not a plain hostname (ADR 0048).
  */
-export function parseRemoteLocation(remoteUrl: string): RemoteLocation | null {
+export function parseRemoteLocation(remoteUrl: string) {
   const trimmed = remoteUrl.trim()
-  return URL_SCHEME.test(trimmed) ? parseUrlRemote(trimmed) : parseScpRemote(trimmed)
+  const location: RemoteLocation | null = URL_SCHEME.test(trimmed)
+    ? parseUrlRemote(trimmed)
+    : parseScpRemote(trimmed)
+  return location
 }

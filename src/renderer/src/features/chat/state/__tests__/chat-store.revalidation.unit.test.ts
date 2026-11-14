@@ -32,7 +32,7 @@ function detail(
   updatedAt: number,
   messageCount: number,
   extra: Partial<SessionDetail> = {},
-): SessionDetail {
+) {
   return {
     id,
     title: 'Session',
@@ -46,7 +46,7 @@ function detail(
       createdAt: index,
     })),
     ...extra,
-  }
+  } satisfies SessionDetail
 }
 
 function deferred<T>() {

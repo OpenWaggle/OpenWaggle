@@ -11,11 +11,10 @@ import {
   withMcpAppToolsDeclared,
   withOpenWaggleRuntimeExposure,
 } from '../../../domain/mcp/config/mcp-runtime-exposure'
-import { mcpServerIdentity } from '../../mcp/pool/mcp-connection-pool-api'
-import { mcpAppTool, mcpAppToolNames } from './mcp-app-registry'
+import { mcpAppTool } from './mcp-app-registry'
 import { registerUnknownMcpAppToolWait } from './mcp-app-tool-startup-wait'
+import { type CachedMcpAppTools, knownMcpAppTools } from './mcp-known-app-tools'
 import { boundMember } from './mcp-openwaggle-surface'
-import { knownMcpServerState } from './mcp-server-status-registry'
 
 /**
  * MCP exposure as OpenWaggle runs it, on Pi's MCP extension (ADR 0051 amendment). The configured
@@ -45,8 +44,8 @@ export function withOpenWaggleMcpExposure(
   },
   /** Whether this Run's codemode reaches MCP tools; without it, `direct` stays `direct`. */
   codemode?: McpCodemodeReach,
-): ExtensionFactory {
-  return (pi) => {
+) {
+  return ((pi) => {
     codemode?.capture(pi)
     const registeredLabels = new Set<string>()
     if (unknownApps) {
@@ -82,7 +81,7 @@ export function withOpenWaggleMcpExposure(
         },
       }),
     )
-  }
+  }) satisfies ExtensionFactory
 }
 
 const CODEMODE_TOOL_NAME = 'codemode'
@@ -98,7 +97,7 @@ export interface McpCodemodeReach {
   readonly reachable: () => boolean
 }
 
-export function mcpCodemodeReach(autoEnableCodemode = true): McpCodemodeReach {
+export function mcpCodemodeReach(autoEnableCodemode = true) {
   let api: Pick<ExtensionAPI, 'getAllTools' | 'getActiveTools'> | undefined
   return {
     capture: (pi) => {
@@ -111,7 +110,7 @@ export function mcpCodemodeReach(autoEnableCodemode = true): McpCodemodeReach {
         .some((tool) => tool.name === CODEMODE_TOOL_NAME && tool.reachesTools !== undefined)
       return registered && (autoEnableCodemode || api.getActiveTools().includes(CODEMODE_TOOL_NAME))
     },
-  }
+  } satisfies McpCodemodeReach
 }
 
 /**
@@ -124,7 +123,7 @@ export function withDirectKeptWithoutCodemode<
   loaded: Loaded,
   codemode: McpCodemodeReach,
   fileConfigOf: (name: string) => Pick<McpServerConfig, 'exposure' | 'toolExposure'> | undefined,
-): Loaded {
+) {
   if (codemode.reachable()) return loaded
   return {
     ...loaded,
@@ -136,41 +135,12 @@ export function withDirectKeptWithoutCodemode<
 }
 
 /**
- * Where a Run looks up a server's App tools beyond this Host's memory: the server's cached
- * catalog (`cachedMcpAppToolNames`). Undefined when nothing is known.
- */
-export type CachedMcpAppTools = (entry: McpServerEntry) => readonly string[] | undefined
-
-/**
- * The MCP App tools a server is known to have: from this Session's listings, else from its cached
- * catalog, which is the project's (`mcpToolCatalogKeyOf`), else from the last listing of the same
- * server anywhere in the Host (a Run of another Session, Check connection). The Host-wide state is
- * kept by server identity, with no project, so it comes last: another project's listing says
- * little about the server here (review R5 P3-4). Undefined when none of them knows the server.
- */
-export function knownMcpAppTools(
-  sessionId: string,
-  entry: McpServerEntry,
-  cached?: CachedMcpAppTools,
-): readonly string[] | undefined {
-  const own = mcpAppToolNames(sessionId, entry.name)
-  if (own) return own
-  const fromCatalog = cached?.(entry)
-  if (fromCatalog) return fromCatalog
-  const known = knownMcpServerState(mcpServerIdentity(entry.name, entry.config))
-  if (known?.state === 'connected') {
-    return known.tools.filter((tool) => tool.hasApp).map((tool) => tool.name)
-  }
-  return undefined
-}
-
-/**
  * The configuration Pi's MCP extension loads, with each server's known App tools declared. Pi
  * calls `loadConfig` when its session starts, so App tools an earlier Run listed count.
  */
 export function withKnownMcpAppToolsOf<
   Loaded extends { readonly servers: readonly McpServerEntry[] },
->(sessionId: string, loaded: Loaded, cached?: CachedMcpAppTools): Loaded {
+>(sessionId: string, loaded: Loaded, cached?: CachedMcpAppTools) {
   return {
     ...loaded,
     servers: loaded.servers.map((server) => ({
@@ -194,7 +164,7 @@ function declaredIfMcpApp<
   sessionId: string,
   serverConfig: (name: string) => McpServerConfig | undefined,
   definition: Definition,
-): Definition {
+) {
   if (definition.exposure !== 'deferred' || !definition.name.startsWith('mcp__')) return definition
   const server = definition.namespace?.aliases?.[0]
   if (!server || !definition.label.startsWith(`${server}/`)) return definition
@@ -202,5 +172,5 @@ function declaredIfMcpApp<
   const config = serverConfig(server)
   if (!config || getMcpToolExposure(config, tool) !== 'codemode') return definition
   if (!mcpAppTool(sessionId, server, tool)) return definition
-  return { ...definition, exposure: 'direct' }
+  return { ...definition, exposure: 'direct' } satisfies Definition
 }

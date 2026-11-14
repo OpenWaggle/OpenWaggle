@@ -28,12 +28,9 @@ import {
   type TerminalHistoryCounts,
 } from './terminal-history-retention'
 import { stripTerminalReplaySequences } from './terminal-history-sanitizer'
-import type {
-  TerminalHistoryCacheSnapshot,
-  TerminalHistoryStore,
-} from './terminal-history-store-types'
+import type { TerminalHistoryStore } from './terminal-history-store-types'
 
-export type { TerminalHistoryCacheSnapshot, TerminalHistoryStore }
+export type { TerminalHistoryStore }
 
 const logger = createLogger('terminal-history')
 
@@ -90,8 +87,9 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   append = (key: TerminalKey, chunk: string) => this.queueAppend(key, chunk, null)
 
   appendWithCursor(key: TerminalKey, chunk: string, endOffset: number) {
-    if (!Number.isSafeInteger(endOffset) || endOffset < 0)
+    if (!Number.isSafeInteger(endOffset) || endOffset < 0) {
       throw new Error('Invalid terminal history cursor.')
+    }
     this.queueAppend(key, chunk, endOffset)
   }
 
@@ -145,11 +143,8 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
       await this.files.ensureDirectory()
       const entries = await this.files.listOwnerEntries(ownerKey)
       await this.files.remove(entries.map((entry) => this.files.pathForEntry(entry)))
-      for (const key of this.states.keys()) {
-        if (ownerKeyFromTerminalKey(key) === ownerKey) this.states.delete(key)
-      }
-      for (const key of this.workingDirectories.keys()) {
-        if (ownerKeyFromTerminalKey(key) === ownerKey) this.workingDirectories.delete(key)
+      for (const cache of [this.states, this.workingDirectories]) {
+        for (const key of cache.keys()) if (matches(key)) cache.delete(key)
       }
     })
   }
@@ -196,15 +191,16 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
     this.flushTimer = null
     await this.queuePendingBatches()
     if (key !== undefined && this.failedFlushes.has(key)) throw this.failedFlushes.get(key)
-    if (key === undefined && this.failedFlushes.size > 0)
+    if (key === undefined && this.failedFlushes.size > 0) {
       throw this.failedFlushes.values().next().value
+    }
   }
 
-  cacheSnapshotForTests = (): TerminalHistoryCacheSnapshot => ({
+  cacheSnapshotForTests = () => ({
     states: [...this.states].map(([key, state]) => ({ key, ...state })),
     workingDirectories: [...this.workingDirectories].map(([key, cwd]) => ({ key, cwd })),
   })
-  private enqueueMutation<Result>(mutation: () => Promise<Result>): Promise<Result> {
+  private enqueueMutation<Result>(mutation: () => Promise<Result>) {
     const result = this.mutationTail.then(mutation)
     this.mutationTail = result.then(
       () => undefined,
@@ -327,5 +323,7 @@ class TerminalHistoryStoreImpl implements TerminalHistoryStore {
   }
 }
 
-export const makeTerminalHistoryStore = (logsDir: string): TerminalHistoryStore =>
-  new TerminalHistoryStoreImpl(logsDir)
+export const makeTerminalHistoryStore = (logsDir: string) => {
+  const store: TerminalHistoryStore = new TerminalHistoryStoreImpl(logsDir)
+  return store
+}

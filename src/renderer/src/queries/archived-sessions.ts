@@ -1,16 +1,13 @@
 import type {
   ArchivedItemsChange,
   ArchivedItemsFilter,
-  ArchivedItemsPage,
   ArchivedItemsSort,
 } from '@shared/types/archived-items'
 import type { SessionId } from '@shared/types/brand'
 import {
-  type InfiniteData,
   infiniteQueryOptions,
   keepPreviousData,
   type QueryClient,
-  type UseInfiniteQueryOptions,
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query'
@@ -32,26 +29,7 @@ export function refreshArchivedSessions(queryClient: QueryClient) {
   ])
 }
 
-/**
- * One Settings > Archived items list. Typing keeps the previous results on screen until the next
- * page arrives, so the list narrows instead of flashing empty.
- */
-type ArchivedItemsQueryKey = [
-  (typeof queryKeys.archivedItems)[0],
-  ArchivedItemsFilter,
-  ArchivedItemsSort,
-]
-
-export function archivedItemsQueryOptions(
-  filter: ArchivedItemsFilter,
-  sort: ArchivedItemsSort,
-): UseInfiniteQueryOptions<
-  ArchivedItemsPage,
-  Error,
-  InfiniteData<ArchivedItemsPage>,
-  ArchivedItemsQueryKey,
-  string | null
-> {
+export function archivedItemsQueryOptions(filter: ArchivedItemsFilter, sort: ArchivedItemsSort) {
   return infiniteQueryOptions({
     queryKey: [...queryKeys.archivedItems, filter, sort],
     queryFn: ({ pageParam }) =>
@@ -115,7 +93,7 @@ function describe(error: unknown) {
 export function useArchivedDeleteSessionsMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (sessionIds: readonly SessionId[]): Promise<ArchivedSessionsDeletion> => {
+    mutationFn: async (sessionIds: readonly SessionId[]) => {
       const result = await api.deleteArchivedSessions([...sessionIds])
       const cleanups = await Promise.all(
         result.deleted.map((sessionId) =>

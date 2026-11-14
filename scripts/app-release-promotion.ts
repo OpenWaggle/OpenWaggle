@@ -3,6 +3,7 @@
  * promotion guard"). `app-release-state.ts verify-promotion` feeds them Git and GitHub data.
  */
 import { Schema } from 'effect'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 export const APP_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
 export const ROOT_MANIFEST_PATH = 'package.json'
@@ -50,7 +51,7 @@ export function latestReleaseCandidateTag(tags: readonly string[], targetVersion
   if (!STABLE_VERSION_PATTERN.test(targetVersion)) return null
   let selected: { readonly tag: string; readonly sequence: number } | null = null
   for (const tag of tags) {
-    const groups = RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups
+    const groups = namedGroups(RELEASE_CANDIDATE_TAG_PATTERN.exec(tag), ['core', 'sequence'])
     if (!groups || groups.core !== targetVersion) continue
     const sequence = Number(groups.sequence)
     if (!selected || sequence > selected.sequence) selected = { tag, sequence }
@@ -106,7 +107,9 @@ export type PromotionBase =
   | { readonly kind: 'compare'; readonly tag: string; readonly ignoredTags: readonly string[] }
 
 function releaseCandidateTagsFor(tags: readonly string[], targetVersion: string) {
-  return tags.filter((tag) => RELEASE_CANDIDATE_TAG_PATTERN.exec(tag)?.groups?.core === targetVersion)
+  return tags.filter(
+    (tag) => namedGroups(RELEASE_CANDIDATE_TAG_PATTERN.exec(tag), ['core'])?.core === targetVersion,
+  )
 }
 
 /**
@@ -120,11 +123,16 @@ export function promotionBase(input: {
   readonly targetVersion: string
   readonly gitHubReleaseLines: string | undefined
   readonly localTags: readonly string[]
-}): PromotionBase {
+}) {
   const { targetVersion } = input
-  if (!APP_VERSION_PATTERN.test(targetVersion)) throw new Error(`Invalid desktop app version: ${targetVersion}.`)
+  if (!APP_VERSION_PATTERN.test(targetVersion)) {
+    throw new Error(`Invalid desktop app version: ${targetVersion}.`)
+  }
   if (!STABLE_VERSION_PATTERN.test(targetVersion)) {
-    return { kind: 'skip', reason: `${targetVersion} is a prerelease; the promotion guard applies to Stable only.` }
+    return {
+      kind: 'skip',
+      reason: `${targetVersion} is a prerelease; the promotion guard applies to Stable only.`,
+    } satisfies PromotionBase
   }
   if (input.gitHubReleaseLines === undefined) {
     throw new Error(`Stable ${targetVersion} needs --releases with the GitHub release list.`)
@@ -132,12 +140,16 @@ export function promotionBase(input: {
   const publishedTags = publishedReleaseTags(input.gitHubReleaseLines)
   const tag = latestReleaseCandidateTag(publishedTags, targetVersion)
   const localReleaseCandidateTags = releaseCandidateTagsFor(input.localTags, targetVersion)
-  const ignoredTags = localReleaseCandidateTags.filter((localTag) => !publishedTags.includes(localTag))
+  const ignoredTags = localReleaseCandidateTags.filter(
+    (localTag) => !publishedTags.includes(localTag),
+  )
   if (!tag) {
     // A new major version always ships through a release candidate; later minors and patches may
     // release straight to Stable (docs/release-and-versioning.md, "After 1.0.0").
     if (requiresReleaseCandidate(targetVersion)) {
-      throw new Error(`Stable ${targetVersion} needs a published ${targetVersion}-rc.N release first.`)
+      throw new Error(
+        `Stable ${targetVersion} needs a published ${targetVersion}-rc.N release first.`,
+      )
     }
     // A minor or patch that started an RC train whose builds never shipped must not quietly drop
     // its freeze: publish a release candidate or delete the stray tags.
@@ -147,10 +159,13 @@ export function promotionBase(input: {
           `Publish ${targetVersion}-rc.N first, or delete these tags to release without one: ${ignoredTags.join(', ')}.`,
       )
     }
-    return { kind: 'skip', reason: `No published release candidate precedes ${targetVersion}; promotion guard skipped.` }
+    return {
+      kind: 'skip',
+      reason: `No published release candidate precedes ${targetVersion}; promotion guard skipped.`,
+    } satisfies PromotionBase
   }
   if (!localReleaseCandidateTags.includes(tag)) {
     throw new Error(`Published release candidate ${tag} has no tag in this checkout.`)
   }
-  return { kind: 'compare', tag, ignoredTags }
+  return { kind: 'compare', tag, ignoredTags } satisfies PromotionBase
 }

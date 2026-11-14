@@ -2,8 +2,8 @@ import type { GitStatusSummary } from '@shared/types/git'
 import { describe, expect, it } from 'vitest'
 import { buildSessionGitIndicator } from '../session-git-indicator'
 
-function status(overrides: Partial<GitStatusSummary> = {}): GitStatusSummary {
-  return {
+function status(overrides: Partial<GitStatusSummary> = {}) {
+  const summary: GitStatusSummary = {
     branch: 'main',
     additions: 0,
     deletions: 0,
@@ -14,6 +14,7 @@ function status(overrides: Partial<GitStatusSummary> = {}): GitStatusSummary {
     behind: 0,
     ...overrides,
   }
+  return summary
 }
 
 describe('buildSessionGitIndicator', () => {

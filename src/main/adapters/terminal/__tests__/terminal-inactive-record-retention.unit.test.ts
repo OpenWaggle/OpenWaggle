@@ -3,21 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { COLD_REPLAY_STATE_BOUNDARY } from '../terminal-replay'
 import {
   feed,
-  OUTPUT_FLUSH_MS,
-  OWNER,
   open,
   openInput,
+  OUTPUT_FLUSH_MS,
+  OWNER,
   ptys,
   readinessMarker,
   service,
   setDeliveryCount,
   settle,
   setupTerminalServiceActionsTest,
+  teardownTerminalServiceActionsTest,
   TERMINAL_ID,
   TERMINAL_KEY,
-  teardownTerminalServiceActionsTest,
   workDirA,
 } from './terminal-service-actions-test-harness'
+import { terminalKeys } from './terminal-service-observations'
 
 const SURFACE_ID = 17
 
@@ -49,11 +50,11 @@ describe('inactive terminal record retention', () => {
     ptys[0]?.emitExit(0)
     await settle()
 
-    expect(service.records.has(TERMINAL_KEY)).toBe(true)
+    expect(await terminalKeys()).toContain(TERMINAL_KEY)
     expect(service.records.get(TERMINAL_KEY)?.inFlightOutput).not.toBeNull()
 
     await detach()
-    await vi.waitFor(() => expect(service.records.has(TERMINAL_KEY)).toBe(false))
+    await vi.waitFor(async () => expect(await terminalKeys()).not.toContain(TERMINAL_KEY))
     await vi.waitFor(() => {
       expect(service.history.cacheSnapshotForTests()).toEqual({
         states: [],
@@ -65,7 +66,7 @@ describe('inactive terminal record retention', () => {
 
     expect(cold.history).toContain('persisted output')
     expect(cold.history).toContain(COLD_REPLAY_STATE_BOUNDARY)
-    expect(service.records.has(TERMINAL_KEY)).toBe(true)
+    expect(await terminalKeys()).toContain(TERMINAL_KEY)
     expect(ptys).toHaveLength(2)
   })
 
@@ -77,11 +78,11 @@ describe('inactive terminal record retention', () => {
     ptys[0]?.emitExit(0)
     await settle()
 
-    expect(service.records.has(TERMINAL_KEY)).toBe(true)
+    expect(await terminalKeys()).toContain(TERMINAL_KEY)
     expect(service.records.get(TERMINAL_KEY)?.pendingOutput).toBe('final output')
 
     await vi.advanceTimersByTimeAsync(OUTPUT_FLUSH_MS)
-    await vi.waitFor(() => expect(service.records.has(TERMINAL_KEY)).toBe(false))
+    await vi.waitFor(async () => expect(await terminalKeys()).not.toContain(TERMINAL_KEY))
     await expect(service.history.read(TERMINAL_KEY)).resolves.toBe('final output')
   })
 
@@ -109,10 +110,10 @@ describe('inactive terminal record retention', () => {
     ptys[0]?.emitExit(0)
     await settle()
 
-    expect(service.records.has(sessionKey)).toBe(true)
+    expect(await terminalKeys()).toContain(sessionKey)
 
     await detach(sessionOwner)
-    await vi.waitFor(() => expect(service.records.has(sessionKey)).toBe(false))
+    await vi.waitFor(async () => expect(await terminalKeys()).not.toContain(sessionKey))
     await Effect.runPromise(
       service.open({
         ...openInput(workDirA),
@@ -121,8 +122,8 @@ describe('inactive terminal record retention', () => {
       }),
     )
 
-    expect(service.records.has(draftKey)).toBe(true)
-    expect(service.records.has(sessionKey)).toBe(false)
+    expect(await terminalKeys()).toContain(draftKey)
+    expect(await terminalKeys()).not.toContain(sessionKey)
     await expect(
       Effect.runPromise(service.write(draftOwner, TERMINAL_ID, 'echo once\r', identity)),
     ).resolves.toMatchObject({ status: 'queued', identity })
@@ -139,7 +140,7 @@ describe('inactive terminal record retention', () => {
     await settle()
 
     expect(service.records.get(TERMINAL_KEY)?.pendingInputBytes).toBe(14)
-    expect(service.records.has(TERMINAL_KEY)).toBe(true)
+    expect(await terminalKeys()).toContain(TERMINAL_KEY)
   })
 
   it('evicts even when releasing the non-durable history cache fails', async () => {
@@ -151,7 +152,7 @@ describe('inactive terminal record retention', () => {
     ptys[0]?.emitExit(0)
     await settle()
 
-    await vi.waitFor(() => expect(service.records.has(TERMINAL_KEY)).toBe(false))
+    await vi.waitFor(async () => expect(await terminalKeys()).not.toContain(TERMINAL_KEY))
     expect(service.history.release).toHaveBeenCalledExactlyOnceWith(TERMINAL_KEY)
   })
 })

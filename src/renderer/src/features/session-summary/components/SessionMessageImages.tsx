@@ -104,10 +104,7 @@ function resourceSignature(resources: readonly SessionResource[]) {
   )
 }
 
-function buildResourceIndex(
-  id: string | null,
-  resources: readonly SessionResource[],
-): SessionMessageResourceIndex | null {
+function buildResourceIndex(id: string | null, resources: readonly SessionResource[]) {
   return id ? { sessionId: id, imagesByMessageId: indexMessageImages(id, resources) } : null
 }
 

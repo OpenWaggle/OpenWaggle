@@ -7,6 +7,7 @@ import {
   type RailMove,
   visibleRailOrder,
 } from './right-panel-rail-order'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const RIGHT_PANEL_RAIL_STORAGE_KEY = 'openwaggle:right-panel-rail:v1'
 /** Sessions whose Right panel memory is kept; older entries are dropped first. */
@@ -80,8 +81,8 @@ function boundedSessions(
   return Object.fromEntries(entries.slice(-MAX_REMEMBERED_SESSIONS))
 }
 
-function surfaceList(value: unknown): RightPanelSurfaceId[] {
-  if (!Array.isArray(value)) return []
+function surfaceList(value: unknown) {
+  if (!Array.isArray(value)) return [] satisfies RightPanelSurfaceId[]
   return uniqueSurfaces(
     value.filter(
       (entry): entry is RightPanelSurfaceId =>
@@ -90,39 +91,38 @@ function surfaceList(value: unknown): RightPanelSurfaceId[] {
   )
 }
 
-function surfaceOrNull(value: unknown): RightPanelSurfaceId | null {
+function surfaceOrNull(value: unknown) {
   return typeof value === 'string' && isRightPanelSurfaceId(value) ? value : null
 }
 
-function sanitizeSessions(value: unknown): Record<string, SessionRightPanelMemory> {
+function sanitizeSessions(value: unknown) {
   if (value === null || typeof value !== 'object') return {}
   const sessions: Record<string, SessionRightPanelMemory> = {}
   for (const [key, raw] of Object.entries(value)) {
     if (key.length === 0 || raw === null || typeof raw !== 'object') continue
-    const open: unknown = Reflect.get(raw, 'open')
-    const lastFilePath: unknown = Reflect.get(raw, 'lastFilePath')
+    const { surface, open, lastFilePath, terminal } = uncheckedFields<SessionRightPanelMemory>(raw)
     sessions[key] = {
-      surface: surfaceOrNull(Reflect.get(raw, 'surface')),
+      surface: surfaceOrNull(surface),
       open: open === true,
       lastFilePath:
         typeof lastFilePath === 'string' && lastFilePath.length > 0 ? lastFilePath : null,
-      terminal: Reflect.get(raw, 'terminal') === true,
+      terminal: terminal === true,
     }
   }
   return Object.fromEntries(Object.entries(sessions).slice(-MAX_REMEMBERED_SESSIONS))
 }
 
 /** Validates persisted rail state; anything unreadable falls back to the defaults. */
-export function sanitizeRightPanelRailState(value: unknown): RightPanelRailPersistedState {
+export function sanitizeRightPanelRailState(value: unknown) {
   if (value === null || typeof value !== 'object') return INITIAL_STATE
-  const order: unknown = Reflect.get(value, 'order')
+  const persisted = uncheckedFields<RightPanelRailPersistedState>(value)
   return {
-    order: Array.isArray(order) ? surfaceList(order) : null,
-    hidden: surfaceList(Reflect.get(value, 'hidden')),
-    acknowledged: surfaceList(Reflect.get(value, 'acknowledged')),
-    extensionsInitialized: Reflect.get(value, 'extensionsInitialized') === true,
-    lastSurface: surfaceOrNull(Reflect.get(value, 'lastSurface')),
-    sessions: sanitizeSessions(Reflect.get(value, 'sessions')),
+    order: Array.isArray(persisted.order) ? surfaceList(persisted.order) : null,
+    hidden: surfaceList(persisted.hidden),
+    acknowledged: surfaceList(persisted.acknowledged),
+    extensionsInitialized: persisted.extensionsInitialized === true,
+    lastSurface: surfaceOrNull(persisted.lastSurface),
+    sessions: sanitizeSessions(persisted.sessions),
   }
 }
 
@@ -187,7 +187,7 @@ export const useRightPanelRailStore = create<RightPanelRailState>()(
     {
       name: RIGHT_PANEL_RAIL_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state): RightPanelRailPersistedState => ({
+      partialize: (state) => ({
         order: state.order,
         hidden: state.hidden,
         acknowledged: state.acknowledged,
@@ -207,7 +207,7 @@ export function useSessionLastFilePath(sessionKey: string | null) {
   )
 }
 
-export function sessionRightPanelMemory(sessionKey: string | null): SessionRightPanelMemory {
+export function sessionRightPanelMemory(sessionKey: string | null) {
   if (sessionKey === null) return EMPTY_SESSION_MEMORY
   return useRightPanelRailStore.getState().sessions[sessionKey] ?? EMPTY_SESSION_MEMORY
 }

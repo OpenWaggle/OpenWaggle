@@ -16,7 +16,10 @@ async function writeFixture() {
   fixtureRoot = await mkdtemp(path.join(tmpdir(), 'openwaggle-lazy-external-'))
   const packageRoot = path.join(fixtureRoot, 'node_modules', FAKE_EXTERNAL)
   await mkdir(packageRoot, { recursive: true })
-  await writeFile(path.join(packageRoot, 'package.json'), JSON.stringify({ name: FAKE_EXTERNAL, main: 'index.js' }))
+  await writeFile(
+    path.join(packageRoot, 'package.json'),
+    JSON.stringify({ name: FAKE_EXTERNAL, main: 'index.js' }),
+  )
   await writeFile(
     path.join(packageRoot, 'index.js'),
     `globalThis.${LOADED_FLAG} = true\nexports.answer = 42\n`,
@@ -55,7 +58,9 @@ async function bundle(label: string, lazy: boolean) {
 }
 
 function isRunnableBundle(value: unknown): value is { run: () => Promise<unknown> } {
-  return typeof value === 'object' && value !== null && typeof Reflect.get(value, 'run') === 'function'
+  return (
+    typeof value === 'object' && value !== null && 'run' in value && typeof value.run === 'function'
+  )
 }
 
 describe('lazyExternalRequiresPlugin', () => {

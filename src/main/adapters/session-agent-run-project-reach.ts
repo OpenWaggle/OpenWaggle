@@ -26,6 +26,21 @@ interface RunSourceRow {
   readonly profile_revoked_at: number | null
 }
 
+/** What `rootSessionReachesEveryProject` reads from a Session's profile and authority rows. */
+function rootReachInput(row: Omit<RunSourceRow, 'initiator_caller_id'>) {
+  const liveProfileScope =
+    row.profile_scope_json && row.profile_revoked_at === null
+      ? decodeLocalSessionProfileScope(parseJsonUnknown(row.profile_scope_json))
+      : undefined
+  const snapshotScope = decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)?.scope
+  return {
+    isRoot: row.parent_session_id === null,
+    originCallerId: row.authority_origin_caller_id,
+    ...(liveProfileScope === undefined ? {} : { liveProfileScope }),
+    ...(snapshotScope === undefined ? {} : { snapshotScope }),
+  }
+}
+
 function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<{ readonly scope_json: string; readonly revoked_at: number | null }>`
@@ -34,7 +49,7 @@ function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
       LIMIT 1
     `
     const profile = rows[0]
-    if (!profile || profile.revoked_at !== null) return undefined
+    if (profile?.revoked_at !== null) return undefined
     // An unreadable scope fails closed: no reach, rather than a defect that ends the Run.
     return yield* Effect.try(() =>
       decodeLocalSessionProfileScope(parseJsonUnknown(profile.scope_json)),
@@ -43,15 +58,22 @@ function liveProfileScope(sql: SqlClient.SqlClient, callerId: string) {
 }
 
 /** A caller's own verdict, or the agent Run whose verdict it takes. */
-function callerReach(
-  sql: SqlClient.SqlClient,
-  callerId: string,
-): Effect.Effect<boolean | RunReference, unknown> {
-  if (isLocalUserCallerId(callerId)) return Effect.succeed(true)
-  if (isProfileCallerId(callerId)) {
-    return liveProfileScope(sql, callerId).pipe(Effect.map((scope) => scope?.all === true))
+function callerReach(sql: SqlClient.SqlClient, callerId: string) {
+  if (isLocalUserCallerId(callerId)) {
+    const effect: Effect.Effect<boolean | RunReference, unknown> = Effect.succeed(true)
+    return effect
   }
-  return Effect.succeed(parseSessionAgentCallerId(callerId) ?? false)
+  if (isProfileCallerId(callerId)) {
+    const effect: Effect.Effect<boolean | RunReference, unknown> = liveProfileScope(
+      sql,
+      callerId,
+    ).pipe(Effect.map((scope) => scope?.all === true))
+    return effect
+  }
+  const effect: Effect.Effect<boolean | RunReference, unknown> = Effect.succeed(
+    parseSessionAgentCallerId(callerId) ?? false,
+  )
+  return effect
 }
 
 /** Whether a caller, as the author of input into a Run, reaches every project. */
@@ -77,25 +99,21 @@ export function sessionAgentRunReachesEveryProject(
   sql: SqlClient.SqlClient,
   sessionId: string,
   runId: string,
-): Effect.Effect<boolean, unknown> {
+) {
   return walkRunInitiators(reachWalk(sql), { sessionId, runId })
 }
 
-function reachWalk(sql: SqlClient.SqlClient): RunInitiatorWalk<boolean, unknown> {
+function reachWalk(sql: SqlClient.SqlClient) {
   return {
     step: (run) => runReachStep(sql, run.sessionId, run.runId),
     combine: (verdicts) => verdicts.every((verdict) => verdict),
     failClosed: false,
-  }
+  } satisfies RunInitiatorWalk<boolean, unknown>
 }
 
 const NO_REACH: RunVerdictStep<boolean> = { verdict: false, followRuns: [] }
 
-function runReachStep(
-  sql: SqlClient.SqlClient,
-  sessionId: string,
-  runId: string,
-): Effect.Effect<RunVerdictStep<boolean>, unknown> {
+function runReachStep(sql: SqlClient.SqlClient, sessionId: string, runId: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<RunSourceRow>`
       SELECT json_extract(session_runs.intent_json, '$.callerId') AS initiator_caller_id,
@@ -121,15 +139,7 @@ function runReachStep(
     const row = rows[0]
     if (!row?.initiator_caller_id) return NO_REACH
     const ownReach = yield* Effect.try(() =>
-      rootSessionReachesEveryProject({
-        isRoot: row.parent_session_id === null,
-        originCallerId: row.authority_origin_caller_id,
-        liveProfileScope:
-          row.profile_scope_json && row.profile_revoked_at === null
-            ? decodeLocalSessionProfileScope(parseJsonUnknown(row.profile_scope_json))
-            : undefined,
-        snapshotScope: decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)?.scope,
-      }),
+      rootSessionReachesEveryProject(rootReachInput(row)),
     ).pipe(Effect.orElseSucceed(() => false))
     if (!ownReach) return NO_REACH
     const reach = yield* callerReach(sql, row.initiator_caller_id)
@@ -145,10 +155,7 @@ function runReachStep(
  * reaching every project, since callers use this to refuse that reach. A Session with no execution
  * profile reaches nothing; callers report a missing target Session on their own.
  */
-export function sessionReachesEveryProject(
-  sql: SqlClient.SqlClient,
-  sessionId: string,
-): Effect.Effect<boolean, unknown> {
+export function sessionReachesEveryProject(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
     const rows = yield* sql<Omit<RunSourceRow, 'initiator_caller_id'>>`
       SELECT session_execution_profiles.authority_origin_caller_id,
@@ -170,16 +177,8 @@ export function sessionReachesEveryProject(
     `
     const row = rows[0]
     if (!row) return false
-    return yield* Effect.try(() =>
-      rootSessionReachesEveryProject({
-        isRoot: row.parent_session_id === null,
-        originCallerId: row.authority_origin_caller_id,
-        liveProfileScope:
-          row.profile_scope_json && row.profile_revoked_at === null
-            ? decodeLocalSessionProfileScope(parseJsonUnknown(row.profile_scope_json))
-            : undefined,
-        snapshotScope: decodeSessionAuthoritySnapshot(row.authority_scope_snapshot_json)?.scope,
-      }),
-    ).pipe(Effect.orElseSucceed(() => true))
+    return yield* Effect.try(() => rootSessionReachesEveryProject(rootReachInput(row))).pipe(
+      Effect.orElseSucceed(() => true),
+    )
   })
 }

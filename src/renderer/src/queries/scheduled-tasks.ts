@@ -1,14 +1,11 @@
 import type {
-  ScheduledTask,
   ScheduledTaskRejectionCode,
-  ScheduledTaskRun,
   ScheduledTasksCommand,
   ScheduledTasksOutcome,
 } from '@shared/types/scheduled-task'
 import { SCHEDULED_TASK_RUN_PAGE_LIMIT } from '@shared/types/scheduled-task'
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
-import type { OpenWaggleQueryOptions } from './query-options'
 
 /**
  * Scheduled tasks (ADR 0057) live in the Session Host. The GUI polls the list while it is open,
@@ -41,7 +38,7 @@ type AcceptedOutcome = Exclude<ScheduledTasksOutcome, { readonly effect: 'reject
 export async function executeScheduledTasksCommand(
   command: ScheduledTasksCommand,
   idempotencyKey?: string,
-): Promise<AcceptedOutcome> {
+) {
   const outcome = await api.executeScheduledTasks(command, idempotencyKey)
   if (outcome.effect === 'rejected') {
     throw new ScheduledTaskRejectedError(outcome.code, outcome.message)
@@ -49,7 +46,8 @@ export async function executeScheduledTasksCommand(
   return outcome
 }
 
-function unexpectedOutcome(outcome: AcceptedOutcome): never {
+/** An arrow, so its inferred type is `never` and a branch that calls it narrows away. */
+const unexpectedOutcome = (outcome: AcceptedOutcome) => {
   throw new Error(`Unexpected Scheduled tasks outcome: ${outcome.effect}`)
 }
 
@@ -76,12 +74,7 @@ async function listScheduledTaskRuns(taskId: string) {
  * Every task the user can see, in one shared cache entry: each surface (Right panel, Settings,
  * Session Summary, transcript rows, the shell monitor) narrows it client-side.
  */
-export function scheduledTasksListQueryOptions(): OpenWaggleQueryOptions<
-  readonly ScheduledTask[],
-  Error,
-  readonly ScheduledTask[],
-  ReturnType<typeof scheduledTasksQueryKeys.list>
-> {
+export function scheduledTasksListQueryOptions() {
   return queryOptions({
     queryKey: scheduledTasksQueryKeys.list(),
     queryFn: () => listScheduledTasks(),
@@ -91,14 +84,7 @@ export function scheduledTasksListQueryOptions(): OpenWaggleQueryOptions<
   })
 }
 
-export function scheduledTaskDetailQueryOptions(
-  taskId: string,
-): OpenWaggleQueryOptions<
-  ScheduledTask,
-  Error,
-  ScheduledTask,
-  ReturnType<typeof scheduledTasksQueryKeys.detail>
-> {
+export function scheduledTaskDetailQueryOptions(taskId: string) {
   return queryOptions({
     queryKey: scheduledTasksQueryKeys.detail(taskId),
     queryFn: () => readScheduledTask(taskId),
@@ -108,14 +94,7 @@ export function scheduledTaskDetailQueryOptions(
   })
 }
 
-export function scheduledTaskRunsQueryOptions(
-  taskId: string,
-): OpenWaggleQueryOptions<
-  readonly ScheduledTaskRun[],
-  Error,
-  readonly ScheduledTaskRun[],
-  ReturnType<typeof scheduledTasksQueryKeys.runs>
-> {
+export function scheduledTaskRunsQueryOptions(taskId: string) {
   return queryOptions({
     queryKey: scheduledTasksQueryKeys.runs(taskId),
     queryFn: () => listScheduledTaskRuns(taskId),

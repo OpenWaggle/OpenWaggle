@@ -3,24 +3,19 @@ import type {
   SyntaxThemeRegistration,
 } from '@shared/types/syntax-resources'
 import type { HighlighterCore, LanguageRegistration } from 'shiki'
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
 
 function isLanguageRegistration(value: unknown): value is LanguageRegistration {
+  const { name, scopeName, patterns, repository } = uncheckedFields<LanguageRegistration>(value)
   return (
-    isRecord(value) &&
-    typeof value.name === 'string' &&
-    typeof value.scopeName === 'string' &&
-    Array.isArray(value.patterns) &&
-    isRecord(value.repository)
+    typeof name === 'string' &&
+    typeof scopeName === 'string' &&
+    Array.isArray(patterns) &&
+    isObjectValue(repository)
   )
 }
 
-export function importedLanguageRegistration(
-  resource: SyntaxLanguageResource,
-): LanguageRegistration {
+export function importedLanguageRegistration(resource: SyntaxLanguageResource) {
   const candidate: unknown = {
     ...resource.registration.grammar,
     name: resource.registration.name,
@@ -39,8 +34,8 @@ export function importedLanguageRegistration(
   return candidate
 }
 
-function mutableScope(scope: string | readonly string[]): string | string[] {
-  return typeof scope === 'string' ? scope : [...scope]
+function mutableScope(scope: string | readonly string[]) {
+  return (typeof scope === 'string' ? scope : [...scope]) satisfies string | string[]
 }
 
 export async function loadImportedTheme(

@@ -22,7 +22,6 @@ import {
   emptyActiveStreamBuffer,
   MAX_ACTIVE_STREAM_BUFFER_BYTES,
   MAX_DEGRADED_TOOL_CALL_IDS,
-  MAX_TOTAL_STREAM_BUFFER_BYTES,
   retainedStreamBufferBytes,
   startsAnotherRun,
   toStreamBufferSnapshot,
@@ -39,7 +38,7 @@ import {
   updateStreamBufferParts,
 } from './stream-buffer-updates'
 
-export { MAX_ACTIVE_STREAM_BUFFER_BYTES, MAX_DEGRADED_TOOL_CALL_IDS, MAX_TOTAL_STREAM_BUFFER_BYTES }
+export { MAX_ACTIVE_STREAM_BUFFER_BYTES, MAX_DEGRADED_TOOL_CALL_IDS }
 
 const activeBuffers = new Map<SessionId, ActiveStreamBuffer>()
 // The Local Session protocol sends all active snapshots in one 8 MiB frame.
@@ -143,7 +142,11 @@ function applyMessageUpdateToStreamBuffer(
       appendBufferedText(sessionId, { type: 'reasoning', delta, contentIndex })
     })
     .with('toolcall_start', ({ toolCallId, toolName, input }) => {
-      upsertBufferedToolCall(sessionId, { toolCallId, toolName, args: input })
+      upsertBufferedToolCall(sessionId, {
+        toolCallId,
+        toolName,
+        ...(input === undefined ? {} : { args: input }),
+      })
     })
     .with('toolcall_end', ({ toolCallId, toolName, input }) => {
       if (activeBuffers.get(sessionId)?.degradedToolCallIds.has(toolCallId)) return
@@ -281,11 +284,11 @@ export function setWorktreeLaunchSnapshot(
   if (updated) activeBuffers.set(sessionId, updated)
 }
 
-export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | null {
+export function getStreamBuffer(sessionId: SessionId) {
   return toStreamBufferSnapshot(sessionId, activeBuffers.get(sessionId))
 }
 
-export function listStreamBuffers(): ActiveRunInfo[] {
+export function listStreamBuffers() {
   const result: ActiveRunInfo[] = []
   for (const [sessionId, buffer] of activeBuffers) {
     result.push({
@@ -300,7 +303,7 @@ export function listStreamBuffers(): ActiveRunInfo[] {
   return result
 }
 
-export function listStreamBufferSnapshots(): BackgroundRunSnapshot[] {
+export function listStreamBufferSnapshots() {
   return [...activeBuffers.keys()].flatMap((sessionId) => {
     const snapshot = getStreamBuffer(sessionId)
     return snapshot ? [snapshot] : []
@@ -308,9 +311,7 @@ export function listStreamBufferSnapshots(): BackgroundRunSnapshot[] {
 }
 
 /** Replaces the buffers with the snapshots; returns the Run each replaced buffer held, by Session. */
-export function replaceStreamBufferSnapshots(
-  snapshots: readonly BackgroundRunSnapshot[],
-): ReadonlyMap<SessionId, string | undefined> {
+export function replaceStreamBufferSnapshots(snapshots: readonly BackgroundRunSnapshot[]) {
   const restored = restoreStreamBufferSnapshots(activeBuffers, snapshots)
   totalRetainedBytes = restored.totalRetainedBytes
   totalHistoryBytes = restored.totalHistoryBytes

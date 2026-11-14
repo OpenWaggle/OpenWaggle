@@ -5,7 +5,6 @@ import {
   parseTerminalFileReference,
   resolveTerminalOsc8Target,
   resolveWrappedTerminalLinkRange,
-  type TerminalBufferCellLike,
   type TerminalBufferLineLike,
   wrappedTerminalLinkRangeIntersectsBufferLine,
 } from '../terminal-links'
@@ -235,14 +234,14 @@ describe('resolveTerminalOsc8Target', () => {
   })
 })
 
-function createBufferLine(text: string, isWrapped = false): TerminalBufferLineLike {
+function createBufferLine(text: string, isWrapped = false) {
   return {
     isWrapped,
     translateToString: (trimRight = false) => (trimRight ? text.trimEnd() : text),
   }
 }
 
-function createCell(chars: string, width: number): TerminalBufferCellLike {
+function createCell(chars: string, width: number) {
   return { getChars: () => chars, getWidth: () => width }
 }
 

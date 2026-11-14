@@ -12,17 +12,21 @@ const artifact: BrowserPreviewRecordingArtifact = {
   createdAt: '2026-09-05T10:00:00.000Z',
 }
 
-function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
+function deferred() {
   let resolve: () => void = () => undefined
   const promise = new Promise<void>((onResolve) => {
     resolve = onResolve
   })
-  return { promise, resolve }
+  const result: { readonly promise: Promise<void>; readonly resolve: () => void } = {
+    promise,
+    resolve,
+  }
+  return result
 }
 
 function makeClient() {
-  const start = vi.fn(async (): Promise<void> => undefined)
-  const cancel = vi.fn(async (): Promise<void> => undefined)
+  const start = vi.fn<() => Promise<void>>(async () => undefined)
+  const cancel = vi.fn<() => Promise<void>>(async () => undefined)
   const controller = {
     start,
     stop: vi.fn(async () => artifact),

@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { persistedSentKey, type SentTurn } from '../transcript-sent-turn'
 import { rowIndex } from './transcript-viewport.fixtures'
 
-const sent = (precedingKey: string | null): SentTurn => ({
-  key: 'optimistic',
-  top: 24,
-  precedingKey,
-})
+const sent = (precedingKey: string | null) =>
+  ({
+    key: 'optimistic',
+    top: 24,
+    precedingKey,
+  }) satisfies SentTurn
 
 describe('persistedSentKey', () => {
   it('pairs the user row right after the row that preceded the message', () => {

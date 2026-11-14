@@ -23,7 +23,7 @@ export function realHomeLocations(
   locations: TestUserLocations,
   realHome: string,
   temporaryRoot: string,
-): string[] {
+) {
   const home = path.resolve(realHome)
   const temporary = path.resolve(temporaryRoot)
   const candidates = [

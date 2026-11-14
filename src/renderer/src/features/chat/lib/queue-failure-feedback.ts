@@ -33,7 +33,7 @@ export function reportAutoSendQueueFailure(
   sessionId: SessionId | null,
   payload: AgentSendPayload,
   error: unknown,
-): void {
+) {
   deps.logger.error('Failed to auto-send queued message', {
     sessionId,
     error: formatError(error),
@@ -49,7 +49,7 @@ export function reportQueuedSteerFailure(
   sessionId: SessionId,
   messageId: string,
   error: unknown,
-): void {
+) {
   deps.logger.error('Failed to steer queued message', {
     sessionId,
     messageId,

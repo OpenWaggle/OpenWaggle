@@ -146,14 +146,15 @@ function workflow(
   )
 }
 
-function hostWorkspace(sessionId: SessionId): SessionWorkspace {
+function hostWorkspace(sessionId: SessionId) {
   const reply = assistantNode('reply-node', sessionId)
-  return fromPartial({
+  const workspace: SessionWorkspace = fromPartial({
     tree: { session: { id: sessionId }, nodes: [reply], branches: [] },
     activeBranchId: null,
     activeNodeId: reply.id,
     transcriptPath: [{ node: reply, branchId: null, isActive: true }],
   })
+  return workspace
 }
 
 it('reads a reply sent since the workspace loaded from the Host before forking after it', async () => {

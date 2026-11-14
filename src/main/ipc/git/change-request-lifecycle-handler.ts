@@ -10,6 +10,7 @@ import * as Effect from 'effect/Effect'
 import { GuiSessionCommandNotAttachedError } from '../../application/gui-session-command'
 import { invokeConfiguredHostUi } from '../../application/gui-session-command-router'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
+import type { IpcInvocation } from '../../ports/desktop-shell/ipc-transport'
 import { decodeSessionMergeArguments } from '../../services/source-control/session-request-arguments'
 import { hostHandle, RelayedHostResult, relayingHandle } from '../typed-ipc'
 
@@ -35,7 +36,7 @@ const candidateResultSchema = Schema.Union(
       'unknown',
     ),
     message: Schema.String,
-    attention: Schema.optional(sourceControlAttentionSchema),
+    attention: Schema.optionalWith(sourceControlAttentionSchema, { exact: true }),
   }),
 )
 
@@ -48,7 +49,7 @@ export function mergeConfirmationDetail(
 }
 
 async function askMergeConfirmation(
-  event: Electron.IpcMainInvokeEvent,
+  event: IpcInvocation,
   candidate: ChangeRequestMergeCandidate,
   payload: MergeChangeRequestPayload,
 ) {
@@ -69,7 +70,7 @@ async function askMergeConfirmation(
 
 /** The Session Host validates and merges; only the confirmation dialog belongs to the window. */
 function mergeEffect(
-  event: Electron.IpcMainInvokeEvent,
+  event: IpcInvocation,
   rawSessionId: unknown,
   rawPath: unknown,
   rawPayload: unknown,
@@ -109,7 +110,7 @@ function mergeEffect(
   })
 }
 
-export function registerGitChangeRequestLifecycleHandlers(): void {
+export function registerGitChangeRequestLifecycleHandlers() {
   hostHandle('git:change-request:panel')
   relayingHandle('git:change-request:merge', (event, sessionId, path, payload) =>
     mergeEffect(event, sessionId, path, payload),

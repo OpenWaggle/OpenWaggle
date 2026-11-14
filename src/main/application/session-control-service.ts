@@ -12,10 +12,7 @@ import type {
 import * as Effect from 'effect/Effect'
 import { applyExplicitFollowUp } from '../domain/session-control/explicit-follow-up'
 import { applyAdaptiveMessage } from '../domain/session-control/message-aggregate'
-import {
-  applyQueueMutation,
-  type SessionControlQueueMutation,
-} from '../domain/session-control/queue-aggregate'
+import { applyQueueMutation } from '../domain/session-control/queue-aggregate'
 import { applyRunStart } from '../domain/session-control/run-start'
 import { SessionControlIdentityService } from '../ports/session-control-identity-service'
 import { SessionControlRepository } from '../ports/session-control-repository'
@@ -57,9 +54,7 @@ export interface MutateSessionQueueInput {
   readonly queueDeliveryAdmitted?: boolean
 }
 
-function toQueueMutation(
-  command: SessionControlQueueMutationRequest['command'],
-): SessionControlQueueMutation {
+function toQueueMutation(command: SessionControlQueueMutationRequest['command']) {
   return matchBy(command, 'operation')
     .with('queue-withdraw', (withdraw) => ({
       type: 'withdraw',

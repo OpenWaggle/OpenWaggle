@@ -27,7 +27,7 @@ function repositoryError(operation: string, cause: unknown) {
   return new SessionOutputRetryRepositoryError({ operation, cause })
 }
 
-function decodeRow(row: PendingOutputRow): PendingSessionOutput {
+function decodeRow(row: PendingOutputRow) {
   const base = {
     id: row.id,
     sessionId: SessionId(row.session_id),
@@ -37,10 +37,22 @@ function decodeRow(row: PendingOutputRow): PendingSessionOutput {
     updatedAt: row.updated_at,
   }
   if (row.kind === 'commit' && row.commit_hash !== null && row.summary !== null) {
-    return { ...base, kind: 'commit', commitHash: row.commit_hash, summary: row.summary }
+    const output: PendingSessionOutput = {
+      ...base,
+      kind: 'commit',
+      commitHash: row.commit_hash,
+      summary: row.summary,
+    }
+    return output
   }
   if (row.kind === 'change-request' && row.title !== null && row.url !== null) {
-    return { ...base, kind: 'change-request', title: row.title, url: row.url }
+    const output: PendingSessionOutput = {
+      ...base,
+      kind: 'change-request',
+      title: row.title,
+      url: row.url,
+    }
+    return output
   }
   throw new Error(`Invalid pending session Output row: ${row.id}`)
 }

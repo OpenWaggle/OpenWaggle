@@ -6,9 +6,13 @@ const WORKFLOW = fs.readFileSync(path.join(process.cwd(), '.github/workflows/rel
 
 describe('desktop app release publication', () => {
   it('publishes update blockmaps for differential downloads and never the builder debug dump', () => {
-    const uploads = WORKFLOW.match(/name: (?:macos|windows)-artifacts\n\s+path: \|(?:\n\s+dist\/\S+)+/gu)
+    const uploads = WORKFLOW.match(
+      /name: (?:macos|windows)-artifacts\n\s+path: \|(?:\n\s+dist\/\S+)+/gu,
+    )
     expect(uploads?.map((upload) => upload.includes('dist/*.blockmap'))).toEqual([true, true])
-    expect(WORKFLOW).toContain("-o -name '*.blockmap' -o \\( -name '*.yml' ! -name 'builder-debug.yml' \\)")
+    expect(WORKFLOW).toContain(
+      "-o -name '*.blockmap' -o \\( -name '*.yml' ! -name 'builder-debug.yml' \\)",
+    )
   })
 
   it('lets only Stable app releases become the GitHub Latest release', () => {
@@ -40,7 +44,11 @@ describe('desktop app release publication', () => {
     expect(WORKFLOW.slice(steps[3], steps[4])).toContain('--latest="$RELEASE_LATEST"')
     expect(WORKFLOW.slice(steps[4])).toContain('--dir release --published')
     // A rerun after publication only verifies; it never re-uploads over a published release.
-    for (const step of [upload, WORKFLOW.slice(steps[2], steps[3]), WORKFLOW.slice(steps[3], steps[4])]) {
+    for (const step of [
+      upload,
+      WORKFLOW.slice(steps[2], steps[3]),
+      WORKFLOW.slice(steps[3], steps[4]),
+    ]) {
       expect(step).toContain("if: steps.existing-release.outputs.published != 'true'")
     }
   })
@@ -64,7 +72,7 @@ describe('desktop app release publication', () => {
       WORKFLOW.indexOf('verify_promotion HEAD'),
     )
     expect(guard).toContain('gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100"')
-    expect(guard).toContain("--jq '.[] | {tag_name, draft}' > \"$releases_path\"")
+    expect(guard).toContain('--jq \'.[] | {tag_name, draft}\' > "$releases_path"')
     expect(guard).toMatch(
       /scripts\/app-release-state\.ts verify-promotion \\\n\s+--target "\$VERSION" \\\n\s+--candidate "\$candidate_ref" \\\n\s+--releases "\$releases_path"\n/u,
     )
@@ -96,11 +104,16 @@ describe('desktop app release publication', () => {
     expect(verify).toContain('[ "${#dmgs[@]}" -eq 2 ]')
     expect(verify).toContain('codesign --verify --strict --verbose=2 "$dmg"')
     expect(verify).toContain('xcrun stapler validate "$dmg"')
-    expect(verify).toContain('spctl --assess --type open --context context:primary-signature --verbose "$dmg"')
+    expect(verify).toContain(
+      'spctl --assess --type open --context context:primary-signature --verbose "$dmg"',
+    )
   })
 
   it('refuses an unsigned release candidate or Stable before its tag is pushed', () => {
-    const versionJob = WORKFLOW.slice(WORKFLOW.indexOf('  version:'), WORKFLOW.indexOf('  build-macos:'))
+    const versionJob = WORKFLOW.slice(
+      WORKFLOW.indexOf('  version:'),
+      WORKFLOW.indexOf('  build-macos:'),
+    )
     const precheck = versionJob.indexOf('if [[ "$VERSION" == *-rc.* || "$VERSION" != *-* ]]; then')
     expect(precheck).toBeGreaterThan(0)
     expect(precheck).toBeLessThan(versionJob.indexOf('RELEASE_BRANCH="app-release-v${VERSION}"'))
@@ -121,6 +134,8 @@ describe('desktop app release publication', () => {
     const build = WORKFLOW.indexOf('name: Build macOS artifacts (arm64 + x64)')
     expect(guard).toBeGreaterThan(WORKFLOW.indexOf('  build-macos:'))
     expect(guard).toBeLessThan(build)
-    expect(WORKFLOW).toMatch(/rc\|stable\)\n\s+if \[ "\$MACOS_SIGNING_CONFIGURED" != "true" \] \|\| \[ "\$MACOS_NOTARIZATION_CONFIGURED" != "true" \]; then/u)
+    expect(WORKFLOW).toMatch(
+      /rc\|stable\)\n\s+if \[ "\$MACOS_SIGNING_CONFIGURED" != "true" \] \|\| \[ "\$MACOS_NOTARIZATION_CONFIGURED" != "true" \]; then/u,
+    )
   })
 })

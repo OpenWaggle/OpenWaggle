@@ -3,18 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { applyTurnFolds } from '../turn-fold'
 import type { ChatRow, MessageChatRow } from '../types-chat-row'
 
-function row(
-  id: string,
-  role: UIMessage['role'],
-  part: UIMessage['parts'][number],
-): MessageChatRow {
+function row(id: string, role: UIMessage['role'], part: UIMessage['parts'][number]) {
   return {
     type: 'message',
     message: { id, role, parts: [part] },
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-  }
+  } satisfies MessageChatRow
 }
 
 describe('applyTurnFolds during an active run', () => {

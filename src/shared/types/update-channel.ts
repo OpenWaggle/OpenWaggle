@@ -19,8 +19,8 @@ export function updaterFeedChannel(channel: UpdateChannel) {
  * has not made an explicit choice yet. RC builds default to Beta, the
  * lowest-risk channel that still receives later release candidates.
  */
-export function defaultUpdateChannelForBuild(buildChannel: BuildChannel): UpdateChannel {
+export function defaultUpdateChannelForBuild(buildChannel: BuildChannel) {
   if (buildChannel === 'alpha' || buildChannel === 'beta') return buildChannel
-  if (buildChannel === 'rc') return 'beta'
+  if (buildChannel === 'rc') return 'beta' as const
   return DEFAULT_UPDATE_CHANNEL
 }

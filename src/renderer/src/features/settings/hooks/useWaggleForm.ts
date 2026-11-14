@@ -13,10 +13,10 @@ import {
   configMatchesPreset,
   INITIAL_WAGGLE_FORM_STATE,
   INITIAL_WAGGLE_PRESET_STATE,
-  type WaggleFormAction,
-  type WaggleFormState,
   waggleFormReducer,
   wagglePresetReducer,
+  type WaggleFormState,
+  type WaggleFormAction,
 } from './waggle-form-state'
 
 export type { WaggleFormAction } from './waggle-form-state'
@@ -42,7 +42,7 @@ export interface WaggleFormHook {
 
 const EMPTY_PRESETS: readonly WagglePreset[] = []
 
-export function useWaggleForm(): WaggleFormHook {
+export function useWaggleForm() {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const wagglePresetsQuery = useQuery(wagglePresetsQueryOptions(projectPath))
   const saveWagglePresetMutation = useSaveWagglePresetMutation(projectPath)
@@ -139,7 +139,7 @@ export function useWaggleForm(): WaggleFormHook {
     }
   }
 
-  return {
+  const hook: WaggleFormHook = {
     formState,
     dispatchForm,
     presets,
@@ -151,4 +151,5 @@ export function useWaggleForm(): WaggleFormHook {
     handleNewCustom,
     handleDeletePreset,
   }
+  return hook
 }

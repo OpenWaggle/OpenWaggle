@@ -13,7 +13,9 @@ afterEach(() => vi.restoreAllMocks())
 function fixture() {
   const server = net.createServer()
   vi.mocked(createServer).mockReturnValue(server)
-  const processTable = vi.fn(async () => [{ pid: process.pid, ppid: process.ppid, startedAt: '100', name: 'node.exe' }])
+  const processTable = vi.fn(async () => [
+    { pid: process.pid, ppid: process.ppid, startedAt: '100', name: 'node.exe' },
+  ])
   const listeningPorts = vi.fn(async () => {
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Probe server is not listening')

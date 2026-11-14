@@ -1,9 +1,6 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import {
-  type ValidatedSessionResourceImage,
-  validatedImageBuffer,
-} from '../domain/session-resource-image'
+import { validatedImageBuffer } from '../domain/session-resource-image'
 import {
   SessionResourceImageValidator,
   type SessionResourceImageValidatorShape,
@@ -34,10 +31,7 @@ function safePixelCount(width: number, height: number, pages: number) {
     : null
 }
 
-export async function decodeSessionResourceImage(
-  bytes: Uint8Array,
-  mimeType: string,
-): Promise<ValidatedSessionResourceImage | null> {
+export async function decodeSessionResourceImage(bytes: Uint8Array, mimeType: string) {
   const structurallyValid = validatedImageBuffer(bytes, mimeType)
   if (!structurallyValid) return null
   try {
@@ -70,11 +64,11 @@ export async function decodeSessionResourceImage(
   }
 }
 
-export function createSharpSessionResourceImageValidator(): SessionResourceImageValidatorShape {
+export function createSharpSessionResourceImageValidator() {
   return {
     validate: (bytes, mimeType) =>
       Effect.promise(() => decodeSessionResourceImage(bytes, mimeType)),
-  }
+  } satisfies SessionResourceImageValidatorShape
 }
 
 export const SharpSessionResourceImageValidatorLive = Layer.succeed(

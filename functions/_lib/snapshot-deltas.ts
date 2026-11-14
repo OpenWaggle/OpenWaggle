@@ -63,7 +63,9 @@ function isCount(value: unknown): value is number {
 }
 
 function isDailyCounts(value: unknown): value is DailyCounts {
-  return isRecord(value) && isCount(value.count) && isCount(value.uniques)
+  if (!isRecord(value)) return false
+  const { count, uniques } = value
+  return isCount(count) && isCount(uniques)
 }
 
 function recordOf<T>(
@@ -91,39 +93,46 @@ function isOptionalTime(value: unknown): value is number | null {
 }
 
 function parsedRecords(value: Readonly<Record<string, unknown>>) {
-  const assets = recordOf(value.assets, (key) => ASSET_ID.test(key), isCount)
-  const views = recordOf(value.views, isSnapshotDay, isDailyCounts)
-  const clones = recordOf(value.clones, isSnapshotDay, isDailyCounts)
-  const npm = recordOf(value.npm, (key) => key !== '', isDayCountRecord)
+  const { assets: assetMap, views: viewMap, clones: cloneMap, npm: npmMap } = value
+  const assets = recordOf(assetMap, (key) => ASSET_ID.test(key), isCount)
+  const views = recordOf(viewMap, isSnapshotDay, isDailyCounts)
+  const clones = recordOf(cloneMap, isSnapshotDay, isDailyCounts)
+  const npm = recordOf(npmMap, (key) => key !== '', isDayCountRecord)
   return assets && views && clones && npm ? { assets, views, clones, npm } : undefined
 }
+
+type SnapshotStateRead =
+  | { readonly ok: true; readonly state: SnapshotState | null }
+  | { readonly ok: false }
 
 /**
  * Reads the stored state. `state: null` means nothing was stored yet; `ok: false` means the
  * stored value is unreadable, which must stop the snapshot rather than count everything again.
  * A state stored before snapshots recorded their time reads with `lastSnapshotAt: null`.
  */
-export function parseSnapshotState(
-  text: string | null,
-): { readonly ok: true; readonly state: SnapshotState | null } | { readonly ok: false } {
-  if (text === null) return { ok: true, state: null }
+export function parseSnapshotState(text: string | null) {
+  if (text === null) return { ok: true, state: null } satisfies SnapshotStateRead
   const parsed = parseJsonText(text)
-  if (!parsed.ok || !isRecord(parsed.value)) return { ok: false }
+  if (!parsed.ok || !isRecord(parsed.value)) return { ok: false } satisfies SnapshotStateRead
   const { version, popularDay, lastSnapshotAt = null } = parsed.value
   const records = parsedRecords(parsed.value)
   const validPopularDay = popularDay === null || isSnapshotDay(popularDay)
   if (version !== SNAPSHOT_STATE_VERSION || records === undefined || !validPopularDay) {
-    return { ok: false }
+    return { ok: false } satisfies SnapshotStateRead
   }
-  if (!isOptionalTime(lastSnapshotAt)) return { ok: false }
-  return { ok: true, state: { version, ...records, popularDay, lastSnapshotAt } }
+  if (!isOptionalTime(lastSnapshotAt)) return { ok: false } satisfies SnapshotStateRead
+  const result: SnapshotStateRead = {
+    ok: true,
+    state: { version, ...records, popularDay, lastSnapshotAt },
+  }
+  return result
 }
 
 function snapshotEvent(
   event: string,
   timestamp: string,
   properties: Readonly<Record<string, PostHogPropertyValue>>,
-): PostHogEvent {
+) {
   return {
     event,
     timestamp,
@@ -271,7 +280,7 @@ export function computeSnapshotDeltas(
   previous: SnapshotState | null,
   snapshot: UsageStatsSnapshot,
   now: number,
-): SnapshotDeltas {
+) {
   const prior = previous ?? EMPTY_STATE
   const timestamp = new Date(now).toISOString()
   const today = utcDay(now)
@@ -294,7 +303,7 @@ export function computeSnapshotDeltas(
         ...popularEvents(traffic.paths, 'github.popular_path', 'path', timestamp),
       ]
     : []
-  return {
+  const deltas: SnapshotDeltas = {
     events: [...downloads.events, ...views.events, ...clones.events, ...npm.events, ...popular],
     state: {
       version: SNAPSHOT_STATE_VERSION,
@@ -306,4 +315,5 @@ export function computeSnapshotDeltas(
       lastSnapshotAt: now,
     },
   }
+  return deltas
 }

@@ -1,5 +1,7 @@
 import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
 import { SCHEDULED_TASK_KINDS } from '@shared/types/scheduled-task'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { isObjectValue } from '@shared/utils/object-shape'
 import {
   decodeHeartbeatRunContext,
   type HeartbeatRunContext,
@@ -7,6 +9,23 @@ import {
 import { createLogger } from '../logger'
 
 const logger = createLogger('session-run-scheduled-task')
+
+/** The Scheduled task run record the Host wrote for the Run's request, each field still unchecked. */
+interface ScheduledTaskRunRecord {
+  readonly id: string
+  readonly name: string
+  readonly kind: string
+  readonly trigger: string
+  readonly firedAt: number
+  readonly nominalAt: number
+  readonly missedCount: number
+  readonly previousFiredAt: number
+  readonly previousSessionId: string
+  /** Host-authored Heartbeat context JSON (#388). */
+  readonly context: string
+}
+
+export type ScheduledTaskRunFields = UncheckedFields<ScheduledTaskRunRecord>
 
 /** The Scheduled task run record the Run's request joined to, when it has an id and a name. */
 export function scheduledTaskRecord(value: string | null | undefined) {
@@ -21,23 +40,23 @@ export function scheduledTaskRecord(value: string | null | undefined) {
     })
     return undefined
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
-  const record: Record<string, unknown> = Object.fromEntries(Object.entries(parsed))
-  if (typeof record.id !== 'string' || typeof record.name !== 'string') return undefined
-  return { record, id: record.id, name: record.name }
+  if (!isObjectValue(parsed)) return undefined
+  const record: ScheduledTaskRunFields = parsed
+  const { id, name } = record
+  if (typeof id !== 'string' || typeof name !== 'string') return undefined
+  return { record, id, name }
 }
 
 /**
  * What a Heartbeat Run is told about its task (#388), from the run record's Host-authored context.
  * A context that does not decode is dropped with a warning: the Run still starts, without it.
  */
-export function scheduledTaskRunContext(
-  record: Readonly<Record<string, unknown>>,
-): HeartbeatRunContext | undefined {
-  const context = record.context
+export function scheduledTaskRunContext(record: ScheduledTaskRunFields) {
+  const { context } = record
   if (typeof context !== 'string') return undefined
   try {
-    return decodeHeartbeatRunContext(context)
+    const result: HeartbeatRunContext | undefined = decodeHeartbeatRunContext(context)
+    return result
   } catch (error) {
     logger.warn('Ignored an unreadable Heartbeat run context', {
       error: error instanceof Error ? error.message : String(error),
@@ -50,11 +69,14 @@ export function scheduledTaskRunContext(
  * The Scheduled task a Run's prompt message records, so the transcript names its origin. Like the
  * Run identity it comes from the Host's Scheduled task run record, never from the prompt text.
  */
-export function scheduledTaskMessageOrigin(
-  value: string | null | undefined,
-): MessageScheduledTaskOrigin | undefined {
+export function scheduledTaskMessageOrigin(value: string | null | undefined) {
   const task = scheduledTaskRecord(value)
   if (!task?.id || !task.name) return undefined
   const kind = SCHEDULED_TASK_KINDS.find((candidate) => candidate === task.record.kind)
-  return { taskId: task.id, name: task.name, ...(kind ? { kind } : {}) }
+  const origin: MessageScheduledTaskOrigin | undefined = {
+    taskId: task.id,
+    name: task.name,
+    ...(kind ? { kind } : {}),
+  }
+  return origin
 }

@@ -69,7 +69,7 @@ function eventLayer(
 
 function restrictedCaller(
   overrides: Partial<NonNullable<LocalSessionCallerIdentity['profileAuthority']>> = {},
-): LocalSessionCallerIdentity {
+) {
   const scope = overrides.scope ?? { projectPaths: [ALLOWED_PROJECT] }
   return {
     callerId: 'profile:worker-client',
@@ -82,7 +82,7 @@ function restrictedCaller(
       authorizationCeiling: 'ask-for-approval',
       ...overrides,
     },
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 describe('local Session event authorization', () => {
@@ -222,7 +222,9 @@ describe('local Session event authorization', () => {
     }
     const refreshed = {
       ...caller,
-      baseProfileScope: caller.profileAuthority?.scope,
+      ...(caller.profileAuthority === undefined
+        ? {}
+        : { baseProfileScope: caller.profileAuthority.scope }),
       eventAdmissionSessionIds: ['session-parent'],
       derivedSessionAuthorities: [
         {
@@ -255,7 +257,9 @@ describe('local Session event authorization', () => {
     })
     const refreshed = {
       ...caller,
-      baseProfileScope: caller.profileAuthority?.scope,
+      ...(caller.profileAuthority === undefined
+        ? {}
+        : { baseProfileScope: caller.profileAuthority.scope }),
       derivedSessionAuthorities: [
         {
           sessionId: 'session-worker',

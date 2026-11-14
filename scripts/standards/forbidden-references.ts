@@ -26,13 +26,17 @@ const forbiddenReferences: string[] = [
  * measured facts about other products; they carry no legacy configuration.
  */
 const forbiddenReferenceExemptFiles: string[] = [
-  'MEMORY.md',
+  // Project memory records the same benchmark (Active Warnings, Docker token benchmark).
+  '.agents/memory/performance.md',
   // The v1 performance report carries the same benchmark table.
   'docs/performance/v1-performance-2026-10.md',
   'scripts/benchmark-docker/inside.sh',
   // results/ is untracked raw evidence; the curated copy is exempt below.
   'scripts/benchmark-docker/parse-results.py',
   'scripts/benchmark-docker/results/results.json',
+  // The skills lock records where each vendored skill came from, and one upstream keeps its skill
+  // under the legacy agent directory.
+  'skills-lock.json',
   'website/src/content/docs/using-openwaggle/token-benchmarks.mdx',
   'website/src/data/benchmark-results.json',
   'website/src/data/benchmarks.ts',
@@ -55,12 +59,9 @@ function containsForbiddenReference(contents: string, reference: string) {
   return new RegExp(String.raw`(?<![0-9A-Za-z])` + escaped).test(contents)
 }
 
-export function collectForbiddenReferenceViolations(
-  file: string,
-  contents: string,
-): Violation[] {
+export function collectForbiddenReferenceViolations(file: string, contents: string) {
   if (forbiddenReferenceExemptFiles.includes(file)) {
-    return []
+    return [] satisfies Violation[]
   }
 
   const violations: Violation[] = []

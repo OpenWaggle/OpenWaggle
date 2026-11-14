@@ -207,7 +207,7 @@ function forcedLabel(forced: ReturnType<typeof forcedRemoval>) {
   return forced.ignoresLock ? 'Unlock & remove' : 'Remove'
 }
 
-function RowAction(props: WorktreeRowProps) {
+function RowAction(props: Pick<WorktreeRowProps, 'entry' | 'busy' | 'onRemove' | 'onConfirm'>) {
   const { entry } = props
   const title = worktreeTitle(entry)
   if (entry.group === 'safe') {
@@ -286,14 +286,18 @@ export function WorktreeInventoryRow(props: WorktreeRowProps) {
           <SpaceLabel space={props.space} />
         </span>
         <RevealButton path={entry.path} title={worktreeTitle(entry)} />
-        <RowAction {...props} />
+        <RowAction
+          entry={entry}
+          busy={props.busy}
+          onRemove={props.onRemove}
+          onConfirm={props.onConfirm}
+        />
       </div>
       {entry.cleanupFailure ? (
         <WorkspaceCleanupFailure
           projectPath={entry.cleanupFailure.projectPath}
           initial={entry.cleanupFailure.preparation}
-          generationMismatch={entry.cleanupFailure.generationMismatch}
-          generationMismatchMessage={entry.cleanupFailure.generationMismatchMessage}
+          mismatch={entry.cleanupFailure}
           busy={props.busy || blockers.length > 0}
           onRetry={() => props.onConfirm(request(entry))}
           onDeleteAnyway={() => props.onConfirm(request(entry, { skipCleanup: true }))}

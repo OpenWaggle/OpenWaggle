@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { safeDecodeUnknown } from '@shared/schema'
+import { decodeUnknownOrThrow, safeDecodeUnknown, Schema } from '@shared/schema'
 import { actionRelativePathSchema } from '@shared/schemas/action-definitions'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -11,6 +11,7 @@ import { PUBLISHED_JSON_SCHEMAS, PUBLISHED_SCHEMA_DIRECTORY } from '../published
 import { SETTINGS_OPEN_OBJECT_KEYS } from '../published-json-schemas-settings'
 import {
   patternOf,
+  publishedPropertyNames,
   publishedSchemaErrors,
   REPOSITORY_ROOT,
   readActionsFileAtRuntime,
@@ -21,6 +22,19 @@ import {
   runtimeRejection,
   scratchDirectory,
 } from './published-json-schemas.test-harness'
+
+/** The source-control enums of the published settings schema. */
+const enumSchema = Schema.Struct({ enum: Schema.Array(Schema.String) })
+const sourceControlSchemaDocument = Schema.Struct({
+  properties: Schema.Struct({
+    sourceControl: Schema.Struct({
+      properties: Schema.Struct({
+        hosts: Schema.Struct({ additionalProperties: enumSchema }),
+        changeRequestOpenDestination: enumSchema,
+      }),
+    }),
+  }),
+})
 
 const ACTIONS = 'project-actions-v1.schema.json'
 const SETTINGS = 'project-settings.schema.json'
@@ -41,8 +55,7 @@ describe('published JSON Schemas', () => {
   })
 
   it('describe every top-level settings key the runtime reads, with open objects open', async () => {
-    const properties = record(record(await readPublishedSchema(SETTINGS)).properties)
-    expect(Object.keys(properties).sort()).toEqual(
+    expect((await publishedPropertyNames(SETTINGS)).sort()).toEqual(
       ['$schema', ...Object.keys(projectSettingsFileSchema.fields)].sort(),
     )
     for (const key of SETTINGS_OPEN_OBJECT_KEYS) {
@@ -250,13 +263,13 @@ describe('the settings.json schema agrees with the runtime reader', () => {
   })
 
   it('lists exactly the source-control values the runtime keeps', async () => {
-    const settings = record(record(await readPublishedSchema(SETTINGS)).properties)
-    const properties = record(record(settings.sourceControl).properties)
-    const providers = record(record(properties.hosts).additionalProperties).enum
-    const destinations = record(properties.changeRequestOpenDestination).enum
-    if (!Array.isArray(providers) || !Array.isArray(destinations)) {
-      throw new Error('The sourceControl enums are missing.')
-    }
+    const document = decodeUnknownOrThrow(
+      sourceControlSchemaDocument,
+      await readPublishedSchema(SETTINGS),
+    )
+    const { hosts, changeRequestOpenDestination } = document.properties.sourceControl.properties
+    const providers: readonly unknown[] = hosts.additionalProperties.enum
+    const destinations: readonly unknown[] = changeRequestOpenDestination.enum
     for (const provider of [...providers, 'bitbucket', 'unsupported']) {
       const { hosts } = parseProjectSourceControlConfig(
         { hosts: { 'git.acme.io': provider } },

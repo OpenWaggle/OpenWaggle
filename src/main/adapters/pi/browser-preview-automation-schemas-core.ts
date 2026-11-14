@@ -6,10 +6,7 @@ import {
   isValidBrowserPreviewViewportSize,
 } from '@shared/browser-preview-viewports'
 import { BROWSER_PREVIEW_LIMITS } from '@shared/types/browser-preview'
-import {
-  BROWSER_PREVIEW_AUTOMATION_LIMITS,
-  type BrowserPreviewAutomationResizeInput,
-} from '@shared/types/browser-preview-automation'
+import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview-automation'
 import { type Static, Type } from 'typebox'
 
 const MAX_TCP_PORT = 65_535
@@ -147,9 +144,7 @@ export const previewResizeParameters = Type.Object(
 )
 
 /** Narrows flat `preview_resize` arguments to one mode, rejecting a mode whose fields are missing. */
-export function browserPreviewResizeInput(
-  params: Static<typeof previewResizeParameters>,
-): BrowserPreviewAutomationResizeInput {
+export function browserPreviewResizeInput(params: Static<typeof previewResizeParameters>) {
   const target = params.tabId === undefined ? {} : { tabId: params.tabId }
   const { width, height, preset: presetId, orientation } = params
   return match(params.mode)

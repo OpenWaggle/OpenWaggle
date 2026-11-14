@@ -3,7 +3,10 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /** R6 P3-5: the minified bundles' hidden source maps are kept, but never published or packaged. */
-const WORKFLOW = fs.readFileSync(path.join(import.meta.dirname, '..', '..', '.github', 'workflows', 'release.yml'), 'utf8')
+const WORKFLOW = fs.readFileSync(
+  path.join(import.meta.dirname, '..', '..', '.github', 'workflows', 'release.yml'),
+  'utf8',
+)
 
 describe('desktop app release source maps', () => {
   it('keeps the hidden source maps as artifacts, never as release assets', () => {

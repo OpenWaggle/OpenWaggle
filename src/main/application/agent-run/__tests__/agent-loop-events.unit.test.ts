@@ -5,41 +5,32 @@ import { isDurableAgentLoopEvent } from '../agent-loop-events'
 const sessionId = SessionId('session-agent-loop-events')
 
 describe('isDurableAgentLoopEvent', () => {
-  it('keeps warning notifications but drops info notifications and notify acknowledgements', () => {
+  // Error is listed because covering only info and warning let a narrowing of the rule to
+  // `=== 'warning'` keep the suite green while silently dropping every error from history.
+  it.each([
+    ['info', false],
+    ['warning', true],
+    ['error', true],
+  ] as const)('keeps a %s notification: %s', (level, durable) => {
     expect(
       isDurableAgentLoopEvent({
         type: 'agent_interaction_request',
         timestamp: 10,
         interaction: {
-          interactionId: 'info-notify',
+          interactionId: `${level}-notify`,
           sessionId,
           runId: 'run-agent-loop-notify',
           kind: 'notify',
           source: 'pi-ui',
           createdAt: 10,
-          message: 'Extension loaded',
-          level: 'info',
-        },
-      }),
-    ).toBe(false)
-
-    expect(
-      isDurableAgentLoopEvent({
-        type: 'agent_interaction_request',
-        timestamp: 12,
-        interaction: {
-          interactionId: 'warning-notify',
-          sessionId,
-          runId: 'run-agent-loop-notify',
-          kind: 'notify',
-          source: 'pi-ui',
-          createdAt: 12,
           message: 'Extension needs attention',
-          level: 'warning',
+          level,
         },
       }),
-    ).toBe(true)
+    ).toBe(durable)
+  })
 
+  it('drops notify acknowledgements', () => {
     expect(
       isDurableAgentLoopEvent({
         type: 'agent_interaction_resolved',
@@ -51,29 +42,6 @@ describe('isDurableAgentLoopEvent', () => {
         response: { kind: 'notify', acknowledged: true },
       }),
     ).toBe(false)
-  })
-})
-
-describe('isDurableAgentLoopEvent, remaining cases', () => {
-  it('keeps an error notification', () => {
-    // Previously only info and warning were covered, so narrowing the rule to `=== 'warning'`
-    // would have kept the suite green while silently dropping every error from history.
-    expect(
-      isDurableAgentLoopEvent({
-        type: 'agent_interaction_request',
-        timestamp: 20,
-        interaction: {
-          interactionId: 'error-notify',
-          sessionId,
-          runId: 'run-agent-loop-notify',
-          kind: 'notify',
-          source: 'pi-ui',
-          createdAt: 20,
-          message: 'Could not reach api.github.com',
-          level: 'error',
-        },
-      }),
-    ).toBe(true)
   })
 
   it('keeps both halves of a decision, so the row can update in place', () => {

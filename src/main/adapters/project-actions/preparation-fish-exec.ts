@@ -114,8 +114,9 @@ function visitCommentStart(scan: FishExecScan, character: string) {
   if (
     character !== '#' ||
     (scan.index !== 0 && !/[\s;|&()<>]/.test(scan.code[scan.index - 1] ?? ''))
-  )
+  ) {
     return false
+  }
   closeEvalWrappers(scan)
   scan.comment = true
   scan.output += character
@@ -147,7 +148,7 @@ function visitUnquoted(scan: FishExecScan) {
 }
 
 /** Fish reserves `exec` and `eval`, so helpers must be selected while parsing Setup text. */
-export function captureFishExec(code: string): string {
+export function captureFishExec(code: string) {
   const scan: FishExecScan = {
     code,
     output: '',

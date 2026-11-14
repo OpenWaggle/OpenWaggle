@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import type { McpPoolServerConnection } from '../../../mcp/pool/mcp-session-connection-pool-types'
 import { closeTurnedOffMcpServers } from '../mcp-turned-off-servers'
 
-function connection(
-  sessionId: string,
-  name: string,
-  projectPath: string | null,
-): McpPoolServerConnection {
-  return { sessionId, name, identity: `id-${name}`, projectPath, fromExtension: false }
+function connection(sessionId: string, name: string, projectPath: string | null) {
+  return {
+    sessionId,
+    name,
+    identity: `id-${name}`,
+    projectPath,
+    fromExtension: false,
+  } satisfies McpPoolServerConnection
 }
 
 describe('closing MCP servers a configuration change turned off', () => {

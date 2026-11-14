@@ -25,7 +25,9 @@ describe('Pi native compaction custom turns', () => {
     const providerLifecycleCounter = { headerCalls: 0, payloadCalls: 0, responseCalls: 0 }
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       expect(new Headers(init?.headers).get('x-openwaggle-compaction-hook')).toBe('enabled')
-      expect(JSON.parse(String(init?.body))).toMatchObject({ openwaggle_compaction_hook: true })
+      expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toMatchObject({
+        openwaggle_compaction_hook: true,
+      })
       return nativeCompactionFetch()(_input, init)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -133,7 +135,7 @@ describe('Pi native compaction custom turns', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-        compactionUrls.push(String(input))
+        compactionUrls.push(input instanceof Request ? input.url : input.toString())
         return compact(input, init)
       }),
     )

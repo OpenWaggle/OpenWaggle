@@ -32,8 +32,13 @@ async function missingSourceMaps(files: readonly string[]) {
   const missing: string[] = []
   for (const file of files) {
     const map = path.join(MAIN_OUT_DIRECTORY, `${file}.map`)
-    const exists = await fs.stat(map).then(() => true, () => false)
-    if (!exists) missing.push(`out/main/${file}.map is missing; the main build must emit hidden source maps.`)
+    const exists = await fs.stat(map).then(
+      () => true,
+      () => false,
+    )
+    if (!exists) {
+      missing.push(`out/main/${file}.map is missing; the main build must emit hidden source maps.`)
+    }
   }
   return missing
 }
@@ -64,21 +69,33 @@ async function main() {
   failures.push(...(await missingSourceMaps(manifest.map((entry) => entry.file))))
   const bootBytes = await fileBytes(MAIN_BOOT_FILE)
   if (bootBytes > MAX_MAIN_BOOT_BYTES) {
-    failures.push(`out/main/${MAIN_BOOT_FILE} is ${String(bootBytes)} bytes; budget is ${String(MAX_MAIN_BOOT_BYTES)} bytes.`)
+    failures.push(
+      `out/main/${MAIN_BOOT_FILE} is ${String(bootBytes)} bytes; budget is ${String(MAX_MAIN_BOOT_BYTES)} bytes.`,
+    )
   }
-  const lines = [`${MAIN_BOOT_FILE}: ${String(bootBytes)} bytes`, `${String(manifest.length)} main chunks`]
+  const lines = [
+    `${MAIN_BOOT_FILE}: ${String(bootBytes)} bytes`,
+    `${String(manifest.length)} main chunks`,
+  ]
   // Where a require sits is not when it runs: run the bundle's startup and see what it loads.
   const entry = manifest.find((chunk) => chunk.isEntry)
   if (entry) {
     const probed = probeStartupExternals(path.join(MAIN_OUT_DIRECTORY, entry.file))
     failures.push(...startupExternalFailures(probed))
-    lines.push(...probed.map((result) => `startup of ${result.argv.join(' ')}: loads ${result.loaded.join(', ') || 'nothing external'}`))
+    lines.push(
+      ...probed.map(
+        (result) =>
+          `startup of ${result.argv.join(' ')}: loads ${result.loaded.join(', ') || 'nothing external'}`,
+      ),
+    )
   }
   for (const budget of MAIN_PROCESS_BUDGETS) {
     const chunks = processStartupChunks(manifest, budget.startupModules)
     const sizes = await Promise.all(chunks.map(fileBytes))
     const bytes = sizes.reduce((total, size) => total + size, 0)
-    lines.push(`${budget.label}: ${String(bytes)} bytes in ${String(chunks.length)} chunks at startup`)
+    lines.push(
+      `${budget.label}: ${String(bytes)} bytes in ${String(chunks.length)} chunks at startup`,
+    )
     if (bytes > budget.maximumBytes) {
       failures.push(
         `The ${budget.label} loads ${String(bytes)} bytes of main bundle at startup; budget is ${String(budget.maximumBytes)} bytes (scripts/main-bundle-graph.ts).`,

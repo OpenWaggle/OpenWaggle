@@ -1,3 +1,5 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
+
 const LANGUAGE_ASSOCIATIONS_PREFIX = 'openwaggle:language-associations:v2:'
 
 interface WorkspaceLanguageAssociations {
@@ -25,22 +27,16 @@ function stringRecord(value: unknown) {
   )
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function readAssociations(
-  storage: Storage,
-  projectIdentity: string,
-): WorkspaceLanguageAssociations {
+function readAssociations(storage: Storage, projectIdentity: string) {
   try {
     const parsed: unknown = JSON.parse(storage.getItem(storageKey(projectIdentity)) ?? '{}')
-    if (!isRecord(parsed)) return EMPTY_ASSOCIATIONS
-    return {
-      exact: stringRecord(parsed.exact),
-      extensions: stringRecord(parsed.extensions),
-      fileNames: stringRecord(parsed.fileNames),
+    const stored = uncheckedFields<WorkspaceLanguageAssociations>(parsed)
+    const associations: WorkspaceLanguageAssociations = {
+      exact: stringRecord(stored.exact),
+      extensions: stringRecord(stored.extensions),
+      fileNames: stringRecord(stored.fileNames),
     }
+    return associations
   } catch {
     return EMPTY_ASSOCIATIONS
   }

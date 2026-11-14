@@ -111,10 +111,11 @@ describe('real desktop broker and GUI bridge shutdown', () => {
       expect(instance.records.size).toBe(0)
       expect(instance.ownerRecord()?.state).toBe('closed')
     } finally {
-      if (instance.records.get(record.token)?.state === 'active')
+      if (instance.records.get(record.token)?.state === 'active') {
         await Effect.runPromise(
           instance.repository.markReleased(record.token, record.hostInstanceId),
         )
+      }
       await vi.advanceTimersByTimeAsync(30_000)
       await stopping
       instance.broker.close()

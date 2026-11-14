@@ -6,14 +6,14 @@ import { type StableHotkeyOptions, useStableHotkey } from '../useStableHotkey'
 
 const RERENDERS = 50
 
-function options(enabled: boolean): StableHotkeyOptions {
+function options(enabled: boolean) {
   return {
     enabled,
     preventDefault: true,
     stopPropagation: true,
     ignoreInputs: false,
     conflictBehavior: 'allow',
-  }
+  } satisfies StableHotkeyOptions
 }
 
 describe('useStableHotkey', () => {

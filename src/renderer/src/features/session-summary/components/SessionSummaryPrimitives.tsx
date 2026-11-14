@@ -32,7 +32,7 @@ export function SessionSummarySection({
     <section ref={sectionRef} className="border-t border-border first:border-t-0">
       <div className="sticky top-0 z-10 flex h-10 items-center bg-bg-secondary/95 backdrop-blur">
         <Button
-          ref={triggerRef}
+          {...(triggerRef === undefined ? {} : { ref: triggerRef })}
           variant="unstyled"
           className="flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
           aria-label={count === undefined ? title : `${title} ${count}`}
@@ -188,7 +188,7 @@ export function SessionSummaryLinkSection({
         <Button
           variant="unstyled"
           // Keyboard focus only: the row stays focused after a click, and `focus:` would keep it
-          // painted as if hovered (MEMORY.md, "A focused row keeps its focus").
+          // painted as if hovered (.agents/memory/renderer.md, "A focused row keeps its focus").
           className={cn(
             SECTION_ROW_CLASS,
             'group cursor-pointer transition-colors hover:bg-bg-hover focus-visible:bg-bg-hover',

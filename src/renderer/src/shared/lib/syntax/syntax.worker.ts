@@ -150,9 +150,7 @@ async function resolveHighlighter(language: string, theme: string) {
   return { instance, resolvedLanguage }
 }
 
-async function highlight(
-  message: SyntaxWorkerHighlightMessage,
-): Promise<SyntaxHighlightResult | null> {
+async function highlight(message: SyntaxWorkerHighlightMessage) {
   const cached = cachedTokens(message.sourceKey)
   let tokenization = cached?.tokenization
   if (!tokenization) {
@@ -185,7 +183,7 @@ async function highlight(
     lines: syntaxTokens(tokenization.tokens.slice(start, end)),
     ...(start > 0 ? { lineOffset: start } : {}),
     elapsedMs: highlighted.elapsedMs,
-  }
+  } satisfies SyntaxHighlightResult
 }
 
 async function validateLanguage(resource: SyntaxLanguageResource) {

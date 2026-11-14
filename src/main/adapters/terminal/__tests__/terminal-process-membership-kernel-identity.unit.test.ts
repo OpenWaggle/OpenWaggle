@@ -14,7 +14,7 @@ const CHILD_PID = 200
 const TTY = 'ttys001'
 const TTY_IDENTITY = 'darwin:16:1'
 
-function row(pid: number, startedAt: string, ttyIdentity: string | null, ppid = 1): ProcessRow {
+function row(pid: number, startedAt: string, ttyIdentity: string | null, ppid = 1) {
   return {
     pid,
     ppid,
@@ -26,7 +26,7 @@ function row(pid: number, startedAt: string, ttyIdentity: string | null, ppid = 
     zombie: false,
     startedAt,
     name: pid === ROOT_PID ? 'zsh' : 'worker',
-  }
+  } satisfies ProcessRow
 }
 
 describe('terminal process membership kernel identity', () => {

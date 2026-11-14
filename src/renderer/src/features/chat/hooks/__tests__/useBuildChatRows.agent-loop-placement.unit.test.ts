@@ -17,15 +17,20 @@ import {
 
 const PHASE = { current: null, completed: [], totalElapsedMs: 0 }
 
-function at<T extends UIMessage>(message: T, createdAt: number): T {
-  return { ...message, createdAt: new Date(createdAt) }
+function at<T extends UIMessage>(message: T, createdAt: number) {
+  return { ...message, createdAt: new Date(createdAt) } satisfies T
 }
 
-function text(id: string, role: UIMessage['role'], createdAt: number): UIMessage {
-  return { id, role, parts: [{ type: 'text', content: id }], createdAt: new Date(createdAt) }
+function text(id: string, role: UIMessage['role'], createdAt: number) {
+  return {
+    id,
+    role,
+    parts: [{ type: 'text', content: id }],
+    createdAt: new Date(createdAt),
+  } satisfies UIMessage
 }
 
-function approval(timestamp: number): AgentInteractionEvent {
+function approval(timestamp: number) {
   return {
     type: 'agent_interaction_request',
     timestamp,
@@ -40,7 +45,7 @@ function approval(timestamp: number): AgentInteractionEvent {
       message: 'rm -rf build',
       purpose: 'user-input',
     },
-  }
+  } satisfies AgentInteractionEvent
 }
 
 function rows(

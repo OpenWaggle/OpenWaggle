@@ -1,9 +1,7 @@
 import fs from 'node:fs/promises'
 import { createServer, type ServerResponse } from 'node:http'
 import path from 'node:path'
-import { createModelRef } from '../../src/shared/types/llm'
 
-export const COMPACTION_PROBE_MODEL = createModelRef('e2e-compaction', 'fixture')
 const COMPACTION_REQUEST_NUMBER = 2
 const CONTINUATION_REQUEST_NUMBER = 3
 const CONTEXT_TOKENS_BEFORE_COMPACTION = 90_000

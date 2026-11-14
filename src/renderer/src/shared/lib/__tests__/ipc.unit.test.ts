@@ -16,10 +16,11 @@ function clearWindow() {
   Reflect.deleteProperty(globalThis, 'window')
 }
 
-function setWindow(value: unknown) {
+/** A window as the packaged app loads it; the logger reads its location. */
+function setWindow(value: object) {
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
-    value,
+    value: { location: { protocol: 'file:' }, ...value },
     writable: true,
   })
 }

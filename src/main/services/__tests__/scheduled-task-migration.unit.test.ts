@@ -67,9 +67,8 @@ describe('Scheduled task migration', () => {
 
 describe('Scheduled task authority limits migration', () => {
   it('adds an empty authority limits column after the ones before it', async () => {
-    const { SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION } = await import(
-      '../scheduled-task-authority-limits-migration'
-    )
+    const { SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION } =
+      await import('../scheduled-task-authority-limits-migration')
     const { APP_MIGRATIONS } = await import('../database-migrations')
     expect(SCHEDULED_TASK_AUTHORITY_LIMITS_MIGRATION.id).toBe(86)
     expect(APP_MIGRATIONS.map(({ id }) => id)).toContain(86)

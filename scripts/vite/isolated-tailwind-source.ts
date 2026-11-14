@@ -1,11 +1,5 @@
 import { createHash } from 'node:crypto'
-import {
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { extname, join, relative, resolve, sep } from 'node:path'
 import type { Plugin } from 'vite'
@@ -79,7 +73,7 @@ function isRegisteredSource(projectRoot: string, path: string) {
   })
 }
 
-export function isolatedTailwindSourcePlugin(): Plugin {
+export function isolatedTailwindSourcePlugin() {
   const projectRoot = process.cwd()
   const sourcePath = isolatedSourcePath(projectRoot)
   return {
@@ -107,5 +101,5 @@ export function isolatedTailwindSourcePlugin(): Plugin {
       const cssPath = sourcePath.replaceAll('\\', '/')
       return code.replace(SOURCE_PLACEHOLDER, cssPath)
     },
-  }
+  } satisfies Plugin
 }

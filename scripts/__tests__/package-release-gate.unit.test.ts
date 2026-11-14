@@ -85,6 +85,9 @@ describe('Package Release Gate', () => {
     ['full', 'rehearsalWebsiteResult', 'cancelled', 'website and docs rehearsal'],
     ['fast', 'testUnitResult', 'skipped', 'unit tests'],
     ['fast', 'candidateResult', 'failure', 'package release candidate'],
+    // A pull request that changes packages or docs runs the rehearsals, and their failure fails it.
+    ['fast', 'rehearsalPackageResult', 'failure', 'package consumer rehearsal'],
+    ['fast', 'rehearsalWebsiteResult', 'cancelled', 'website and docs rehearsal'],
     ['release-pr', 'checkResult', 'failure', 'typecheck and lint'],
     ['release-pr', 'candidateResult', 'skipped', 'package release candidate'],
   ] as const)('fails on tier %s when %s is %s', (tier, job, result, label) => {

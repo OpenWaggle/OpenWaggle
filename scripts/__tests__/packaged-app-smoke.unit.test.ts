@@ -33,28 +33,37 @@ describe('packaged app smoke', () => {
         '/release/OpenWaggle.app/Contents/Resources/app.asar',
         '/workspace',
         'darwin',
+        '/usr/local/bin/node',
       ),
     ).toEqual({
       command: '/release/OpenWaggle.app/Contents/MacOS/OpenWaggle',
       args: [
-        '--import',
-        'tsx',
-        '/workspace/scripts/native-load-probe.ts',
+        '/workspace/node_modules/.cache/openwaggle/native-load-probe.mjs',
         'electron',
         '/release/OpenWaggle.app/Contents/Resources/app.asar',
-        process.execPath,
+        '/usr/local/bin/node',
       ],
     })
     expect(
-      packagedPtyProbeInvocation('C:\\release\\win-unpacked', 'C:\\release\\app.asar', 'C:\\workspace', 'win32')
-        .command,
+      packagedPtyProbeInvocation(
+        'C:\\release\\win-unpacked',
+        'C:\\release\\app.asar',
+        'C:\\workspace',
+        'win32',
+      ).command,
     ).toBe(path.join('C:\\release\\win-unpacked', 'OpenWaggle.exe'))
   })
 
   it('executes only the macOS package matching the runner architecture', () => {
-    expect(packagedAppMatchesHostArchitecture('/dist/mac-arm64/OpenWaggle.app', 'darwin', 'arm64')).toBe(true)
-    expect(packagedAppMatchesHostArchitecture('/dist/mac/OpenWaggle.app', 'darwin', 'arm64')).toBe(false)
-    expect(packagedAppMatchesHostArchitecture('/dist/mac-x64/OpenWaggle.app', 'darwin', 'x64')).toBe(true)
+    expect(
+      packagedAppMatchesHostArchitecture('/dist/mac-arm64/OpenWaggle.app', 'darwin', 'arm64'),
+    ).toBe(true)
+    expect(packagedAppMatchesHostArchitecture('/dist/mac/OpenWaggle.app', 'darwin', 'arm64')).toBe(
+      false,
+    )
+    expect(
+      packagedAppMatchesHostArchitecture('/dist/mac-x64/OpenWaggle.app', 'darwin', 'x64'),
+    ).toBe(true)
     expect(packagedAppMatchesHostArchitecture('/dist/linux-unpacked', 'linux', 'x64')).toBe(true)
   })
 })

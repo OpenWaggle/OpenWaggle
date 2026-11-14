@@ -6,7 +6,7 @@ function isCodedOperationalError(error: unknown) {
   return error instanceof Error && 'code' in error && typeof error.code === 'string'
 }
 
-export async function classifySyntaxSourceValidation<T>(operation: () => Promise<T>): Promise<T> {
+export async function classifySyntaxSourceValidation<T>(operation: () => Promise<T>) {
   try {
     return await operation()
   } catch (error) {

@@ -8,8 +8,6 @@ import { SessionResourceViewerHeader } from './SessionResourceViewerHeader'
 import { SessionResourceViewerNavigation } from './SessionResourceViewerNavigation'
 import { useSessionResourceViewerController } from './useSessionResourceViewerController'
 
-const EMPTY_MESSAGE_IDS: ReadonlySet<string> = new Set()
-
 function viewerCatalogIsLoading(catalogLoading: boolean, locationLoading: boolean) {
   return catalogLoading || locationLoading
 }
@@ -31,19 +29,16 @@ function viewerGalleryPosition(controller: ReturnType<typeof useSessionResourceV
 export function SessionResourceViewer({
   activeSessionId,
   activeBranchId = null,
-  activeMessageIds = EMPTY_MESSAGE_IDS,
   activePathNodeIds,
 }: {
   readonly activeSessionId: string | null
   readonly activeBranchId?: string | null
-  readonly activeMessageIds?: ReadonlySet<string>
   readonly activePathNodeIds?: readonly string[]
 }) {
   const pathNodeIds = displayedPathNodeIds(activePathNodeIds)
   const controller = useSessionResourceViewerController(
     activeSessionId,
     activeBranchId,
-    activeMessageIds,
     pathNodeIds,
   )
   const { viewer, viewerSessionId, resource } = controller

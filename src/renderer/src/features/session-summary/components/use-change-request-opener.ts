@@ -24,7 +24,7 @@ interface ChangeRequestOpenerInput {
  * answer rather than guess. A Host that cannot answer cannot serve the inspector either
  * (ADR 0048), so rows then open the provider website, wherever the user's web links open.
  */
-export function useChangeRequestOpener(input: ChangeRequestOpenerInput): ChangeRequestOpener {
+export function useChangeRequestOpener(input: ChangeRequestOpenerInput) {
   const showToast = useUIStore((state) => state.showToast)
   useSourceControlQueryFreshness()
   const resolution = useQuery({
@@ -39,5 +39,5 @@ export function useChangeRequestOpener(input: ChangeRequestOpenerInput): ChangeR
         showToast(ipcFailureMessage(cause, 'Could not open this request.'), 'error')
       })
     },
-  }
+  } satisfies ChangeRequestOpener
 }

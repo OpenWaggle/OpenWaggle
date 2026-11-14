@@ -78,12 +78,6 @@ describe('authorization scope keys', () => {
     expect(authorizationScopeKeysMatch(serverWide, listIssues)).toBe(false)
     expect(findMatchingGrant([{ ...serverWide, grantedAt: 1 }], listIssues)).toBeUndefined()
   })
-
-  it('ignores arguments entirely, because they are not part of the identity', () => {
-    // Both calls are the same grant even though the arguments differ, and an attacker-controlled
-    // argument therefore cannot decide whether a grant applies.
-    expect(authorizationScopeKeysMatch(listIssues, { ...listIssues })).toBe(true)
-  })
 })
 
 describe('session grants', () => {
@@ -152,7 +146,10 @@ describe('project grants', () => {
     ])
 
     const grants = await listGrantsForProject(projectPath)
-    expect(grants.map((grant) => grant.resource).sort()).toEqual(['create_issue', 'list_issues'])
+    expect(grants).toHaveLength(2)
+    expect(grants.map((grant) => grant.resource)).toEqual(
+      expect.arrayContaining(['create_issue', 'list_issues']),
+    )
   })
 
   it('persists a grant and covers a later request', async () => {

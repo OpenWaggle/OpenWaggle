@@ -77,16 +77,17 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
   })
 }
 
-function sessionNotFound(): AgentRunPreflightFailure {
+function sessionNotFound() {
   const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
-  return {
+  const failure: AgentRunPreflightFailure = {
     ok: false,
     result: { outcome: 'not-found', message: errorInfo.userMessage, code: errorInfo.code },
   }
+  return failure
 }
 
-function invalidModel(model: string): AgentRunPreflightFailure {
-  return {
+function invalidModel(model: string) {
+  const failure: AgentRunPreflightFailure = {
     ok: false,
     result: {
       outcome: 'invalid-model',
@@ -94,4 +95,5 @@ function invalidModel(model: string): AgentRunPreflightFailure {
       code: 'invalid-model',
     },
   }
+  return failure
 }

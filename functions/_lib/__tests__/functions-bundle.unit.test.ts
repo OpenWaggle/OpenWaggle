@@ -13,7 +13,7 @@ const ROUTE_EXPORT =
   /\bexport\s+(?:async\s+)?(?:function\*?|const|let|var|class)\s+(?<name>onRequest\w*)|\bexport\s*\{[^}]*\bonRequest\w*/u
 
 /** Fails the bundle on any Node built-in, which the Workers runtime does not provide. */
-function forbidNodeBuiltins(): Plugin {
+function forbidNodeBuiltins() {
   return {
     name: 'forbid-node-builtins',
     enforce: 'pre',
@@ -23,7 +23,7 @@ function forbidNodeBuiltins(): Plugin {
       }
       return null
     },
-  }
+  } satisfies Plugin
 }
 
 function typeScriptFiles(directory: string): string[] {

@@ -47,7 +47,7 @@ function formatFailureError(error: unknown) {
   return cause === undefined ? String(error) : formatErrorMessage(cause)
 }
 
-export function scopeForProjectPath(projectPath: string | null): ExtensionPackageScope {
+export function scopeForProjectPath(projectPath: string | null) {
   if (projectPath === null) {
     return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND }
   }
@@ -60,7 +60,7 @@ export function makeExtensionFailureDiagnostic(input: {
   readonly code: ExtensionDiagnosticCode
   readonly error: unknown
   readonly path?: string
-}): ExtensionDiagnostic {
+}) {
   return {
     severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
     code: input.code,
@@ -72,7 +72,7 @@ export function makeExtensionFailureDiagnostic(input: {
 export function appendExtensionDiagnostics(
   extensionPackage: DiscoveredExtensionPackage,
   diagnostics: readonly ExtensionDiagnostic[],
-): DiscoveredExtensionPackage {
+) {
   if (diagnostics.length === 0) {
     return extensionPackage
   }
@@ -80,20 +80,20 @@ export function appendExtensionDiagnostics(
   return {
     ...extensionPackage,
     diagnostics: [...extensionPackage.diagnostics, ...diagnostics],
-  }
+  } satisfies DiscoveredExtensionPackage
 }
 
 export function appendExtensionDiagnostic(
   extensionPackage: DiscoveredExtensionPackage,
   diagnostic: ExtensionDiagnostic,
-): DiscoveredExtensionPackage {
+) {
   return appendExtensionDiagnostics(extensionPackage, [diagnostic])
 }
 
 export function makeDiscoveryFailurePackage(input: {
   readonly scope: ExtensionPackageScope
   readonly error: unknown
-}): DiscoveredExtensionPackage {
+}) {
   const packagePath = diagnosticPackagePath(input.scope)
 
   return {
@@ -113,5 +113,5 @@ export function makeDiscoveryFailurePackage(input: {
         path: packagePath,
       }),
     ],
-  }
+  } satisfies DiscoveredExtensionPackage
 }

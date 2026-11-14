@@ -84,8 +84,9 @@ export function useBrowserPreviewFloatingInteractions(options: FloatingInteracti
   const end = (event: PointerEvent<HTMLElement>) => {
     if (originRef.current?.pointerId !== event.pointerId) return
     originRef.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId))
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
+    }
   }
   const keyResize = (direction: FloatingResizeDirection, event: KeyboardEvent<HTMLElement>) => {
     const step = event.shiftKey ? RESIZE_KEY_LARGE_STEP : RESIZE_KEY_STEP

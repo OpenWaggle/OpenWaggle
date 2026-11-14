@@ -2,29 +2,31 @@ import { decodeUnknownOrThrow } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import { isStringArray } from './openwaggle-pi-settings-resources'
+import { piPackageSource, piSettingsFields } from './pi-settings-fields'
 
 const JSON_INDENT_SPACES = 2
 
-function parseJsonObject(content: string | undefined): JsonObject {
-  if (!content || content.trim().length === 0) return {}
+function parseJsonObject(content: string | undefined) {
+  if (!content || content.trim().length === 0) {
+    const object: JsonObject = {}
+    return object
+  }
   const parsed: unknown = JSON.parse(content)
-  return decodeUnknownOrThrow(jsonObjectSchema, parsed)
+  const object: JsonObject = decodeUnknownOrThrow(jsonObjectSchema, parsed)
+  return object
 }
 
 function serializeJsonObject(value: JsonObject) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
-function getPackageSource(value: JsonValue): string | null {
-  if (typeof value === 'string') return value
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    return typeof value.source === 'string' ? value.source : null
-  }
-  return null
+function getPackageSource(value: JsonValue) {
+  return piPackageSource(value)
 }
 
 function getPackageEntries(settings: JsonObject) {
-  return Array.isArray(settings.packages) ? [...settings.packages] : []
+  const { packages } = piSettingsFields(settings)
+  return Array.isArray(packages) ? [...packages] : []
 }
 
 function getNpmPackageName(source: string) {
@@ -47,7 +49,8 @@ function getExcludedExtensionPatterns(excludedSources: readonly string[]) {
 }
 
 function withExcludedExtensionPatterns(settings: JsonObject, excludedSources: readonly string[]) {
-  const nextExtensions = isStringArray(settings.extensions) ? [...settings.extensions] : []
+  const { extensions } = piSettingsFields(settings)
+  const nextExtensions = isStringArray(extensions) ? [...extensions] : []
   const extensionSet = new Set(nextExtensions)
   for (const pattern of getExcludedExtensionPatterns(excludedSources)) {
     if (extensionSet.has(pattern)) continue
@@ -72,7 +75,7 @@ function isExcludedNpmPackage(value: JsonValue, excludedNames: ReadonlySet<strin
 export function withoutExcludedPackages(
   content: string | undefined,
   excludedSources: readonly string[] | undefined,
-  excludedNpmPackageNames: readonly string[] | undefined = undefined,
+  excludedNpmPackageNames?: readonly string[],
 ) {
   if (
     (!excludedSources || excludedSources.length === 0) &&
@@ -153,11 +156,11 @@ export function withoutSyntheticExcludedExtensionPatterns(
   if (!nextContent || !excludedSources || excludedSources.length === 0) return nextContent
   const currentSettings = parseJsonObject(currentContent)
   const nextSettings = parseJsonObject(nextContent)
-  const currentExtensions = new Set(
-    isStringArray(currentSettings.extensions) ? currentSettings.extensions : [],
-  )
+  const current = piSettingsFields(currentSettings).extensions
+  const currentExtensions = new Set(isStringArray(current) ? current : [])
   const syntheticPatterns = new Set(getExcludedExtensionPatterns(excludedSources))
-  const nextExtensions = isStringArray(nextSettings.extensions) ? nextSettings.extensions : []
+  const next = piSettingsFields(nextSettings).extensions
+  const nextExtensions = isStringArray(next) ? next : []
   const persisted = nextExtensions.filter(
     (entry) => !syntheticPatterns.has(entry) || currentExtensions.has(entry),
   )

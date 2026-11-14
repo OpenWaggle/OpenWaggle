@@ -81,7 +81,7 @@ function isExplicitlyDisabled() {
  * Turning statistics off deletes everything queued. Install markers stay, because they are never
  * sent on their own and losing them would count this Install as new when statistics return.
  */
-function clearHostQueue(state: UsageStatisticsHostState): UsageStatisticsHostState {
+function clearHostQueue(state: UsageStatisticsHostState) {
   if (Object.keys(state.days).length === 0 && state.install.lastLaunchedVersion === null) {
     return state
   }
@@ -164,7 +164,7 @@ function recordHostObservation(
   state: UsageStatisticsHostState,
   day: string,
   observation: UsageStatisticsObservation,
-): UsageStatisticsHostState {
+) {
   const days = recordUsageStatisticsObservation(state.days, day, observation)
   if (days === state.days && state.install.firstSeenDay !== null) return state
   return {
@@ -178,7 +178,7 @@ function recordGuiObservation(
   spool: UsageStatisticsGuiSpool,
   day: string,
   observation: UsageStatisticsObservation,
-): UsageStatisticsGuiSpool {
+) {
   const days = recordUsageStatisticsObservation(spool.days, day, observation)
   return days === spool.days ? spool : { ...spool, days }
 }
@@ -187,7 +187,7 @@ function recordGuiObservation(
  * Records one observation for today, only while statistics are on. An observation that changes
  * nothing (a feature already used today) does not rewrite the file. Never throws.
  */
-export function recordUsageStatistics(observation: UsageStatisticsObservation): void {
+export function recordUsageStatistics(observation: UsageStatisticsObservation) {
   const active = recorder
   if (!active || !isUsageStatisticsEnabled()) return
   const day = usageStatisticsDay(active.now())
@@ -211,16 +211,16 @@ export function usageStatisticsHostRecorder() {
 }
 
 /** Writes pending observations now. Logs a failure instead of throwing. */
-export async function flushUsageStatistics(): Promise<void> {
+export async function flushUsageStatistics() {
   await recorder?.file.flush().catch(() => undefined)
 }
 
 /** Writes pending observations before the process exits. */
-export function flushUsageStatisticsSync(): void {
+export function flushUsageStatisticsSync() {
   recorder?.file.flushSync()
 }
 
-export async function resetUsageStatisticsRecorderForTests(): Promise<void> {
+export async function resetUsageStatisticsRecorderForTests() {
   const active = recorder
   recorder = null
   active?.unsubscribe()

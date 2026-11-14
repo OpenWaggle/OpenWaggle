@@ -198,7 +198,7 @@ async function readWindowsKey(
 export async function resolveChromiumKeys(
   request: ChromiumKeyRequest,
   dependencies: ChromiumKeyDependencies = {},
-): Promise<ChromiumKeyMaterial> {
+) {
   if (request.platform === 'darwin') {
     if (!request.keychainService || !request.keychainAccount) {
       throw new BrowserImportError(
@@ -211,10 +211,13 @@ export async function resolveChromiumKeys(
       request.keychainAccount,
       dependencies.readMacSecret,
     )
-    return { cbcV10: deriveChromiumCbcKey(secret, MAC_KEY_ITERATIONS) }
+    const material: ChromiumKeyMaterial = {
+      cbcV10: deriveChromiumCbcKey(secret, MAC_KEY_ITERATIONS),
+    }
+    return material
   }
   if (request.platform === 'linux') {
-    const base = {
+    const base: ChromiumKeyMaterial = {
       cbcV10: deriveChromiumCbcKey(LINUX_FALLBACK_PASSPHRASE, LINUX_KEY_ITERATIONS),
       cbcEmpty: deriveChromiumCbcKey('', LINUX_KEY_ITERATIONS),
     }
@@ -224,7 +227,11 @@ export async function resolveChromiumKeys(
         request.linuxSecretApplication,
         dependencies.runHelper ?? runCredentialHelper,
       )
-      return { ...base, cbcV11: deriveChromiumCbcKey(secret, LINUX_KEY_ITERATIONS) }
+      const material: ChromiumKeyMaterial = {
+        ...base,
+        cbcV11: deriveChromiumCbcKey(secret, LINUX_KEY_ITERATIONS),
+      }
+      return material
     } catch (cause) {
       const error = browserImportError(
         cause,
@@ -232,16 +239,18 @@ export async function resolveChromiumKeys(
         'The browser key was unavailable from Secret Service.',
       )
       if (error.reason === 'needs-keychain-approval') throw error
-      return { ...base, cbcV11Error: error }
+      const material: ChromiumKeyMaterial = { ...base, cbcV11Error: error }
+      return material
     }
   }
   if (request.platform === 'win32' && request.windowsLocalStatePath) {
-    return {
+    const material: ChromiumKeyMaterial = {
       gcmV10: await readWindowsKey(
         request.windowsLocalStatePath,
         dependencies.runHelper ?? runCredentialHelper,
       ),
     }
+    return material
   }
   throw new BrowserImportError(
     'unsupported-platform',

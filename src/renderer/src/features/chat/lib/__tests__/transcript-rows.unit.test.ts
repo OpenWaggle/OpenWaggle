@@ -4,8 +4,8 @@ import { chatRowKeys } from '../transcript-row-keys'
 import { turnHasWork } from '../transcript-rows'
 import type { ChatRow } from '../types-chat-row'
 
-function message(id: string, role: UIMessage['role'], toolCall = false): ChatRow {
-  return {
+function message(id: string, role: UIMessage['role'], toolCall = false) {
+  const row: ChatRow = {
     type: 'message',
     message: {
       id,
@@ -18,6 +18,7 @@ function message(id: string, role: UIMessage['role'], toolCall = false): ChatRow
     isRunActive: true,
     showTurnDivider: false,
   }
+  return row
 }
 
 function hasWork(rows: readonly ChatRow[], sentId: string) {

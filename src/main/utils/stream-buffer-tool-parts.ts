@@ -18,8 +18,9 @@ export function applyToolExecutionStartToParts(
   parts: readonly MessagePart[],
   value: Extract<AgentTransportEvent, { type: 'tool_execution_start' | 'tool_execution_update' }>,
 ) {
-  if (value.parentToolCallId)
+  if (value.parentToolCallId) {
     return applyNestedToolExecutionToParts(parts, value, value.parentToolCallId)
+  }
   return upsertToolCallPart({
     parts,
     toolCallId: value.toolCallId,
@@ -33,19 +34,20 @@ export function applyToolExecutionEndToParts(
   value: Extract<AgentTransportEvent, { type: 'tool_execution_end' }>,
   preserveArgs = false,
 ) {
-  if (value.parentToolCallId)
+  if (value.parentToolCallId) {
     return applyNestedToolExecutionToParts(parts, value, value.parentToolCallId)
+  }
   const args = preserveArgs ? existingToolCallArgs(parts, value.toolCallId) : value.args
   return appendToolResultPart({
     parts: upsertToolCallPart({
       parts,
       toolCallId: value.toolCallId,
       toolName: value.toolName,
-      args,
+      ...(args === undefined ? {} : { args }),
     }),
     toolCallId: value.toolCallId,
     toolName: value.toolName,
-    args,
+    ...(args === undefined ? {} : { args }),
     result: value.result,
     isError: value.isError,
   })
@@ -63,7 +65,8 @@ export function applyToolExecutionToParts(
   >,
   degraded: boolean,
 ) {
-  if (value.type === 'tool_execution_end')
+  if (value.type === 'tool_execution_end') {
     return applyToolExecutionEndToParts(parts, value, degraded)
+  }
   return degraded && !value.parentToolCallId ? parts : applyToolExecutionStartToParts(parts, value)
 }

@@ -11,7 +11,10 @@ const IDENTITY_PREFIX = 'OPENWAGGLE_PTY_IDENTITY:'
 const IDENTITY_SUFFIX = ':OPENWAGGLE_PTY_IDENTITY_END'
 const PROMPT_OUTPUT = 'OPENWAGGLE_PTY_PROMPT_OK'
 
-type ExitEvent = { readonly exitCode: number; readonly signal?: number }
+interface ExitEvent {
+  readonly exitCode: number
+  readonly signal?: number
+}
 type Listener<T> = (event: T) => void
 
 class FakeDatabase {
@@ -46,13 +49,12 @@ class FakePty {
         this.finish(0)
         return
       }
-      this.emitData(
-        `${IDENTITY_PREFIX}${pid},${pid + 1_000},1,1${IDENTITY_SUFFIX}\n`,
-      )
+      this.emitData(`${IDENTITY_PREFIX}${pid},${pid + 1_000},1,1${IDENTITY_SUFFIX}\n`)
     })
   }
 
-  public readonly onData = (listener: Listener<string>) => this.subscribe(this.dataListeners, listener)
+  public readonly onData = (listener: Listener<string>) =>
+    this.subscribe(this.dataListeners, listener)
   public readonly onExit = (listener: Listener<ExitEvent>) =>
     this.subscribe(this.exitListeners, listener)
   public readonly onProcessTreeExit = (listener: Listener<ExitEvent>) => {
@@ -83,27 +85,27 @@ class FakePty {
 
 function fakeNativeModules(platform: NodeJS.Platform) {
   const terminals: FakePty[] = []
-  const spawn = vi.fn(
-    (_file: string, args: readonly string[], _options: Readonly<Record<string, unknown>>): unknown => {
-      const terminal = new FakePty(
-        42 + terminals.length * 2,
-        args.some((argument) => argument.includes(FINAL_PREFIX)),
-      )
-      terminals.push(terminal)
-      return terminal
-    },
-  )
-  const native = platform === 'win32'
-    ? null
-    : {
-        fork: vi.fn(),
-        open: vi.fn(),
-        resize: vi.fn(),
-        process: vi.fn(),
-        signalByTty: vi.fn(() => 1),
-        signalProcess: vi.fn(),
-        processInfos: vi.fn(),
-      }
+  const spawn = vi.fn((_file: string, args: readonly string[], _options: unknown) => {
+    const terminal = new FakePty(
+      42 + terminals.length * 2,
+      args.some((argument) => argument.includes(FINAL_PREFIX)),
+    )
+    terminals.push(terminal)
+    const spawned: unknown = terminal
+    return spawned
+  })
+  const native =
+    platform === 'win32'
+      ? null
+      : {
+          fork: vi.fn(),
+          open: vi.fn(),
+          resize: vi.fn(),
+          process: vi.fn(),
+          signalByTty: vi.fn(() => 1),
+          signalProcess: vi.fn(),
+          processInfos: vi.fn(),
+        }
   const nodePty = {
     spawn,
     fork: vi.fn(),
@@ -111,7 +113,7 @@ function fakeNativeModules(platform: NodeJS.Platform) {
     open: vi.fn(),
     native,
   }
-  const loadModule = vi.fn((moduleName: string): unknown => {
+  const loadModule = vi.fn<(moduleName: string) => unknown>((moduleName: string) => {
     if (moduleName === 'better-sqlite3') return FakeDatabase
     if (moduleName === 'node-pty') return nodePty
     if (moduleName === 'sharp') return { versions: {} }
@@ -156,7 +158,13 @@ describe('native load probe', () => {
 
   it('checks explicit and natural exit on every Windows backend', async () => {
     const fixture = fakeNativeModules('win32')
-    await assertNativeModulesLoad('electron', fixture.loadModule, 'win32', 'C:\\runtime\\node.exe', 'all-backends')
+    await assertNativeModulesLoad(
+      'electron',
+      fixture.loadModule,
+      'win32',
+      'C:\\runtime\\node.exe',
+      'all-backends',
+    )
 
     expect(fixture.spawn).toHaveBeenCalledTimes(6)
     expect(fixture.spawn.mock.calls.map((call) => call[2])).toEqual([
@@ -169,7 +177,9 @@ describe('native load probe', () => {
     ])
     expect(fixture.loadModule).toHaveBeenCalledWith('sharp')
     for (const index of [0, 2, 4]) {
-      expect(fixture.terminals[index]?.write).toHaveBeenCalledWith('openwaggle-native-probe-input\r')
+      expect(fixture.terminals[index]?.write).toHaveBeenCalledWith(
+        'openwaggle-native-probe-input\r',
+      )
     }
   })
 

@@ -82,7 +82,7 @@ it('retains trusted Session directory guidance during automation, after the stab
   // Empty, not absent: Pi then adds no APPEND_SYSTEM.md, as when the appendices were passed here.
   expect(options).toMatchObject({ appendSystemPrompt: [], noExtensions: true })
 
-  const handlers: Array<(event: unknown) => unknown> = []
+  const handlers: ((event: unknown) => unknown)[] = []
   for (const extension of options.extensionFactories ?? []) {
     if (typeof extension !== 'function') continue
     await extension(

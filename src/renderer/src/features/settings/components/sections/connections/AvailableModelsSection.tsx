@@ -34,17 +34,17 @@ function useEnabledModelSelection() {
 
   return {
     enabledSet: new Set<string>(enabledModels),
-    toggle(modelRef: string, enabled: boolean) {
+    toggle: (modelRef: string, enabled: boolean) => {
       const next = enabled
         ? [...new Set([...enabledModels, modelRef])]
         : enabledModels.filter((model) => model !== modelRef)
       apply(next)
     },
-    select(models: readonly ModelDisplayInfo[]) {
+    select: (models: readonly ModelDisplayInfo[]) => {
       const refs = models.map((model) => String(model.id))
       apply([...new Set([...enabledModels, ...refs])])
     },
-    deselect(models: readonly ModelDisplayInfo[]) {
+    deselect: (models: readonly ModelDisplayInfo[]) => {
       const refs = new Set(models.map((model) => String(model.id)))
       apply(enabledModels.filter((model) => !refs.has(model)))
     },

@@ -56,25 +56,17 @@ interface SendMessageDeps {
   readonly startWaggleCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
 }
 
-interface SendMessageHandlers {
-  readonly handleSend: (payload: AgentSendPayload) => Promise<void>
-  readonly handleSendText: (content: string) => Promise<void>
-  readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
-}
-
-function sessionWorktreePlan(
-  snapshot: ReturnType<typeof snapshotDraftWorktreePlan>,
-): SessionWorktreePlan | undefined {
+function sessionWorktreePlan(snapshot: ReturnType<typeof snapshotDraftWorktreePlan>) {
   const environmentMode = snapshot?.plan.envMode
   if (!snapshot || !environmentMode) return undefined
   return {
     environmentMode,
     baseRef: snapshot.plan.baseRef ?? null,
     startFromOrigin: snapshot.plan.startFromOrigin ?? false,
-  }
+  } satisfies SessionWorktreePlan
 }
 
-function firstSendFailure(error: unknown, sessionId: SessionId): FirstSendFailed {
+function firstSendFailure(error: unknown, sessionId: SessionId) {
   return error instanceof FirstSendFailed
     ? error
     : new FirstSendFailed(
@@ -84,7 +76,7 @@ function firstSendFailure(error: unknown, sessionId: SessionId): FirstSendFailed
 }
 
 /** Pure factory — testable without React. */
-export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
+export function createSendHandlers(deps: SendMessageDeps) {
   const {
     activeSessionId,
     projectPath,
@@ -131,8 +123,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       await withForegroundSend(sessionId, async () => {
         try {
           await flushDraftAuthorizationModeToSession(draftProjectPath, sessionId)
-          if (preparationProfileId)
+          if (preparationProfileId) {
             await selectDraftWorkspacePreparation(draftProjectPath, sessionId, preparationProfileId)
+          }
         } catch (error) {
           throw firstSendFailure(error, sessionId)
         }
@@ -206,7 +199,7 @@ interface UseSendMessageOptions {
 }
 
 /** Hook wrapper — binds first-message sends to the concrete created session id. */
-export function useSendMessage(options: UseSendMessageOptions): SendMessageHandlers {
+export function useSendMessage(options: UseSendMessageOptions) {
   const { activeSessionId, model, sendMessage, sendWaggleMessage, ...rest } = options
 
   async function sendMessageToSession(

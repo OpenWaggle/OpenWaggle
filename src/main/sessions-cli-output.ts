@@ -1,4 +1,6 @@
 import { sessionHostErrorKindForThrownCode } from '@shared/domain/session-host-refusals'
+import { Schema } from '@shared/schema'
+import { errorCode } from '@shared/utils/node-error'
 import { CliError, type CliErrorKind } from './cli-error'
 import { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION } from './cli-output-schema'
 import { writeCliStdout } from './cli-stdout'
@@ -8,14 +10,9 @@ import {
   LocalSessionHostUnavailableError,
   LocalSessionHostUpgradePendingError,
 } from './session-host/local-session-client-protocol-error'
+import { commandResponseOutcome } from './sessions-cli-response-fields'
 
 const JSON_INDENT_SPACES = 2
-
-export { SESSIONS_CLI_OUTPUT_SCHEMA_VERSION }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function humanLabel(value: string) {
   return value.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
@@ -39,16 +36,21 @@ const HUMAN_FIELDS: Readonly<
   },
 }
 
+const outcomeTitleFieldsSchema = Schema.Struct({
+  effect: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  operation: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
 function humanOutcome(value: unknown) {
-  if (!isRecord(value) || !isRecord(value.response) || !isRecord(value.response.outcome)) {
-    return JSON.stringify(value, null, JSON_INDENT_SPACES)
-  }
-  const outcome = value.response.outcome
+  const outcome = commandResponseOutcome(value)
+  if (!outcome) return JSON.stringify(value, null, JSON_INDENT_SPACES)
+  const { effect, operation }: { readonly effect?: unknown; readonly operation?: unknown } =
+    Schema.is(outcomeTitleFieldsSchema)(outcome) ? outcome : {}
   const title =
-    typeof outcome.effect === 'string'
-      ? humanLabel(outcome.effect)
-      : typeof outcome.operation === 'string'
-        ? humanLabel(outcome.operation)
+    typeof effect === 'string'
+      ? humanLabel(effect)
+      : typeof operation === 'string'
+        ? humanLabel(operation)
         : 'Session Result'
   const details = Object.entries(outcome)
     .filter(([key]) => key !== 'effect' && key !== 'operation')
@@ -119,8 +121,9 @@ export type SessionsCliErrorKind = CliErrorKind
 function isHostConnectionError(error: unknown) {
   return (
     error instanceof Error &&
-    Reflect.get(error, 'syscall') === 'connect' &&
-    typeof Reflect.get(error, 'code') === 'string'
+    'syscall' in error &&
+    error.syscall === 'connect' &&
+    typeof errorCode(error) === 'string'
   )
 }
 
@@ -129,23 +132,24 @@ function isHostConnectionError(error: unknown) {
  * `internal`: the commands raise their usage errors as typed errors, so an unexpected failure
  * never passes for a usage mistake because of how it is worded.
  */
-export function classifySessionsCliError(error: unknown): SessionsCliErrorKind {
+export function classifySessionsCliError(error: unknown) {
   if (error instanceof CliError) return error.kind
   // The Session Host names the kind of a failure it reports (ADR 0063). A frame without one,
   // such as a handshake refusal from a Session Host older than revision 32, takes its code's
   // kind from the same table; an unlisted code is an unexpected failure.
   if (error instanceof LocalSessionClientProtocolError) {
-    return error.errorKind ?? sessionHostErrorKindForThrownCode(error.code)
+    return (error.errorKind ??
+      sessionHostErrorKindForThrownCode(error.code)) satisfies SessionsCliErrorKind
   }
-  if (error instanceof LocalSessionClientTimeoutError) return 'timeout'
+  if (error instanceof LocalSessionClientTimeoutError) return 'timeout' as const
   if (
     error instanceof LocalSessionHostUnavailableError ||
     error instanceof LocalSessionHostUpgradePendingError ||
     isHostConnectionError(error)
   ) {
-    return 'host_unavailable'
+    return 'host_unavailable' as const
   }
-  return 'internal'
+  return 'internal' as const
 }
 
 /**

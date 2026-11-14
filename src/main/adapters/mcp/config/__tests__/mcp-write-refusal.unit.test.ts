@@ -9,8 +9,14 @@ import {
 
 const FILE = '/home/user/.openwaggle/mcp.json'
 
-function pending(overrides: Partial<PendingMcpFileMigration>): PendingMcpFileMigration {
-  return { path: FILE, error: 'boom', cause: 'content', keepsLegacyState: true, ...overrides }
+function pending(overrides: Partial<PendingMcpFileMigration>) {
+  return {
+    path: FILE,
+    error: 'boom',
+    cause: 'content',
+    keepsLegacyState: true,
+    ...overrides,
+  } satisfies PendingMcpFileMigration
 }
 
 describe('refusing an MCP write while its scope is not migrated', () => {

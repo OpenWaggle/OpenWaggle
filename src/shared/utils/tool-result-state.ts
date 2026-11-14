@@ -1,36 +1,34 @@
 import { match, P } from '@diegogbrisa/ts-match'
-import { isRecord } from './validation'
+import { isObjectValue, uncheckedFields } from './object-shape'
 
-export function parseSerializedToolPayload(value: unknown): unknown {
+export function parseSerializedToolPayload(value: unknown) {
   if (typeof value !== 'string') {
     return value
   }
 
   try {
-    return JSON.parse(value)
+    const parsed: unknown = JSON.parse(value)
+    return parsed
   } catch {
     return value
   }
 }
 
-export function unwrapStructuredToolPayload(value: unknown): unknown {
+export function unwrapStructuredToolPayload(value: unknown) {
   return match(value)
     .with({ kind: 'json', data: P.select() }, (data) => data)
     .with({ kind: 'text', text: P.select() }, (text) => text)
     .otherwise(() => value)
 }
 
-export function normalizeToolResultPayload(value: unknown): unknown {
+export function normalizeToolResultPayload(value: unknown) {
   return unwrapStructuredToolPayload(parseSerializedToolPayload(value))
 }
 
-export function hasConcreteToolOutput(value: unknown): boolean {
+export function hasConcreteToolOutput(value: unknown) {
   const normalized = normalizeToolResultPayload(value)
-  return !(
-    normalized === undefined ||
-    (isRecord(normalized) &&
-      Array.isArray(normalized.content) &&
-      normalized.content.length === 0 &&
-      'details' in normalized)
-  )
+  if (normalized === undefined) return false
+  if (!isObjectValue(normalized) || !('details' in normalized)) return true
+  const { content } = uncheckedFields<{ readonly content: readonly unknown[] }>(normalized)
+  return !(Array.isArray(content) && content.length === 0)
 }

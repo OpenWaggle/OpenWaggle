@@ -8,6 +8,19 @@ const HTTP_NOT_FOUND_STATUS = 404
 // Full-suite workers can contend while Vitest transforms the renderer protocol graph.
 const MODULE_LOAD_TEST_TIMEOUT_MS = 60_000
 
+/** Module requests the protocol refuses before reading any file; each overrides one URL part. */
+const REFUSED_MODULE_REQUESTS: readonly {
+  readonly name: string
+  readonly contentHash?: string
+  readonly relativePath?: string
+  readonly packageDirectory?: string
+}[] = [
+  { name: 'a stale content hash', contentHash: 'stale-hash' },
+  { name: 'a package file outside the manifest hash input', relativePath: 'dist/undeclared.js' },
+  { name: 'a path that climbs out of the package', relativePath: '%2e%2e/secret.js' },
+  { name: 'a directory that is not an extension package', packageDirectory: 'not-an-extension' },
+]
+
 interface ProtocolRequest {
   readonly url: string
 }
@@ -37,9 +50,10 @@ vi.mock('node:fs', () => ({
   existsSync: protocolMocks.existsSync,
 }))
 
-vi.mock('@electron-toolkit/utils', () => ({
-  is: protocolMocks.is,
-}))
+vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
+  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !protocolMocks.is.dev } }
+})
 
 vi.mock('electron', () => ({
   app: protocolMocks.app,
@@ -132,6 +146,38 @@ describe('extension runtime protocol', () => {
     MODULE_LOAD_TEST_TIMEOUT_MS,
   )
 
+  // Regression for the return-await fix: the handler returned the file read's promise from
+  // inside its try, so a read that failed after the access check rejected instead of a 404.
+  it(
+    'answers 404 when an allowed module cannot be read',
+    async () => {
+      const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
+        await loadRendererProtocol()
+      const projectPath = path.join(tmpRoot, 'project')
+      const extensionPackage = await writeExtensionPackage({
+        projectPath,
+        scope: 'project',
+        builtArtifacts: ['dist/route.js'],
+        tmpRoot,
+      })
+      registerExtensionRuntimeProtocolOnce(allowRuntimeModuleAccess())
+      protocolMocks.fetch.mockRejectedValueOnce(new Error('ENOENT: the module was removed'))
+
+      const response = await dispatchProtocolRequest(
+        EXTENSION_RUNTIME_PROTOCOL,
+        runtimeModuleUrl({
+          packagePath: extensionPackage.packagePath,
+          contentHash: extensionPackage.contentHash,
+          relativePath: 'dist/route.js',
+          projectPaths: [projectPath],
+        }),
+      )
+
+      expect(response.status).toBe(HTTP_NOT_FOUND_STATUS)
+    },
+    MODULE_LOAD_TEST_TIMEOUT_MS,
+  )
+
   it('serves hash-covered runtime entries from global extension packages', async () => {
     const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
       await loadRendererProtocol()
@@ -157,14 +203,14 @@ describe('extension runtime protocol', () => {
     ).toContain('dist/route.js')
   })
 
-  it('passes session context into runtime module access checks', async () => {
+  it('keeps session context in access checks for entries and their relative chunks', async () => {
     const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
       await loadRendererProtocol()
     const projectPath = path.join(tmpRoot, 'project')
     const extensionPackage = await writeExtensionPackage({
       projectPath,
       scope: 'project',
-      builtArtifacts: ['dist/route.js'],
+      builtArtifacts: ['dist/route.js', 'dist/chunk.js'],
       tmpRoot,
     })
     const access = allowRuntimeModuleAccess()
@@ -178,46 +224,25 @@ describe('extension runtime protocol', () => {
       projectPaths: [projectPath],
       sessionId: 'session-1',
     })
+    const sessionAccess = {
+      packagePath: extensionPackage.packagePath,
+      contentHash: extensionPackage.contentHash,
+      projectPaths: [projectPath],
+      sessionId: 'session-1',
+    }
 
     expect(
       await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)).text(),
     ).toContain('dist/route.js')
-    expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenCalledWith({
-      packagePath: extensionPackage.packagePath,
-      contentHash: extensionPackage.contentHash,
-      projectPaths: [projectPath],
-      sessionId: 'session-1',
-    })
-  })
-
-  it('keeps session context when session modules import relative chunks', async () => {
-    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-      await loadRendererProtocol()
-    const projectPath = path.join(tmpRoot, 'project')
-    const extensionPackage = await writeExtensionPackage({
-      projectPath,
-      scope: 'project',
-      builtArtifacts: ['dist/route.js', 'dist/chunk.js'],
-      tmpRoot,
-    })
-
-    registerExtensionRuntimeProtocolOnce(allowRuntimeModuleAccess())
-
-    const routeUrl = runtimeModuleUrl({
-      packagePath: extensionPackage.packagePath,
-      contentHash: extensionPackage.contentHash,
-      relativePath: 'dist/route.js',
-      projectPaths: [projectPath],
-      sessionId: 'session-1',
-    })
+    expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenLastCalledWith(sessionAccess)
     const chunkUrl = new URL('./chunk.js', routeUrl).href
-
     expect(
       await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, chunkUrl)).text(),
     ).toContain('dist/chunk.js')
+    expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenLastCalledWith(sessionAccess)
   })
 
-  it('rejects stale hashes and package files outside the manifest hash input', async () => {
+  it.each(REFUSED_MODULE_REQUESTS)('answers 404 for $name', async (request) => {
     const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
       await loadRendererProtocol()
     const projectPath = path.join(tmpRoot, 'project')
@@ -231,24 +256,17 @@ describe('extension runtime protocol', () => {
       path.join(extensionPackage.packagePath, 'dist', 'undeclared.js'),
       'export const undeclared = true\n',
     )
-
     registerExtensionRuntimeProtocolOnce(allowRuntimeModuleAccess())
 
-    const staleHashUrl = runtimeModuleUrl({
-      packagePath: extensionPackage.packagePath,
-      contentHash: 'stale-hash',
-      relativePath: 'dist/route.js',
-    })
-    const undeclaredUrl = runtimeModuleUrl({
-      packagePath: extensionPackage.packagePath,
-      contentHash: extensionPackage.contentHash,
-      relativePath: 'dist/undeclared.js',
+    const url = runtimeModuleUrl({
+      packagePath: request.packageDirectory
+        ? path.join(projectPath, request.packageDirectory)
+        : extensionPackage.packagePath,
+      contentHash: request.contentHash ?? extensionPackage.contentHash,
+      relativePath: request.relativePath ?? 'dist/route.js',
     })
 
-    expect((await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, staleHashUrl)).status).toBe(
-      HTTP_NOT_FOUND_STATUS,
-    )
-    expect((await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, undeclaredUrl)).status).toBe(
+    expect((await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, url)).status).toBe(
       HTTP_NOT_FOUND_STATUS,
     )
   })
@@ -280,38 +298,6 @@ describe('extension runtime protocol', () => {
       HTTP_NOT_FOUND_STATUS,
     )
     expect(protocolMocks.fetch).not.toHaveBeenCalled()
-  })
-
-  it('rejects extension runtime module requests outside extension package roots', async () => {
-    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
-      await loadRendererProtocol()
-    const projectPath = path.join(tmpRoot, 'project')
-    const extensionPackage = await writeExtensionPackage({
-      projectPath,
-      scope: 'project',
-      builtArtifacts: ['dist/route.js'],
-      tmpRoot,
-    })
-
-    registerExtensionRuntimeProtocolOnce(allowRuntimeModuleAccess())
-
-    const traversalUrl = runtimeModuleUrl({
-      packagePath: extensionPackage.packagePath,
-      contentHash: extensionPackage.contentHash,
-      relativePath: '%2e%2e/secret.js',
-    })
-    const outsideExtensionUrl = runtimeModuleUrl({
-      packagePath: path.join(projectPath, 'not-an-extension'),
-      contentHash: extensionPackage.contentHash,
-      relativePath: 'dist/route.js',
-    })
-
-    expect((await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, traversalUrl)).status).toBe(
-      HTTP_NOT_FOUND_STATUS,
-    )
-    expect(
-      (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, outsideExtensionUrl)).status,
-    ).toBe(HTTP_NOT_FOUND_STATUS)
   })
 
   it('rejects hash-covered runtime files when current registry policy denies access', async () => {

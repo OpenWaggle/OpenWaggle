@@ -68,9 +68,8 @@ function errorMessageOf(result: Either.Either<unknown, unknown>) {
 }
 
 async function refusedOperations(sessionId: SessionId) {
-  const { compactAgentSession, navigateAgentSessionTree } = await import(
-    '../../../application/agent-session-service'
-  )
+  const { compactAgentSession, navigateAgentSessionTree } =
+    await import('../../../application/agent-session-service')
   const firstNode = (await sessionDetail(sessionId))?.messages[0]?.id
   if (!firstNode) throw new Error('The Session has no messages.')
   const sent = await sendMessage(sessionId, 'Are you there?', 'run-folder-away')
@@ -110,9 +109,8 @@ describe('A Session whose Pi folder is unavailable', () => {
     // Kept, with its history, through a discovery pass.
     await discover()
     expect((await sessionDetail(sessionId))?.messages.length).toBe(before)
-    const { dispatchHostBackedSessionGuiOperation } = await import(
-      '../../../application/host-ui-session-operation-dispatcher'
-    )
+    const { dispatchHostBackedSessionGuiOperation } =
+      await import('../../../application/host-ui-session-operation-dispatcher')
     const opened = await run(
       dispatchHostBackedSessionGuiOperation('sessions:get-detail', [sessionId]),
     )

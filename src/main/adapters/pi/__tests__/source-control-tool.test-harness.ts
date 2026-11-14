@@ -13,7 +13,6 @@ import { vi } from 'vitest'
 import type { SourceControlProvider } from '../../../ports/source-control-provider'
 import type { SourceControlRemoteResolution } from '../../../services/source-control/source-control-remote-resolution'
 import type { SourceControlSettingsAccess } from '../../../services/source-control/source-control-settings-access'
-import type { WorkingTreeSourceControlResult } from '../../../services/source-control/working-tree-source-control'
 import { OPENWAGGLE_AUTHORIZE_KEY } from '../agent-kernel/openwaggle-authorize-channel'
 import {
   createSourceControlToolExtension,
@@ -32,7 +31,7 @@ export const GITLAB_REPOSITORY = {
 
 export function resolvedGitlab(
   overrides: Partial<Extract<SourceControlRemoteResolution, { kind: 'resolved' }>> = {},
-): SourceControlRemoteResolution {
+) {
   return {
     kind: 'resolved',
     remote: { name: 'origin', url: 'git@git.acme.io:Platform/Web/App.git' },
@@ -40,7 +39,7 @@ export function resolvedGitlab(
     hostState: { host: 'git.acme.io', provider: 'gitlab', source: 'cli-sign-in' },
     attention: null,
     ...overrides,
-  }
+  } satisfies SourceControlRemoteResolution
 }
 
 type Backend = SourceControlToolBackend
@@ -64,7 +63,7 @@ export interface HarnessOptions {
 function workingTreeResult(
   resolution: SourceControlRemoteResolution,
   providerAccount: string | null,
-): WorkingTreeSourceControlResult {
+) {
   if (resolution.kind !== 'resolved') return { resolution, sourceControl: null }
   return {
     resolution,

@@ -29,7 +29,7 @@ const SESSION_ID = SessionId('session-1')
 
 function dispatch(channel: 'sessions:delete' | 'sessions:begin-project-removal', args: unknown[]) {
   const effect = dispatchHostBackedSessionGuiOperation(channel, args)
-  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<unknown, unknown>, typeof effect>(effect))
 }
 
 function deletedCommand() {
@@ -56,20 +56,17 @@ describe('Host UI Session deletion', () => {
     expect(dispatchLocalSessionCommandMock).not.toHaveBeenCalled()
   })
 
-  it('deletes a Session on its own without the project removal flag', async () => {
-    await dispatch('sessions:delete', [SESSION_ID])
+  it.each([
+    ['on its own without the project removal flag', [SESSION_ID], {}],
+    [
+      'with a project removal passed to the deletion itself',
+      [SESSION_ID, { removingProject: true }],
+      { removingProject: true },
+    ],
+  ])('deletes a Session %s', async (_, args, removal) => {
+    await dispatch('sessions:delete', args)
 
-    expect(deletedCommand()).toEqual({ operation: 'delete', sessionId: SESSION_ID })
-  })
-
-  it('passes a project removal to the deletion itself', async () => {
-    await dispatch('sessions:delete', [SESSION_ID, { removingProject: true }])
-
-    expect(deletedCommand()).toEqual({
-      operation: 'delete',
-      sessionId: SESSION_ID,
-      removingProject: true,
-    })
+    expect(deletedCommand()).toEqual({ operation: 'delete', sessionId: SESSION_ID, ...removal })
   })
 
   it.each([

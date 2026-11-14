@@ -67,7 +67,7 @@ function conflictIdentity(conflict: ExtensionPanelShortcutConflict) {
 export function extensionPanelShortcutConflicts(input: {
   readonly rules: ShortcutRules
   readonly bindings: ExtensionPanelShortcutBindings
-}): readonly ExtensionPanelShortcutConflict[] {
+}) {
   const entries = Object.entries(input.bindings).sort(([left], [right]) =>
     left.localeCompare(right),
   )

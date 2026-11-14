@@ -32,7 +32,7 @@ export async function createScreenshotProject(input: {
   readonly projectPath: string
   readonly homeDir: string
   readonly worktreeIds: readonly string[]
-}): Promise<ScreenshotProject> {
+}) {
   const { projectPath } = input
   const git = (cwd: string, args: readonly string[]) => fixtureGit(cwd, args, input.homeDir)
   await fs.mkdir(projectPath, { recursive: true })

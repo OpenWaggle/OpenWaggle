@@ -31,10 +31,10 @@ interface ActiveResize<T extends HTMLElement> {
   readonly minWidth: number
   readonly moveThreshold: number
   readonly onCommit: (width: number) => void
-  readonly onFinish?: (context: ResizeFinishContext) => void
+  readonly onFinish: ((context: ResizeFinishContext) => void) | undefined
   readonly onPreview: (width: number) => void
   readonly pointerId: number
-  readonly shouldAcceptWidth?: (width: number) => boolean
+  readonly shouldAcceptWidth: ((width: number) => boolean) | undefined
   readonly startWidth: number
   readonly startX: number
   readonly target: T
@@ -184,16 +184,16 @@ export function useResizeGesture<T extends HTMLElement>(options: ResizeGestureOp
 
   return {
     handleKeyDown,
-    handleLostPointerCapture(event: PointerEvent<T>) {
+    handleLostPointerCapture: (event: PointerEvent<T>) => {
       const activeResize = activeResizeRef.current
       if (!activeResize || activeResize.pointerId !== event.pointerId) return
       finishResize(activeResize, 'lost-capture')
     },
-    handlePointerCancel(event: PointerEvent<T>) {
+    handlePointerCancel: (event: PointerEvent<T>) => {
       handlePointerEnd(event, 'pointer-cancel')
     },
     handlePointerMove,
-    handlePointerUp(event: PointerEvent<T>) {
+    handlePointerUp: (event: PointerEvent<T>) => {
       handlePointerEnd(event, 'pointer-up')
     },
     isResizing,

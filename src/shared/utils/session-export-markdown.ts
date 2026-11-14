@@ -1,4 +1,4 @@
-import { isRecord } from './validation'
+import { uncheckedFields } from './object-shape'
 
 /**
  * A Markdown export record's heading: its role, or `hive` for the Host's Hive wake notice, which
@@ -8,6 +8,8 @@ export function sessionExportMarkdownHeading(record: {
   readonly role?: unknown
   readonly metadata?: unknown
 }) {
-  if (isRecord(record.metadata) && record.metadata.hiveWake === true) return 'hive'
+  if (uncheckedFields<{ readonly hiveWake: boolean }>(record.metadata).hiveWake === true) {
+    return 'hive'
+  }
   return typeof record.role === 'string' ? record.role : 'event'
 }

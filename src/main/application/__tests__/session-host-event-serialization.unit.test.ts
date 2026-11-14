@@ -10,7 +10,7 @@ import {
 } from '../session-host-event-serialization'
 
 /** A payload that counts how often it is serialized. */
-function countingEvent(): { event: SessionHostEventEnvelope; serializations: () => number } {
+function countingEvent() {
   let count = 0
   const payload = {
     kind: 'session-list-changed',
@@ -24,7 +24,7 @@ function countingEvent(): { event: SessionHostEventEnvelope; serializations: () 
   return {
     event: { cursor: { hostInstanceId: 'host', sequence: 1 }, timestamp: 2, payload },
     serializations: () => count,
-  }
+  } satisfies { event: SessionHostEventEnvelope; serializations: () => number }
 }
 
 describe('Session Host event serialization', () => {

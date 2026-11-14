@@ -14,7 +14,7 @@ async function mapCanonicalDirectoryRoots(
   roots: readonly string[],
   operation: (root: string) => Promise<string>,
 ) {
-  const canonical = new Array<string>(roots.length)
+  const canonical = Array.from({ length: roots.length }, () => '')
   const entries = roots.entries()
   let failed = false
   let failure: unknown
@@ -37,11 +37,7 @@ async function mapCanonicalDirectoryRoots(
   return canonical
 }
 
-export async function canonicalizeExistingDirectoryRoots(
-  roots: readonly string[] | undefined,
-  label: string,
-) {
-  if (!roots) return undefined
+export async function canonicalizeExistingDirectoryRoots(roots: readonly string[], label: string) {
   const canonical = await mapCanonicalDirectoryRoots([...new Set(roots)], (root) =>
     canonicalDirectory(root, label),
   )

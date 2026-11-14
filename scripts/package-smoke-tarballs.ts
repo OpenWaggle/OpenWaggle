@@ -71,10 +71,7 @@ async function listTarballPackageFiles(tarballPath: string) {
     .filter((entry) => entry.length > 0)
 }
 
-export async function validatePackedPackage(
-  spec: PackageSpec,
-  tarballPath: string,
-): Promise<PackedPackage> {
+export async function validatePackedPackage(spec: PackageSpec, tarballPath: string) {
   const manifest = await readPackedManifest(tarballPath)
   const readme = await readPackedTextFile(tarballPath, 'README.md')
   const files = await listTarballPackageFiles(tarballPath)
@@ -88,9 +85,7 @@ export async function validatePackedPackage(
   assertPiHostPackagesArePeers(spec.name, manifest)
   if (spec.name === '@openwaggle/extension-react') {
     assertReactPeerDependencies(manifest)
-    assertCanonicalExtensionReactStylesheet(
-      await readPackedTextFile(tarballPath, 'styles.css'),
-    )
+    assertCanonicalExtensionReactStylesheet(await readPackedTextFile(tarballPath, 'styles.css'))
   }
 
   console.log(`validated ${spec.name} tarball: ${path.basename(tarballPath)}`)

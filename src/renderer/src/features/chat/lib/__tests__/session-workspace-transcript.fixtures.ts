@@ -8,8 +8,8 @@ export const INACTIVE_BRANCH_ID = SessionBranchId('session-1:inactive')
 export function workspaceAtInactiveBranchHead(
   sessionHead: SessionNode,
   inactiveBranchHead: SessionNode,
-): SessionWorkspace {
-  return {
+) {
+  const workspace: SessionWorkspace = {
     tree: {
       session: {
         id: SESSION_ID,
@@ -56,4 +56,5 @@ export function workspaceAtInactiveBranchHead(
       },
     ],
   }
+  return workspace
 }

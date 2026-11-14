@@ -73,11 +73,11 @@ export function browserPreviewTitle(url: string) {
   }
 }
 
-export function lastBrowserSurface(
-  browserTabs: readonly BrowserPreviewTabState[],
-): WorkspacePanelSurface {
+export function lastBrowserSurface(browserTabs: readonly BrowserPreviewTabState[]) {
   const last = browserTabs[browserTabs.length - 1]
-  return last === undefined ? null : { kind: 'browser', previewId: last.id }
+  return (
+    last === undefined ? null : { kind: 'browser', previewId: last.id }
+  ) satisfies WorkspacePanelSurface
 }
 
 export function createBrowserPreviewTab(
@@ -85,7 +85,7 @@ export function createBrowserPreviewTab(
   url: string,
   profileId = DEFAULT_BROWSER_PROFILE_ID,
   id = createBrowserPreviewId(),
-): BrowserPreviewTabState {
+) {
   return {
     id,
     ownerKey,
@@ -101,15 +101,15 @@ export function createBrowserPreviewTab(
     audible: false,
     favicon: null,
     controller: { kind: 'human' },
-  }
+  } satisfies BrowserPreviewTabState
 }
 
 export function createBrowserPreviewLauncherTab(
   ownerKey: string,
   profileId = DEFAULT_BROWSER_PROFILE_ID,
   id = createBrowserPreviewId(),
-): BrowserPreviewTabState {
-  return {
+) {
+  const state: BrowserPreviewTabState = {
     id,
     ownerKey,
     kind: 'launcher',
@@ -125,4 +125,5 @@ export function createBrowserPreviewLauncherTab(
     favicon: null,
     controller: { kind: 'human' },
   }
+  return state
 }

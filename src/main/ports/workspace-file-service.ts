@@ -1,6 +1,7 @@
 import type {
+  WorkspaceAbsoluteFileExternalOpenInput,
   WorkspaceExternalEditor,
-  WorkspaceExternalEditorId,
+  WorkspaceFileExternalOpenInput,
 } from '@shared/types/workspace-external-editor'
 import type {
   WorkspaceContentMatch,
@@ -53,19 +54,10 @@ export interface WorkspaceFileServiceShape {
     readonly WorkspaceExternalEditor[],
     WorkspaceFileError
   >
-  readonly openFile: (input: {
-    readonly projectPath: string
-    readonly path: string
-    readonly editor: WorkspaceExternalEditorId
-    readonly line?: number
-    readonly column?: number
-  }) => EffectType<void, WorkspaceFileError>
-  readonly openAbsoluteFile: (input: {
-    readonly path: string
-    readonly editor: WorkspaceExternalEditorId
-    readonly line?: number
-    readonly column?: number
-  }) => EffectType<void, WorkspaceFileError>
+  readonly openFile: (input: WorkspaceFileExternalOpenInput) => EffectType<void, WorkspaceFileError>
+  readonly openAbsoluteFile: (
+    input: WorkspaceAbsoluteFileExternalOpenInput,
+  ) => EffectType<void, WorkspaceFileError>
   readonly createEntry: (
     input: WorkspaceEntryCreateInput,
   ) => EffectType<WorkspaceEntryMutationResult, WorkspaceFileError>

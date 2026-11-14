@@ -7,10 +7,9 @@
 import * as NodeContext from '@effect/platform-node/NodeContext'
 import type { Effect as EffectType } from 'effect/Effect'
 import * as Effect from 'effect/Effect'
-import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
-import { ElectronBrowserPreviewAutomationServiceLive } from './adapters/electron-browser-preview-automation-service'
+import { ElectronBrowserPreviewAutomationServiceLive } from './adapters/electron/browser-preview/electron-browser-preview-automation-service'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemInlineVisualizationLive } from './adapters/filesystem-inline-visualization-service'
 import { FilesystemWorkspaceFileLive } from './adapters/filesystem-workspace-file-service'
@@ -47,13 +46,11 @@ const GuiLayer = Layer.mergeAll(
 
 export type GuiServices =
   typeof GuiLayer extends Layer.Layer<infer R, infer _E, infer _RIn> ? R : never
-export type GuiRuntimeError =
-  typeof GuiLayer extends Layer.Layer<infer _R, infer E, infer _RIn> ? E : never
 
 let currentRuntime = ManagedRuntime.make(GuiLayer)
 
 /** Source control reads and patches its Settings through the Session Host from the window. */
-export async function initializeGuiRuntime(): Promise<void> {
+export async function initializeGuiRuntime() {
   await currentRuntime.runPromise(
     Effect.gen(function* () {
       const settings = yield* SettingsService
@@ -62,21 +59,20 @@ export async function initializeGuiRuntime(): Promise<void> {
   )
 }
 
-export function runGuiEffect<A, E>(effect: EffectType<A, E, GuiServices>): Promise<A> {
+export function runGuiEffect<A, E>(effect: EffectType<A, E, GuiServices>) {
   return currentRuntime.runPromise(effect)
 }
 
-export function runGuiEffectExit<A, E>(
-  effect: EffectType<A, E, GuiServices>,
-): Promise<ExitType<A, E | GuiRuntimeError>> {
+/** Settles with the effect's Exit, whose failure also carries any error from building the layer. */
+export function runGuiEffectExit<A, E>(effect: EffectType<A, E, GuiServices>) {
   return currentRuntime.runPromiseExit(effect)
 }
 
-export async function disposeGuiRuntime(): Promise<void> {
+export async function disposeGuiRuntime() {
   await currentRuntime.dispose()
 }
 
-export async function resetGuiRuntimeForTests(): Promise<void> {
+export async function resetGuiRuntimeForTests() {
   await currentRuntime.dispose()
   currentRuntime = ManagedRuntime.make(GuiLayer)
 }

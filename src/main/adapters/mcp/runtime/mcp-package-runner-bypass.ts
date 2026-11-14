@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { readEnvironmentValue } from '../../../environment-paths'
 import type { PackageBinStore } from './mcp-package-runner-bin-store'
 import {
   PACKAGE_BIN_PINNED_TTL_MS,
@@ -102,7 +103,10 @@ export class PackageRunnerBypass {
   private readonly probe: PackageRunnerProbe
   private readonly now: () => number
 
-  constructor(private readonly options: PackageRunnerBypassOptions = {}) {
+  private readonly options: PackageRunnerBypassOptions
+
+  constructor(options: PackageRunnerBypassOptions = {}) {
+    this.options = options
     this.probe = options.probe ?? execProbe
     this.now = options.now ?? Date.now
   }
@@ -117,7 +121,7 @@ export class PackageRunnerBypass {
       input.command,
       launch.packageSpec,
       launch.binName ?? null,
-      input.env.PATH ?? '',
+      readEnvironmentValue(input.env, 'PATH') ?? '',
       launch.localFolder ?? null,
       folderConfigOf(input.cwd),
     ])
@@ -150,19 +154,21 @@ export class PackageRunnerBypass {
    * resolves the bin for the next launch. `refresh` (Settings' check) always runs the runner and
    * probes again, so a tag such as `@latest` picks up a new version.
    */
-  launch(input: StdioLaunch, options: { readonly refresh?: boolean } = {}): StdioLaunch {
+  launch(input: StdioLaunch, options: { readonly refresh?: boolean } = {}) {
     const launch = runnerLaunchOf(input)
     if (!launch) return input
     const key = this.key(launch, input)
     const entry = this.cache()[key]
     if (!options.refresh && entry && this.fresh(entry)) {
-      const PATH = [entry.binDirectory, input.env.PATH].filter(Boolean).join(path.delimiter)
+      const PATH = [entry.binDirectory, readEnvironmentValue(input.env, 'PATH')]
+        .filter(Boolean)
+        .join(path.delimiter)
       return {
         ...input,
         command: entry.command,
         args: [...entry.prefixArgs, ...launch.serverArgs],
         env: { ...input.env, PATH },
-      }
+      } satisfies StdioLaunch
     }
     if (options.refresh) this.failedAt.delete(key)
     if (!this.failedRecently(key)) this.resolveInBackground(key, launch, input)

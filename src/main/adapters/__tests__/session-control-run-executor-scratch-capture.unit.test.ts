@@ -23,8 +23,8 @@ import {
 const CAPTURE_WORK_MS = 100
 
 const run = vi.hoisted(() => ({
-  turn: (): Promise<void> => Promise.resolve(),
-  capture: (): Promise<void> => Promise.resolve(),
+  turn: () => Promise.resolve(),
+  capture: () => Promise.resolve(),
 }))
 
 vi.mock('../session-control-run-dispatch', () => ({

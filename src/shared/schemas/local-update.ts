@@ -1,12 +1,8 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
-import {
-  LOCAL_UPDATE_CONTRACT_VERSION,
-  type LocalUpdateRequest,
-  type LocalUpdateResponse,
-} from '@shared/types/local-update'
+import { LOCAL_UPDATE_CONTRACT_VERSION } from '@shared/types/local-update'
 import { UPDATE_CHANNELS } from '@shared/types/update-channel'
 
-export const localUpdateRequestSchema: Schema.Schema<LocalUpdateRequest> = Schema.Union(
+export const localUpdateRequestSchema = Schema.Union(
   Schema.Struct({
     contractVersion: Schema.Literal(LOCAL_UPDATE_CONTRACT_VERSION),
     operation: Schema.Literal('get-channel'),
@@ -18,7 +14,7 @@ export const localUpdateRequestSchema: Schema.Schema<LocalUpdateRequest> = Schem
   }),
 )
 
-export const localUpdateResponseSchema: Schema.Schema<LocalUpdateResponse> = Schema.Struct({
+export const localUpdateResponseSchema = Schema.Struct({
   contractVersion: Schema.Literal(LOCAL_UPDATE_CONTRACT_VERSION),
   updateChannel: Schema.Literal(...UPDATE_CHANNELS),
 })

@@ -2,7 +2,6 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { SourceControlSettingsPatch } from '@shared/types/source-control'
 import * as Effect from 'effect/Effect'
 import type { SettingsServiceShape } from '../services/settings-service'
-import type { SourceControlSettingsAccess } from '../services/source-control/source-control-settings-access'
 import { createSerialSourceControlSettingsAccess } from '../services/source-control/source-control-settings-patch'
 import { invokeConfiguredHostUi } from './gui-session-command-router'
 
@@ -45,9 +44,7 @@ const hostSettingsSchema = Schema.Struct({
  * isolated empty database (ADR 0048), so it reads and writes them through the Host's settings
  * channels; the owning process uses its local Settings service.
  */
-export function makeSourceControlSettingsAccess(
-  settings: SettingsServiceShape,
-): SourceControlSettingsAccess {
+export function makeSourceControlSettingsAccess(settings: SettingsServiceShape) {
   // Patches in the owning process run one at a time against the latest stored value.
   const local = createSerialSourceControlSettingsAccess({
     read: () => Effect.runPromise(settings.get()),
@@ -56,13 +53,13 @@ export function makeSourceControlSettingsAccess(
     },
   })
 
-  async function read(): ReturnType<SourceControlSettingsAccess['read']> {
+  async function read() {
     const remote = await invokeConfiguredHostUi('settings:get', [])
     if (!remote.handled) return local.read()
     return decodeUnknownOrThrow(hostSettingsSchema, remote.result)
   }
 
-  async function patch(change: SourceControlSettingsPatch): Promise<void> {
+  async function patch(change: SourceControlSettingsPatch) {
     // The Host applies the patch itself, so window and Host writers never drop each other's
     // entries the way a read-modify-write across processes would.
     const remote = await invokeConfiguredHostUi('source-control:patch-settings', [change])

@@ -31,11 +31,11 @@ const NOTIFICATION_SEVERITY_RANK = {
 export const NOTIFY_EVENT_BUDGET = 30
 export const DECISION_EVENT_BUDGET = 30
 
-export function notificationLifetimeMs(level: AgentLoopNotifyLevel): number | null {
+export function notificationLifetimeMs(level: AgentLoopNotifyLevel) {
   return NOTIFICATION_LIFETIME_MS[level]
 }
 
-export function notificationSeverityRank(level: AgentLoopNotifyLevel): number {
+export function notificationSeverityRank(level: AgentLoopNotifyLevel) {
   return NOTIFICATION_SEVERITY_RANK[level]
 }
 
@@ -50,9 +50,7 @@ function isNotifyEvent(event: AgentInteractionEvent) {
  *
  * Order is preserved, so a request still precedes its resolution.
  */
-export function capAgentInteractionEvents(
-  events: readonly AgentInteractionEvent[],
-): readonly AgentInteractionEvent[] {
+export function capAgentInteractionEvents(events: readonly AgentInteractionEvent[]) {
   const notifyKeep = new Set<AgentInteractionEvent>()
   const decisionKeep = new Set<AgentInteractionEvent>()
   let notifySeen = 0
@@ -90,9 +88,7 @@ export interface OrderableNotification {
  * Sorting by time alone let three later informational notices push an active error out of the
  * visible slots, and an error never expires on its own, so the user simply lost it.
  */
-export function orderNotifications<T extends OrderableNotification>(
-  notifications: readonly T[],
-): readonly T[] {
+export function orderNotifications<T extends OrderableNotification>(notifications: readonly T[]) {
   return [...notifications].sort((left, right) => {
     const bySeverity = notificationSeverityRank(left.level) - notificationSeverityRank(right.level)
     return bySeverity !== 0 ? bySeverity : right.timestamp - left.timestamp

@@ -13,7 +13,7 @@ const LEGACY_DESKTOP_THINKING_LEVEL_KEY = 'thinkingLevel'
 /** Recorded once every Session's thinking level has been restored from its Pi entries. */
 export const SESSION_THINKING_LEVELS_RESTORED_KEY = 'sessionThinkingLevelsRestored'
 
-function thinkingLevel(value: unknown): ThinkingLevel | undefined {
+function thinkingLevel(value: unknown) {
   return THINKING_LEVELS.find((level) => level === value)
 }
 
@@ -129,7 +129,7 @@ function sessionLevel(
   row: SessionThinkingLevelRow,
   legacyDesktopLevel: ThinkingLevel | undefined,
   fallback: ThinkingLevel,
-): ThinkingLevel {
+) {
   const restored = thinkingLevel(row.restored_level)
   const stored = thinkingLevel(row.stored_level)
   if (restored !== 'off') return restored ?? stored ?? fallback

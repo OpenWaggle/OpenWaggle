@@ -199,9 +199,8 @@ async function setPiDefaultThinkingLevel(level: string) {
  */
 async function openWithVirtualModels(sessionId: string, virtualModels: readonly string[]) {
   const { ProviderService } = await import('../../../ports/provider-service')
-  const { refreshPiSessionProjection } = await import(
-    '../../../application/pi-session-projection-refresh'
-  )
+  const { refreshPiSessionProjection } =
+    await import('../../../application/pi-session-projection-refresh')
   const { SessionId } = await import('@shared/types/brand')
   await run(
     Effect.gen(function* () {

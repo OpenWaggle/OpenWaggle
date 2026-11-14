@@ -11,9 +11,7 @@ export interface PersistedUserMessagePartsPayload {
  * resolves an auto-paste to its whole source for the model, and the display copy must still fit the
  * prepared-attachment schema every reader of the transcript enforces.
  */
-export function buildPersistedUserMessageParts(
-  payload: PersistedUserMessagePartsPayload,
-): MessagePart[] {
+export function buildPersistedUserMessageParts(payload: PersistedUserMessagePartsPayload) {
   const parts: MessagePart[] = []
   if (payload.text.trim()) {
     parts.push({ type: 'text', text: payload.text.trim() })
@@ -22,7 +20,7 @@ export function buildPersistedUserMessageParts(
     const persisted: PreparedAttachment = {
       id: attachment.id,
       kind: attachment.kind,
-      origin: attachment.origin,
+      ...(attachment.origin === undefined ? {} : { origin: attachment.origin }),
       name: attachment.name,
       path: attachment.path,
       mimeType: attachment.mimeType,
@@ -32,5 +30,5 @@ export function buildPersistedUserMessageParts(
     }
     parts.push({ type: 'attachment', attachment: persisted })
   }
-  return parts.length > 0 ? parts : [{ type: 'text', text: '' }]
+  return (parts.length > 0 ? parts : [{ type: 'text', text: '' }]) satisfies MessagePart[]
 }

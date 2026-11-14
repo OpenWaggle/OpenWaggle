@@ -1,7 +1,19 @@
 import path from 'node:path'
 import { withoutCommentLines } from './comment-stripping'
 
-const DESKTOP_UI_POLICY_OWNERS = ['src/main/desktop-ui.ts', 'src/main/desktop-window-policy.ts']
+/**
+ * The Electron desktop shell adapters that own native desktop UI (ADR 0064). Each one looks the
+ * Electron API up when it is called, after `installAutomationDesktopUiBlockers` replaced it under
+ * automation, and the rest of main reaches them only through the desktop shell ports.
+ */
+const DESKTOP_UI_POLICY_OWNERS = [
+  'src/main/adapters/electron/electron-window-policy.ts',
+  'src/main/adapters/electron/electron-desktop-windows.ts',
+  'src/main/adapters/electron/electron-dialogs.ts',
+  'src/main/adapters/electron/electron-menus.ts',
+  'src/main/adapters/electron/electron-os-shell.ts',
+  'src/main/adapters/electron/electron-system-notifications.ts',
+]
 /**
  * The detached-spawn primitive behind `desktop-ui.ts`: the boot shim launches the headless Session
  * Host through it before the main bundle (and the desktop UI policy) loads. External applications
@@ -12,7 +24,7 @@ const DETACHED_PROCESS_API = 'detached external application'
 const PLAYWRIGHT_ELECTRON_LAUNCH_OWNER = 'scripts/playwright-electron-launcher.ts'
 const ELECTRON_VITE_LAUNCH_OWNERS = [
   'scripts/measure-main-startup.ts',
-  // `pnpm dev` itself: a person runs it to open the visible development app.
+  // `bun run dev` itself: a person runs it to open the visible development app.
   'scripts/run-electron-dev.ts',
   'scripts/qa/dev-app-startup-smoke.ts',
   'scripts/start-electron-qa.ts',
@@ -99,14 +111,14 @@ function childProcessSpawnAliases(contents: string) {
 }
 
 function importedDesktopUiViolations(file: string, code: string) {
-  const violations: { readonly file: string; readonly message: string; readonly detail: string }[] = []
+  const violations: { readonly file: string; readonly message: string; readonly detail: string }[] =
+    []
   const importsElectronNamespace = namespaceElectronAliases(code).length > 0
   const importsElectronDefault =
     /\bimport\s+(?!type\b)[A-Za-z_$][\w$]*(?:\s*,\s*(?:\{[^}]*\}|\*\s+as\s+[A-Za-z_$][\w$]*))?\s+from\s*['"]electron['"]/u.test(
       code,
     )
-  const loadsElectronDynamically =
-    /\b(?:require|import)\s*\(\s*['"]electron['"]\s*\)/u.test(code)
+  const loadsElectronDynamically = /\b(?:require|import)\s*\(\s*['"]electron['"]\s*\)/u.test(code)
   if (importsElectronNamespace || importsElectronDefault || loadsElectronDynamically) {
     violations.push({
       file,
@@ -171,25 +183,31 @@ function launchesWithPlaywright(code: string) {
 }
 
 const DEV_SCRIPT = `['"\`](?:run['"\`]\\s*,\\s*['"\`])?dev(?::debug(?::headed)?)?['"\`]`
-/** `pnpm` called with a dev script (`dev`, `run dev`, `dev:debug`, `dev:debug:headed`) in its list. */
-const PNPM_DEV_CALL = new RegExp(`['"\`]pnpm['"\`]\\s*,\\s*\\[[^\\]]*?${DEV_SCRIPT}`, 'u')
-/** `pnpm` (or pnpm's own script, `npm_execpath`) as the argument right before a dev script. */
-const PNPM_DEV_ARGV = new RegExp(
-  `(?:['"\`]pnpm['"\`]|\\bnpm_execpath\\b[^,\\n]{0,40}?)\\s*,\\s*${DEV_SCRIPT}`,
+/** The package manager that runs a script: `bun` (or `bunExecutable()`), or `pnpm`. */
+const PACKAGE_MANAGER = `(?:['"\`](?:bun|pnpm)['"\`]|\\bbunExecutable\\s*\\(\\s*\\))`
+/** The package manager called with a dev script (`dev`, `run dev`, `dev:debug[:headed]`) in its list. */
+const PACKAGE_MANAGER_DEV_CALL = new RegExp(
+  `${PACKAGE_MANAGER}\\s*,\\s*\\[[^\\]]*?${DEV_SCRIPT}`,
+  'u',
+)
+/** The package manager (or its own script, `npm_execpath`) as the argument right before a dev script. */
+const PACKAGE_MANAGER_DEV_ARGV = new RegExp(
+  `(?:${PACKAGE_MANAGER}|\\bnpm_execpath\\b[^,\\n]{0,40}?)\\s*,\\s*${DEV_SCRIPT}`,
   'u',
 )
 /** Such a list built first, holding only the script or the script and its switches. */
 const DEV_SCRIPT_LIST = new RegExp(`\\[\\s*${DEV_SCRIPT}\\s*(?:\\]|,\\s*['"\`]--)`, 'u')
-const PNPM_LITERAL = /['"`]pnpm['"`]/u
-/** A `pnpm dev` command string passed to exec or spawn. */
-const PNPM_DEV_COMMAND =
-  /\b(?:exec|execSync|spawn|spawnSync)\s*\(\s*['"`]pnpm\s+(?:run\s+)?dev(?::debug(?::headed)?)?(?=[\s'"`])/u
+const PACKAGE_MANAGER_NAMED = /['"`](?:bun|pnpm)['"`]|\bbunExecutable\b/u
+/** A `bun run dev`, `bun dev` or `pnpm dev` command string passed to exec or spawn. */
+const PACKAGE_MANAGER_DEV_COMMAND =
+  /\b(?:exec|execSync|spawn|spawnSync)\s*\(\s*['"`](?:bun|pnpm)\s+(?:run\s+)?dev(?::debug(?::headed)?)?(?=[\s'"`])/u
 
 /**
  * `electron-vite dev` spawned directly, the development launcher (called, imported or run by its
- * path; importing only its helpers counts too, which keeps the rule simple), or a pnpm dev script.
+ * path; importing only its helpers counts too, which keeps the rule simple), or a package
+ * manager running a dev script.
  */
-function launchesDevelopmentApp(code: string, checksPnpm: boolean) {
+function launchesDevelopmentApp(code: string, checksPackageManager: boolean) {
   const spawns =
     /\bspawn\s*\(/u.test(code) ||
     childProcessSpawnAliases(code).some((alias) => new RegExp(`\\b${alias}\\s*\\(`, 'u').test(code))
@@ -197,12 +215,13 @@ function launchesDevelopmentApp(code: string, checksPnpm: boolean) {
     (spawns && code.includes('electron-vite') && /['"]dev['"]/u.test(code)) ||
     /\belectronDevInvocation\s*\(/u.test(code) ||
     /\brun-electron-dev\b/u.test(code) ||
-    // The app's own code runs a project's `pnpm dev` for the user (project actions), and shows it.
-    (checksPnpm &&
-      (PNPM_DEV_CALL.test(code) ||
-        PNPM_DEV_ARGV.test(code) ||
-        (PNPM_LITERAL.test(code) && DEV_SCRIPT_LIST.test(code)) ||
-        PNPM_DEV_COMMAND.test(code)))
+    // The app's own code runs a project's `bun dev` or `pnpm dev` for the user (project actions),
+    // and shows it.
+    (checksPackageManager &&
+      (PACKAGE_MANAGER_DEV_CALL.test(code) ||
+        PACKAGE_MANAGER_DEV_ARGV.test(code) ||
+        (PACKAGE_MANAGER_NAMED.test(code) && DEV_SCRIPT_LIST.test(code)) ||
+        PACKAGE_MANAGER_DEV_COMMAND.test(code)))
   )
 }
 

@@ -107,10 +107,14 @@ describe('ExtensionSessionSummarySections disclosure', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     row.focus()
 
-    act(() => vi.advanceTimersByTime(999))
+    act(() => {
+      vi.advanceTimersByTime(999)
+    })
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
 
-    act(() => vi.advanceTimersByTime(1))
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(toggle).toHaveFocus()
   })

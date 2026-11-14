@@ -20,7 +20,7 @@ async function ensureSettingsLoaded() {
 }
 
 /** Routes a validated Session web link through the user's persisted destination. */
-export async function openWorkspaceWebLink(ownerKey: string, rawUrl: string): Promise<void> {
+export async function openWorkspaceWebLink(ownerKey: string, rawUrl: string) {
   const url = normalizeBrowserPreviewUrl(rawUrl)
   if (url === null) throw new Error('Only http and https links can be opened.')
   await ensureSettingsLoaded()
@@ -39,10 +39,10 @@ export async function openWorkspaceWebLink(ownerKey: string, rawUrl: string): Pr
   const tab = useWorkspacePanelStore
     .getState()
     .groups[ownerKey]?.browserTabs.find((candidate) => candidate.id === previewId)
-  if (tab === undefined || tab.error !== null) {
+  if (tab?.error !== null) {
     clearBrowserPreviewExternalFallback(previewId)
     await api.openExternal(url)
     return
   }
-  if (tab?.loading === true) registerBrowserPreviewExternalFallback(previewId, url)
+  if (tab?.loading) registerBrowserPreviewExternalFallback(previewId, url)
 }

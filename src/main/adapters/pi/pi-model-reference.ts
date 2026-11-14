@@ -1,5 +1,4 @@
 import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
-import type { PiModel } from './pi-provider-catalog-types'
 
 function findExplicitProviderModelReference(modelRuntime: ModelRuntime, modelReference: string) {
   const separatorIndex = modelReference.indexOf('/')
@@ -12,10 +11,7 @@ function findExplicitProviderModelReference(modelRuntime: ModelRuntime, modelRef
   return modelRuntime.getModel(provider, modelId) ?? null
 }
 
-export function findPiToolCapableModel(
-  modelRuntime: ModelRuntime,
-  modelReference: string,
-): PiModel | null {
+export function findPiToolCapableModel(modelRuntime: ModelRuntime, modelReference: string) {
   const trimmedReference = modelReference.trim()
   if (!trimmedReference) {
     return null

@@ -43,9 +43,9 @@ const operationMocks = vi.hoisted(() => ({
   withOpenWagglePiSessionLifecycleContext: vi.fn(),
   withPiSession: vi.fn(),
   withReadOnlyPiSession: vi.fn(),
-  readOnlySessionFile: vi.fn((): string | undefined => undefined),
-  existingSessionFile: vi.fn((): string | undefined => '/repo/session.jsonl'),
-  unsearchableFolder: vi.fn((): string | undefined => undefined),
+  readOnlySessionFile: vi.fn<() => string | undefined>(() => undefined),
+  existingSessionFile: vi.fn<() => string | undefined>(() => '/repo/session.jsonl'),
+  unsearchableFolder: vi.fn<() => string | undefined>(() => undefined),
 }))
 
 vi.mock('../pi-session-search', () => ({
@@ -108,7 +108,7 @@ function withTranscript() {
   }
 }
 
-function createSession(overrides: Partial<FakeSession> = {}): FakeSession {
+function createSession(overrides: Partial<FakeSession> = {}) {
   return {
     sessionId: 'pi-session-1',
     sessionFile: '/repo/session.jsonl',
@@ -123,7 +123,7 @@ function createSession(overrides: Partial<FakeSession> = {}): FakeSession {
     subscribe: vi.fn(() => vi.fn()),
     sessionManager: { getEntries: () => [] },
     ...overrides,
-  }
+  } satisfies FakeSession
 }
 
 describe('Pi session operations', () => {

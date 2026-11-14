@@ -22,7 +22,7 @@ const UNLOADED_ANCESTORS = '…'
 export function buildHiveLineageIndex(input: {
   readonly root: HiveSession | null
   readonly members: readonly HiveSession[]
-}): ReadonlyMap<string, HiveLineageEntry> {
+}) {
   const rootId = input.root === null ? null : String(input.root.id)
   const rootTitle = input.root?.title ?? ''
   const byId = new Map(input.members.map((member) => [String(member.id), member] as const))
@@ -37,7 +37,7 @@ export function buildHiveLineageIndex(input: {
   }
 
   /** Not loaded yet, or a corrupt cycle: never recurse forever, keep what the row knows. */
-  function unloaded(member: HiveSession, parentId: string): HiveLineageEntry {
+  function unloaded(member: HiveSession, parentId: string) {
     const parentTitle = member.lineage?.parentTitle ?? null
     return {
       depth: null,
@@ -47,27 +47,31 @@ export function buildHiveLineageIndex(input: {
       ancestry: [rootTitle, UNLOADED_ANCESTORS, parentTitle ?? UNLOADED_ANCESTORS].filter(
         (title) => title !== '',
       ),
-    }
+    } satisfies HiveLineageEntry
   }
 
-  function computeEntry(member: HiveSession, visiting: Set<string>): HiveLineageEntry {
+  function computeEntry(member: HiveSession, visiting: Set<string>) {
     const parentId = member.lineage?.parentSessionId ? String(member.lineage.parentSessionId) : null
     if (parentId === null || parentId === rootId) return direct
     const parent = byId.get(parentId)
-    if (parent === undefined || visiting.has(parentId)) return unloaded(member, parentId)
+    if (parent === undefined || visiting.has(parentId)) {
+      const entry: HiveLineageEntry = unloaded(member, parentId)
+      return entry
+    }
     visiting.add(String(member.id))
     const above = entryFor(parent, visiting)
     visiting.delete(String(member.id))
-    return {
+    const entry: HiveLineageEntry = {
       depth: above.depth === null ? null : above.depth + 1,
       parentId,
       parentTitle: parent.title,
       parentLoaded: true,
       ancestry: [...above.ancestry, parent.title],
     }
+    return entry
   }
 
-  function entryFor(member: HiveSession, visiting: Set<string>): HiveLineageEntry {
+  function entryFor(member: HiveSession, visiting: Set<string>) {
     const id = String(member.id)
     const known = index.get(id)
     if (known) return known
@@ -78,9 +82,4 @@ export function buildHiveLineageIndex(input: {
 
   for (const member of input.members) entryFor(member, new Set())
   return index
-}
-
-/** The ancestry as a tooltip: `Queen › Worker › Worker`. */
-export function hiveAncestryLabel(entry: HiveLineageEntry | undefined) {
-  return entry === undefined ? '' : entry.ancestry.join(' › ')
 }

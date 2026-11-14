@@ -16,7 +16,10 @@ const FILLER =
   'Use this skill when the task involves the matching internal service, its tickets, documents or dashboards. '
 
 function gitShow(repository: string, file: string) {
-  return execFileSync('git', ['show', `${BASELINE_COMMIT}:${file}`], { cwd: repository, encoding: 'utf8' })
+  return execFileSync('git', ['show', `${BASELINE_COMMIT}:${file}`], {
+    cwd: repository,
+    encoding: 'utf8',
+  })
 }
 
 function sized(text: string, characters: number) {
@@ -27,10 +30,14 @@ function sized(text: string, characters: number) {
 export async function createMaintainerLikeProject(projectPath: string, repository: string) {
   await createGitProject(projectPath)
   await writeFile(path.join(projectPath, 'AGENTS.md'), gitShow(repository, 'AGENTS.md'))
-  const skillFiles = execFileSync('git', ['ls-tree', '-r', '--name-only', BASELINE_COMMIT, '.agents/skills'], {
-    cwd: repository,
-    encoding: 'utf8',
-  })
+  const skillFiles = execFileSync(
+    'git',
+    ['ls-tree', '-r', '--name-only', BASELINE_COMMIT, '.agents/skills'],
+    {
+      cwd: repository,
+      encoding: 'utf8',
+    },
+  )
     .split('\n')
     .filter((file) => file.endsWith('/SKILL.md'))
   for (const file of skillFiles) {

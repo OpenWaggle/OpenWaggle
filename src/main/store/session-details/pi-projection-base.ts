@@ -24,7 +24,7 @@ export interface PiProjectionBase {
 }
 
 /** Null when the Session's projection recorded no tail, so its next one reads every entry. */
-export async function readPiProjectionBase(sessionId: SessionId): Promise<PiProjectionBase | null> {
+export async function readPiProjectionBase(sessionId: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient

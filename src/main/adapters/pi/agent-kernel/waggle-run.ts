@@ -41,10 +41,7 @@ function appendEnabledWaggleModeState(input: {
   )
 }
 
-function withTransportEventModel(
-  event: AgentTransportEvent,
-  meta: WaggleStreamMetadata,
-): AgentTransportEvent {
+function withTransportEventModel(event: AgentTransportEvent, meta: WaggleStreamMetadata) {
   return { ...event, model: meta.agentModel }
 }
 
@@ -72,7 +69,7 @@ async function restoreInitialWaggleModel(input: {
   readonly session: AgentSession
   readonly model: PiModel
 }) {
-  await input.session.setModel(input.model).catch((error) => {
+  await input.session.setModel(input.model).catch((error: unknown) => {
     logger.warn('Failed to restore initial Pi Waggle model', {
       error: error instanceof Error ? error.message : String(error),
     })
@@ -216,15 +213,21 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     onEvent: (event) =>
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
     ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
-    skillToggles: input.skillToggles,
-    skillAllowlist: input.skillAllowlist,
-    enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
-    enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
+    ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
+    ...(input.enabledOpenWaggleExtensionPackages
+      ? { enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages }
+      : {}),
+    ...(input.enabledOpenWaggleExtensionPackagePaths
+      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
     ...(input.visualizationDirectory
       ? { visualizationDirectory: input.visualizationDirectory }
       : {}),
     ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
-    recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
+    ...(input.recordOpenWaggleExtensionRuntimeFailure
+      ? { recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure }
+      : {}),
     steeringInputHook: true,
     extensionFactories: extensions.factories,
     trustedExtensionFactories: extensions.trustedFactories,

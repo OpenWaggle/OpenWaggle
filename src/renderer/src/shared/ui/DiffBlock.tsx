@@ -21,8 +21,8 @@ const EMBEDDED_DIFF_CSS = `
 [data-code]::-webkit-scrollbar-thumb { background-color: var(--diffs-bg-context); }
 `
 
-function diffOverflow(wrap: boolean): 'wrap' | 'scroll' {
-  return wrap ? 'wrap' : 'scroll'
+function diffOverflow(wrap: boolean) {
+  return wrap ? ('wrap' as const) : ('scroll' as const)
 }
 
 function completeUnifiedPatch(patch: string) {

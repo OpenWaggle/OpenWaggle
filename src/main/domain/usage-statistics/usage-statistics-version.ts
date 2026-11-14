@@ -11,13 +11,17 @@ interface ParsedVersion {
   readonly prerelease: readonly string[]
 }
 
-function parseVersion(value: string): ParsedVersion | undefined {
+function parseVersion(value: string) {
   const matched = RELEASE_VERSION_PATTERN.exec(value)
   if (!matched) return undefined
   const [, major, minor, patch, prerelease] = matched
   const core = [Number(major), Number(minor), Number(patch)] as const
   if (!core.every(Number.isSafeInteger)) return undefined
-  return { core, prerelease: prerelease ? prerelease.split('.') : [] }
+  const version: ParsedVersion = {
+    core,
+    prerelease: prerelease ? prerelease.split('.') : [],
+  }
+  return version
 }
 
 function compareNumbers(left: number, right: number) {

@@ -15,7 +15,10 @@ function modelChangeLine(provider: string, modelId: string, timestamp: string) {
 function assistantLine(
   timestamp: string,
   usage: Record<string, unknown>,
-  model: Record<string, string> = { provider: 'anthropic', modelId: 'claude-opus-5-5' },
+  model: { readonly provider: string; readonly modelId: string } = {
+    provider: 'anthropic',
+    modelId: 'claude-opus-5-5',
+  },
 ) {
   const message: Record<string, unknown> = {
     role: 'assistant',
@@ -34,7 +37,7 @@ function boundaryLine() {
   return `${JSON.stringify({ type: 'custom', customType: 'openwaggle-run-boundary', data: { version: 1, runId: 'r1' }, id: 'c1', parentId: null, timestamp: '2026-10-14T08:00:01.000Z' })}\n`
 }
 
-async function writeSession(dir: string, name: string, lines: readonly string[]): Promise<string> {
+async function writeSession(dir: string, name: string, lines: readonly string[]) {
   const file = path.join(dir, name)
   await writeFile(file, lines.join(''), 'utf8')
   return file

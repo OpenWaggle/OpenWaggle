@@ -79,18 +79,17 @@ export const {
   shutdownLiveTerminal,
   TERMINAL_FORCE_SHUTDOWN_MS,
   TERMINAL_GRACEFUL_SHUTDOWN_MS,
-  TERMINAL_SHUTDOWN_PIPELINE_MS,
 } = await import('../terminal-process-shutdown')
 export const { refreshTerminalProcessPids } = await import('../terminal-process-tree')
 export const ROOT_PID = 71_001
 export const EARLY_CHILD_PID = 71_002
 export const LATE_CHILD_PID = 71_003
 
-export function getTerminalProcessShutdownProbes(): ShutdownProbes {
+export function getTerminalProcessShutdownProbes() {
   return probes
 }
 
-export function row(pid: number, ppid: number, name: string, zombie = false): ProcessRow {
+export function row(pid: number, ppid: number, name: string, zombie = false) {
   return {
     pid,
     ppid,
@@ -102,7 +101,7 @@ export function row(pid: number, ppid: number, name: string, zombie = false): Pr
     zombie,
     startedAt: `start-${pid}`,
     name,
-  }
+  } satisfies ProcessRow
 }
 
 export function identities(...pids: readonly number[]) {
@@ -145,9 +144,9 @@ export function makeLiveProcess(
       return { dispose: () => undefined }
     },
   })
-  Reflect.set(pty, '_socket', { destroy })
-  Reflect.set(pty, 'closeDescriptor', closeDescriptor)
-  Reflect.set(pty, 'destroy', publicDestroy)
+  Object.assign(pty, { _socket: { destroy } })
+  Object.assign(pty, { closeDescriptor: closeDescriptor })
+  Object.assign(pty, { destroy: publicDestroy })
   const lifecycle = nativeLifecycle.install(pty)
   const live: LiveTerminalProcess = {
     pty,
@@ -204,7 +203,7 @@ export function makeRetainedProcess(
   live: LiveTerminalProcess,
   processPids: readonly number[] = [live.pid],
   processIdentities = live.processIdentity === null ? [] : [live.processIdentity],
-): RetainedTerminalProcess {
+) {
   return {
     live,
     owner: makeRecord(live),
@@ -212,7 +211,7 @@ export function makeRetainedProcess(
     markOwnerInactiveOnRelease: false,
     processPids: [...processPids],
     processIdentities: [...processIdentities],
-  }
+  } satisfies RetainedTerminalProcess
 }
 
 export function setupTerminalProcessShutdownTest() {

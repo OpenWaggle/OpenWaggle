@@ -1,11 +1,6 @@
 import * as Effect from 'effect/Effect'
 
-interface UiCommandIdentity {
-  readonly requestId: string
-  readonly sessionId: string
-}
-
-function record(value: unknown): object | null {
+function record(value: unknown) {
   return typeof value === 'object' && value !== null ? value : null
 }
 
@@ -13,7 +8,7 @@ function field(value: object | null, key: string) {
   return value === null ? undefined : Reflect.get(value, key)
 }
 
-function uiCommandIdentity(input: unknown): UiCommandIdentity | null {
+function uiCommandIdentity(input: unknown) {
   const payload = record(field(record(input), 'payload'))
   if (field(payload, 'contract') !== 'local-ui-v1') return null
   const request = record(field(payload, 'request'))

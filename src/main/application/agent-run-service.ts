@@ -6,6 +6,7 @@
  * (abort controllers, active run tracking, stream buffers, IPC emission).
  */
 
+import type { SessionNode } from '@shared/types/session-node'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -22,7 +23,7 @@ import {
 import { hydrateAgentRunPayload, runAgentKernel } from './agent-run/kernel'
 import { buildAgentRunOutcome, recoverAgentRunFailure } from './agent-run/outcome'
 import { loadAgentRunPreflight } from './agent-run/preflight'
-import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
+import type { ActiveRunIdentity, AgentRunInput } from './agent-run/types'
 import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { announceReplacedPiTranscript } from './pi-session-deleted-files'
@@ -31,7 +32,7 @@ import {
   type PersistedRunResourceNodes,
 } from './session-resource-node-mapping'
 
-export type { AgentRunInput, AgentRunResult } from './agent-run/types'
+export type { AgentRunInput } from './agent-run/types'
 
 const logger = createLogger('agent-run-service')
 
@@ -39,27 +40,34 @@ const logger = createLogger('agent-run-service')
 export function resolveLatestAssistantNodeId(
   nodes: readonly ProjectedSessionNodeInput[],
   persistedNodes?:
-    | readonly { readonly id: string; readonly createdOrder: number; readonly role?: string }[]
+    | readonly (Pick<SessionNode, 'createdOrder' | 'role'> & { readonly id: string })[]
     | null,
-): string | null {
+) {
   let latest: ProjectedSessionNodeInput | null = null
   for (const node of nodes) {
     if (node.role === 'assistant' && (latest === null || node.createdOrder > latest.createdOrder)) {
       latest = node
     }
   }
-  if (!latest || !persistedNodes) return latest?.id ?? null
+  if (!latest || !persistedNodes) {
+    const result: string | null = latest?.id ?? null
+    return result
+  }
   /*
    * Saving can rename an entry whose id another Session already held (ADR 0049); the saved node
    * keeps the snapshot's created order. Anchoring to the snapshot's id would name the other
    * Session's node.
    */
   const anchor = latest
-  if (persistedNodes.some((node) => node.id === anchor.id)) return anchor.id
+  if (persistedNodes.some((node) => node.id === anchor.id)) {
+    const result: string | null = anchor.id
+    return result
+  }
   const renamed = persistedNodes.find(
     (node) => node.createdOrder === anchor.createdOrder && node.role === 'assistant',
   )
-  return renamed?.id ?? anchor.id
+  const result: string | null = renamed?.id ?? anchor.id
+  return result
 }
 
 /**
@@ -129,9 +137,13 @@ export function executeAgentRun(input: AgentRunInput) {
       sessionId: input.sessionId,
       nodes: sessionSnapshot.nodes,
       activeNodeId: sessionSnapshot.activeNodeId,
-      piProjection: sessionSnapshot.piProjection,
+      ...(sessionSnapshot.piProjection === undefined
+        ? {}
+        : { piProjection: sessionSnapshot.piProjection }),
       piSessionId: agentResult.piSessionId,
-      piSessionFile: agentResult.piSessionFile,
+      ...(agentResult.piSessionFile === undefined
+        ? {}
+        : { piSessionFile: agentResult.piSessionFile }),
     })
     announceReplacedPiTranscript(preflight.session, agentResult.piSessionFile)
 
@@ -163,25 +175,24 @@ export function executeAgentRun(input: AgentRunInput) {
     return buildAgentRunOutcome({
       agentResult,
       signal: input.signal,
-      assignedTitle,
+      ...(assignedTitle === undefined ? {} : { assignedTitle }),
       sessionId: input.sessionId,
       runId: input.runId,
       model: input.model,
       ...persistedResources,
     })
   }).pipe(
-    Effect.catchAll(
-      (error): Effect.Effect<AgentRunResult> =>
-        recoverAgentRunFailure({
-          reachedAgent,
-          error,
-          signal: input.signal,
-          assignedTitle,
-          sessionId: input.sessionId,
-          runId: input.runId,
-          model: input.model,
-          ...(persistedResources ? { resources: persistedResources } : {}),
-        }),
+    Effect.catchAll((error) =>
+      recoverAgentRunFailure({
+        reachedAgent,
+        error,
+        signal: input.signal,
+        ...(assignedTitle === undefined ? {} : { assignedTitle }),
+        sessionId: input.sessionId,
+        runId: input.runId,
+        model: input.model,
+        ...(persistedResources ? { resources: persistedResources } : {}),
+      }),
     ),
     Effect.ensuring(clearDurableActiveRun(() => activeRunIdentity)),
   )
@@ -230,9 +241,13 @@ export function reconcileInterruptedAgentRuns() {
                 sessionId: activeRun.sessionId,
                 nodes: sessionSnapshot.nodes,
                 activeNodeId: sessionSnapshot.activeNodeId,
-                piProjection: sessionSnapshot.piProjection,
+                ...(sessionSnapshot.piProjection === undefined
+                  ? {}
+                  : { piProjection: sessionSnapshot.piProjection }),
                 piSessionId: result.piSessionId,
-                piSessionFile: result.piSessionFile,
+                ...(result.piSessionFile === undefined
+                  ? {}
+                  : { piSessionFile: result.piSessionFile }),
               })
             }),
           ),

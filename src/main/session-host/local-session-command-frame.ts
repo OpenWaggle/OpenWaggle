@@ -51,16 +51,16 @@ async function settleInvalidationResponse(response: Promise<void>) {
  * The code and kind of a thrown failure (ADR 0063). The kind is always the refusal table's for
  * the code, and a code it does not list is `internal`.
  */
-function commandFailure(error: unknown): {
-  readonly code: string
-  readonly errorKind: SessionHostErrorKind
-  readonly retryable: boolean
-} {
+function commandFailure(error: unknown) {
   const failure = Runtime.isFiberFailure(error)
     ? Option.getOrUndefined(Cause.failureOption(error[Runtime.FiberFailureCauseId]))
     : error
   if (typeof failure !== 'object' || failure === null) {
-    return { ...localSessionErrorFrameCode('command_failed'), retryable: false }
+    return { ...localSessionErrorFrameCode('command_failed'), retryable: false } satisfies {
+      readonly code: string
+      readonly errorKind: SessionHostErrorKind
+      readonly retryable: boolean
+    }
   }
   const code =
     'code' in failure && typeof failure.code === 'string' ? failure.code : 'command_failed'
@@ -69,6 +69,10 @@ function commandFailure(error: unknown): {
     code,
     errorKind: sessionHostErrorKindForThrownCode(code),
     retryable: 'retryable' in failure && failure.retryable === true,
+  } satisfies {
+    readonly code: string
+    readonly errorKind: SessionHostErrorKind
+    readonly retryable: boolean
   }
 }
 

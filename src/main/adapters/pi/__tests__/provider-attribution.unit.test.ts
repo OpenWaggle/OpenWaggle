@@ -15,9 +15,8 @@ vi.mock('../../../usage-statistics/usage-statistics-enablement', () => ({
   isUsageStatisticsEnabled: () => statistics.enabled,
 }))
 
-const { installOpenWaggleProviderAttribution, openWaggleClientIdentity } = await import(
-  '../provider-attribution'
-)
+const { installOpenWaggleProviderAttribution, openWaggleClientIdentity } =
+  await import('../provider-attribution')
 const { piRequestIdentity } = await import('./pi-client-identity.test-utils')
 
 /** Pi's install telemetry setting, as the user may have stored it for standalone Pi. */
@@ -41,10 +40,7 @@ const ATTRIBUTION_HEADERS = [
   'x-opencode-client',
 ]
 
-function model(
-  target: (typeof TARGETS)[keyof typeof TARGETS],
-  headers?: Record<string, string>,
-): Model<'openai-completions'> {
+function model(target: (typeof TARGETS)[keyof typeof TARGETS], headers?: Record<string, string>) {
   return {
     id: 'test-model',
     name: 'Test model',
@@ -56,7 +52,7 @@ function model(
     contextWindow: 1000,
     maxTokens: 100,
     ...(headers ? { headers } : {}),
-  }
+  } satisfies Model<'openai-completions'>
 }
 
 const CONTEXT: TranscriptContext = normalizeContext({

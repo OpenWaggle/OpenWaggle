@@ -25,7 +25,7 @@ function repository(overrides: Partial<SessionRepositoryShape> = {}) {
 
 function run<A>(effect: Effect.Effect<A, unknown, unknown>, repo = repository()) {
   const provided = effect.pipe(Effect.provideService(SessionRepository, repo))
-  return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof provided>(provided))
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof provided>(provided))
 }
 
 describe('Archived items Host UI input validation', () => {

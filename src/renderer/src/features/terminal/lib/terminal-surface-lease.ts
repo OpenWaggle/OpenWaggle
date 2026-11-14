@@ -12,7 +12,7 @@ interface LeaseState {
 
 type DetachSurface = (ownerKey: string, terminalId: string) => Promise<void>
 
-function activeLease(lease: LeaseState): LeaseState {
+function activeLease(lease: LeaseState) {
   let active = lease
   while (active.redirect !== null) active = active.redirect
   return active
@@ -105,7 +105,9 @@ export function createTerminalSurfaceLeaseManager(detachSurface: DetachSurface) 
   return Object.assign(acquire, { migrateOwner })
 }
 
-const terminalSurfaceLeases = createTerminalSurfaceLeaseManager(api.detachTerminal)
+const terminalSurfaceLeases = createTerminalSurfaceLeaseManager((ownerKey, terminalId) =>
+  api.detachTerminal(ownerKey, terminalId),
+)
 
 export const acquireTerminalSurfaceLease = terminalSurfaceLeases
 export const migrateTerminalSurfaceLeases = terminalSurfaceLeases.migrateOwner

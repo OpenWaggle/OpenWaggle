@@ -53,11 +53,12 @@ export async function withBedrockServer<T>(
 ) {
   const requests: RecordedRequest[] = []
   let connections = 0
+  const connectionIds = new WeakMap<object, number>()
   const server = createServer((request, response) => {
     const chunks: Buffer[] = []
     request.on('data', (chunk: Buffer) => chunks.push(chunk))
     request.on('end', () => {
-      const connection = Number(Reflect.get(request.socket, 'testConnectionId'))
+      const connection = connectionIds.get(request.socket) ?? Number.NaN
       requests.push({
         headers: request.headers,
         body: Buffer.concat(chunks).toString(),
@@ -78,7 +79,7 @@ export async function withBedrockServer<T>(
   })
   server.on('connection', (socket) => {
     connections += 1
-    Reflect.set(socket, 'testConnectionId', connections)
+    connectionIds.set(socket, connections)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
@@ -100,6 +101,6 @@ export const BEDROCK_LOOPBACK_ENV = {
   NO_PROXY: '127.0.0.1',
 }
 
-export function userContext(text = 'hello'): Context {
-  return { messages: [{ role: 'user', content: text, timestamp: 0 }] }
+export function userContext(text = 'hello') {
+  return { messages: [{ role: 'user', content: text, timestamp: 0 }] } satisfies Context
 }

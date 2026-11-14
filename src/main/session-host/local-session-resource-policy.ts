@@ -17,7 +17,10 @@ const DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL = 256
 export class LocalSessionSubscriptionBudget {
   private active = 0
 
-  constructor(private readonly capacity = DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL) {
+  private readonly capacity: number
+
+  constructor(capacity: number = DEFAULT_MAX_SUBSCRIPTIONS_GLOBAL) {
+    this.capacity = capacity
     if (!Number.isSafeInteger(capacity) || capacity < 1) {
       throw new Error('Local Session subscription capacity must be a positive safe integer.')
     }
@@ -38,7 +41,10 @@ export class LocalSessionSubscriptionBudget {
 export class LocalSessionInboundByteBudget {
   private retainedBytes = 0
 
-  constructor(private readonly capacity = DEFAULT_MAX_PENDING_INBOUND_BYTES_GLOBAL) {
+  private readonly capacity: number
+
+  constructor(capacity: number = DEFAULT_MAX_PENDING_INBOUND_BYTES_GLOBAL) {
+    this.capacity = capacity
     if (!Number.isSafeInteger(capacity) || capacity < 1) {
       throw new Error('Local Session inbound byte capacity must be a positive safe integer.')
     }
@@ -90,14 +96,14 @@ function nextAuthenticationFailure(
   failureWindowMs: number,
   cooldownMs: number,
   maxFailedAttempts: number,
-): AuthenticationFailures {
+) {
   const withinWindow = previous && now - previous.windowStartedAt < failureWindowMs
   const attempts = withinWindow ? previous.attempts + 1 : 1
   return {
     attempts,
     windowStartedAt: withinWindow ? previous.windowStartedAt : now,
     blockedUntil: attempts >= maxFailedAttempts ? now + cooldownMs : 0,
-  }
+  } satisfies AuthenticationFailures
 }
 
 export interface LocalSessionAuthenticationBudgetOptions {
@@ -185,14 +191,17 @@ export class LocalSessionAuthenticationBudget {
     )
   }
 
-  private acquire(signal: AbortSignal): Promise<void> {
-    if (signal.aborted)
-      return Promise.reject(new Error('Local Session authentication was aborted.'))
+  private acquire(signal: AbortSignal) {
+    if (signal.aborted) {
+      return Promise.reject(
+        new Error('Local Session authentication was aborted.'),
+      ) satisfies Promise<void>
+    }
     if (this.active < this.maxConcurrent) {
       this.active += 1
       return Promise.resolve()
     }
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const waiter: AuthenticationWaiter = {
         signal,
         resolve: () => {
@@ -226,7 +235,7 @@ export class LocalSessionAuthenticationBudget {
     readonly key?: string
     readonly signal: AbortSignal
     readonly authenticate: () => Promise<T>
-  }): Promise<T> {
+  }) {
     this.assertNotThrottled(input.key)
     await this.acquire(input.signal)
     try {

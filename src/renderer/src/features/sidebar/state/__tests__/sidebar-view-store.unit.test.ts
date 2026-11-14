@@ -10,6 +10,7 @@ import {
   isProjectExpanded,
   useSidebarViewStore,
 } from '../sidebar-view-store'
+import { isObjectValue, uncheckedFields } from '@shared/utils/object-shape'
 
 const STORAGE_KEY = 'openwaggle:sidebar-view:v1'
 /** Longer than the store's write delay, so a drain always completes. */
@@ -18,14 +19,12 @@ const PROJECT_A = '/Users/dev/alpha'
 const PROJECT_B = '/Users/dev/beta'
 
 /** Field names the store actually wrote, read without asserting the payload's shape. */
-function persistedStateKeys(): readonly string[] {
+function persistedStateKeys() {
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (raw === null) return []
   const parsed: unknown = JSON.parse(raw)
-  if (parsed === null || typeof parsed !== 'object') return []
-  const state: unknown = Reflect.get(parsed, 'state')
-  if (state === null || typeof state !== 'object') return []
-  return Object.keys(state).sort()
+  const { state } = uncheckedFields<{ readonly state: object }>(parsed)
+  return isObjectValue(state) ? Object.keys(state).sort() : []
 }
 
 /** Reload from storage the way a relaunch does. */

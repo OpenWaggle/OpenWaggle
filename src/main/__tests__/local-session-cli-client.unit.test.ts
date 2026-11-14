@@ -58,9 +58,9 @@ import {
 
 describe('local Hive CLI client credentials', () => {
   beforeEach(() => {
-    mocks.env.OPENWAGGLE_AGENT_RUN = undefined
-    mocks.env.OPENWAGGLE_PROFILE = undefined
-    mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE = undefined
+    delete mocks.env.OPENWAGGLE_AGENT_RUN
+    delete mocks.env.OPENWAGGLE_PROFILE
+    delete mocks.env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
     mocks.ensureHost.mockClear()
     mocks.preparePaths.mockClear()
     mocks.readCredentialFile.mockClear()

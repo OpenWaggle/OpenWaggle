@@ -63,7 +63,7 @@ export function resolveTerminalShortcut(
   event: TerminalShortcutEvent,
   bindings: ShortcutBindings,
   applePlatform: boolean,
-): TerminalShortcutCommand | null {
+) {
   for (const command of TERMINAL_SHORTCUT_COMMANDS) {
     if (matchesTerminalShortcutBinding(event, bindings[command], applePlatform)) return command
   }
@@ -81,12 +81,12 @@ export function isRepeatedTerminalCloseShortcut(
     matchesTerminalShortcutBinding(
       {
         key: event.key,
-        code: event.code,
+        ...(event.code === undefined ? {} : { code: event.code }),
         altKey: event.altKey,
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
         shiftKey: event.shiftKey,
-        isComposing: event.isComposing,
+        ...(event.isComposing === undefined ? {} : { isComposing: event.isComposing }),
         repeat: false,
       },
       bindings['terminal.close'],

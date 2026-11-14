@@ -15,7 +15,7 @@ const SESSION_ID = SessionId('session-1')
  * written to project config permanently. That last pair is how the scope was lost at the IPC
  * boundary without a single test failing.
  */
-function authorizationRequest(): AgentLoopInteraction {
+function authorizationRequest() {
   return {
     interactionId: 'auth-1',
     sessionId: SESSION_ID,
@@ -32,10 +32,10 @@ function authorizationRequest(): AgentLoopInteraction {
       capability: 'mcp.tool-call',
       resource: 'list_issues',
     },
-  }
+  } satisfies AgentLoopInteraction
 }
 
-function questionRequest(): AgentLoopInteraction {
+function questionRequest() {
   return {
     interactionId: 'question-1',
     sessionId: SESSION_ID,
@@ -46,7 +46,7 @@ function questionRequest(): AgentLoopInteraction {
     title: 'Open the elicitation URL?',
     message: 'https://example.test/consent',
     purpose: 'external-navigation',
-  }
+  } satisfies AgentLoopInteraction
 }
 
 function renderPrompt(interaction: AgentLoopInteraction) {

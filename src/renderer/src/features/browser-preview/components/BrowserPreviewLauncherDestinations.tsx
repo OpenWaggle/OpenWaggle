@@ -16,7 +16,7 @@ interface LocalServerDestination {
 function localServerDestinations(
   ownerKey: string,
   summaries: ReturnType<typeof useTerminalActivityStore.getState>['summariesByKey'],
-): readonly LocalServerDestination[] {
+) {
   const byUrl = new Map<string, LocalServerDestination>()
   for (const summary of summaries.values()) {
     if (summary.ownerKey !== ownerKey) continue

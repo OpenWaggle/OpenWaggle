@@ -8,7 +8,6 @@ import { useDiffScopeStore } from '@/features/diff-panel'
 import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
-import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { useBackgroundRunStore } from './background-run-store'
 import { customBranchSummaryDraft } from './branch-summary-store'
 import {
@@ -94,15 +93,17 @@ async function createSession(
     initial.activeSessionId === null &&
     (initial.draftSession === null || initial.draftSession.projectPath === projectPath)
   const selectedModel = createsCurrentDraft ? initial.draftSession?.selectedModel : undefined
-  if (createsCurrentDraft && initial.draftSession)
+  if (createsCurrentDraft && initial.draftSession) {
     set({ draftSession: { ...initial.draftSession, isMaterializing: true } })
+  }
   try {
     const session = await requestSession(projectPath, worktreePlan, selectedModel, thinkingLevel)
     const shouldActivate =
       generation === draftMaterializationGeneration() &&
       get().activeSessionId === initial.activeSessionId
-    if (createsCurrentDraft && shouldActivate)
+    if (createsCurrentDraft && shouldActivate) {
       recordDraftMaterialization(projectPath, session.id, generation)
+    }
     get().upsertSession(session)
     if (!shouldActivate) {
       void useSessionStore.getState().loadSessions()
@@ -261,7 +262,6 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
     useBackgroundRunStore.getState().clearRunRenderSnapshot(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
     useDiffScopeStore.getState().removeThread(String(id))
-    await deleteWorkspaceOwner(String(id))
     void useSessionStore.getState().refreshSessionsAndTree(optionalSessionId(get().activeSessionId))
   } catch (err) {
     set({
@@ -282,7 +282,7 @@ function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: Cha
   refreshSessionStoreForSession(id, get().activeSessionId)
 }
 
-export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
+export function createChatActions(set: ChatSet, get: ChatGet) {
   return {
     loadSessions: () => loadSessions(set, get),
     createSession: (projectPath, worktreePlan, thinkingLevel) =>
@@ -312,5 +312,5 @@ export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
     applySessionTitle: (id, title) => applySessionTitle(id, title, set),
     updateSessionTitle: (id, title) => updateSessionTitle(id, title, set, get),
     clearError: () => set({ error: null }),
-  }
+  } satisfies ChatActions
 }

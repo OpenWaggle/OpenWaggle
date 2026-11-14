@@ -6,11 +6,7 @@ import type {
 } from '@shared/types/mcp-configuration'
 import { mcpCliJsonResponse } from './mcp-cli-io'
 import { McpCliUsageError } from './mcp-cli-management-arguments'
-import {
-  MCP_MANAGEMENT_EXIT,
-  type McpManagementCommandInput,
-  type McpManagementExit,
-} from './mcp-cli-management-context'
+import { MCP_MANAGEMENT_EXIT, type McpManagementCommandInput } from './mcp-cli-management-context'
 import { inspectEnabledServers } from './mcp-cli-management-inspect'
 import { projectOptionOf } from './mcp-cli-management-list'
 import {
@@ -50,7 +46,7 @@ function doctorServer(
   server: McpConfiguredServerView,
   inspection: McpServerInspection | undefined,
   view: Pick<McpConfigurationView, 'missingSecretServers'>,
-): DoctorServer {
+) {
   const state = mcpCliServerState(server, inspection, view)
   if (state === MCP_NEEDS_SECRET_STATE) {
     return {
@@ -59,7 +55,7 @@ function doctorServer(
       state,
       tools: 0,
       ...(inspection?.error ? { error: inspection.error } : {}),
-    }
+    } satisfies DoctorServer
   }
   const failed = inspection !== undefined && inspection.state !== 'connected'
   return {
@@ -69,7 +65,7 @@ function doctorServer(
     tools: inspection?.tools.length ?? 0,
     ...(failed && inspection.error ? { error: inspection.error } : {}),
     ...(failed && inspection.stderrTail ? { stderrTail: inspection.stderrTail } : {}),
-  }
+  } satisfies DoctorServer
 }
 
 function indent(text: string, prefix: string) {
@@ -107,11 +103,7 @@ function serverLines(servers: readonly DoctorServer[], projectOption: string) {
   ]
 }
 
-export async function doctorCommand({
-  args,
-  projectPath,
-  context,
-}: McpManagementCommandInput): Promise<McpManagementExit> {
+export async function doctorCommand({ args, projectPath, context }: McpManagementCommandInput) {
   if (args.positional.length > 0) {
     throw new McpCliUsageError('Usage: openwaggle mcp doctor [--json] [-l]')
   }

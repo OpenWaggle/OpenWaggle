@@ -1,3 +1,5 @@
+import { Schema } from '@shared/schema'
+import { Option } from 'effect'
 import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import type { DelegationState } from '@shared/types/session-collaboration'
@@ -32,14 +34,16 @@ export interface SessionQuerySummaryRow {
   readonly delegation_state: DelegationState | null
 }
 
-export function sessionQueryResponse(
-  request: SessionQueryRequest,
-  outcome: SessionQueryOutcome,
-): SessionQueryResponse {
-  return { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: request.requestId, outcome }
+export function sessionQueryResponse(request: SessionQueryRequest, outcome: SessionQueryOutcome) {
+  const response: SessionQueryResponse = {
+    contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+    requestId: request.requestId,
+    outcome,
+  }
+  return response
 }
 
-export function parseSessionJson(value: string): unknown {
+export function parseSessionJson(value: string) {
   const parsed: unknown = JSON.parse(value)
   return parsed
 }
@@ -63,12 +67,12 @@ function hiveDepth(row: SessionQuerySummaryRow, worker: boolean) {
   return worker ? {} : { depth: 0 }
 }
 
-export function sessionQuerySummary(row: SessionQuerySummaryRow): SessionQuerySummary {
+export function sessionQuerySummary(row: SessionQuerySummaryRow) {
   const worker = row.parent_session_id !== null
   const queen = !worker && row.direct_worker_count > 0
   const definitionName =
     agentDefinitionName(row.profile_json) ?? row.legacy_agent_definition_name ?? undefined
-  return {
+  const summary: SessionQuerySummary = {
     sessionId: row.session_id,
     title: row.title,
     projectPath: row.project_path,
@@ -85,6 +89,7 @@ export function sessionQuerySummary(row: SessionQuerySummaryRow): SessionQuerySu
     ...(isDelegationState(row.delegation_state) ? { delegationState: row.delegation_state } : {}),
     ...(row.historical_lineage ? { historical: true } : {}),
   }
+  return summary
 }
 
 function isDelegationState(
@@ -116,18 +121,28 @@ export function authorizedSessionScope(authority: LocalSessionProfileAuthority |
   }
 }
 
-export function decodeSessionQueryCursor(
+/** A page cursor as the query that issued it wrote it; `invalid` when it is not that shape. */
+export function decodeSessionQueryCursor<A, I>(
   cursor: string | undefined,
-): Record<string, unknown> | null | 'invalid' {
+  schema: Schema.Schema<A, I>,
+) {
   if (!cursor) return null
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? Object.fromEntries(Object.entries(parsed))
-      : 'invalid'
+    parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
   } catch {
-    return 'invalid'
+    const result: A | null | 'invalid' = 'invalid'
+    return result
   }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    const result: A | null | 'invalid' = 'invalid'
+    return result
+  }
+  const result: A | null | 'invalid' = Option.getOrElse(
+    Schema.decodeUnknownOption(schema)(parsed),
+    () => 'invalid' as const,
+  )
+  return result
 }
 
 export function encodeSessionQueryCursor(value: unknown) {

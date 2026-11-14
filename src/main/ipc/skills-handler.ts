@@ -6,7 +6,7 @@ import { hostHandle, typedHandle } from './typed-ipc'
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
 
-export function registerSkillsHandlers(): void {
+export function registerSkillsHandlers() {
   typedHandle('standards:get-status', (_event, rawProjectPath: string) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
@@ -14,7 +14,7 @@ export function registerSkillsHandlers(): void {
       return {
         agents: agents.status,
         agentsPath: agents.filePath,
-        error: agents.error,
+        ...(agents.error === undefined ? {} : { error: agents.error }),
       }
     }),
   )

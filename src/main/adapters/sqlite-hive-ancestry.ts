@@ -7,7 +7,7 @@ interface AncestorRow {
   readonly session_id: string
 }
 
-function makeHiveAncestry(sql: SqlClient.SqlClient): HiveAncestryShape {
+function makeHiveAncestry(sql: SqlClient.SqlClient) {
   return {
     ancestorsOf: (sessionId) =>
       sql<AncestorRow>`
@@ -26,7 +26,7 @@ function makeHiveAncestry(sql: SqlClient.SqlClient): HiveAncestryShape {
           (cause) => new Error('Could not read the Hive ancestors of a Session.', { cause }),
         ),
       ),
-  }
+  } satisfies HiveAncestryShape
 }
 
 export const SqliteHiveAncestryLive = Layer.effect(

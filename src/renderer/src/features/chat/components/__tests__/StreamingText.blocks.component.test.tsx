@@ -28,16 +28,21 @@ vi.mock('react-markdown', async (importOriginal) => {
   }
 })
 
+/** The unified processor remark-parse sets its parser on. */
+interface RemarkProcessor {
+  parser: (document: string, file: unknown) => unknown
+}
+
 vi.mock('remark-parse', async (importOriginal) => {
   const original = await importOriginal<typeof import('remark-parse')>()
   return {
-    default: function countedRemarkParse(this: unknown, ...args: unknown[]) {
+    default: function countedRemarkParse(this: RemarkProcessor, ...args: unknown[]) {
       const parser: unknown = Reflect.apply(original.default, this, args)
-      const originalParser = Reflect.get(Object(this), 'parser')
-      Reflect.set(Object(this), 'parser', (document: string, file: unknown) => {
+      const originalParser = this.parser
+      this.parser = (document: string, file: unknown) => {
         parses.count += 1
         return Reflect.apply(originalParser, this, [document, file])
-      })
+      }
       return parser
     },
   }

@@ -20,7 +20,7 @@ export function RightPanelSurfaceIcon({
     <ExtensionPanelIcon
       {...(glyph.icon ? { icon: glyph.icon } : {})}
       title={title}
-      className={className}
+      {...(className === undefined ? {} : { className })}
     />
   )
 }

@@ -11,16 +11,19 @@ import { SessionResourceViewer } from '../SessionResourceViewer'
 const listSessionResources = vi.hoisted(() => vi.fn())
 const readSessionResource = vi.hoisted(() => vi.fn())
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     listSessionResources,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(listSessionResources),
     readSessionResource,
     readSessionResourceThumbnail: vi.fn().mockResolvedValue(null),
     retrySessionResource: vi.fn().mockResolvedValue(undefined),
     openExternal: vi.fn().mockResolvedValue(undefined),
     openPath: vi.fn().mockResolvedValue(undefined),
     revealPath: vi.fn().mockResolvedValue(undefined),
-  },
+  }),
 }))
 
 const BRANCH_ID = 'session-one:branch:source-node-7'
@@ -56,7 +59,7 @@ function setActiveTree(sessionId: string, branchName: string) {
   })
 }
 
-function resource(kind: 'file' | 'image'): SessionResource {
+function resource(kind: 'file' | 'image') {
   return {
     id: `resource-${kind}`,
     sessionId: SessionId('session-one'),
@@ -83,7 +86,7 @@ function resource(kind: 'file' | 'image'): SessionResource {
     ],
     createdAt: 1,
     updatedAt: 2,
-  }
+  } satisfies SessionResource
 }
 
 describe('session resource friendly branch provenance', () => {

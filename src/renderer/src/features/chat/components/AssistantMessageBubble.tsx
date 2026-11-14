@@ -6,7 +6,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { NestedToolCalls } from '@shared/types/tools'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { GitCompare } from 'lucide-react'
-import React from 'react'
+import React, { type ComponentProps } from 'react'
 import { SessionMessageImages } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
@@ -93,7 +93,7 @@ function MessageActionButtons({
   )
 }
 
-type ToolResultEntry = {
+interface ToolResultEntry {
   content: unknown
   state: string
   error?: string
@@ -112,8 +112,8 @@ function collectMessageToolState(message: UIMessage) {
     toolResults.set(part.toolCallId, {
       content: part.content,
       state: part.state,
-      error: part.error,
-      nestedCalls: part.nestedCalls,
+      ...(part.error === undefined ? {} : { error: part.error }),
+      ...(part.nestedCalls === undefined ? {} : { nestedCalls: part.nestedCalls }),
     })
   }
   return { toolResults, messageToolCallIds }
@@ -142,6 +142,17 @@ interface AssistantMessageBubbleProps {
   actions?: MessageActions
 }
 
+function agentLabelProps(
+  assistantModel: SupportedModelId | undefined,
+  waggle: WaggleInfo | undefined,
+) {
+  const props: ComponentProps<typeof AgentLabel> = {
+    ...(assistantModel === undefined ? {} : { assistantModel }),
+    ...(waggle === undefined ? {} : { waggle }),
+  }
+  return props
+}
+
 export function AssistantMessageBubble({
   message: shownMessage,
   runtime,
@@ -154,7 +165,6 @@ export function AssistantMessageBubble({
   // Only this bubble re-renders for a streamed token; the transcript commits the message later.
   const message = useLiveStreamMessage(runtime.sessionId, shownMessage)
   const isRunActive = run?.isRunActive
-  const assistantModel = run?.assistantModel
   const hideAgentLabel = presentation?.hideAgentLabel
   const turnFolded = presentation?.turnFolded === true
   // ADR 0034: the turn fold owns collapsing. While active or in an expanded
@@ -178,7 +188,7 @@ export function AssistantMessageBubble({
       <div className="flex flex-col gap-2">
         {!hideAgentLabel ? (
           <div className="flex items-center justify-between gap-2">
-            <AgentLabel assistantModel={assistantModel} waggle={waggle} />
+            <AgentLabel {...agentLabelProps(run?.assistantModel, waggle)} />
             <MessageActionButtons
               messageId={message.id}
               actions={actions ?? {}}

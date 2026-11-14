@@ -35,7 +35,7 @@ export async function resolveFreshWorktreeBaseRef(
     /** Called just before the network fetch, so the launch can say what it is waiting for. */
     readonly onFetch?: (base: string) => void
   } = {},
-): Promise<string | null> {
+) {
   const chosen = workspace.worktreeBaseRef?.trim()
   const base = chosen && chosen.length > 0 ? chosen : await resolveCurrentBranch(projectPath)
   if (!base) return null
@@ -49,7 +49,7 @@ export async function resolveFreshWorktreeBaseRef(
   return base
 }
 
-async function resolveCurrentBranch(projectPath: string): Promise<string | null> {
+async function resolveCurrentBranch(projectPath: string) {
   const branch = await runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
   if (branch.code === 0 && branch.stdout.trim()) return branch.stdout.trim()
   return null

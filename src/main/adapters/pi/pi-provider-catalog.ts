@@ -42,15 +42,8 @@ import type {
   ProviderModelRecord,
 } from './pi-provider-catalog-types'
 
-export type {
-  PiModel,
-  PiProjectModelRuntime,
-  ProviderCatalogRecord,
-  ProviderCatalogSnapshot,
-  ProviderModelRecord,
-} from './pi-provider-catalog-types'
-
-export function getPiAgentDir(): string {
+export type { PiModel, PiProjectModelRuntime } from './pi-provider-catalog-types'
+export function getPiAgentDir() {
   return getAgentDir()
 }
 
@@ -154,7 +147,7 @@ function buildProviderNameMap(modelRuntime: ModelRuntime) {
 
 export async function createPiProviderCatalogSnapshotFromServices(services: AgentSessionServices) {
   const { modelRuntime } = services
-  return {
+  const snapshot: ProviderCatalogSnapshot = {
     providers: listPiProvidersFromModels(listPiProviderModelsFromRuntime(modelRuntime)),
     providerNames: buildProviderNameMap(modelRuntime),
     apiKeyProviders: buildApiKeyProviderSet(modelRuntime),
@@ -163,12 +156,13 @@ export async function createPiProviderCatalogSnapshotFromServices(services: Agen
     configuredAuthProviders: buildConfiguredAuthProviderSet(modelRuntime),
     extensionLoadErrors: getPiRuntimeExtensionLoadErrors(services),
   }
+  return snapshot
 }
 
 export async function createPiRuntimeServices(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
-): Promise<AgentSessionServices> {
+) {
   const agentDir = getPiAgentDir()
   const visualizeSkillPaths = await resolvePiVisualizeSkillPaths(agentDir)
   // Enforce the bundled-Bedrock override at the ModelRuntime construction
@@ -230,7 +224,7 @@ export async function createPiProviderCatalogSnapshot(
     PiRuntimeServicesOptions,
     'enabledOpenWaggleExtensionPackagePaths' | 'enabledOpenWaggleExtensionResourceRoots'
   > = {},
-): Promise<ProviderCatalogSnapshot> {
+) {
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
     const services = await createPiGlobalProviderCatalogServices()
@@ -290,7 +284,7 @@ export async function createPiProjectModelRuntime(input: {
   readonly trustedExtensionFactories?: readonly ExtensionFactory[]
   readonly systemPromptAppendices?: readonly string[]
   readonly visualizationDirectory?: string
-}): Promise<PiProjectModelRuntime> {
+}) {
   const services = await createPiRuntimeServices(input.projectPath, {
     ...(input.compactionThresholdPercent !== undefined
       ? { compactionThresholdPercent: input.compactionThresholdPercent }

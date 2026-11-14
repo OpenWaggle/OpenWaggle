@@ -1,21 +1,21 @@
 import fs from 'node:fs/promises'
 import * as Effect from 'effect/Effect'
-import type { OpenDialogOptions } from 'electron'
 import { listGrantsForProject } from '../application/agent-authorization-grants'
 import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
 import { takeOpenProjectRequest } from '../open-project-requests'
+import type { OpenDialogRequest } from '../ports/desktop-shell/dialogs'
 import { takeOpenSessionLinkRequest } from '../session-link-requests'
 import { validateProjectPath } from './project-path-validation'
 import { hostHandle, typedHandle } from './typed-ipc'
 
-function createProjectFolderDialogOptions(): OpenDialogOptions {
+function createProjectFolderDialogOptions() {
   return {
     properties: ['openDirectory'],
     title: 'Select Project Folder',
-  }
+  } satisfies OpenDialogRequest
 }
 
-export function registerProjectHandlers(): void {
+export function registerProjectHandlers() {
   typedHandle('project:select-folder', (event) =>
     Effect.gen(function* () {
       const ownerWindow = browserWindowFromWebContents(event.sender)
@@ -65,7 +65,7 @@ export function registerProjectHandlers(): void {
           defaultId: 0,
           cancelId: 0,
           message,
-          detail,
+          ...(detail === undefined ? {} : { detail }),
         }),
       )
       return result.response === 1

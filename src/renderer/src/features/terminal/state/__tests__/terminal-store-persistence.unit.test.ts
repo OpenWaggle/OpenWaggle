@@ -38,7 +38,7 @@ function makeBackingStorage() {
 }
 
 function stubWindowCapturingPagehide() {
-  const pagehideListeners: Array<() => void> = []
+  const pagehideListeners: (() => void)[] = []
   vi.stubGlobal('window', {
     addEventListener: (type: string, listener: () => void) => {
       if (type === 'pagehide') pagehideListeners.push(listener)

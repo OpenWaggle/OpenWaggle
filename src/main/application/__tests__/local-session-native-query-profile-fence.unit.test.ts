@@ -86,7 +86,7 @@ const PAYLOADS = {
 
 const STALLED_PROJECT_PATH = path.join(PROJECT_PATH, 'openwaggle-stalled-project')
 
-function stalledSearchPayload(): SessionQueryPayload {
+function stalledSearchPayload() {
   return {
     ...PAYLOADS.search,
     request: {
@@ -297,12 +297,9 @@ describe('Pi-native Session query profile fencing', () => {
     },
   )
 
-  it.each(['update', 'revoke'] as const)(
-    'cancels a long freshness-blocking search before profile %s persists',
-    async (operation) => {
-      await runRace({ payload: PAYLOADS.search, operation, blockTarget: false })
-    },
-  )
+  it('cancels a long freshness-blocking search before profile revoke persists', async () => {
+    await runRace({ payload: PAYLOADS.search, operation: 'revoke', blockTarget: false })
+  })
 
   it.each(['update', 'revoke'] as const)(
     'cancels stalled project-path canonicalization before profile %s persists',

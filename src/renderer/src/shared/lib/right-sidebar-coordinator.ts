@@ -23,12 +23,15 @@ export function workspaceFileRightSidebarRequest(path: string, line: number | nu
   return JSON.stringify(['file', path, line])
 }
 
-type RouteClaim = {
+interface RouteClaim {
   readonly kind: 'route'
   readonly requestKey: string
   readonly scopeKey?: string | null
 }
-type WorkspaceClaim = { readonly kind: 'workspace'; readonly ownerKey: string }
+interface WorkspaceClaim {
+  readonly kind: 'workspace'
+  readonly ownerKey: string
+}
 /** The claim a closing action panel gives the right side back to (ADR 0038). */
 export type RestorableRightSidebarClaim = RouteClaim | WorkspaceClaim | null
 
@@ -81,8 +84,9 @@ export const useRightSidebarCoordinator = create<RightSidebarCoordinatorState>((
       activeClaim?.kind === 'route' &&
       activeClaim.requestKey === requestKey &&
       activeClaim.scopeKey === scopeKey
-    )
+    ) {
       return
+    }
     set({
       activeClaim: { kind: 'route', requestKey, ...(scopeKey === undefined ? {} : { scopeKey }) },
     })
@@ -99,8 +103,9 @@ export const useRightSidebarCoordinator = create<RightSidebarCoordinatorState>((
     const activeClaim = get().activeClaim
     // A sidebar closed while the action panel covers it must not be restored later.
     if (activeClaim?.kind === 'action-panel') {
-      if (isRouteClaim(activeClaim.previous, requestKey, scopeKey))
+      if (isRouteClaim(activeClaim.previous, requestKey, scopeKey)) {
         set({ activeClaim: { kind: 'action-panel', previous: null } })
+      }
       return
     }
     if (activeClaim?.kind !== 'route') return
@@ -113,8 +118,9 @@ export const useRightSidebarCoordinator = create<RightSidebarCoordinatorState>((
     const activeClaim = get().activeClaim
     if (activeClaim?.kind === 'action-panel') {
       const previous = activeClaim.previous
-      if (previous?.kind === 'workspace' && previous.ownerKey === ownerKey)
+      if (previous?.kind === 'workspace' && previous.ownerKey === ownerKey) {
         set({ activeClaim: { kind: 'action-panel', previous: null } })
+      }
       return
     }
     if (activeClaim?.kind !== 'workspace' || activeClaim.ownerKey !== ownerKey) return

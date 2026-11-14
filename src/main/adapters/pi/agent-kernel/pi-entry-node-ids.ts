@@ -20,13 +20,13 @@ const UNCHANGED: PiEntryNodeIds = {
   toEntryId: (nodeId) => nodeId,
 }
 
-export function piEntryNodeIdsWithPrefix(prefix: string | undefined): PiEntryNodeIds {
+export function piEntryNodeIdsWithPrefix(prefix: string | undefined) {
   if (!prefix) return UNCHANGED
   return {
     toNodeId: (entryId) => `${prefix}${entryId}`,
     // An id without the prefix, such as an OpenWaggle agent-loop node, is not a Pi entry.
     toEntryId: (nodeId) => (nodeId.startsWith(prefix) ? nodeId.slice(prefix.length) : nodeId),
-  }
+  } satisfies PiEntryNodeIds
 }
 
 export function piEntryNodeIds(session: Pick<SessionDetail, 'piEntryNodeIdPrefix'>) {

@@ -94,4 +94,19 @@ describe('Hive tool refusal messages', () => {
       'SessionLifecyclePreparationError (prepare-session-lifecycle): Project directory does not exist: /projects/missing',
     )
   })
+  // Fix: a non-string help topic was named "[object Object]" (no-base-to-string).
+  it('names a help topic that is not an action name as JSON', async () => {
+    const result = await registeredTool().execute(
+      'tool-call',
+      { action: 'help', topic: { action: 'spawn' } },
+      undefined,
+      () => undefined,
+      fromPartial({}),
+    )
+
+    const [content] = result.content
+    expect(content?.type === 'text' ? content.text : '').toContain(
+      'No hive action "{"action":"spawn"}" for this Session.',
+    )
+  })
 })

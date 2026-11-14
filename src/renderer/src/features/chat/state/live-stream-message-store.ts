@@ -49,7 +49,7 @@ export function resetLiveStreamMessages() {
 export function withLiveStreamMessages(
   sessionId: SessionId | null,
   messages: readonly UIMessage[],
-): readonly UIMessage[] {
+) {
   const live = sessionId ? liveMessages.get(sessionId) : undefined
   if (!live) return messages
   return messages.map((message) =>
@@ -104,7 +104,7 @@ function unsubscribeNothing() {}
  * Bubbles of other messages read `undefined` for their snapshot, so a token re-renders only the
  * bubble of the message it belongs to.
  */
-export function useLiveStreamMessage(sessionId: SessionId | null, message: UIMessage): UIMessage {
+export function useLiveStreamMessage(sessionId: SessionId | null, message: UIMessage) {
   const messageId = message.id
   const live = useSyncExternalStore(
     (listener) => (sessionId ? subscribe(sessionId, listener) : unsubscribeNothing),

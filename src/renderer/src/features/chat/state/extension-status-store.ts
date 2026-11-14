@@ -35,10 +35,16 @@ function withStatusLine(
   statuses: readonly ExtensionStatusLine[],
   key: string,
   text: string | undefined,
-): readonly ExtensionStatusLine[] {
-  if (text === undefined) return statuses.filter((line) => line.key !== key)
-  if (!statuses.some((line) => line.key === key)) return [...statuses, { key, text }]
-  return statuses.map((line) => (line.key === key ? { key, text } : line))
+) {
+  if (text === undefined) {
+    return statuses.filter((line) => line.key !== key) satisfies readonly ExtensionStatusLine[]
+  }
+  if (!statuses.some((line) => line.key === key)) {
+    return [...statuses, { key, text }] satisfies readonly ExtensionStatusLine[]
+  }
+  return statuses.map((line) =>
+    line.key === key ? { key, text } : line,
+  ) satisfies readonly ExtensionStatusLine[]
 }
 
 function appliedStatus(current: RunExtensionStatus | undefined, event: ExtensionStatusEvent) {

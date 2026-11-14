@@ -75,7 +75,7 @@ function settleWorkerRun(sql: SqlClient.SqlClient, at: number) {
 
 const facts = Effect.provide(DesktopNotificationFacts, SqliteDesktopNotificationFactsLive)
 
-describe('SqliteDesktopNotificationFactsLive: what still runs in a Hive (ADR 0063)', () => {
+describe('SqliteDesktopNotificationFactsLive: what still runs in a Hive (ADR 0065)', () => {
   let root: string
 
   beforeEach(async () => {

@@ -19,7 +19,10 @@ function projectSettingsForJsonSchema() {
     {
       ...projectSettingsFileSchema.fields,
       ...Object.fromEntries(
-        SETTINGS_OPEN_OBJECT_KEYS.map((key) => [key, Schema.optional(openJsonObject)]),
+        SETTINGS_OPEN_OBJECT_KEYS.map((key) => [
+          key,
+          Schema.optionalWith(openJsonObject, { exact: true }),
+        ]),
       ),
     },
     ...projectSettingsFileSchema.records,
@@ -80,23 +83,24 @@ const SETTINGS_OVERLAY: JsonSchemaOverlay = {
 }
 
 /** Lets a file name its schema with a `$schema` key, for a file whose parser keeps unknown keys. */
-function withSchemaKeyProperty(schema: JsonSchemaNode): JsonSchemaNode {
+function withSchemaKeyProperty(schema: JsonSchemaNode) {
   const { properties, ...rest } = schema
-  if (typeof properties !== 'object' || properties === null || Array.isArray(properties))
+  if (typeof properties !== 'object' || properties === null || Array.isArray(properties)) {
     throw new Error('Expected an object schema with properties.')
+  }
   return {
     ...rest,
     properties: {
       $schema: { type: 'string', description: 'The JSON Schema for this file.' },
       ...properties,
     },
-  }
+  } satisfies JsonSchemaNode
 }
 
 export const PROJECT_SETTINGS_SCHEMA_FILE = 'project-settings.schema.json'
 
 /** `.openwaggle/settings.json`, from the schema `loadProjectConfig` decodes it with. */
-export function projectSettingsJsonSchema(): JsonSchemaNode {
+export function projectSettingsJsonSchema() {
   return publishedSchemaRoot(
     {
       fileName: PROJECT_SETTINGS_SCHEMA_FILE,

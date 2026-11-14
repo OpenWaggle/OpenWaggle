@@ -12,7 +12,7 @@ import type { TerminalRuntime } from '../terminal-runtime'
 import { startTerminalActivityInspection } from '../terminal-service-coordination'
 
 const portPreviewMocks = vi.hoisted(() => ({
-  forProcessPids: vi.fn((): readonly TerminalPortPreview[] => []),
+  forProcessPids: vi.fn<() => readonly TerminalPortPreview[]>(() => []),
 }))
 
 vi.mock('../terminal-process-ports', () => ({

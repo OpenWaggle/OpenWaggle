@@ -1,28 +1,29 @@
 import { SessionId } from '@shared/types/brand'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { BrowserWindow, WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const windows = vi.hoisted(() => {
-  const state: { all: BrowserWindow[] } = { all: [] }
+  const state: { all: DesktopWindow[] } = { all: [] }
   return state
 })
 
 vi.mock('../../desktop-ui', () => ({ getAllBrowserWindows: () => windows.all }))
 
+import type { DesktopWindow } from '../../ports/desktop-shell/desktop-windows'
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 import { SHOWN_SESSION_FLUSH_MS } from '../agent-event-delivery'
 import { broadcastAgentEvent, broadcastToWindows, setWindowShownSessions } from '../broadcast'
 
 const SESSION = SessionId('session-1')
 
 function fakeWindow() {
-  const sent: Array<readonly unknown[]> = []
-  const webContents = fromPartial<WebContents>({
+  const sent: (readonly unknown[])[] = []
+  const webContents = fromPartial<RendererSurface>({
     id: 7,
     send: (...args: unknown[]) => sent.push(args),
     once: vi.fn(),
   })
-  const win = fromPartial<BrowserWindow>({ isDestroyed: () => false, webContents })
+  const win = fromPartial<DesktopWindow>({ isDestroyed: () => false, webContents })
   return { win, webContents, sent }
 }
 

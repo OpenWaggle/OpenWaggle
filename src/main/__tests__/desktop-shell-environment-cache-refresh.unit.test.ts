@@ -52,9 +52,10 @@ describe('what the desktop app caches of its refresh', () => {
     await started.refreshed
 
     // This launch keeps its terminal's entries...
-    expect(env.PATH).toBe('/opt/homebrew/bin:/proj/.venv/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/opt/homebrew/bin:/proj/.venv/bin:/usr/bin:/bin')
     // ...but the next Dock launch, and every Host that reads the cache, does not get them.
-    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe(
+    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment).toHaveProperty(
+      'PATH',
       '/opt/homebrew/bin:/usr/bin:/bin',
     )
   })
@@ -71,7 +72,8 @@ describe('what the desktop app caches of its refresh', () => {
     })
     await started.refreshed
 
-    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment.PATH).toBe(
+    expect(fileShellEnvironmentCache(cacheFile).read(KEY, NOW)?.environment).toHaveProperty(
+      'PATH',
       '/Users/test/.local/bin:/opt/homebrew/bin:/usr/bin:/bin',
     )
   })
@@ -87,7 +89,7 @@ describe('what the desktop app caches of its refresh', () => {
 
     const cache = fileShellEnvironmentCache(cacheFile)
     expect(cache.refreshFailedAt(KEY)).toBe(NOW)
-    expect(cache.read(KEY, NOW)?.environment.PATH).toBe('/opt/homebrew/bin')
+    expect(cache.read(KEY, NOW)?.environment).toHaveProperty('PATH', '/opt/homebrew/bin')
     // A later refresh that succeeds clears the mark.
     cache.write(KEY, { environment: { PATH: '/usr/bin' } }, NOW)
     expect(cache.refreshFailedAt(KEY)).toBeNull()
@@ -125,13 +127,14 @@ describe('a Session Host whose app refresh found nothing', () => {
       sleep: async (milliseconds) => {
         clock += milliseconds
         // The app's own login shell times out after 5 s and finds nothing.
-        if (clock - NOW === 5_000)
+        if (clock - NOW === 5_000) {
           fileShellEnvironmentCache(cacheFile).markRefreshFailed(KEY, clock)
+        }
       },
     })
     await started.ready
 
     expect(probedAt).toEqual([5_000])
-    expect(env.PATH).toBe('/probed/bin:/usr/bin:/bin')
+    expect(env).toHaveProperty('PATH', '/probed/bin:/usr/bin:/bin')
   })
 })

@@ -99,7 +99,9 @@ describe('attachments:prepare-from-text', () => {
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare-from-text')
 
-    await expect(handler?.({}, 'text', 'operation-unnamed', name)).rejects.toThrow()
+    await expect(handler?.({}, 'text', 'operation-unnamed', name)).rejects.toThrow(
+      'Attachment name must be a Markdown file name',
+    )
     expect(dispatchLocalSessionCommandMock).not.toHaveBeenCalled()
   })
 
@@ -107,7 +109,18 @@ describe('attachments:prepare-from-text', () => {
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare-from-text')
 
-    await expect(handler?.({}, '', 'operation-2')).rejects.toThrow()
+    await expect(handler?.({}, '', 'operation-2')).rejects.toThrow(
+      'Attachment text must be a non-empty string.',
+    )
+  })
+
+  it('names the operation id argument it refuses', async () => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare-from-text')
+
+    await expect(handler?.({}, 'text', '')).rejects.toThrow(
+      'Operation ID must be a non-empty string.',
+    )
   })
 
   it('rejects text input larger than the per-attachment limit', async () => {

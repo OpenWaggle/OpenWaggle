@@ -19,7 +19,7 @@ const cancellationModel: SessionEmbeddingModel = {
 
 describe('SQLite Session transcript semantic cancellation', () => {
   let root = ''
-  const runtimes: Array<ReturnType<typeof makeSessionQueryRuntime>> = []
+  const runtimes: ReturnType<typeof makeSessionQueryRuntime>[] = []
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-semantic-cancellation-'))

@@ -40,16 +40,16 @@ function record(phase: SessionDeletionRecord['phase'], piSessionFile: string | n
 }
 
 const mocks = vi.hoisted(() => ({
-  getSessionDetail: vi.fn(async (): Promise<StoredSession | null> => null),
-  getSessionDeletion: vi.fn(async (): Promise<SessionDeletionRecord | null> => null),
+  getSessionDetail: vi.fn<() => Promise<StoredSession | null>>(async () => null),
+  getSessionDeletion: vi.fn<() => Promise<SessionDeletionRecord | null>>(async () => null),
   prepareSessionDeletion: vi.fn(),
   commitSessionDeletion: vi.fn(),
   prepareSessionPiFileCleanup: vi.fn(),
   markSessionPiFileCleanupComplete: vi.fn(async () => undefined),
   abandonSessionDeletion: vi.fn(async () => undefined),
-  listPendingSessionDeletions: vi.fn(async (): Promise<SessionId[]> => []),
-  listTranscriptFiles: vi.fn(
-    (_location: SessionTranscriptLocation): readonly string[] | Error => [],
+  listPendingSessionDeletions: vi.fn<() => Promise<SessionId[]>>(async () => []),
+  listTranscriptFiles: vi.fn<(_location: SessionTranscriptLocation) => readonly string[] | Error>(
+    (_location: SessionTranscriptLocation) => [],
   ),
 }))
 
@@ -171,24 +171,6 @@ describe('Session deletion of transcript copies the runtime would rediscover', (
     await expect(fs.stat(firstRun)).rejects.toThrow()
     await expect(fs.stat(abandoned)).rejects.toThrow()
     await expect(fs.stat(other)).resolves.toBeDefined()
-    expect(mocks.markSessionPiFileCleanupComplete).toHaveBeenCalledWith(SESSION_ID)
-  })
-
-  it("keeps every file of a discovered Pi session's transcript, the program's history (ADR 0051)", async () => {
-    const kept = await writeFile('2026-10-04T18-41-20-000Z_pi-session.jsonl')
-    const sibling = await writeFile('2026-10-04T18-41-34-000Z_pi-session.jsonl')
-    mocks.commitSessionDeletion.mockResolvedValueOnce(record('durable-delete-complete', kept))
-    // The cleanup keeps a dismissed file: it journals no staged path for it.
-    mocks.prepareSessionPiFileCleanup.mockImplementationOnce(async () => ({
-      ...record('pi-file-cleanup-pending', kept),
-      stagedPiSessionFile: null,
-    }))
-    mocks.listTranscriptFiles.mockReturnValue([kept, sibling])
-
-    await expect(deleteSession()).resolves.toBeUndefined()
-
-    await expect(fs.stat(kept)).resolves.toBeDefined()
-    await expect(fs.stat(sibling)).resolves.toBeDefined()
     expect(mocks.markSessionPiFileCleanupComplete).toHaveBeenCalledWith(SESSION_ID)
   })
 

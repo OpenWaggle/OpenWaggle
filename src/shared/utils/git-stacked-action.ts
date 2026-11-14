@@ -1,5 +1,5 @@
 import { match } from '@diegogbrisa/ts-match'
-import type { GitActionPhase, GitStackedAction, SourceControlProviderId } from '@shared/types/git'
+import type { GitStackedAction, SourceControlProviderId } from '@shared/types/git'
 import type { LocalVcsStatus } from '../types/vcs'
 import {
   type ChangeRequestTerminology,
@@ -11,7 +11,7 @@ const AUTO_FEATURE_BRANCH_FALLBACK = 'feature/update'
 const BRANCH_FRAGMENT_MAX_LENGTH = 64
 const FIRST_DUPLICATE_SUFFIX = 2
 
-export function sanitizeBranchFragment(raw: string): string {
+export function sanitizeBranchFragment(raw: string) {
   const normalized = raw
     .trim()
     .toLowerCase()
@@ -29,7 +29,7 @@ export function sanitizeBranchFragment(raw: string): string {
   return fragment.length > 0 ? fragment : 'update'
 }
 
-export function sanitizeFeatureBranchName(raw: string): string {
+export function sanitizeFeatureBranchName(raw: string) {
   const sanitized = sanitizeBranchFragment(raw)
   if (sanitized.startsWith('codex/')) return sanitized
   if (sanitized.includes('/')) {
@@ -42,7 +42,7 @@ export function sanitizeFeatureBranchName(raw: string): string {
 export function resolveAutoFeatureBranchName(
   existingBranchNames: readonly string[],
   preferredBranch?: string,
-): string {
+) {
   const preferred = preferredBranch?.trim()
   const base = sanitizeFeatureBranchName(
     preferred && preferred.length > 0 ? preferred : AUTO_FEATURE_BRANCH_FALLBACK,
@@ -64,7 +64,7 @@ export function buildGitActionProgressStages(input: {
   featureBranch?: boolean
   shouldPushBeforePr?: boolean
   terminology?: ChangeRequestTerminology
-}): string[] {
+}) {
   const terminology = input.terminology ?? DEFAULT_CHANGE_REQUEST_TERMINOLOGY
   const branchStages = input.featureBranch ? ['Preparing feature ref...'] : []
   const pushStage = input.pushTarget ? `Pushing to ${input.pushTarget}...` : 'Pushing...'
@@ -112,7 +112,7 @@ export function resolveDefaultBranchActionDialogCopy(input: {
   branchName: string
   includesCommit: boolean
   provider?: SourceControlProviderId | null
-}): DefaultBranchActionDialogCopy {
+}) {
   const branchLabel = input.branchName
   const suffix = ` on "${branchLabel}". You can continue on this ref or create a feature ref and run the same action there.`
   const terminology = getChangeRequestTerminology(input.provider)
@@ -123,13 +123,13 @@ export function resolveDefaultBranchActionDialogCopy(input: {
         title: 'Commit & push to default ref?',
         description: `This action will commit and push changes${suffix}`,
         continueLabel: `Commit & push to ${branchLabel}`,
-      }
+      } satisfies DefaultBranchActionDialogCopy
     }
     return {
       title: 'Push to default ref?',
       description: `This action will push local commits${suffix}`,
       continueLabel: `Push to ${branchLabel}`,
-    }
+    } satisfies DefaultBranchActionDialogCopy
   }
 
   if (input.includesCommit) {
@@ -137,17 +137,17 @@ export function resolveDefaultBranchActionDialogCopy(input: {
       title: `Commit, push & create ${terminology.shortLabel} from default ref?`,
       description: `This action will commit, push, and create a ${terminology.singular}${suffix}`,
       continueLabel: `Commit, push & create ${terminology.shortLabel}`,
-    }
+    } satisfies DefaultBranchActionDialogCopy
   }
   return {
     title: `Push & create ${terminology.shortLabel} from default ref?`,
     description: `This action will push local commits and create a ${terminology.singular}${suffix}`,
     continueLabel: `Push & create ${terminology.shortLabel}`,
-  }
+  } satisfies DefaultBranchActionDialogCopy
 }
 
 /** Ordered phases a stacked action executes; used to sequence the workflow. */
-export function planStackedActionPhases(action: GitStackedAction): readonly GitActionPhase[] {
+export function planStackedActionPhases(action: GitStackedAction) {
   return match(action)
     .with('commit', () => ['commit'] as const)
     .with('push', () => ['push'] as const)
@@ -167,7 +167,7 @@ export function planStackedActionPhases(action: GitStackedAction): readonly GitA
  */
 export function targetsDefaultRef(
   status: Pick<LocalVcsStatus, 'isDefaultRef' | 'pushTargetIsDefaultRef'>,
-): boolean {
+) {
   return status.isDefaultRef || status.pushTargetIsDefaultRef
 }
 
@@ -182,7 +182,7 @@ export function defaultBranchActionLabel(
     LocalVcsStatus,
     'isDefaultRef' | 'pushTargetIsDefaultRef' | 'pushTargetRef' | 'refName'
   >,
-): string {
+) {
   if (!status.isDefaultRef && status.pushTargetIsDefaultRef && status.pushTargetRef !== null) {
     return status.refName === null || status.refName === status.pushTargetRef
       ? status.pushTargetRef

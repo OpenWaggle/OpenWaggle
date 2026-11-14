@@ -7,7 +7,7 @@ const PRESENTATION_POLL_INTERVAL_MS = 16
 function floatingViewport(previewId: string) {
   const players = document.querySelectorAll<HTMLElement>('[data-browser-preview-floating]')
   for (const player of players) {
-    if (player.dataset.browserPreviewFloating !== previewId) continue
+    if (player.getAttribute('data-browser-preview-floating') !== previewId) continue
     return player.querySelector<HTMLElement>('[data-browser-preview-viewport]')
   }
   return null

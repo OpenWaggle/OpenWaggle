@@ -32,6 +32,13 @@ export interface TranscriptViewportInput {
   readonly remoteHistory?: TranscriptRemoteHistory | null
 }
 
+interface TranscriptViewportProps {
+  readonly positionKey: string
+  readonly input: TranscriptViewportInput
+  readonly trailing: ReactNode
+  readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
+}
+
 /**
  * The scrolling transcript for one Session branch (ADR 0036).
  *
@@ -43,12 +50,7 @@ export function TranscriptViewport({
   input,
   trailing,
   renderVisibleMessageRows,
-}: {
-  readonly positionKey: string
-  readonly input: TranscriptViewportInput
-  readonly trailing: ReactNode
-  readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
-}) {
+}: TranscriptViewportProps) {
   const { rows, isLoading, lastUserMessageId, pendingSend, onPendingSendConsumed } = input
   const keys = chatRowKeys(rows)
   const { session, showScrollToBottom, showScrollbar, pendingRestoreKey, boundsLikeFollower } =

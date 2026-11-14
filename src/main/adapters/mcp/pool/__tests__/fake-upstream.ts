@@ -26,8 +26,11 @@ export class FakeUpstream extends WireTransportEvents implements McpWireTranspor
   failStart: Error | undefined
   failSend: Error | undefined
 
-  constructor(private readonly respond: Responder = () => undefined) {
+  private readonly respond: Responder
+
+  constructor(respond: Responder = () => undefined) {
     super()
+    this.respond = respond
   }
 
   async start() {
@@ -96,10 +99,7 @@ export function flush() {
   return new Promise<void>((resolve) => setImmediate(resolve))
 }
 
-export function initializeRequest(
-  id: number,
-  capabilities: Record<string, unknown> = {},
-): JsonRpcRequest {
+export function initializeRequest(id: number, capabilities: Record<string, unknown> = {}) {
   return {
     jsonrpc: '2.0',
     id,
@@ -109,5 +109,5 @@ export function initializeRequest(
       capabilities,
       clientInfo: { name: 'pi', version: '1' },
     },
-  }
+  } satisfies JsonRpcRequest
 }

@@ -1,3 +1,4 @@
+import { useWorkspaceActivityAvailable } from '@/features/project-actions'
 import { useSessionHasScheduledTasks } from '@/features/scheduled-tasks'
 import { SessionSummaryExpandedPanel } from './SessionSummaryExpandedPanel'
 import { SessionSummaryHubDialogs } from './SessionSummaryHubDialogs'
@@ -40,5 +41,3 @@ function AvailableSessionSummaryHub({ input }: { readonly input: SessionSummaryH
     </>
   )
 }
-
-import { useWorkspaceActivityAvailable } from '@/features/project-actions'

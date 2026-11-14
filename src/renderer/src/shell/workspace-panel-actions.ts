@@ -53,7 +53,7 @@ export function openWorkspacePreviewWithResult(
   return { previewId, evictedPreviewId }
 }
 
-export function openWorkspacePreview(ownerKey: string, rawUrl: string): void {
+export function openWorkspacePreview(ownerKey: string, rawUrl: string) {
   openWorkspacePreviewWithResult(ownerKey, rawUrl)
 }
 
@@ -114,7 +114,7 @@ function rightPanelIsSheet() {
 }
 
 /** Why the Right panel cannot be maximized right now, or null when it can. */
-export function rightPanelMaximizeUnavailableReason(ownerKey: string): string | null {
+export function rightPanelMaximizeUnavailableReason(ownerKey: string) {
   if (ownerKey.length === 0) return OPEN_A_PANEL_FIRST
   const claim = useRightSidebarCoordinator.getState().activeClaim
   if (claim?.kind === 'action-panel') return GUIDED_PANEL_KEEPS_WIDTH
@@ -128,7 +128,8 @@ export function rightPanelMaximizeUnavailableReason(ownerKey: string): string | 
 export function toggleWorkspaceRightPanel(ownerKey: string) {
   const store = useWorkspacePanelStore.getState()
   const group = store.groups[ownerKey]
-  if (ownerKey.length === 0 || group === undefined || group.activeSurface === null) return false
+  if (ownerKey.length === 0 || group === undefined) return false
+  if (group.activeSurface === null) return false
   if (group.panelOpen) {
     store.hidePanel(ownerKey)
     return true
@@ -160,8 +161,11 @@ export function toggleWorkspacePreview(ownerKey: string) {
   const group = store.groups[ownerKey]
   const previewId = activeBrowserTabId(ownerKey)
   if (previewId === null) return newWorkspaceBrowser(ownerKey)
-  if (group.panelOpen && group.activeSurface?.kind === 'browser') store.hidePanel(ownerKey)
-  else store.showBrowser(ownerKey, previewId)
+  if (group?.panelOpen === true && group.activeSurface?.kind === 'browser') {
+    store.hidePanel(ownerKey)
+  } else {
+    store.showBrowser(ownerKey, previewId)
+  }
   return true
 }
 

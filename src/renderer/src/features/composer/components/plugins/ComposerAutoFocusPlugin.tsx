@@ -18,7 +18,7 @@ function isTypingElsewhere(active: Element | null, root: HTMLElement) {
  * Session title in the sidebar opens that Session and its inline rename field in the same gesture;
  * an unconditional focus moved the caret out of the field, which blurred and closed the rename.
  */
-export function ComposerAutoFocusPlugin(): null {
+export function ComposerAutoFocusPlugin() {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {

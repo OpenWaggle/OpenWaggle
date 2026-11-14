@@ -48,3 +48,29 @@ it('keeps the migrated caller ceiling at yolo while preserving a null live overr
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   }
 })
+
+it('refuses a legacy Session row whose override is unknown, naming the column', async () => {
+  const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-cutover-auth-'))
+  const sourceDatabasePath = path.join(temporaryRoot, 'openwaggle.db')
+  const targetDatabasePath = path.join(temporaryRoot, 'session-host', 'session-host.sqlite')
+  const recoveryDatabasePath = path.join(temporaryRoot, 'openwaggle.pre-session-host-v2.db')
+  try {
+    seedLegacyDatabase(sourceDatabasePath)
+    const source = openHostSqliteDatabase(sourceDatabasePath)
+    try {
+      source.prepare("UPDATE sessions SET authorization_mode_override = 'unrestricted'").run()
+    } finally {
+      source.close()
+    }
+
+    await expect(
+      runSessionHostCutover(
+        { sourceDatabasePath, targetDatabasePath, recoveryDatabasePath },
+        Date.now(),
+        fakeEmbeddingModel,
+      ),
+    ).rejects.toThrow(/Legacy Session row is invalid: .*authorization_mode_override/u)
+  } finally {
+    await fs.rm(temporaryRoot, { recursive: true, force: true })
+  }
+})

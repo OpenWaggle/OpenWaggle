@@ -49,12 +49,12 @@ afterEach(async () => {
   await fs.rm(temporaryRoot, { recursive: true, force: true })
 })
 
-function userNode(id: string, createdOrder: number, text: string): ProjectedSessionNodeInput {
+function userNode(id: string, createdOrder: number, text: string) {
   return {
     ...transcriptNode(id, null, createdOrder, text, 'run-a'),
     kind: 'user_message',
     role: 'user',
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 function conversation(count: number) {

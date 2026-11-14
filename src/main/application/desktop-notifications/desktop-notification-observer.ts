@@ -1,7 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { hivePendingRequestOf } from '@shared/domain/hive-next-actor'
 import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
-import type { DesktopNotificationReason } from '@shared/types/desktop-notification'
 import type { HivePendingRequest } from '@shared/types/hive-next-actor'
 import type {
   SessionHostEventEnvelope,
@@ -51,15 +50,15 @@ function interactionPreview(interaction: AgentLoopInteraction) {
     .exhaustive()
 }
 
-function needsYouReason(request: HivePendingRequest): DesktopNotificationReason {
-  return request === 'approval' ? 'awaiting-approval' : 'awaiting-answer'
+function needsYouReason(request: HivePendingRequest) {
+  return request === 'approval' ? ('awaiting-approval' as const) : ('awaiting-answer' as const)
 }
 
 /**
  * Reads the Session Host's own events and decides which Desktop notification each one is due
  * (ADR 0062, CONTEXT.md): Needs you for every Session, Ready to read, Failed or interrupted and
  * Agent errors for a root Session's Runs that the person or a Scheduled task started. Ready to
- * read waits for the root's Running Workers (ADR 0063): a reply that leaves Workers running, or a
+ * read waits for the root's Running Workers (ADR 0065): a reply that leaves Workers running, or a
  * Hive wake still coming, is held per root Session and shown once its Hive settles.
  */
 export class DesktopNotificationObserver {
@@ -68,16 +67,19 @@ export class DesktopNotificationObserver {
   private readonly notifiedRuns = new Set<string>()
   private readonly readyToRead: ReadyToReadAfterWorkers
 
-  constructor(private readonly dependencies: DesktopNotificationObserverDependencies) {
+  private readonly dependencies: DesktopNotificationObserverDependencies
+
+  constructor(dependencies: DesktopNotificationObserverDependencies) {
+    this.dependencies = dependencies
     this.readyToRead = new ReadyToReadAfterWorkers(dependencies)
   }
 
-  handle(envelope: SessionHostEventEnvelope): Effect.Effect<void> {
+  handle(envelope: SessionHostEventEnvelope) {
     return this.decide(envelope).pipe(
       Effect.catchAllCause((cause) =>
         Effect.logWarning('A Desktop notification decision failed', cause),
       ),
-    )
+    ) satisfies Effect.Effect<void>
   }
 
   /** Whether this Run was already announced; marks it announced either way. */
@@ -107,14 +109,15 @@ export class DesktopNotificationObserver {
     })
   }
 
-  private decide({ payload, timestamp }: SessionHostEventEnvelope): Effect.Effect<void, unknown> {
-    return matchBy(payload, 'kind')
+  private decide({ payload, timestamp }: SessionHostEventEnvelope) {
+    const effect: Effect.Effect<void, unknown> = matchBy(payload, 'kind')
       .with('session-transport', 'session-waggle-transport', (transport) =>
         this.onTransport(transport.sessionId, transport.event, timestamp),
       )
       .with('session-state-changed', (changed) => this.onStateChanged(changed, timestamp))
       .with('session-list-changed', (changed) => this.onListChanged(changed))
       .otherwise(() => Effect.void)
+    return effect
   }
 
   private onTransport(sessionId: string, event: AgentTransportEvent, occurredAt: number) {
@@ -220,9 +223,12 @@ export class DesktopNotificationObserver {
     candidate: DesktopNotificationCandidate | null,
     continuing: boolean,
     occurredAt: number,
-  ): Effect.Effect<void, unknown> {
+  ) {
     const { runId, sessionId } = payload
-    if (!runId) return Effect.void
+    if (!runId) {
+      const effect: Effect.Effect<void, unknown> = Effect.void
+      return effect
+    }
     if (!candidate || continuing || !this.claimRun(runId)) {
       return this.readyToRead.settle(sessionId, occurredAt, runId)
     }
@@ -241,19 +247,24 @@ export class DesktopNotificationObserver {
         occurredAt,
       })
     }
-    return this.forRootRun(sessionId, runId, candidate, (session) =>
-      this.dependencies.ledger.show({
-        target: sessionNotificationTarget(sessionId),
-        candidate,
-        subject: { sessionId, projectPath: session.projectPath },
-        title: session,
-        preview,
-        occurredAt,
-      }),
+    const effect: Effect.Effect<void, unknown> = this.forRootRun(
+      sessionId,
+      runId,
+      candidate,
+      (session) =>
+        this.dependencies.ledger.show({
+          target: sessionNotificationTarget(sessionId),
+          candidate,
+          subject: { sessionId, projectPath: session.projectPath },
+          title: session,
+          preview,
+          occurredAt,
+        }),
     ).pipe(Effect.zipRight(this.readyToRead.settle(sessionId, occurredAt, runId)))
+    return effect
   }
 
-  /** A root Session's Run completed: Ready to read now, or once its Hive settles (ADR 0063). */
+  /** A root Session's Run completed: Ready to read now, or once its Hive settles (ADR 0065). */
   private onCompleted(completed: CompletedRootRun) {
     const { sessionId, runId, occurredAt } = completed
     return Effect.gen(this, function* () {
@@ -261,7 +272,7 @@ export class DesktopNotificationObserver {
       const session = yield* facts.session(sessionId)
       // A Worker's Run reaches its parent; it may still be the last Run its Hive waited for,
       // even when the Worker was archived while it ran.
-      if (!session || session.parentSessionId !== null) {
+      if (session?.parentSessionId !== null) {
         return yield* this.readyToRead.settle(sessionId, occurredAt, runId)
       }
       if (session.archived) return

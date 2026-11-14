@@ -13,6 +13,7 @@ import {
   SEND_PAYLOAD,
   useAgentChat,
 } from './useAgentChat.test-utils'
+import { required } from '@/test-utils/required'
 
 describe('useAgentChat streaming', () => {
   installUseAgentChatTestLifecycle()
@@ -176,7 +177,7 @@ describe('useAgentChat streaming', () => {
     )
 
     await act(async () => {
-      await result.current.respondAgentInteraction(result.current.agentInteractions[0], {
+      await result.current.respondAgentInteraction(required(result.current.agentInteractions[0]), {
         kind: 'confirm',
         accepted: true,
       })

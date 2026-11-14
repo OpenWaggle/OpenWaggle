@@ -61,7 +61,7 @@ export function PreparationEditorPanel({ request }: { readonly request: Preparat
     otherSessionProject,
     onClose: closePanel,
   }
-  if (state.status === 'switch')
+  if (state.status === 'switch') {
     return (
       <ActionPanelChrome {...chrome} description={null}>
         <DraftSwitchPrompt
@@ -76,7 +76,8 @@ export function PreparationEditorPanel({ request }: { readonly request: Preparat
         />
       </ActionPanelChrome>
     )
-  if (state.status === 'loading' || !catalog.data)
+  }
+  if (state.status === 'loading' || !catalog.data) {
     return (
       <ActionPanelChrome {...chrome} description={null}>
         <p role="status" className="text-sm text-text-tertiary">
@@ -84,6 +85,7 @@ export function PreparationEditorPanel({ request }: { readonly request: Preparat
         </p>
       </ActionPanelChrome>
     )
+  }
   return (
     <PreparationEditorForm
       chrome={chrome}

@@ -1,7 +1,9 @@
 import net from 'node:net'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
+import { desktopShellEnvironmentRefreshStartedAt } from '../desktop-shell-environment-process'
 import { launchHeadlessBackgroundProcess } from '../desktop-ui'
-import { desktopShellEnvironmentRefreshStartedAt, env, getSessionHostChildEnv } from '../env'
+import { env, getSessionHostChildEnv } from '../env'
 import { startupTimingsRequested } from '../startup-timing'
 import { awaitWithSignal } from './await-with-signal'
 import { probeLocalSessionHost } from './local-session-client'
@@ -23,20 +25,17 @@ import { makeSharedOperations } from './shared-operations'
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
 const CONNECT_PROBE_TIMEOUT_MS = 250
 
-export {
-  sessionHostLaunchArguments,
-  sessionHostLaunchCommand,
-} from './session-host-launch-command'
+export { sessionHostLaunchArguments, sessionHostLaunchCommand } from './session-host-launch-command'
 
 /** The command that launches a Host with the switches this process was started with. */
 export function currentSessionHostLaunchCommand() {
   return sessionHostLaunchCommandFor({
     platform: process.platform,
-    isPackaged: app.isPackaged,
+    isPackaged: appLifecycle.isPackaged(),
     executablePath: process.execPath,
-    appPath: app.getAppPath(),
+    appPath: appPaths.appRoot(),
     appImagePath: env.APPIMAGE,
-    commandLine: app.commandLine,
+    commandLine: appLifecycle.commandLine,
   })
 }
 
@@ -134,7 +133,7 @@ export const defaultLocalSessionHostLauncherDependencies: LocalSessionHostLaunch
     launchHeadlessBackgroundProcess({
       ...currentSessionHostLaunchCommand(),
       environment: sessionHostChildEnvironment({
-        userDataRoot: app.getPath('userData'),
+        userDataRoot: appPaths.userData(),
         ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
         startupTimings: startupTimingsRequested(),
         ...shellEnvironmentRefresh(),
@@ -177,11 +176,11 @@ async function waitForCompatibleHost(
   timeoutMs: number,
   dependencies: LocalSessionHostLauncherDependencies,
 ) {
-  let lastError: unknown
+  let lastFailure: { readonly error: unknown } | undefined
   const ready = await waitForCondition({
     timeoutMs,
     dependencies,
-    signal: input.signal,
+    ...(input.signal ? { signal: input.signal } : {}),
     condition: async () => {
       const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
       if (
@@ -196,13 +195,13 @@ async function waitForCompatibleHost(
         await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
         return true
       } catch (error) {
-        lastError = error
+        lastFailure = { error }
         return false
       }
     },
   })
   if (ready) return
-  if (lastError) throw lastError
+  if (lastFailure) throw lastFailure.error
   throw new LocalSessionHostUnavailableError('Timed out starting the Local Session Host.')
 }
 
@@ -261,7 +260,7 @@ async function waitForLocalSessionHostAuthority(
  * until the Host one of them launched boots; each would launch its own Host, and all but one would
  * stop on ELOCKED. Clients in one process therefore share one launch per Host database.
  */
-const sharedLaunches = makeSharedOperations<LocalSessionHostLauncherDependencies>()
+const sharedLaunches = makeSharedOperations()
 
 export async function ensureLocalSessionHost(
   input: LocalSessionClientConnectionInput & {

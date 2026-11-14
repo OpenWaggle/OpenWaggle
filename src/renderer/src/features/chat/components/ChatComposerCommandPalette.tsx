@@ -21,7 +21,9 @@ export function ChatComposerCommandPalette(props: ChatComposerCommandPaletteProp
         slashSkills={props.slashSkills}
         onSelectSkill={props.onSelectSkill}
         onStartWaggle={props.onStartWaggle}
-        onOpenSessionTree={props.onOpenSessionTree}
+        {...(props.onOpenSessionTree === undefined
+          ? {}
+          : { onOpenSessionTree: props.onOpenSessionTree })}
         onForkToNewSession={props.onForkToNewSession}
         onCloneToNewSession={props.onCloneToNewSession}
       />

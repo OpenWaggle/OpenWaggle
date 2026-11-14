@@ -1,47 +1,50 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import { sessionActiveRunRowSchema, sessionBranchRowSchema } from '../sessions/types'
+import {
+  sessionBranchStateDetailRowSchema,
+  sessionNodeContentRowSchema,
+  sessionNodeShapeRowSchema,
+} from './types'
 import type * as SqlClient from '@effect/sql/SqlClient'
+import { type SchemaType, Schema } from '@shared/schema'
 import { VISUALIZE_REFERENCE_START } from '@shared/utils/inline-visualization'
 import * as Effect from 'effect/Effect'
 import type { PersistSessionSnapshotInput } from '../../ports/session-repository'
 import { yieldToEventLoop } from '../../utils/event-loop-slice'
 import { EMPTY_INDEX } from './constants'
 import type {
-  ComparedSessionNodeRow,
-  SessionActiveRunRow,
   SessionBranchRow,
   SessionBranchStateRow,
   SessionNodeRow,
   SessionNodeShapeRow,
-  SessionRow,
 } from './types'
 
-interface ExistingVisualizationMetadataRow {
-  readonly id: string
-  readonly metadata_json: string
-}
+const existingVisualizationMetadataRowSchema = Schema.Struct({
+  id: Schema.String,
+  metadata_json: Schema.String,
+})
+
+/** Whether the Session exists: snapshot persistence reads nothing else of its row. */
+const sessionIdRowSchema = Schema.Struct({ id: Schema.String })
 
 function selectSessionRow(
   sql: SqlClient.SqlClient,
   sessionId: PersistSessionSnapshotInput['sessionId'],
 ) {
-  return sql<SessionRow>`
-    SELECT
-      id, pi_session_id, pi_session_file, project_path, title, archived, waggle_config_json,
-      created_at, updated_at, last_active_node_id, last_active_branch_id
-    FROM sessions
-    WHERE id = ${sessionId}
-    LIMIT 1
-  `
+  return sql`
+    SELECT id FROM sessions WHERE id = ${sessionId} LIMIT 1
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionIdRowSchema, 'sessions')))
 }
 
 function selectExistingBranches(
   sql: SqlClient.SqlClient,
   sessionId: PersistSessionSnapshotInput['sessionId'],
 ) {
-  return sql<SessionBranchRow>`
+  return sql`
     SELECT id, session_id, source_node_id, head_node_id, name, is_main, archived_at, created_at, updated_at
     FROM session_branches
     WHERE session_id = ${sessionId}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionBranchRowSchema, 'session_branches')))
 }
 
 function selectExistingBranchStates(
@@ -51,22 +54,22 @@ function selectExistingBranchStates(
   if (existingBranches.length === 0) {
     return Effect.succeed<readonly SessionBranchStateRow[]>([])
   }
-  return sql<SessionBranchStateRow>`
+  return sql`
     SELECT branch_id, future_mode, waggle_preset_id, waggle_config_json, last_active_at, ui_state_json
     FROM session_branch_state
     WHERE branch_id IN ${sql.in(existingBranches.map((branch) => branch.id))}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionBranchStateDetailRowSchema, 'session_branch_state')))
 }
 
 function selectExistingActiveRuns(
   sql: SqlClient.SqlClient,
   sessionId: PersistSessionSnapshotInput['sessionId'],
 ) {
-  return sql<SessionActiveRunRow>`
+  return sql`
     SELECT run_id, session_id, branch_id, run_mode, status, runtime_json, updated_at
     FROM session_active_runs
     WHERE session_id = ${sessionId}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionActiveRunRowSchema, 'session_active_runs')))
 }
 
 /**
@@ -80,9 +83,9 @@ export function selectExistingVisualizationMetadata(
   candidateNodeIds: readonly string[],
 ) {
   if (candidateNodeIds.length === 0) {
-    return Effect.succeed<readonly ExistingVisualizationMetadataRow[]>([])
+    return Effect.succeed<readonly SchemaType<typeof existingVisualizationMetadataRowSchema>[]>([])
   }
-  return sql<ExistingVisualizationMetadataRow>`
+  return sql`
     SELECT id, metadata_json
     FROM session_nodes
     WHERE session_id = ${sessionId}
@@ -92,7 +95,7 @@ export function selectExistingVisualizationMetadata(
         content_json LIKE ${`%${VISUALIZE_REFERENCE_START}%`} OR
         content_json LIKE '%visualize{%'
       )
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(existingVisualizationMetadataRowSchema, 'session_nodes')))
 }
 
 /** Every column but the content, which `compareWithStoredNodes` reads only where it may differ. */
@@ -100,12 +103,12 @@ function selectExistingNodes(
   sql: SqlClient.SqlClient,
   sessionId: PersistSessionSnapshotInput['sessionId'],
 ) {
-  return sql<SessionNodeShapeRow>`
+  return sql`
     SELECT id, session_id, parent_id, pi_entry_type, kind, role, timestamp_ms,
       content_hash, branch_hint_id, path_depth, created_order
     FROM session_nodes
     WHERE session_id = ${sessionId}
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionNodeShapeRowSchema, 'session_nodes')))
 }
 
 /** Node ids per content read, so one read never holds a large Session's content at once. */
@@ -116,12 +119,12 @@ function selectNodeContent(
   sessionId: PersistSessionSnapshotInput['sessionId'],
   nodeIds: readonly string[],
 ) {
-  return sql<Pick<SessionNodeRow, 'id' | 'content_json' | 'metadata_json'>>`
+  return sql`
     SELECT id, content_json, metadata_json
     FROM session_nodes
     WHERE session_id = ${sessionId}
       AND id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(nodeIds)}))
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionNodeContentRowSchema, 'session_nodes')))
 }
 
 /**
@@ -158,9 +161,10 @@ export function compareWithStoredNodes(input: {
         })
       }
     }
-    return input.existingNodes.map(
-      (node): ComparedSessionNodeRow => ({ ...node, content: contentById.get(node.id) ?? null }),
-    )
+    return input.existingNodes.map((node) => ({
+      ...node,
+      content: contentById.get(node.id) ?? null,
+    }))
   })
 }
 

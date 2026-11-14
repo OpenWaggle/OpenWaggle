@@ -228,10 +228,7 @@ function useCurrentBrowserPreview(
   useBrowserPreviewOwnerRegistration(ownerKey, selectedPreviewId)
 }
 
-function useCoordinatedWorkspaceSurface(
-  ownerKey: string,
-  requestedSurface: WorkspacePanelSurface,
-): WorkspacePanelSurface {
+function useCoordinatedWorkspaceSurface(ownerKey: string, requestedSurface: WorkspacePanelSurface) {
   const activeClaim = useRightSidebarCoordinator((state) => state.activeClaim)
   const surfaceRequested = requestedSurface !== null
 
@@ -262,16 +259,28 @@ function resolveActiveSurface(
     readonly browserTabs: readonly { readonly id: string }[]
     readonly hasTerminal: boolean
   },
-): WorkspacePanelSurface {
-  if (requested !== null && ALWAYS_AVAILABLE_SURFACES.has(requested.kind)) return requested
-  if (requested?.kind === 'terminal' && available.hasTerminal) return requested
+) {
+  if (requested !== null && ALWAYS_AVAILABLE_SURFACES.has(requested.kind)) {
+    const surface: WorkspacePanelSurface = requested
+    return surface
+  }
+  if (requested?.kind === 'terminal' && available.hasTerminal) {
+    const surface: WorkspacePanelSurface = requested
+    return surface
+  }
   if (
     requested?.kind === 'browser' &&
     available.browserTabs.some((tab) => tab.id === requested.previewId)
   ) {
-    return requested
+    const surface: WorkspacePanelSurface = requested
+    return surface
   }
-  if (available.hasTerminal) return { kind: 'terminal' }
+  if (available.hasTerminal) {
+    const surface: WorkspacePanelSurface = { kind: 'terminal' }
+    return surface
+  }
   const browser = available.browserTabs[available.browserTabs.length - 1]
-  return browser === undefined ? null : { kind: 'browser', previewId: browser.id }
+  const surface: WorkspacePanelSurface =
+    browser === undefined ? null : { kind: 'browser', previewId: browser.id }
+  return surface
 }

@@ -26,8 +26,8 @@ export interface TerminalOperationQueue {
   blockedAll: number
 }
 
-export function makeTerminalOperationQueue(): TerminalOperationQueue {
-  return {
+export function makeTerminalOperationQueue() {
+  const queue: TerminalOperationQueue = {
     tails: new Map(),
     scopeTail: Promise.resolve(),
     operationCwds: new Map(),
@@ -36,6 +36,7 @@ export function makeTerminalOperationQueue(): TerminalOperationQueue {
     blockedPaths: new Map(),
     blockedAll: 0,
   }
+  return queue
 }
 
 export function enqueueTerminalScopeOperation<Result>(
@@ -59,7 +60,7 @@ export function enqueueTerminalOperation<Result>(
   key: TerminalKey,
   operation: () => Promise<Result>,
   cwd?: string,
-): Promise<Result> {
+) {
   const predecessor = queue.tails.get(key) ?? Promise.resolve()
   const result = predecessor.then(operation)
   const tail = result.then(
@@ -167,8 +168,3 @@ export function terminalOperationBlockDisposition(
   }
   return 'none'
 }
-
-export const isTerminalOperationBlocked = (
-  queue: TerminalOperationQueue,
-  input: Parameters<typeof terminalOperationBlockDisposition>[1],
-) => terminalOperationBlockDisposition(queue, input) !== 'none'

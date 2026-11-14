@@ -3,7 +3,7 @@ import type {
   WorkspaceExternalEditorId,
 } from '@shared/types/workspace-external-editor'
 import { Check, ChevronDown, Code2, ExternalLink, LoaderCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
@@ -115,13 +115,14 @@ export function WorkspaceExternalEditorPicker({
   const [open, setOpen] = useState(false)
   const [editors, setEditors] = useState<readonly WorkspaceExternalEditor[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [hasLoaded, setHasLoaded] = useState(false)
+  // Read only by handlers, so loading the list once does not need a render of its own.
+  const hasLoaded = useRef(false)
   const [preferredEditor, setPreferredEditor] = useState<WorkspaceExternalEditorId | null>(() =>
     readPreferredWorkspaceExternalEditor(window.localStorage),
   )
 
   function loadEditors() {
-    if (hasLoaded || isLoading) return
+    if (hasLoaded.current || isLoading) return
     setIsLoading(true)
     void api
       .listWorkspaceExternalEditors()
@@ -131,7 +132,7 @@ export function WorkspaceExternalEditorPicker({
           if (current === null || editorIsAvailable(availableEditors, current)) return current
           return null
         })
-        setHasLoaded(true)
+        hasLoaded.current = true
       })
       .catch(onError)
       .finally(() => setIsLoading(false))
@@ -169,7 +170,10 @@ export function WorkspaceExternalEditorPicker({
         title={preferredEditor ? `Open in ${preferredLabel}` : 'Choose an external editor'}
         aria-label="Open file in external editor"
         onClick={() => {
-          if (preferredEditor && (!hasLoaded || editorIsAvailable(editors, preferredEditor))) {
+          if (
+            preferredEditor &&
+            (!hasLoaded.current || editorIsAvailable(editors, preferredEditor))
+          ) {
             void openEditor(preferredEditor)
             return
           }

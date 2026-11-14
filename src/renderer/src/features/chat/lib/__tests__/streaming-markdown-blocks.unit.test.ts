@@ -163,7 +163,7 @@ describe('splitStreamingMarkdown', () => {
 const processor = unified().use(remarkParse).use(remarkGfm).use(remarkRehype)
 
 /** A document's top-level nodes without source positions or the line breaks between them. */
-function parse(markdown: string): unknown {
+function parse(markdown: string) {
   const root: Root = processor.runSync(processor.parse(markdown))
   const nodes = root.children.filter((child) => child.type !== 'text' || child.value.trim() !== '')
   return JSON.parse(JSON.stringify(nodes, (key, value) => (key === 'position' ? undefined : value)))

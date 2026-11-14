@@ -14,19 +14,19 @@ const UNC_SERVER_ROOT = /^\/\/[^/]+$/u
  * root (`/`, `C:\`, `\\server`) or nothing: shortening a root would turn every path on it
  * into `~`.
  */
-export function homeDirectoryRoot(home: string): string | null {
+export function homeDirectoryRoot(home: string) {
   const root = home.replaceAll('\\', '/').replace(/\/+$/u, '')
   if (root === '' || WINDOWS_DRIVE_ROOT.test(root) || UNC_SERVER_ROOT.test(root)) return null
   return root
 }
 
 /** The renderer argument for `home`; none for an empty home or a filesystem root. */
-export function homeDirectoryRendererArguments(home: string): readonly string[] {
+export function homeDirectoryRendererArguments(home: string) {
   return homeDirectoryRoot(home) === null ? [] : [`${HOME_DIRECTORY_RENDERER_SWITCH}${home}`]
 }
 
 /** The home directory main passed in a renderer's `process.argv`, or null. */
-export function homeDirectoryFromRendererArguments(argv: readonly string[]): string | null {
+export function homeDirectoryFromRendererArguments(argv: readonly string[]) {
   const argument = argv.find((entry) => entry.startsWith(HOME_DIRECTORY_RENDERER_SWITCH))
   const home = argument?.slice(HOME_DIRECTORY_RENDERER_SWITCH.length) ?? ''
   return home === '' ? null : home

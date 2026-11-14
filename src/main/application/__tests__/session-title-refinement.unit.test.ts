@@ -130,7 +130,7 @@ describe('refineSessionTitle', () => {
     world().messages = [text('user', 'look at this', 'u1')]
     world().replies.push(json('Fix sidebar row overlap'))
     world().duringRead = () => {
-      world().duringRead = undefined
+      delete world().duringRead
       // The answer lands and its Run ends while the first pass holds the claim.
       world().messages = [
         text('user', 'look at this', 'u1'),
@@ -287,7 +287,7 @@ describe('regenerateSessionTitle', () => {
     world().replies.push(json('First'))
     let concurrent: unknown
     world().duringGeneration = () => {
-      world().duringGeneration = undefined
+      delete world().duringGeneration
       concurrent = Effect.runSync(
         regenerateSessionTitle(SESSION_ID).pipe(Effect.provide(TestLayer)),
       )

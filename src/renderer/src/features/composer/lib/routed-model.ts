@@ -1,3 +1,4 @@
+import type { Message } from '@shared/types/agent'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import { parseModelRef } from '@shared/types/llm'
 import { latestAnsweringModel } from '@/features/providers/state'
@@ -23,8 +24,9 @@ function catalogModel(providerModels: readonly ProviderInfo[], ref: SupportedMod
  * footer shows `auto → gpt-6-luna`. Null for a physical selection or before any response.
  */
 export function routedModelName({ selected, answeredBy, providerModels }: RoutedModelInput) {
-  if (!selected || !answeredBy || answeredBy === selected || providerModels.length === 0)
+  if (!selected || !answeredBy || answeredBy === selected || providerModels.length === 0) {
     return null
+  }
   const selectedModel = catalogModel(providerModels, selected)
   // A selection that is gone, such as a removed virtual model, answers on another model.
   if (selectedModel && selectedModel.virtual !== true) return null
@@ -38,11 +40,7 @@ export function routedModelName({ selected, answeredBy, providerModels }: Routed
  * the virtual model has answered.
  */
 export function lastAnsweringModel(
-  messages: readonly {
-    readonly role: string
-    readonly model?: SupportedModelId
-    readonly metadata?: { readonly selectedModel?: SupportedModelId }
-  }[],
+  messages: readonly Pick<Message, 'role' | 'model' | 'metadata'>[],
   selected: SupportedModelId | undefined,
 ) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {

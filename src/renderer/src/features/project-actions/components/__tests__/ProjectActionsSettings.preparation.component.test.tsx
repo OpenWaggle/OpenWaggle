@@ -11,13 +11,17 @@ import { useActionPanelStore } from '../../state/action-panel-store'
 import { ActionPanel } from '../action-panel/ActionPanel'
 import { actionCatalog, TEST_TASK } from './native-action-fixtures'
 
-const mocks = vi.hoisted(() => ({
-  manage: vi.fn<(request: ActionManagementRequest) => Promise<ActionManagementResult>>(),
-  navigate: vi.fn(),
-  projectPath: ((): string | null => '/repo')(),
-  selectFolder: vi.fn(),
-  projectPage: vi.fn(async () => ({ paths: [], nextCursor: null })),
-}))
+const mocks = vi.hoisted(() => {
+  // A property's declared type is not narrowed, so a test can clear the project.
+  const initial: { readonly projectPath: string | null } = { projectPath: '/repo' }
+  return {
+    manage: vi.fn<(request: ActionManagementRequest) => Promise<ActionManagementResult>>(),
+    navigate: vi.fn(),
+    projectPath: initial.projectPath,
+    selectFolder: vi.fn(),
+    projectPage: vi.fn(async () => ({ paths: [], nextCursor: null })),
+  }
+})
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
 vi.mock('@/features/sessions/hooks', () => ({
   useProject: () => ({ projectPath: mocks.projectPath, selectFolder: mocks.selectFolder }),
@@ -50,8 +54,9 @@ function renderSettings() {
 let discovery: ProjectTaskDiscovery | Error = { tasks: [TEST_TASK], diagnostics: [] }
 function serve(catalog: ActionCatalog) {
   mocks.manage.mockImplementation(async ({ operation }) => {
-    if (operation.type === 'catalog' || operation.type === 'edit')
+    if (operation.type === 'catalog' || operation.type === 'edit') {
       return { type: 'catalog', catalog }
+    }
     if (operation.type === 'runs') return { type: 'runs', runs: [] }
     if (operation.type === 'discover') {
       if (discovery instanceof Error) throw discovery

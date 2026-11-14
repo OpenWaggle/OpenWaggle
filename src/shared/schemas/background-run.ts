@@ -1,13 +1,15 @@
+import { sessionIdSchema, supportedModelIdSchema } from '@shared/types/brand'
 import { Schema } from '../schema'
-import { jsonValueSchema } from './validation'
+import { backgroundRunUserMessageSchema } from './agent-transport-user-message'
+import { messagePartSchema } from './message'
+import {
+  agentTransportAutoRetryEndEventSchema,
+  agentTransportAutoRetryStartEventSchema,
+  agentTransportCompactionEndEventSchema,
+  agentTransportCompactionStartEventSchema,
+} from './stream'
 
-const activityEventBase = {
-  timestamp: Schema.Number,
-  model: Schema.optional(Schema.String),
-  rawEvent: Schema.optional(jsonValueSchema),
-}
-const compactionReason = Schema.Literal('manual', 'threshold', 'overflow')
-
+/** A Setup action terminal accepted by main and ready for renderer reconciliation. */
 export const worktreeSetupActionTerminalSchema = Schema.Struct({
   terminalId: Schema.String,
   actionId: Schema.String,
@@ -16,6 +18,13 @@ export const worktreeSetupActionTerminalSchema = Schema.Struct({
   cwd: Schema.String,
 })
 
+/**
+ * OpenWaggle-owned setup stages that run before Pi starts the task.
+ *
+ * The name predates local launches: a local-checkout Session reports the stages it runs too
+ * (`syncing-branch`, `connecting-tools`, `starting-task`), so a first send never sits silent while
+ * the Host pulls, connects MCP servers, or builds the Pi runtime.
+ */
 export const worktreeLaunchStageSchema = Schema.Literal(
   'preparing-workspace',
   'fetching-base',
@@ -29,57 +38,138 @@ export const worktreeLaunchStageSchema = Schema.Literal(
 
 export const worktreeLaunchEnvironmentSchema = Schema.Literal('local', 'worktree')
 
+/** One visible step of a launch, in the order it started. */
 export const worktreeLaunchStepSchema = Schema.Struct({
   stage: worktreeLaunchStageSchema,
   label: Schema.String,
   startedAt: Schema.Number,
-  completedAt: Schema.optional(Schema.Number),
+  /** Set once the step is known to be done; open steps render as in progress. */
+  completedAt: Schema.optionalWith(Schema.Number, { exact: true }),
 })
 
+/** A point-in-time update produced by the worktree birth path. */
 export const worktreeLaunchProgressSchema = Schema.Struct({
   stage: worktreeLaunchStageSchema,
   details: Schema.Array(Schema.String),
-  label: Schema.optional(Schema.String),
-  parallel: Schema.optional(Schema.Boolean),
-  completesStep: Schema.optional(Schema.Boolean),
-  environment: Schema.optional(worktreeLaunchEnvironmentSchema),
-  progressPercentage: Schema.optional(Schema.Number),
-  worktreePath: Schema.optional(Schema.String),
-  branch: Schema.optional(Schema.String),
-  baseRef: Schema.optional(Schema.String),
-  setupAction: Schema.optional(worktreeSetupActionTerminalSchema),
+  /** Headline of the step this stage starts, e.g. "Pulling latest main from origin". */
+  label: Schema.optionalWith(Schema.String, { exact: true }),
+  /**
+   * The step runs alongside the steps already open instead of following them. Sequential steps
+   * close every open step when they start; parallel ones close only through `completesStep`.
+   */
+  parallel: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  /** Closes the open step of this stage without starting a new one. */
+  completesStep: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  environment: Schema.optionalWith(worktreeLaunchEnvironmentSchema, { exact: true }),
+  progressPercentage: Schema.optionalWith(Schema.Number, { exact: true }),
+  worktreePath: Schema.optionalWith(Schema.String, { exact: true }),
+  branch: Schema.optionalWith(Schema.String, { exact: true }),
+  baseRef: Schema.optionalWith(Schema.String, { exact: true }),
+  setupAction: Schema.optionalWith(worktreeSetupActionTerminalSchema, { exact: true }),
 })
 
-export const backgroundRunActivityEventsSchema = Schema.Array(
-  Schema.Union(
-    Schema.Struct({
-      ...activityEventBase,
-      type: Schema.Literal('compaction_start'),
-      reason: compactionReason,
-    }),
-    Schema.Struct({
-      ...activityEventBase,
-      type: Schema.Literal('compaction_end'),
-      reason: compactionReason,
-      result: jsonValueSchema,
-      aborted: Schema.Boolean,
-      willRetry: Schema.Boolean,
-      errorMessage: Schema.optional(Schema.String),
-    }),
-    Schema.Struct({
-      ...activityEventBase,
-      type: Schema.Literal('auto_retry_start'),
-      attempt: Schema.Number,
-      maxAttempts: Schema.Number,
-      delayMs: Schema.Number,
-      errorMessage: Schema.String,
-    }),
-    Schema.Struct({
-      ...activityEventBase,
-      type: Schema.Literal('auto_retry_end'),
-      success: Schema.Boolean,
-      attempt: Schema.Number,
-      finalError: Schema.optional(Schema.String),
-    }),
-  ),
+/** Compaction and retry events needed to restore the live chat activity after reconnecting. */
+export const backgroundRunActivityEventSchema = Schema.Union(
+  agentTransportCompactionStartEventSchema,
+  agentTransportCompactionEndEventSchema,
+  agentTransportAutoRetryStartEventSchema,
+  agentTransportAutoRetryEndEventSchema,
 )
+
+export const backgroundRunActivityEventsSchema = Schema.Array(backgroundRunActivityEventSchema)
+
+/** Reconnectable state for the first-send worktree preflight card. */
+export const worktreeLaunchSnapshotSchema = Schema.Struct({
+  status: Schema.Literal('running', 'complete', 'failed'),
+  stage: worktreeLaunchStageSchema,
+  startedAt: Schema.Number,
+  updatedAt: Schema.Number,
+  details: Schema.Array(Schema.String),
+  environment: Schema.optionalWith(worktreeLaunchEnvironmentSchema, { exact: true }),
+  /** Labelled steps in start order; the last one is active while the launch runs. */
+  steps: Schema.optionalWith(Schema.Array(worktreeLaunchStepSchema), { exact: true }),
+  progressPercentage: Schema.optionalWith(Schema.Number, { exact: true }),
+  worktreePath: Schema.optionalWith(Schema.String, { exact: true }),
+  branch: Schema.optionalWith(Schema.String, { exact: true }),
+  baseRef: Schema.optionalWith(Schema.String, { exact: true }),
+  setupAction: Schema.optionalWith(worktreeSetupActionTerminalSchema, { exact: true }),
+  errorMessage: Schema.optionalWith(Schema.String, { exact: true }),
+})
+
+export const worktreeLaunchEventPayloadSchema = Schema.Struct({
+  sessionId: sessionIdSchema,
+  launch: Schema.NullOr(worktreeLaunchSnapshotSchema),
+})
+
+/** The run mode for a live Pi-backed execution. */
+export const runModeSchema = Schema.Literal('classic', 'waggle')
+
+/** Lightweight info about an active agent run (no message content). */
+export const activeAgentRunInfoSchema = Schema.Struct({
+  activity: Schema.Literal('agent-run'),
+  sessionId: sessionIdSchema,
+  model: supportedModelIdSchema,
+  mode: runModeSchema,
+  startedAt: Schema.Number,
+  activityEvents: backgroundRunActivityEventsSchema,
+})
+
+/** Lightweight info about a standalone manual compaction. */
+export const activeCompactionInfoSchema = Schema.Struct({
+  activity: Schema.Literal('compaction'),
+  sessionId: sessionIdSchema,
+  model: supportedModelIdSchema,
+  reason: Schema.Literal('manual'),
+  startedAt: Schema.Number,
+})
+
+export const activeRunInfoSchema = Schema.Union(
+  activeAgentRunInfoSchema,
+  activeCompactionInfoSchema,
+)
+
+/**
+ * An assistant message the active Run finished streaming, retained so a reconnect (a renderer
+ * reload) still shows it: a Run's messages reach the persisted transcript only when it ends.
+ */
+export const backgroundRunAssistantMessageSchema = Schema.Struct({
+  messageId: Schema.String,
+  /** When the message started streaming (Host time). */
+  timestamp: Schema.Number,
+  /** Its text, reasoning, tool calls and tool results, as `parts` holds the streaming one's. */
+  parts: Schema.Array(messagePartSchema),
+})
+
+/** What the Host's byte caps left out of an active Run snapshot. */
+export const backgroundRunDegradedSchema = Schema.Struct({
+  reason: Schema.Literal('content-limit'),
+  /**
+   * All the caps omitted over the Run. On the GUI side it also counts streaming parts the client
+   * could not decode, which mark the message cut short like the caps do.
+   */
+  omittedBytes: Schema.Number,
+  toolCallIds: Schema.optionalWith(Schema.Array(Schema.String), { exact: true }),
+  /** Whether the caps cut the message `parts` streams; the omissions may be an earlier one's. */
+  messageCutShort: Schema.Boolean,
+})
+
+/** Full snapshot of an active agent Run, with its accumulated message parts, for reconnecting. */
+export const backgroundRunSnapshotSchema = Schema.Struct({
+  ...activeAgentRunInfoSchema.fields,
+  /** The Run the snapshot belongs to; absent from older Hosts. */
+  runId: Schema.optionalWith(Schema.String, { exact: true }),
+  messageId: Schema.optionalWith(Schema.String, { exact: true }),
+  /** When the message `parts` streams started (Host time); absent from older Hosts. */
+  messageStartedAt: Schema.optionalWith(Schema.Number, { exact: true }),
+  parts: Schema.Array(messagePartSchema),
+  userMessages: Schema.optionalWith(Schema.Array(backgroundRunUserMessageSchema), { exact: true }),
+  /**
+   * The Run's earlier assistant messages, complete, in order, before the one `parts` streams. One
+   * the byte caps cannot hold, or one cut short by them, is left out. Absent from older Hosts.
+   */
+  assistantMessages: Schema.optionalWith(Schema.Array(backgroundRunAssistantMessageSchema), {
+    exact: true,
+  }),
+  degraded: Schema.optionalWith(backgroundRunDegradedSchema, { exact: true }),
+  worktreeLaunch: Schema.optionalWith(worktreeLaunchSnapshotSchema, { exact: true }),
+})

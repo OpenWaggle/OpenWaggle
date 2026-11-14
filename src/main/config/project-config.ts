@@ -6,20 +6,19 @@ import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import {
   type AgentAuthorizationScopeKey,
   authorizationScopeKeysMatch,
-  type ScopedAuthorizationGrant,
 } from '@shared/types/agent-authorization-grants'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
 import {
   type ParsedProjectSettingsFile,
-  type ProjectConfig,
   type ProjectPreferences,
   type ProjectPreferencesUpdate,
   parseProjectConfig,
+  scopedAuthorizationGrant,
 } from './project-config-parsing'
 import { enqueueProjectConfigWrite } from './project-config-write-queue'
 
-export type { ProjectConfig, ProjectPreferences, ProjectPreferencesUpdate }
+export type { ProjectPreferences, ProjectPreferencesUpdate }
 
 const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
@@ -32,7 +31,7 @@ function getConfigDirectoryPath(projectPath: string) {
   return join(projectPath, OPENWAGGLE_CONFIG_DIR)
 }
 
-export function getProjectSettingsPath(projectPath: string): string {
+export function getProjectSettingsPath(projectPath: string) {
   return join(getConfigDirectoryPath(projectPath), PROJECT_SETTINGS_FILE_NAME)
 }
 
@@ -94,7 +93,7 @@ async function readValidatedProjectSettings(
   }
 }
 
-export async function loadProjectConfig(projectPath: string): Promise<ProjectConfig> {
+export async function loadProjectConfig(projectPath: string) {
   const settingsPath = getProjectSettingsPath(projectPath)
 
   const settings = await readValidatedProjectSettings(settingsPath, {
@@ -106,7 +105,7 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
 }
 
 /** Permission-sensitive callers must distinguish absence from an unreadable or invalid file. */
-export async function loadProjectConfigStrict(projectPath: string): Promise<ProjectConfig> {
+export async function loadProjectConfigStrict(projectPath: string) {
   const settings = await readValidatedProjectSettings(getProjectSettingsPath(projectPath), {
     strict: true,
     logLabel: '.openwaggle/settings.json',
@@ -135,7 +134,7 @@ async function ensureSettingsFile(projectPath: string, configPath: string) {
   return configPath
 }
 
-export async function ensureProjectSettingsFile(projectPath: string): Promise<string> {
+export async function ensureProjectSettingsFile(projectPath: string) {
   return ensureSettingsFile(projectPath, getProjectSettingsPath(projectPath))
 }
 
@@ -147,14 +146,11 @@ export async function ensureProjectSettingsFile(projectPath: string): Promise<st
 type LegacyPreferenceMigrator = (projectPath: string, value: string) => Promise<void>
 let legacyPreferenceMigrator: LegacyPreferenceMigrator | null = null
 
-export function installLegacyPreferenceMigrator(migrator: LegacyPreferenceMigrator | null): void {
+export function installLegacyPreferenceMigrator(migrator: LegacyPreferenceMigrator | null) {
   legacyPreferenceMigrator = migrator
 }
 
-async function migrateRetiredLegacyPreference(
-  projectPath: string,
-  value: string,
-): Promise<boolean> {
+async function migrateRetiredLegacyPreference(projectPath: string, value: string) {
   if (!legacyPreferenceMigrator) return true
   try {
     await legacyPreferenceMigrator(projectPath, value)
@@ -169,7 +165,7 @@ async function migrateRetiredLegacyPreference(
 }
 
 /** Removes retired preference keys whose values now live elsewhere; only after a safe migration. */
-function stripRetiredPreferences(next: ParsedProjectSettingsFile): ParsedProjectSettingsFile {
+function stripRetiredPreferences(next: ParsedProjectSettingsFile) {
   if (next.preferences?.model === undefined) return next
   const { model: _legacyModel, ...rest } = next.preferences
   if (Object.keys(rest).length === 0) {
@@ -216,20 +212,13 @@ async function updateProjectSettingsFile(
 export async function updateProjectConfig(
   projectPath: string,
   updater: (current: ParsedProjectSettingsFile) => ParsedProjectSettingsFile,
-): Promise<ProjectConfig> {
+) {
   const configPath = getProjectSettingsPath(projectPath)
   const next = await enqueueProjectConfigWrite(configPath, async () => {
     await ensureSettingsFile(projectPath, configPath)
     return updateProjectSettingsFile(configPath, projectPath, updater)
   })
   return parseProjectConfig(next)
-}
-
-export async function getProjectPreferences(
-  projectPath: string,
-): Promise<ProjectPreferences | undefined> {
-  const config = await loadProjectConfig(projectPath)
-  return config.preferences
 }
 
 /**
@@ -244,9 +233,7 @@ export async function getProjectPreferences(
  * A missing file still resolves to `undefined`: absence genuinely means "inherit". Only an
  * unreadable or invalid file throws, so the caller can fail closed.
  */
-export async function getProjectPreferencesStrict(
-  projectPath: string,
-): Promise<ProjectPreferences | undefined> {
+export async function getProjectPreferencesStrict(projectPath: string) {
   return (await loadProjectConfigStrict(projectPath)).preferences
 }
 
@@ -260,7 +247,7 @@ export async function getProjectPreferencesStrict(
 export async function setProjectPreferences(
   projectPath: string,
   preferences: ProjectPreferencesUpdate,
-): Promise<void> {
+) {
   await updateProjectConfig(projectPath, (current) => {
     const next: Record<string, unknown> = { ...current.preferences }
     for (const key of ['authorizationMode'] as const) {
@@ -279,9 +266,7 @@ export async function setProjectPreferences(
 }
 
 /** Every persistent grant recorded for a project. */
-export async function listProjectAuthorizationGrants(
-  projectPath: string,
-): Promise<readonly ScopedAuthorizationGrant[]> {
+export async function listProjectAuthorizationGrants(projectPath: string) {
   const config = await loadProjectConfigStrict(projectPath)
   return config.authorizationGrants ?? []
 }
@@ -291,10 +276,12 @@ export async function grantProjectAuthorization(
   projectPath: string,
   key: AgentAuthorizationScopeKey,
   grantedAt = Date.now(),
-): Promise<void> {
+) {
   await updateProjectConfig(projectPath, (current) => {
     const existing = current.authorizationGrants ?? []
-    const withoutKey = existing.filter((grant) => !authorizationScopeKeysMatch(grant, key))
+    const withoutKey = existing.filter(
+      (grant) => !authorizationScopeKeysMatch(scopedAuthorizationGrant(grant), key),
+    )
     return {
       ...current,
       authorizationGrants: [
@@ -320,10 +307,12 @@ export async function grantProjectAuthorization(
 export async function revokeProjectAuthorization(
   projectPath: string,
   key: AgentAuthorizationScopeKey,
-): Promise<void> {
+) {
   await updateProjectConfig(projectPath, (current) => {
     const existing = current.authorizationGrants ?? []
-    const remaining = existing.filter((grant) => !authorizationScopeKeysMatch(grant, key))
+    const remaining = existing.filter(
+      (grant) => !authorizationScopeKeysMatch(scopedAuthorizationGrant(grant), key),
+    )
     if (remaining.length === existing.length) return current
 
     const next = { ...current }

@@ -1,3 +1,13 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  workspaceDocumentApplyInputSchema,
+  workspaceDocumentChangeSchema,
+  workspaceDocumentEditBatchSchema,
+  workspaceEntryCreateInputSchema,
+  workspaceEntryMutationInputSchema,
+  workspaceFileWriteInputSchema,
+} from '@shared/schemas/workspace-files-requests'
+
 export const WORKSPACE_FILE_PREVIEW_KINDS = [
   'text',
   'markdown',
@@ -79,12 +89,7 @@ export type WorkspaceFileReadResult =
   | WorkspaceBinaryFileReadResult
   | WorkspaceUnavailableFileReadResult
 
-export interface WorkspaceFileWriteInput {
-  readonly projectPath: string
-  readonly path: string
-  readonly content: string
-  readonly expectedRevision: string
-}
+export type WorkspaceFileWriteInput = SchemaType<typeof workspaceFileWriteInputSchema>
 
 export interface WorkspaceFileWriteSavedResult {
   readonly status: 'saved'
@@ -108,26 +113,11 @@ export type WorkspaceFileWriteResult =
   | WorkspaceFileWriteConflictResult
   | WorkspaceFileWriteTooLargeResult
 
-export interface WorkspaceDocumentChange {
-  readonly rangeOffset: number
-  readonly rangeLength: number
-  readonly text: string
-}
+export type WorkspaceDocumentChange = SchemaType<typeof workspaceDocumentChangeSchema>
 
-export interface WorkspaceDocumentEditBatch {
-  readonly version: number
-  readonly changes: readonly WorkspaceDocumentChange[]
-}
+export type WorkspaceDocumentEditBatch = SchemaType<typeof workspaceDocumentEditBatchSchema>
 
-export interface WorkspaceDocumentApplyInput {
-  readonly projectPath: string
-  readonly path: string
-  readonly expectedRevision: string
-  readonly baseVersion: number
-  readonly batches: readonly WorkspaceDocumentEditBatch[]
-  readonly normalizeLineEnding?: 'lf' | 'crlf'
-  readonly targetEncoding?: WorkspaceTextEncoding
-}
+export type WorkspaceDocumentApplyInput = SchemaType<typeof workspaceDocumentApplyInputSchema>
 
 export interface WorkspaceDocumentSavedResult {
   readonly status: 'saved'
@@ -161,23 +151,14 @@ export type WorkspaceDocumentApplyResult =
   | WorkspaceDocumentOutOfSyncResult
   | WorkspaceDocumentTooLargeResult
 
-export interface WorkspaceEntryMutationInput {
-  readonly projectPath: string
-  readonly path: string
-  readonly targetPath?: string
-  readonly overwrite?: boolean
-}
+export type WorkspaceEntryMutationInput = SchemaType<typeof workspaceEntryMutationInputSchema>
 
 export interface WorkspaceEntryMutationResult {
   readonly path: string
   readonly previousPath?: string
 }
 
-export interface WorkspaceEntryCreateInput {
-  readonly projectPath: string
-  readonly path: string
-  readonly kind: 'file' | 'directory'
-}
+export type WorkspaceEntryCreateInput = SchemaType<typeof workspaceEntryCreateInputSchema>
 
 export interface WorkspaceFilesChangedEvent {
   readonly workingPath: string

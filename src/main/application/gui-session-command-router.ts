@@ -96,30 +96,35 @@ export type ConfiguredHostUiInvocation =
 export async function invokeConfiguredHostUi<C extends HostBackedGuiChannel>(
   channel: C,
   args: IpcInvokeArgs<C>,
-): Promise<ConfiguredHostUiInvocation> {
+) {
   return invokeConfiguredHostUiRaw(channel, args)
 }
 
-export async function invokeConfiguredHostUiRaw<C extends HostBackedGuiChannel>(
-  channel: C,
+export async function invokeConfiguredHostUiRaw(
+  channel: HostBackedGuiChannel,
   args: readonly unknown[],
-): Promise<ConfiguredHostUiInvocation> {
+) {
   const route = guiSessionCommandRoute
-  if (route.mode === 'local') return { handled: false }
+  if (route.mode === 'local') {
+    const invocation: ConfiguredHostUiInvocation = { handled: false }
+    return invocation
+  }
   if (route.mode === 'retired-for-upgrade') throw new GuiSessionHostRetiredForUpgradeError()
   const expectedEpoch = guiSessionCommandRouteEpoch
   const replaySafe = isReadOnlyHostUiInvocation(channel, args)
   const client = await refreshConfiguredHostUiRoute(expectedEpoch, replaySafe)
   try {
     const result = await executeConfiguredHostUi({ client, channel, args })
-    return { handled: true, result }
+    const invocation: ConfiguredHostUiInvocation = { handled: true, result }
+    return invocation
   } catch (error) {
     if (!replaySafe || !isLocalSessionHostUnavailable(error)) throw error
     const active = requireActiveGuiSessionCommandRoute(expectedEpoch)
     await ensureLocalSessionHost({ ...active.client, clientKind: 'gui' })
     const recoveredClient = await refreshConfiguredHostUiRoute(expectedEpoch, replaySafe)
     const result = await executeConfiguredHostUi({ client: recoveredClient, channel, args })
-    return { handled: true, result }
+    const invocation: ConfiguredHostUiInvocation = { handled: true, result }
+    return invocation
   }
 }
 

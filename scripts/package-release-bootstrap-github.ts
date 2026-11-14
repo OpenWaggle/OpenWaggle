@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import {
   isNotFound,
   redactBootstrapDiagnostic,
@@ -10,7 +11,6 @@ import {
   createRepositoryMergePolicyPayload,
   createRulesetPayload,
   createRulesetUpgradePayload,
-  isJsonObject,
   MANAGED_RULESET_NAME,
   parseJson,
   parseJsonObject,
@@ -29,6 +29,10 @@ import type {
   BootstrapDependencies,
   BootstrapGithubProgress,
 } from './package-release-bootstrap-types'
+
+/** A ruleset in GitHub's list response, matched by name. */
+const isRulesetSummary = Schema.is(Schema.Struct({ name: Schema.String }))
+const isRulesetId = Schema.is(Schema.Struct({ id: Schema.Number }))
 
 const ENVIRONMENT_ENDPOINT = 'repos/OpenWaggle/OpenWaggle/environments/npm'
 const BRANCH_POLICIES_ENDPOINT = `${ENVIRONMENT_ENDPOINT}/deployment-branch-policies`
@@ -77,31 +81,22 @@ async function inspectExistingEnvironment(
     'GitHub npm environment secrets',
   )
   if (!isCompatibleEnvironment(environment) || !hasNoSecrets(secrets)) return 'conflict'
-  if (
-    hasMainOnlyBranchPolicy(branchPolicies) &&
-    hasExpectedBranchProtectionRules(environment, 1)
-  ) {
+  if (hasMainOnlyBranchPolicy(branchPolicies) && hasExpectedBranchProtectionRules(environment, 1)) {
     return 'compatible'
   }
-  if (
-    hasNoBranchPolicies(branchPolicies) &&
-    hasExpectedBranchProtectionRules(environment, 0)
-  ) {
+  if (hasNoBranchPolicies(branchPolicies) && hasExpectedBranchProtectionRules(environment, 0)) {
     return 'pending'
   }
   return 'conflict'
 }
 
-async function inspectEnvironment(
-  projectRoot: string,
-  dependencies: BootstrapDependencies,
-): Promise<BootstrapGithubProgress['environment']> {
+async function inspectEnvironment(projectRoot: string, dependencies: BootstrapDependencies) {
   const result = await runCommand(dependencies, {
     args: [...GH_API_ARGS, ENVIRONMENT_ENDPOINT],
     command: 'gh',
     cwd: projectRoot,
   })
-  if (isNotFound(result)) return 'pending'
+  if (isNotFound(result)) return 'pending' as const
   if (result.exitCode === 0) {
     return inspectExistingEnvironment(projectRoot, dependencies, result.stdout)
   }
@@ -115,25 +110,24 @@ type ManagedRuleset =
   | { readonly state: 'conflict' }
   | { readonly id: number; readonly ruleset: unknown; readonly state: 'found' }
 
-async function readManagedRuleset(
-  projectRoot: string,
-  dependencies: BootstrapDependencies,
-): Promise<ManagedRuleset> {
-  const rulesets = flattenRulesetPages(parseJson(
-    await runRequired(dependencies, {
-      args: [...GH_API_ARGS, RULESETS_LIST_ENDPOINT, '--paginate', '--slurp'],
-      command: 'gh',
-      cwd: projectRoot,
-    }),
-    'GitHub repository rulesets',
-  ))
-  const managed = rulesets.filter(
-    (ruleset) => isJsonObject(ruleset) && ruleset.name === MANAGED_RULESET_NAME,
+async function readManagedRuleset(projectRoot: string, dependencies: BootstrapDependencies) {
+  const rulesets = flattenRulesetPages(
+    parseJson(
+      await runRequired(dependencies, {
+        args: [...GH_API_ARGS, RULESETS_LIST_ENDPOINT, '--paginate', '--slurp'],
+        command: 'gh',
+        cwd: projectRoot,
+      }),
+      'GitHub repository rulesets',
+    ),
   )
-  if (managed.length === 0) return { state: 'pending' }
-  if (managed.length !== 1) return { state: 'conflict' }
+  const managed = rulesets.filter(
+    (ruleset) => isRulesetSummary(ruleset) && ruleset.name === MANAGED_RULESET_NAME,
+  )
+  if (managed.length === 0) return { state: 'pending' } satisfies ManagedRuleset
+  if (managed.length !== 1) return { state: 'conflict' } satisfies ManagedRuleset
   const summary: unknown = managed[0]
-  if (!isJsonObject(summary) || typeof summary.id !== 'number') return { state: 'conflict' }
+  if (!isRulesetId(summary)) return { state: 'conflict' }
   const ruleset = parseJson(
     await runRequired(dependencies, {
       args: [...GH_API_ARGS, `${RULESETS_ENDPOINT}/${String(summary.id)}`],
@@ -145,14 +139,13 @@ async function readManagedRuleset(
   return { id: summary.id, ruleset, state: 'found' }
 }
 
-async function inspectRuleset(
-  projectRoot: string,
-  dependencies: BootstrapDependencies,
-): Promise<BootstrapGithubProgress['ruleset']> {
+async function inspectRuleset(projectRoot: string, dependencies: BootstrapDependencies) {
   const managed = await readManagedRuleset(projectRoot, dependencies)
   if (managed.state !== 'found') return managed.state
-  if (isCompatibleRuleset(managed.ruleset)) return 'compatible'
-  return isRulesetMissingRequiredChecks(managed.ruleset) ? 'pending' : 'conflict'
+  if (isCompatibleRuleset(managed.ruleset)) return 'compatible' as const
+  return isRulesetMissingRequiredChecks(managed.ruleset)
+    ? ('pending' as const)
+    : ('conflict' as const)
 }
 
 async function inspectRepositoryMergePolicy(
@@ -170,10 +163,7 @@ async function inspectRepositoryMergePolicy(
   return isCompatibleRepositoryMergePolicy(repository) ? 'compatible' : 'pending'
 }
 
-export async function inspectGithubState(
-  projectRoot: string,
-  dependencies: BootstrapDependencies,
-): Promise<BootstrapGithubProgress> {
+export async function inspectGithubState(projectRoot: string, dependencies: BootstrapDependencies) {
   const ruleset = await inspectRuleset(projectRoot, dependencies)
   const repositoryMergePolicy = await inspectRepositoryMergePolicy(projectRoot, dependencies)
   return {
@@ -184,7 +174,7 @@ export async function inspectGithubState(
         : ruleset === 'pending' || repositoryMergePolicy === 'pending'
           ? 'pending'
           : 'compatible',
-  }
+  } satisfies BootstrapGithubProgress
 }
 
 export async function createAndVerifyGithubEnvironment(
@@ -250,7 +240,7 @@ export async function createAndVerifyRuleset(
       }),
       'GitHub ruleset creation',
     )
-    if (typeof created.id !== 'number') {
+    if (!isRulesetId(created)) {
       throw new Error('GitHub ruleset creation did not return a numeric id.')
     }
     const ruleset = parseJson(

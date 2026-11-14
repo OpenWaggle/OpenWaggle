@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { BRANCH_NAME_TRUNCATE_LENGTH, MAIN_BRANCH_NAME } from './constants'
@@ -130,19 +131,15 @@ export function findBranchStartNodeId(
   return pathIds[pathIds.length - 1] ?? null
 }
 
+const messagePartsFieldSchema = Schema.Struct({ parts: Schema.Array(Schema.Unknown) })
+const textPartSchema = Schema.Struct({ type: Schema.Literal('text'), text: Schema.String })
+
 function parseMessageTextPreview(raw: string) {
   const parsed = parseJsonValue(raw)
-  if (!isRecord(parsed)) {
-    return null
-  }
+  if (!isRecord(parsed) || !Schema.is(messagePartsFieldSchema)(parsed)) return null
 
-  const parts = parsed.parts
-  if (!Array.isArray(parts)) {
-    return null
-  }
-
-  for (const part of parts) {
-    if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') {
+  for (const part of parsed.parts) {
+    if (isRecord(part) && Schema.is(textPartSchema)(part)) {
       const trimmed = part.text.trim()
       if (trimmed) {
         return trimmed

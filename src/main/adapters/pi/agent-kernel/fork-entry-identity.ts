@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { open, rename, rm, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { Schema, type SchemaType } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
 import { logger } from './constants'
+import { loggedErrorCode } from './logged-error-code'
 
 /**
  * Pi entry fields that name another entry of the same session file. `parentId` links the tree;
@@ -33,8 +35,24 @@ function nextEntryId(taken: ReadonlySet<string>) {
   }
 }
 
-function isSessionEntry(line: unknown): line is { readonly id: string; readonly type: string } {
-  return isRecord(line) && line.type !== 'session' && typeof line.id === 'string'
+/** The fields of a Pi session line a rekey reads; the line keeps every other field it has. */
+const sessionEntryLineSchema = Schema.Struct({
+  type: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  id: Schema.String,
+  customType: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  data: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
+const isEntryLine = Schema.is(sessionEntryLineSchema)
+
+function isSessionEntry(line: unknown): line is SchemaType<typeof sessionEntryLineSchema> {
+  return isEntryLine(line) && line.type !== 'session'
+}
+
+/** The id of a Pi session line that is an entry, not the session header. */
+export function sessionEntryIdOf(line: unknown) {
+  const result: string | undefined = isSessionEntry(line) ? line.id : undefined
+  return result
 }
 
 /**
@@ -44,11 +62,7 @@ function isSessionEntry(line: unknown): line is { readonly id: string; readonly 
 export function rekeySessionLines(
   lines: readonly unknown[],
   shouldRekey: (entryId: string) => boolean,
-): {
-  readonly lines: readonly unknown[]
-  /** The previous id of each entry that was given a new id, keyed by the new id. */
-  readonly sourceIdById: ReadonlyMap<string, string>
-} {
+) {
   const taken = new Set<string>()
   for (const line of lines) {
     if (isSessionEntry(line)) taken.add(line.id)
@@ -66,13 +80,19 @@ export function rekeySessionLines(
     const next = remapReferences({ ...line, id: idMap.get(line.id) ?? line.id }, idMap, [
       ...ENTRY_REFERENCE_FIELDS,
     ])
-    if (next.customType === RECONSTRUCTION_CUSTOM_TYPE && isRecord(next.data)) {
-      next.data = remapReferences({ ...next.data }, idMap, [...RECONSTRUCTION_REFERENCE_FIELDS])
-    }
-    return next
+    const { data } = line
+    if (line.customType !== RECONSTRUCTION_CUSTOM_TYPE || !isRecord(data)) return next
+    return Object.assign(next, {
+      data: remapReferences({ ...data }, idMap, [...RECONSTRUCTION_REFERENCE_FIELDS]),
+    })
   })
   const sourceIdById = new Map([...idMap].map(([sourceId, id]) => [id, sourceId] as const))
-  return { lines: rekeyed, sourceIdById }
+  const result: {
+    readonly lines: readonly unknown[]
+    /** The previous id of each entry that was given a new id, keyed by the new id. */
+    readonly sourceIdById: ReadonlyMap<string, string>
+  } = { lines: rekeyed, sourceIdById }
+  return result
 }
 
 /**
@@ -118,7 +138,7 @@ async function syncDirectory(directory: string) {
   } catch (error) {
     logger.warn('Could not sync the Pi session directory after replacing a file', {
       directory,
-      code: isRecord(error) && typeof error.code === 'string' ? error.code : 'unknown',
+      code: loggedErrorCode(error),
     })
   }
 }

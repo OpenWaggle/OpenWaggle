@@ -249,6 +249,18 @@ export function executeLocalUiSessionCommand(input: {
   })
 }
 
+/** A requested attachment with absent optional fields left absent instead of undefined. */
+function attachmentPreparationEntry(entry: LocalAttachmentsPayload['request']['entries'][number]) {
+  return {
+    path: entry.path,
+    ...(entry.origin === undefined ? {} : { origin: entry.origin }),
+    ...(entry.browserPreview === undefined ? {} : { browserPreview: entry.browserPreview }),
+    ...(entry.browserAnnotationText === undefined
+      ? {}
+      : { browserAnnotationText: entry.browserAnnotationText }),
+  }
+}
+
 export function prepareLocalGuiAttachments(input: {
   readonly caller: LocalSessionCallerIdentity
   readonly payload: LocalAttachmentsPayload
@@ -261,7 +273,7 @@ export function prepareLocalGuiAttachments(input: {
     const service = yield* SessionControlAttachmentService
     const attachments = yield* service.prepare({
       baseDirectory: input.caller.workingDirectory,
-      entries: input.payload.request.entries,
+      entries: input.payload.request.entries.map(attachmentPreparationEntry),
       ownerCallerId: input.caller.callerId,
       requestId: input.payload.request.requestId,
     })

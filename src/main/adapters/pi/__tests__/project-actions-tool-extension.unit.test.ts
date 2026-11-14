@@ -87,16 +87,14 @@ describe('Pi project_actions shares GUI executions', () => {
         properties?: Record<string, unknown>
       },
       unknown
-    >(JSON.parse(JSON.stringify(tool.parameters)))
+    >(structuredClone(tool.parameters))
 
     expect(shape.type).toBe('object')
     expect(shape.anyOf).toBeUndefined()
     expect(shape.required).toEqual(['action'])
-    expect(shape.properties?.action).toBeDefined()
-    expect(shape.properties?.actionId).toBeDefined()
-    expect(shape.properties?.restartRunId).toBeDefined()
-    expect(shape.properties?.runId).toBeDefined()
-    expect(shape.properties?.afterOffset).toBeDefined()
+    expect(Object.keys(shape.properties ?? {})).toEqual(
+      expect.arrayContaining(['action', 'actionId', 'restartRunId', 'runId', 'afterOffset']),
+    )
   })
 
   it.each([

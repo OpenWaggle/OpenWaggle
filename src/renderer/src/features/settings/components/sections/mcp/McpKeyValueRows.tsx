@@ -6,8 +6,8 @@ import { Select } from '@/shared/ui/Select'
 import { TextInput } from '@/shared/ui/TextInput'
 import type { McpKeyValueRow } from '../../../lib/mcp-add-server-form'
 
-function newRow(): McpKeyValueRow {
-  return { id: crypto.randomUUID(), key: '', value: '', secret: false }
+function newRow() {
+  return { id: crypto.randomUUID(), key: '', value: '', secret: false } satisfies McpKeyValueRow
 }
 
 function ValueInput({

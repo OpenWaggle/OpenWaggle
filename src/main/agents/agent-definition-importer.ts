@@ -41,39 +41,40 @@ export function detectAgentDefinitionImportSource(
     readonly sourceTool?: AgentDefinitionImportSource | 'auto'
   },
   content: string,
-): AgentDefinitionImportSource {
+) {
   if (input.sourceTool && input.sourceTool !== 'auto') return input.sourceTool
   const normalized = input.sourcePath.replaceAll('\\', '/').toLowerCase()
   const segments = normalized.split('/').filter(Boolean)
-  if (normalized.endsWith('.toml')) return 'codex'
-  if (segments.includes('.claude')) return 'claude-code'
-  if (segments.includes('.cursor')) return 'cursor'
-  if (segments.includes('.gemini')) return 'gemini-cli'
+  if (normalized.endsWith('.toml')) return 'codex' as const
+  if (segments.includes('.claude')) return 'claude-code' as const
+  if (segments.includes('.cursor')) return 'cursor' as const
+  if (segments.includes('.gemini')) return 'gemini-cli' as const
   if (
     segments.some((segment, index) => segment === '.github' && segments[index + 1] === 'agents') ||
     normalized.endsWith('.agent.md')
   ) {
-    return 'github-copilot'
+    return 'github-copilot' as const
   }
-  if (segments.includes('.opencode')) return 'opencode'
+  if (segments.includes('.opencode')) return 'opencode' as const
   try {
     parseAgentDefinition(content)
-    return 'openwaggle'
+    return 'openwaggle' as const
   } catch {
-    return 'claude-code'
+    return 'claude-code' as const
   }
 }
 
 function canonicalFields(document: AgentDefinitionDocument) {
   return Object.entries(document).map(
-    ([key, value]): AgentDefinitionImportFieldPlan => ({
-      sourceField: key === 'instructions' ? '$body' : key,
-      targetField: key,
-      disposition: 'mapped',
-      detail: 'OpenWaggle field preserved.',
-      sourceValue: value,
-      mappedValue: value,
-    }),
+    ([key, value]) =>
+      ({
+        sourceField: key === 'instructions' ? '$body' : key,
+        targetField: key,
+        disposition: 'mapped',
+        detail: 'OpenWaggle field preserved.',
+        sourceValue: value,
+        mappedValue: value,
+      }) satisfies AgentDefinitionImportFieldPlan,
   )
 }
 
@@ -148,9 +149,7 @@ async function existingDigest(destinationPath: string) {
   }
 }
 
-export async function planAgentDefinitionImport(
-  input: ImporterInput,
-): Promise<AgentDefinitionImportPlan> {
+export async function planAgentDefinitionImport(input: ImporterInput) {
   const source = await readBoundedAgentDefinitionSource({ sourcePath: input.sourcePath })
   const resolvedSourcePath = source.sourcePath
   const content = source.content
@@ -187,7 +186,7 @@ export async function planAgentDefinitionImport(
   const destinationPath = agentDefinitionPath({
     scope: input.targetScope,
     projectPath: input.projectPath,
-    userHome: input.userHome,
+    ...(input.userHome === undefined ? {} : { userHome: input.userHome }),
     name: document?.name ?? input.sourceName ?? 'unresolved-import',
   })
   const existing = await existingDigest(destinationPath)
@@ -200,7 +199,7 @@ export async function planAgentDefinitionImport(
       : []),
     ...(existing.diagnostic ? [existing.diagnostic] : []),
   ]
-  return {
+  const plan: AgentDefinitionImportPlan = {
     schemaVersion: 1,
     sourceTool: resolvedTool,
     sourcePath: resolvedSourcePath,
@@ -214,4 +213,5 @@ export async function planAgentDefinitionImport(
     ...(document ? { document } : {}),
     ...(existing.digest ? { existingContentDigest: existing.digest } : {}),
   }
+  return plan
 }

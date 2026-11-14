@@ -154,7 +154,7 @@ function resolveTurnModel(input: {
   return model
 }
 
-function turnEndMessages(event: TurnEndEvent): AgentEndEvent['messages'] {
+function turnEndMessages(event: TurnEndEvent) {
   return [event.message, ...event.toolResults]
 }
 
@@ -210,11 +210,11 @@ async function sendNextTurn<TMeta>(input: {
 export function createPiWaggleLoopHandler<TMeta>(
   input: PiWaggleLoopInput<TMeta>,
   api: PiWaggleLoopApi,
-): PiWaggleAgentEndHandler {
+) {
   let turnNumber = INITIAL_TURN_NUMBER
   let stopped = false
 
-  return async (event, ctx) => {
+  const handler: PiWaggleAgentEndHandler = async (event, ctx) => {
     if (stopped) {
       return
     }
@@ -252,6 +252,7 @@ export function createPiWaggleLoopHandler<TMeta>(
       input.onError(error)
     }
   }
+  return handler
 }
 
 export interface PiWaggleTurnCompletionHandlers {
@@ -262,11 +263,11 @@ export interface PiWaggleTurnCompletionHandlers {
 export function createPiWaggleTurnCompletionHandlers<TMeta>(
   input: PiWaggleLoopInput<TMeta>,
   api: PiWaggleLoopApi,
-): PiWaggleTurnCompletionHandlers {
+) {
   const onTurnComplete = createPiWaggleLoopHandler(input, api)
   const pendingMessages: AgentEndEvent['messages'] = []
 
-  return {
+  const handlers: PiWaggleTurnCompletionHandlers = {
     onTurnEnd: (event, ctx) => {
       pendingMessages.push(...turnEndMessages(event))
 
@@ -288,12 +289,13 @@ export function createPiWaggleTurnCompletionHandlers<TMeta>(
       return onTurnComplete({ ...event, messages }, ctx)
     },
   }
+  return handlers
 }
 
 export function createPiWaggleTurnEndHandler<TMeta>(
   input: PiWaggleLoopInput<TMeta>,
   api: PiWaggleLoopApi,
-): PiWaggleTurnEndHandler {
+) {
   return createPiWaggleTurnCompletionHandlers(input, api).onTurnEnd
 }
 
@@ -304,9 +306,7 @@ export function registerPiWaggleLoop<TMeta>(
   api.onAgentEnd(createPiWaggleLoopHandler(input, api))
 }
 
-export function createPiWaggleExtension<TMeta>(
-  input: PiWaggleExtensionInput<TMeta>,
-): PiWaggleExtensionController {
+export function createPiWaggleExtension<TMeta>(input: PiWaggleExtensionInput<TMeta>) {
   const completion = createDeferred()
   // Once the Waggle ends (it completes, fails, is stopped between turns, or the user aborts its run),
   // no later run is one of its turns.
@@ -320,7 +320,7 @@ export function createPiWaggleExtension<TMeta>(
     completion.reject(error)
   }
 
-  return {
+  const controller: PiWaggleExtensionController = {
     done: completion.promise,
     fail,
     factory: (pi) => {
@@ -343,4 +343,5 @@ export function createPiWaggleExtension<TMeta>(
       )
     },
   }
+  return controller
 }

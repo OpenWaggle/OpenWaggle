@@ -1,6 +1,7 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import type * as NodePtyModule from 'node-pty'
 import type { ProcessProbeOptions, ProcessRow } from './terminal-process-probes'
+import { terminalBackendModule } from './terminal-pty-backend-fields'
 
 const MAX_TELEMETRY_ROWS = 16_384
 const TELEMETRY_TIMEOUT_MS = 1_500
@@ -13,7 +14,7 @@ function isQuery(value: unknown): value is NativeQuery {
 }
 
 /** A timed-out caller cannot enqueue another native worker while the first is still running. */
-function singleFlight(query: NativeQuery): NativeQuery {
+function singleFlight(query: NativeQuery) {
   let pending: Promise<unknown> | null = null
   return () => {
     pending ??= Promise.resolve()
@@ -29,8 +30,8 @@ let processes: NativeQuery | null = null
 let listeners: NativeQuery | null = null
 
 export function installTerminalWindowsTelemetry(pty: typeof NodePtyModule) {
-  const processQuery: unknown = Reflect.get(pty, 'processTable')
-  const listenerQuery: unknown = Reflect.get(pty, 'listeningPorts')
+  const processQuery: unknown = terminalBackendModule(pty).processTable
+  const listenerQuery: unknown = terminalBackendModule(pty).listeningPorts
   processes = isQuery(processQuery)
     ? singleFlight(() => Reflect.apply(processQuery, pty, []))
     : null
@@ -44,8 +45,9 @@ async function queryWithinDeadline(query: NativeQuery | null, options: ProcessPr
     query === null ||
     options.signal?.aborted ||
     (options.timeoutMs !== undefined && options.timeoutMs <= 0)
-  )
+  ) {
     return null
+  }
   return new Promise<unknown>((resolve) => {
     const finish = (value: unknown) => {
       clearTimeout(timer)
@@ -85,8 +87,9 @@ export async function readWindowsTerminalProcesses(options: ProcessProbeOptions 
         { pid: positiveId, ppid: parentId, startedAt: P.regex(/^[1-9]\d{0,19}$/), name: P.string },
         candidate,
       )
-    )
+    ) {
       return null
+    }
     if (rows.has(candidate.pid) || candidate.name.length === 0) return null
     rows.set(candidate.pid, {
       pid: candidate.pid,
@@ -105,8 +108,9 @@ export async function readWindowsTerminalProcesses(options: ProcessProbeOptions 
   // A reused parent PID cannot make an older process a child of a newer shell.
   for (const [pid, row] of rows) {
     const parent = rows.get(row.ppid)
-    if (parent && BigInt(parent.startedAt) > BigInt(row.startedAt))
+    if (parent && BigInt(parent.startedAt) > BigInt(row.startedAt)) {
       rows.set(pid, { ...row, ppid: 0 })
+    }
   }
   return rows
 }

@@ -108,7 +108,12 @@ function renderSidebarPanel(input: ChatRouteSidebarInput) {
           sessionId={workspace.sessionId}
           projectPath={sections.diff.workingPath}
           onClose={() => handlers.handleWorkspaceFileOpenChange(false)}
-          onOpenFile={(path, line) => handlers.handleWorkspaceFileOpenChange(true, { path, line })}
+          onOpenFile={(path, line) =>
+            handlers.handleWorkspaceFileOpenChange(true, {
+              path,
+              ...(line === undefined ? {} : { line }),
+            })
+          }
         />
       ) : rightSidebar.workspaceFile ? (
         <WorkspaceFilePanel
@@ -117,7 +122,12 @@ function renderSidebarPanel(input: ChatRouteSidebarInput) {
           relativePath={rightSidebar.workspaceFile.path}
           line={rightSidebar.workspaceFile.line}
           onClose={() => handlers.handleWorkspaceFileOpenChange(false)}
-          onOpenFile={(path, line) => handlers.handleWorkspaceFileOpenChange(true, { path, line })}
+          onOpenFile={(path, line) =>
+            handlers.handleWorkspaceFileOpenChange(true, {
+              path,
+              ...(line === undefined ? {} : { line }),
+            })
+          }
         />
       ) : (
         renderDiff()

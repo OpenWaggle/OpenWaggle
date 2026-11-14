@@ -110,7 +110,7 @@ export function enableMainCompileCache(
   api: CompileCacheApi = nodeModule,
   fileSystem: CompileCacheFileSystem = NODE_FILE_SYSTEM,
   now: () => number = Date.now,
-): MainCompileCache {
+) {
   if (location.kind === 'disabled') return DISABLED_CACHE
   try {
     const { status } = api.enableCompileCache(location.directory)
@@ -138,7 +138,7 @@ export function enableMainCompileCache(
       if (path.dirname(current) !== chosen) return
       await pruneStaleCompileCaches(current, fileSystem, now())
     },
-  }
+  } satisfies MainCompileCache
 }
 
 /**

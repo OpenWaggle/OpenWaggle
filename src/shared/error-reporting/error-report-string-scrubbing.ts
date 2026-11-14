@@ -1,6 +1,6 @@
 /**
  * Applies a text scrubber to every string of a JSON-like report, object keys included, in place.
- * Part of the error-report scrubbing (./error-report-scrubbing.ts re-exports it).
+ * Part of the error-report scrubbing (./error-report-scrubbing.ts).
  */
 import { isRecord } from '../utils/validation'
 
@@ -44,7 +44,7 @@ export function scrubStringsInPlace(
   scrub: (text: string) => string,
   seen = new WeakSet<object>(),
   verbatimKeys: ReadonlySet<string> = new Set(),
-): void {
+) {
   if (typeof value !== 'object' || value === null || seen.has(value)) return
   seen.add(value)
   if (isUnknownArray(value)) {

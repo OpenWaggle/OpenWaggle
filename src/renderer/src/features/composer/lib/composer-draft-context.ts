@@ -13,7 +13,7 @@ function normalizeProjectPath(projectPath: string | null) {
   return trimmed && trimmed.length > 0 ? trimmed : 'no-project'
 }
 
-export function buildComposerDraftContextKey(input: ComposerDraftContextInput): string {
+export function buildComposerDraftContextKey(input: ComposerDraftContextInput) {
   const projectKey = `project:${normalizeProjectPath(input.projectPath)}`
   if (!input.sessionId) {
     return `${projectKey}:new-session`
@@ -36,6 +36,6 @@ export function buildComposerDraftContextKey(input: ComposerDraftContextInput): 
  * The draft a Session owns before its workspace hydrates. Hydration moves it to the branch the
  * workspace selects, so text written here survives a newly opened Session's first render.
  */
-export function buildPendingSessionDraftContextKey(sessionId: SessionId): string {
+export function buildPendingSessionDraftContextKey(sessionId: SessionId) {
   return `session:${String(sessionId)}:pending`
 }

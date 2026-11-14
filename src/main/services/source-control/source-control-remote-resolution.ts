@@ -108,7 +108,7 @@ async function resolveWebLocation(
   deps: SourceControlRemoteResolutionDeps,
   cliHosts: SourceControlCliHosts,
   isRecognisedHost: (host: string) => boolean,
-): Promise<RemoteLocation> {
+) {
   if (!location.sshTransport || isRecognisedHost(location.host)) return location
   const resolved = sourceControlHostKey(await deps.resolveSshHostName(location.host))
   const real = isSourceControlHostName(resolved) ? resolved : location.host
@@ -138,8 +138,9 @@ function declarationState(
   }
   const pending: Record<string, SourceControlProviderId> = {}
   for (const [host, provider] of Object.entries(declared)) {
-    if (approvedHosts[host] !== provider && declinedHosts[host] !== provider)
+    if (approvedHosts[host] !== provider && declinedHosts[host] !== provider) {
       pending[host] = provider
+    }
   }
   return { approved, pending: Object.keys(pending).length > 0 ? pending : null }
 }
@@ -186,9 +187,7 @@ async function decideProvider(
 }
 
 /** The user's provider choices, without hosts they marked as neither provider. */
-export function providerChoices(
-  choices: Readonly<Record<string, SourceControlHostChoice>>,
-): Readonly<Record<string, SourceControlProviderId>> {
+export function providerChoices(choices: Readonly<Record<string, SourceControlHostChoice>>) {
   const providers: Record<string, SourceControlProviderId> = {}
   for (const [host, choice] of Object.entries(choices)) {
     if (choice !== 'unsupported') providers[host] = choice
@@ -199,11 +198,11 @@ export function providerChoices(
 function isRecognised(host: string, inputs: DecisionInputs) {
   return Boolean(
     publicSourceControlProvider(host) !== undefined ||
-      inputs.preferences.userChoices[host] ||
-      inputs.preferences.detectedHosts[host] ||
-      inputs.declared[host] ||
-      inputs.cliHosts.github.some((entry) => entry.host === host) ||
-      inputs.cliHosts.gitlab.some((entry) => entry.host === host),
+    inputs.preferences.userChoices[host] ||
+    inputs.preferences.detectedHosts[host] ||
+    inputs.declared[host] ||
+    inputs.cliHosts.github.some((entry) => entry.host === host) ||
+    inputs.cliHosts.gitlab.some((entry) => entry.host === host),
   )
 }
 
@@ -215,11 +214,13 @@ function isRecognised(host: string, inputs: DecisionInputs) {
 export async function resolveSourceControlRemote(
   input: SourceControlRemoteResolutionInput,
   deps: SourceControlRemoteResolutionDeps,
-): Promise<SourceControlRemoteResolution> {
+) {
   const remote = await deps.readPrimaryRemote(input.workingPath)
-  if (!remote) return { kind: 'no-remote' }
+  if (!remote) return { kind: 'no-remote' } satisfies SourceControlRemoteResolution
   const parsed = parseRemoteLocation(remote.url)
-  if (!parsed) return { kind: 'unrecognised-remote', remote }
+  if (!parsed) {
+    return { kind: 'unrecognised-remote', remote } satisfies SourceControlRemoteResolution
+  }
   const [cliHosts, preferences, declared] = await Promise.all([
     deps.readCliHosts(),
     deps.readPreferences(),
@@ -230,13 +231,13 @@ export async function resolveSourceControlRemote(
     isRecognised(host, inputs),
   )
   if (preferences.userChoices[location.host] === 'unsupported') {
-    return { kind: 'unrecognised-remote', remote }
+    return { kind: 'unrecognised-remote', remote } satisfies SourceControlRemoteResolution
   }
   const { decision, declarationAttention } = await decideProvider(input, location, deps, inputs)
   // Another forge's host or path shape outranks only guesses: a user choice, an approved
   // declaration, a public host, a CLI sign-in, or a credential helper still decides.
   if (isOtherForge(location) && (!decision || WEAKER_THAN_CREDENTIAL_HELPER.has(decision.source))) {
-    return { kind: 'unrecognised-remote', remote }
+    return { kind: 'unrecognised-remote', remote } satisfies SourceControlRemoteResolution
   }
   let resolved = decision
   if (!resolved && !declarationAttention && input.probeRemote) {
@@ -255,7 +256,7 @@ export async function resolveSourceControlRemote(
       remote,
       hostState: { host: location.host, provider: null, source: null },
       attention,
-    }
+    } satisfies SourceControlRemoteResolution
   }
   return {
     kind: 'resolved',
@@ -268,5 +269,5 @@ export async function resolveSourceControlRemote(
     },
     hostState: { host: location.host, provider: resolved.provider, source: resolved.source },
     attention: declarationAttention,
-  }
+  } satisfies SourceControlRemoteResolution
 }

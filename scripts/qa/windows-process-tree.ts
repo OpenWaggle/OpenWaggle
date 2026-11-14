@@ -1,4 +1,5 @@
 import { execFile, type ExecFileException } from 'node:child_process'
+import { Schema } from '@shared/schema'
 
 const WINDOWS_PROCESS_COMMAND_TIMEOUT_MS = 3_000
 
@@ -11,27 +12,19 @@ export interface WindowsProcessRecord extends WindowsProcessIdentity {
   readonly parentProcessId: number
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+/** One process row of the PowerShell CIM query. */
+const windowsProcessRecordSchema = Schema.Struct({
+  processId: Schema.Number.pipe(Schema.int()),
+  parentProcessId: Schema.Number.pipe(Schema.int()),
+  creationDate: Schema.String.pipe(Schema.minLength(1)),
+})
 
-function parseWindowsProcessRecord(value: unknown): WindowsProcessRecord | null {
-  if (
-    !isRecord(value) ||
-    typeof value.processId !== 'number' ||
-    !Number.isSafeInteger(value.processId) ||
-    typeof value.parentProcessId !== 'number' ||
-    !Number.isSafeInteger(value.parentProcessId) ||
-    typeof value.creationDate !== 'string' ||
-    value.creationDate.length === 0
-  ) {
-    return null
-  }
-  return {
-    processId: value.processId,
-    parentProcessId: value.parentProcessId,
-    creationDate: value.creationDate,
-  }
+function parseWindowsProcessRecord(value: unknown) {
+  if (!Schema.is(windowsProcessRecordSchema)(value) || Array.isArray(value)) return null
+  const { processId, parentProcessId, creationDate } = value
+  if (!Number.isSafeInteger(processId) || !Number.isSafeInteger(parentProcessId)) return null
+  const record: WindowsProcessRecord | null = { processId, parentProcessId, creationDate }
+  return record
 }
 
 class WindowsProcessInventoryError extends Error {

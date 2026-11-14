@@ -25,14 +25,15 @@ async function readSnapshot(request: Request) {
  * stores the new totals only after PostHog accepted it, so a failed run is retried in full by
  * the next one and never partly counted twice.
  */
-export async function handleSnapshotRequest(context: RouteContext): Promise<RouteResult> {
+export async function handleSnapshotRequest(context: RouteContext) {
   const admission = await admitJobRequest(context)
   if (!admission.ok) return admission.result
   const { store, target } = admission
   const snapshot = await readSnapshot(context.request)
   if (!snapshot.ok) {
     const response = jsonResponse(HTTP_STATUS.badRequest, { error: snapshot.reason })
-    return { response, outcome: 'rejected', field: snapshot.field }
+    const returned: RouteResult = { response, outcome: 'rejected', field: snapshot.field }
+    return returned
   }
   const stored = parseSnapshotState(await store.get(SNAPSHOT_STATE_KEY))
   if (!stored.ok) throw new EndpointError(`${SNAPSHOT_STATE_KEY} in STATS_KV is unreadable`)
@@ -49,9 +50,11 @@ export async function handleSnapshotRequest(context: RouteContext): Promise<Rout
   const forwarded = await sendPostHogEvents(batch, target, context.dependencies.fetch)
   if (!forwarded.ok) {
     const response = jsonResponse(HTTP_STATUS.badGateway, { error: forwarded.reason })
-    return { response, outcome: 'forward_failed', accounted: true }
+    const returned: RouteResult = { response, outcome: 'forward_failed', accounted: true }
+    return returned
   }
   await store.put(SNAPSHOT_STATE_KEY, JSON.stringify(deltas.state))
   const response = jsonResponse(HTTP_STATUS.accepted, { events })
-  return { ...summary, response, accounted: batch.length > 0 }
+  const returned: RouteResult = { ...summary, response, accounted: batch.length > 0 }
+  return returned
 }

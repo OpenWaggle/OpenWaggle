@@ -52,8 +52,10 @@ const SETTLING_CONTROL_OPERATIONS: ReadonlySet<string> = new Set([
 ])
 const SETTLING_ACTION_OPERATIONS: ReadonlySet<string> = new Set(['stop', 'stop-setup', 'output'])
 
-function field(value: unknown, key: string): unknown {
-  return typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+function field(value: unknown, key: string) {
+  const result: unknown =
+    typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+  return result
 }
 
 function admitsQuery(request: unknown) {

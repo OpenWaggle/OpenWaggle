@@ -10,7 +10,7 @@
     <!--
       The cached interface scale, applied before the first paint so the startup frame below has
       the shell's geometry (appearance-preferences-runtime.ts owns the cache). Its hash is allowed
-      by the window's Content Security Policy (src/main/security/electron-security.ts).
+      by the window's Content Security Policy (src/main/security/web-security-policy.ts).
     -->
     <script>(()=>{try{const s=JSON.parse(localStorage.getItem('openwaggle.last-appearance-preferences.v1')??'null')?.typography?.interfaceScale;if(typeof s==='number'&&s>=85&&s<=125&&s!==100)document.documentElement.style.fontSize=`${s}%`}catch{}})()</script>
   </head>

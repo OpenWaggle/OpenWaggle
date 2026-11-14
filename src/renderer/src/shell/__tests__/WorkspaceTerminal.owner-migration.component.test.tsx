@@ -2,7 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { useBrowserPreviewFloatingStore } from '@/features/browser-preview'
 import { useChatStore } from '@/features/chat/state'
 import {
@@ -13,39 +13,45 @@ import {
 } from '@/features/terminal'
 import { useRightSidebarCoordinator } from '@/shared/lib/right-sidebar-coordinator'
 import { isWorkspaceOwnerHandoffPending } from '@/shared/lib/workspace-owner-handoff'
-import { unregisterBrowserPreviewOwner } from '../browser-preview-owner-runtime'
 import { useUIStore } from '../ui-store'
 import { WorkspaceTerminal } from '../WorkspaceTerminal'
 import { useWorkspacePanelStore } from '../workspace-panel-store'
+import { resetWorkspaceShellStores } from './workspace-shell.test-harness'
 
-const mocks = vi.hoisted(() => {
-  const context: { activeSession: SessionDetail | null } = { activeSession: null }
+/*
+ * Only the preload and the xterm terminal panel are replaced: the chat, terminal, panel and
+ * browser stores and the owner migration are the real ones.
+ */
+const eventHandoffs = vi.hoisted(() => new Array<Mock<() => void>>())
+const mocks = vi.hoisted(() => ({
+  createSession: vi.fn<() => Promise<SessionDetail>>(),
+  getSessionDetail: vi.fn<() => Promise<SessionDetail | null>>(),
+  migrateTerminalOwner: vi.fn<(_from: string, _to: string) => Promise<void>>(),
+  closeBrowserPreview: vi.fn(async (_id: string) => undefined),
+  unregisterBrowserPreviewOwner: vi.fn(async (_ownerKey: string) => undefined),
+}))
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    ...mocks,
+    getSessionTree: async () => null,
+    registerBrowserPreviewOwner: async () => undefined,
+  }),
+}))
+// The real event handoff, observed: the xterm panes that read it are replaced below.
+vi.mock('@/features/terminal', async (importOriginal) => {
+  const terminal = await importOriginal<typeof import('@/features/terminal')>()
   return {
-    context,
-    beginTerminalEventOwnerHandoff: vi.fn(() => vi.fn()),
-    createSession: vi.fn<() => Promise<SessionDetail>>(),
-    listSessions: vi.fn(async () => []),
-    getSessionTree: vi.fn(async () => null),
-    migrateTerminalOwner: vi.fn<(_from: string, _to: string) => Promise<void>>(
-      async () => undefined,
-    ),
-    closeBrowserPreview: vi.fn(async (_id: string) => undefined),
+    ...terminal,
+    beginTerminalEventOwnerHandoff: (previousOwnerKey: string, nextOwnerKey: string) => {
+      const release = vi.fn(terminal.beginTerminalEventOwnerHandoff(previousOwnerKey, nextOwnerKey))
+      eventHandoffs.push(release)
+      return release
+    },
   }
 })
-vi.mock('@/features/chat/hooks', () => ({ useChat: () => mocks.context }))
-vi.mock('@/features/terminal', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/features/terminal')>()),
-  beginTerminalEventOwnerHandoff: mocks.beginTerminalEventOwnerHandoff,
-}))
-vi.mock('@/features/sessions/hooks', () => ({ useProject: () => ({ projectPath: '/repo' }) }))
+// xterm needs a canvas jsdom lacks; the panel shows which owner it would render.
 vi.mock('@/features/terminal/components', () => ({
   TerminalPanel: ({ ownerKey }: { readonly ownerKey: string }) => <section>{ownerKey}</section>,
-}))
-vi.mock('@/shared/lib/ipc', () => ({ api: mocks }))
-vi.mock('../browser-preview-owner-runtime', () => ({
-  ensureBrowserPreviewOwnerRegistered: vi.fn(async () => undefined),
-  unregisterBrowserPreviewOwner: vi.fn(async () => undefined),
-  quiesceBrowserPreviewOwnerForHandoff: vi.fn(async () => undefined),
 }))
 
 const DRAFT = 'draft:/repo'
@@ -64,19 +70,46 @@ function createTerminal(ownerKey: string) {
   return terminalId
 }
 
-async function authorizeCreation() {
-  await useChatStore.getState().createSession('/repo')
+const firstTerminal = (ownerKey: string) =>
+  useTerminalStore.getState().groups[ownerKey]?.tabs[0]?.panes[0]?.terminalId
+
+/** The first send creates the draft's Session, which is what authorizes moving its tabs. */
+async function createSessionFromDraft() {
+  await act(async () => {
+    await useChatStore.getState().createSession('/repo')
+  })
+}
+
+/** Selecting an existing Session, as the sidebar does; no creation receipt is issued. */
+function openExistingSession() {
+  act(() => {
+    useChatStore.getState().upsertSession(SESSION)
+    useChatStore.getState().setActiveSession(SESSION.id)
+  })
+}
+
+/** Terminal events the Session emits still reach panes subscribed under the draft. */
+const eventsHandedOff = () => eventHandoffs.some((release) => release.mock.calls.length === 0)
+
+function resetStores() {
+  resetWorkspaceShellStores()
+  useBrowserPreviewFloatingStore.setState({ byOwnerKey: {} })
+  useChatStore.getState().startDraftSession('/repo')
 }
 
 describe('WorkspaceTerminal draft materialization authority', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.migrateTerminalOwner.mockResolvedValue(undefined)
+    mocks.migrateTerminalOwner.mockReset().mockResolvedValue(undefined)
     mocks.createSession.mockResolvedValue(SESSION)
-    mocks.context.activeSession = null
-    useChatStore.getState().startDraftSession('/repo')
-    useTerminalStore.setState({ groups: {}, activity: {}, exits: {}, portPreviews: {} })
-    useWorkspacePanelStore.setState({ groups: {} })
+    mocks.getSessionDetail.mockResolvedValue(SESSION)
+    eventHandoffs.length = 0
+    resetStores()
+  })
+  afterEach(async () => {
+    // A committed migration keeps routing draft events for two frames; let it end in its case.
+    await waitFor(() => expect(eventsHandedOff()).toBe(false))
+    resetStores()
   })
 
   it('keeps both owners intact when navigating from a draft to an existing Session', async () => {
@@ -86,18 +119,13 @@ describe('WorkspaceTerminal draft materialization authority', () => {
     const sessionPreview = useWorkspacePanelStore
       .getState()
       .openBrowser(SESSION.id, 'https://session.test')
-    const view = render(<WorkspaceTerminal />)
-    mocks.context.activeSession = SESSION
-    view.rerender(<WorkspaceTerminal />)
+    render(<WorkspaceTerminal />)
+    openExistingSession()
     expect(await screen.findByText(SESSION.id)).toBeInTheDocument()
     expect(mocks.migrateTerminalOwner).not.toHaveBeenCalled()
     expect(mocks.closeBrowserPreview).not.toHaveBeenCalled()
-    expect(useTerminalStore.getState().groups[DRAFT]?.tabs[0]?.panes[0]?.terminalId).toBe(
-      draftTerminal,
-    )
-    expect(useTerminalStore.getState().groups[SESSION.id]?.tabs[0]?.panes[0]?.terminalId).toBe(
-      sessionTerminal,
-    )
+    expect(firstTerminal(DRAFT)).toBe(draftTerminal)
+    expect(firstTerminal(SESSION.id)).toBe(sessionTerminal)
     expect(useWorkspacePanelStore.getState().groups[DRAFT]?.browserTabs[0]?.id).toBe(
       draftPreview.previewId,
     )
@@ -108,32 +136,27 @@ describe('WorkspaceTerminal draft materialization authority', () => {
 
   it('migrates the exact born Session once after an authorized first-send creation', async () => {
     const draftTerminal = createTerminal(DRAFT)
-    const view = render(<WorkspaceTerminal />)
-    await authorizeCreation()
-    mocks.context.activeSession = SESSION
-    view.rerender(<WorkspaceTerminal />)
+    render(<WorkspaceTerminal />)
+    await createSessionFromDraft()
     await waitFor(() => expect(useTerminalStore.getState().groups[DRAFT]).toBeUndefined())
     expect(mocks.migrateTerminalOwner).toHaveBeenCalledExactlyOnceWith(DRAFT, SESSION.id)
-    expect(useTerminalStore.getState().groups[SESSION.id]?.tabs[0]?.panes[0]?.terminalId).toBe(
-      draftTerminal,
-    )
+    expect(firstTerminal(SESSION.id)).toBe(draftTerminal)
   })
 
   it('preserves existing destination tabs even if a creation receipt is present', async () => {
     const draftTerminal = createTerminal(DRAFT)
     const destinationTerminal = createTerminal(SESSION.id)
-    const view = render(<WorkspaceTerminal />)
-    await authorizeCreation()
-    mocks.context.activeSession = SESSION
-    view.rerender(<WorkspaceTerminal />)
+    render(<WorkspaceTerminal />)
+    await createSessionFromDraft()
     expect(await screen.findByText(SESSION.id)).toBeInTheDocument()
+    await waitFor(() =>
+      expect(useUIStore.getState().toastMessage).toBe(
+        'The Session already has workspace tabs. Draft tabs were kept in the draft.',
+      ),
+    )
     expect(mocks.migrateTerminalOwner).not.toHaveBeenCalled()
-    expect(useTerminalStore.getState().groups[DRAFT]?.tabs[0]?.panes[0]?.terminalId).toBe(
-      draftTerminal,
-    )
-    expect(useTerminalStore.getState().groups[SESSION.id]?.tabs[0]?.panes[0]?.terminalId).toBe(
-      destinationTerminal,
-    )
+    expect(firstTerminal(DRAFT)).toBe(draftTerminal)
+    expect(firstTerminal(SESSION.id)).toBe(destinationTerminal)
   })
 
   it('holds the draft through repeated owner effects in StrictMode until migration commits', async () => {
@@ -145,24 +168,14 @@ describe('WorkspaceTerminal draft materialization authority', () => {
         <WorkspaceTerminal />
       </StrictMode>
     )
-    const view = render(element)
-    await authorizeCreation()
-    mocks.context.activeSession = SESSION
-    view.rerender(
-      <StrictMode>
-        <WorkspaceTerminal />
-      </StrictMode>,
-    )
+    render(element)
+    await createSessionFromDraft()
     await waitFor(() => expect(mocks.migrateTerminalOwner).toHaveBeenCalledTimes(1))
-    mocks.context.activeSession = {
-      ...SESSION,
-      environmentMode: 'worktree',
-      worktreePath: '/repo/tree',
-    }
-    view.rerender(
-      <StrictMode>
-        <WorkspaceTerminal />
-      </StrictMode>,
+    // The Session's worktree lands while its tabs are still moving: a new owner effect runs.
+    act(() =>
+      useChatStore.setState({
+        activeSession: { ...SESSION, environmentMode: 'worktree', worktreePath: '/repo/tree' },
+      }),
     )
     expect(await screen.findByText(DRAFT)).toBeInTheDocument()
     expect(useTerminalStore.getState().groups[SESSION.id]).toBeUndefined()
@@ -174,15 +187,17 @@ describe('WorkspaceTerminal draft materialization authority', () => {
 
   it('does not expose or replay failed draft migration as Session-owned tabs', async () => {
     createTerminal(DRAFT)
-    mocks.migrateTerminalOwner.mockRejectedValue(new Error('Migration failed'))
+    const migration = Promise.withResolvers<void>()
+    mocks.migrateTerminalOwner.mockReturnValue(migration.promise)
     const view = render(<WorkspaceTerminal />)
-    await authorizeCreation()
-    mocks.context.activeSession = SESSION
-    view.rerender(<WorkspaceTerminal />)
+    await createSessionFromDraft()
+    await waitFor(() => expect(eventsHandedOff()).toBe(true))
+    await act(async () => migration.reject(new Error('Migration failed')))
     await waitFor(() => expect(screen.queryByText(DRAFT)).not.toBeInTheDocument())
+    expect(useUIStore.getState().toastMessage).toBe('Migration failed')
     expect(useTerminalStore.getState().groups[DRAFT]).toBeDefined()
     expect(useTerminalStore.getState().groups[SESSION.id]).toBeUndefined()
-    expect(mocks.beginTerminalEventOwnerHandoff.mock.results[0]?.value).toHaveBeenCalledTimes(1)
+    expect(eventsHandedOff()).toBe(false)
     await act(async () => view.rerender(<WorkspaceTerminal />))
     expect(mocks.migrateTerminalOwner).toHaveBeenCalledTimes(1)
   })
@@ -191,14 +206,10 @@ describe('WorkspaceTerminal draft materialization authority', () => {
     const originalTerminal = createTerminal(DRAFT)
     const deferred = Promise.withResolvers<void>()
     mocks.migrateTerminalOwner.mockReturnValue(deferred.promise)
-    const view = render(<WorkspaceTerminal />)
-    await authorizeCreation()
-    mocks.context.activeSession = SESSION
-    view.rerender(<WorkspaceTerminal />)
+    render(<WorkspaceTerminal />)
+    await createSessionFromDraft()
     await waitFor(() => expect(mocks.migrateTerminalOwner).toHaveBeenCalledTimes(1))
-    useChatStore.getState().startDraftSession('/repo')
-    mocks.context.activeSession = null
-    view.rerender(<WorkspaceTerminal />)
+    act(() => useChatStore.getState().startDraftSession('/repo'))
     expect(useTerminalStore.getState().createTerminal(DRAFT, '/repo')).toBeNull()
     await act(async () => deferred.resolve())
     await waitFor(() => expect(useTerminalStore.getState().groups[DRAFT]).toBeUndefined())
@@ -208,12 +219,8 @@ describe('WorkspaceTerminal draft materialization authority', () => {
     })
     expect(newTerminal).not.toBeNull()
     expect(newTerminal).not.toBe(originalTerminal)
-    expect(useTerminalStore.getState().groups[DRAFT]?.tabs[0]?.panes[0]?.terminalId).toBe(
-      newTerminal,
-    )
-    expect(useTerminalStore.getState().groups[SESSION.id]?.tabs[0]?.panes[0]?.terminalId).toBe(
-      originalTerminal,
-    )
+    expect(firstTerminal(DRAFT)).toBe(newTerminal)
+    expect(firstTerminal(SESSION.id)).toBe(originalTerminal)
     expect(mocks.migrateTerminalOwner).toHaveBeenCalledTimes(1)
   })
 
@@ -227,13 +234,10 @@ describe('WorkspaceTerminal draft materialization authority', () => {
       useBrowserPreviewFloatingStore.getState().open(DRAFT, preview.previewId)
       const deferred = Promise.withResolvers<void>()
       mocks.migrateTerminalOwner.mockReturnValue(deferred.promise)
-      const view = render(<WorkspaceTerminal />)
-      await authorizeCreation()
-      mocks.context.activeSession = SESSION
-      view.rerender(<WorkspaceTerminal />)
+      render(<WorkspaceTerminal />)
+      await createSessionFromDraft()
       await waitFor(() => expect(mocks.migrateTerminalOwner).toHaveBeenCalledTimes(1))
-      const releaseEvents = mocks.beginTerminalEventOwnerHandoff.mock.results[0]?.value
-      expect(releaseEvents).toBeDefined()
+      expect(eventsHandedOff()).toBe(true)
       act(() => useTerminalStore.getState().ensureTerminal(DRAFT, 'deferred-setup', '/repo'))
       const storage =
         seam === 'workspace'
@@ -287,14 +291,15 @@ describe('WorkspaceTerminal draft materialization authority', () => {
         expect(
           resolveTerminalCommandLayoutOwner(SESSION.id, useTerminalStore.getState().groups),
         ).toBe(terminalSidePanelLayoutKey(SESSION.id))
-        expect(unregisterBrowserPreviewOwner).toHaveBeenCalledWith(DRAFT)
+        expect(mocks.unregisterBrowserPreviewOwner).toHaveBeenCalledWith(DRAFT)
         expect(isWorkspaceOwnerHandoffPending(DRAFT)).toBe(false)
         expect(isWorkspaceOwnerHandoffPending(SESSION.id)).toBe(false)
-        expect(releaseEvents).not.toHaveBeenCalled()
+        // Late draft-owned terminal events keep reaching the moved panes for two frames.
+        expect(eventsHandedOff()).toBe(true)
         act(() => frames.shift()?.(0))
-        expect(releaseEvents).not.toHaveBeenCalled()
+        expect(eventsHandedOff()).toBe(true)
         act(() => frames.shift()?.(0))
-        expect(releaseEvents).toHaveBeenCalledTimes(1)
+        expect(eventsHandedOff()).toBe(false)
         expect(mocks.migrateTerminalOwner).toHaveBeenCalledTimes(1)
       } finally {
         persist.mockRestore()

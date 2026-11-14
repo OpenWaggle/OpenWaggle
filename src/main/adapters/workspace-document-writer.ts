@@ -96,18 +96,14 @@ async function rehydrateWorkspaceDocumentSession(
   return session
 }
 
-export async function applyWorkspaceDocumentEdits(
-  input: WorkspaceDocumentApplyInput,
-): Promise<WorkspaceDocumentApplyResult> {
+export async function applyWorkspaceDocumentEdits(input: WorkspaceDocumentApplyInput) {
   const initial = await resolveExistingWorkspaceFile(input)
   return withWorkspacePathLocks([initial.realFilePath], async () =>
     applyWorkspaceDocumentEditsLocked(input),
   )
 }
 
-async function applyWorkspaceDocumentEditsLocked(
-  input: WorkspaceDocumentApplyInput,
-): Promise<WorkspaceDocumentApplyResult> {
+async function applyWorkspaceDocumentEditsLocked(input: WorkspaceDocumentApplyInput) {
   const resolved = await resolveExistingWorkspaceFile(input)
   let session = workspaceDocumentSession(resolved.projectRoot, resolved.relativePath)
   if (!session) {
@@ -118,25 +114,28 @@ async function applyWorkspaceDocumentEditsLocked(
     )
   }
   if (!session || session.revision !== input.expectedRevision) {
-    return {
+    const result: WorkspaceDocumentApplyResult = {
       status: 'conflict',
       message: 'The document session is stale. Reload the file before saving edits.',
     }
+    return result
   }
   if (session.version !== input.baseVersion) {
-    return {
+    const result: WorkspaceDocumentApplyResult = {
       status: 'out-of-sync',
       message: 'The edit batch does not continue the current document version.',
       expectedVersion: session.version,
     }
+    return result
   }
   const diskData = await fs.readFile(resolved.realFilePath)
   const diskRevision = workspaceFileRevision(resolved.stats.mtimeMs, resolved.stats.size, diskData)
   if (diskRevision !== session.revision) {
-    return {
+    const result: WorkspaceDocumentApplyResult = {
       status: 'conflict',
       message: 'The file changed on disk. Compare it with your draft before choosing a version.',
     }
+    return result
   }
   const applied = applyDocumentBatches({
     content: session.content,
@@ -145,7 +144,11 @@ async function applyWorkspaceDocumentEditsLocked(
   })
   if (applied.status === 'out-of-sync') return applied
   if (applied.status === 'too-large') {
-    return { status: 'too-large', message: 'Focused file editing is limited to 1 MiB.' }
+    const result: WorkspaceDocumentApplyResult = {
+      status: 'too-large',
+      message: 'Focused file editing is limited to 1 MiB.',
+    }
+    return result
   }
   const nextLineEnding =
     input.normalizeLineEnding ?? session.editorConfigPolicy.lineEnding ?? session.lineEnding
@@ -153,10 +156,11 @@ async function applyWorkspaceDocumentEditsLocked(
     input.targetEncoding ?? session.editorConfigPolicy.encoding ?? session.encoding
   const encoded = encodeWorkspaceText(diskContent(applied.content, nextLineEnding), nextEncoding)
   if (encoded.byteLength > WORKSPACE_EDITOR_PERFORMANCE.FOCUSED_EDIT_MAX_BYTES) {
-    return {
+    const result: WorkspaceDocumentApplyResult = {
       status: 'too-large',
       message: 'Focused file editing is limited to 1 MiB.',
     }
+    return result
   }
   await atomicWrite(resolved.realFilePath, encoded, resolved.stats.mode)
   const stats = await fs.stat(resolved.realFilePath)
@@ -168,7 +172,7 @@ async function applyWorkspaceDocumentEditsLocked(
   session.encoding = nextEncoding
   storeWorkspaceDocumentSession(session)
   rememberWorkspaceFile(resolved.projectRoot, resolved.relativePath)
-  return {
+  const result: WorkspaceDocumentApplyResult = {
     status: 'saved',
     version: applied.version,
     size: stats.size,
@@ -177,18 +181,15 @@ async function applyWorkspaceDocumentEditsLocked(
     encoding: nextEncoding,
     lineEnding: nextLineEnding,
   }
+  return result
 }
 
-export async function writeWorkspaceFile(
-  input: WorkspaceFileWriteInput,
-): Promise<WorkspaceFileWriteResult> {
+export async function writeWorkspaceFile(input: WorkspaceFileWriteInput) {
   const initial = await resolveExistingWorkspaceFile(input)
   return withWorkspacePathLocks([initial.realFilePath], async () => writeWorkspaceFileLocked(input))
 }
 
-async function writeWorkspaceFileLocked(
-  input: WorkspaceFileWriteInput,
-): Promise<WorkspaceFileWriteResult> {
+async function writeWorkspaceFileLocked(input: WorkspaceFileWriteInput) {
   const resolved = await resolveExistingWorkspaceFile(input)
   const currentContent =
     resolved.stats.size <= WORKSPACE_EDITOR_PERFORMANCE.FOCUSED_EDIT_MAX_BYTES
@@ -200,26 +201,29 @@ async function writeWorkspaceFileLocked(
     currentContent,
   )
   if (currentRevision !== input.expectedRevision) {
-    return {
+    const result: WorkspaceFileWriteResult = {
       status: 'conflict',
       message: 'The file changed on disk. Reload it before saving your edits.',
     }
+    return result
   }
   if (
     Buffer.byteLength(input.content, 'utf8') > WORKSPACE_EDITOR_PERFORMANCE.FOCUSED_EDIT_MAX_BYTES
   ) {
-    return {
+    const result: WorkspaceFileWriteResult = {
       status: 'too-large',
       message: 'Focused file editing is limited to 1 MiB.',
     }
+    return result
   }
   await fs.writeFile(resolved.realFilePath, input.content, 'utf8')
   const stats = await fs.stat(resolved.realFilePath)
   rememberWorkspaceFile(resolved.projectRoot, resolved.relativePath)
-  return {
+  const result: WorkspaceFileWriteResult = {
     status: 'saved',
     size: stats.size,
     modifiedAt: stats.mtimeMs,
     revision: workspaceFileRevision(stats.mtimeMs, stats.size, Buffer.from(input.content, 'utf8')),
   }
+  return result
 }

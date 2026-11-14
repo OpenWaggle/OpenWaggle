@@ -37,7 +37,7 @@ function lineOf(source: string, index: number) {
   return source.slice(0, index).split('\n').length
 }
 
-export function coldImportHookFindings(file: string, source: string): ColdImportHookFinding[] {
+export function coldImportHookFindings(file: string, source: string) {
   const findings: ColdImportHookFinding[] = []
   for (const match of source.matchAll(HOOK_CALL)) {
     const openParenthesis = match.index + match[0].length - 1

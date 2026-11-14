@@ -3,7 +3,6 @@ import { commandRepairProposalSchema } from '@shared/schemas/action-definitions'
 import {
   type ActionDefinition,
   COMMAND_REPAIR_PROPOSAL_TYPE,
-  type CommandRepairProposal,
   type ProjectTaskDiscovery,
 } from '@shared/types/action-definitions'
 import { projectTaskArguments } from '@shared/utils/project-task-command'
@@ -20,8 +19,9 @@ interface RepairProposalArguments {
 
 function currentCommand(definition: ActionDefinition, discovery: ProjectTaskDiscovery) {
   const invocation = definition.invocation
-  if (invocation.type === 'command')
+  if (invocation.type === 'command') {
     return { command: invocation.command, directory: invocation.directory, resolved: true }
+  }
   const task = discovery.tasks.find(
     ({ reference }) =>
       reference.provider === invocation.task.provider &&
@@ -31,12 +31,13 @@ function currentCommand(definition: ActionDefinition, discovery: ProjectTaskDisc
   )
   // Never invent a command the action did not run: an unresolved script is named, not guessed.
   const { directory } = invocation.task
-  if (!task?.runner)
+  if (!task?.runner) {
     return {
       command: `the ${invocation.task.task} script in ${invocation.task.source}`,
       directory,
       resolved: false,
     }
+  }
   return {
     command: [task.runner, ...projectTaskArguments(invocation.task)].join(' '),
     directory,
@@ -49,7 +50,7 @@ export async function proposeRepair(input: {
   readonly catalog: Pick<ActionCatalogServiceShape, 'read' | 'discover'>
   readonly workspace: ActionRunWorkspace
   readonly proposal: RepairProposalArguments
-}): Promise<CommandRepairProposal> {
+}) {
   const { workspace, proposal: params } = input
   const catalog = await Effect.runPromise(input.catalog.read(workspace))
   const definition = catalog.actions.find(

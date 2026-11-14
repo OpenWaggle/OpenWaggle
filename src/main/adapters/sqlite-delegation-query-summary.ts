@@ -1,8 +1,7 @@
-import type { DelegationQuerySummary } from '@shared/types/session-query'
 import type { DelegationSummaryRow } from './sqlite-delegation-query-rows'
 import { parseSessionJson } from './sqlite-session-query-support'
 
-export function delegationSummary(row: DelegationSummaryRow): DelegationQuerySummary {
+export function delegationSummary(row: DelegationSummaryRow) {
   const specification = parseSessionJson(row.specification_json)
   const objective =
     typeof specification === 'object' &&

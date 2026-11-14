@@ -26,7 +26,9 @@ describe('useSourceControlQueryFreshness', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     expect(mocks.onRunCompleted).toHaveBeenCalledOnce()
 
-    act(() => mocks.onRunCompleted.mock.calls[0]?.[0]?.({ sessionId: SessionId('s') }))
+    act(() => {
+      mocks.onRunCompleted.mock.calls[0]?.[0]?.({ sessionId: SessionId('s') })
+    })
     act(() => {
       window.dispatchEvent(new Event('focus'))
     })

@@ -128,11 +128,13 @@ function nextElapsedOccurrence(
 ) {
   const step = rule.interval * MINUTE_MS
   const startStep = after < anchorEpoch ? 0 : Math.floor((after - anchorEpoch) / step) + 1
+  const hours = rule.byHour ? new Set(rule.byHour) : undefined
+  const months = rule.byMonth ? new Set(rule.byMonth) : undefined
   for (let index = 0; index < MAX_ELAPSED_STEPS; index += 1) {
     const candidate = anchorEpoch + (startStep + index) * step
     const zoned = zonedDateTime(candidate, timeZone)
-    if (rule.byHour && !rule.byHour.includes(zoned.hour)) continue
-    if (rule.byMonth && !rule.byMonth.includes(zoned.month)) continue
+    if (hours && !hours.has(zoned.hour)) continue
+    if (months && !months.has(zoned.month)) continue
     if (rule.byWeekday && !rule.byWeekday.some((weekday) => weekday.weekday === zoned.weekday)) {
       continue
     }
@@ -150,7 +152,7 @@ export function nextRecurrence(
   timeZone: string,
   anchorEpoch: number,
   after: number,
-): number | null {
+) {
   return rule.frequency === 'MINUTELY'
     ? nextElapsedOccurrence(rule, timeZone, anchorEpoch, after)
     : nextCalendarOccurrence(rule, timeZone, anchorEpoch, after)

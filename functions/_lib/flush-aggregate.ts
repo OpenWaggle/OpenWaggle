@@ -6,12 +6,7 @@
 
 import { type DayTotals, publishableTotals } from './flush-totals'
 import { encodeUtf8 } from './http'
-import {
-  ANONYMOUS_DISTINCT_ID,
-  middayTimestamp,
-  type PostHogEvent,
-  personlessProperties,
-} from './posthog'
+import { ANONYMOUS_DISTINCT_ID, middayTimestamp, personlessProperties } from './posthog'
 import { hexEncode } from './visitor-key'
 
 const UUID_BYTES = 16
@@ -45,10 +40,7 @@ export async function deterministicUuid(material: string) {
  * UTC, no other property, and a UUID derived from the sorted keys of the entries it adds up and
  * from what it counts, so a retried flush of the same entries publishes the same UUIDs.
  */
-export async function aggregatedEvents(
-  totals: DayTotals,
-  entryKeys: readonly string[],
-): Promise<PostHogEvent[]> {
+export async function aggregatedEvents(totals: DayTotals, entryKeys: readonly string[]) {
   const published = publishableTotals(totals)
   const timestamp = middayTimestamp(published.day)
   const base = personlessProperties(ANONYMOUS_DISTINCT_ID)

@@ -4,6 +4,7 @@ import type {
 } from '@openwaggle/extension-sdk'
 import { createPlainExtensionSyntaxResult } from '@openwaggle/extension-sdk'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { SourceView, SyntaxBlock } from '../index'
 
@@ -82,6 +83,48 @@ describe('@openwaggle/extension-react syntax primitives', () => {
     await Promise.resolve()
     expect(screen.queryByText('stale first')).not.toBeInTheDocument()
     expect(screen.getByText('second highlighted')).toBeInTheDocument()
+  })
+
+  // Regression: the previous source's highlight stayed on screen for the new source until an effect
+  // reset it, so the first commit after a rerender showed stale tokens.
+  it('shows the new source plain while its own highlight is pending', async () => {
+    const highlight = vi.fn<OpenWaggleExtensionSyntaxSdk['highlight']>((input) =>
+      input.source === 'first'
+        ? Promise.resolve({
+            status: 'highlighted',
+            language: 'typescript',
+            lines: [[{ content: 'first highlighted' }]],
+          })
+        : new Promise<OpenWaggleExtensionSyntaxHighlightResult>(() => undefined),
+    )
+    const syntax: OpenWaggleExtensionSyntaxSdk = { highlight }
+    const committedText: string[] = []
+    function CommitProbe() {
+      // A layout effect reads the DOM of the commit itself, before any passive effect corrects it.
+      useLayoutEffect(() => {
+        committedText.push(document.querySelector('pre')?.textContent ?? '')
+      })
+      return null
+    }
+    const rendered = render(
+      <>
+        <SyntaxBlock syntax={syntax} source="first" language="typescript" />
+        <CommitProbe />
+      </>,
+    )
+    await screen.findByText('first highlighted')
+    committedText.length = 0
+
+    rendered.rerender(
+      <>
+        <SyntaxBlock syntax={syntax} source="second" language="typescript" />
+        <CommitProbe />
+      </>,
+    )
+
+    expect(committedText).toEqual(['second'])
+    expect(document.querySelector('pre')).toHaveAttribute('data-ow-syntax-status', 'plain-text')
+    expect(screen.queryByText('first highlighted')).not.toBeInTheDocument()
   })
 
   it('clamps its virtual range when a long source is replaced by a shorter source', async () => {

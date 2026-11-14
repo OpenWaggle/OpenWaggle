@@ -1,35 +1,29 @@
+import type { SchemaType } from '@shared/schema'
+import type { sessionQueryRequestSchema, sessionQuerySchema } from '@shared/schemas/session-query'
 import type { SessionHostErrorKind } from '../domain/session-host-refusals'
 import type { AgentLoopInteraction } from './agent-loop-interaction'
 import type { HiveNextActor } from './hive-next-actor'
 import type { DelegationState } from './session-collaboration'
 import type { FollowUpQueuePauseReason, SessionFollowUpListing } from './session-control-queue'
 import type {
-  DelegationConflictKind,
-  DelegationConflictStatus,
   DelegationConflictsQueryOutcome,
   DelegationListQueryOutcome,
   DelegationReadQueryOutcome,
 } from './session-delegation-query'
-import type { SessionExportOutcome, SessionExportQuery } from './session-export'
-import type {
-  SessionExportOperationQuery,
-  SessionExportOperationQueryOutcome,
-} from './session-export-operation'
+import type { SessionExportOutcome } from './session-export'
+import type { SessionExportOperationQueryOutcome } from './session-export-operation'
 import type { SessionHostEventCursor } from './session-host-event'
 import type {
   SemanticDiscoveryReadiness,
   SessionDiscoveryMode,
   SessionQuerySummary,
 } from './session-query-discovery'
-import type { SessionItemsOutcome, SessionItemsQuery } from './session-query-items'
-import type { SessionWaitState, SessionWaitTarget } from './session-wait'
+import type { SessionItemsOutcome } from './session-query-items'
+import type { SessionWaitState } from './session-wait'
 
-export type { DelegationQuerySummary } from './session-delegation-query'
 export type {
   SemanticDiscoveryReadiness,
-  SessionDiscoveryEvidence,
   SessionDiscoveryMode,
-  SessionLineageRole,
   SessionQuerySummary,
 } from './session-query-discovery'
 export type { SessionQueryResponse } from './session-query-response'
@@ -38,24 +32,6 @@ export {
   SESSION_QUERY_WAIT_TARGET_LIMIT,
   type SessionWaitState,
 } from './session-wait'
-export const SESSION_QUERY_OPERATIONS = [
-  'list',
-  'search',
-  'read',
-  'turns',
-  'items',
-  'export',
-  'exports-list',
-  'exports-read',
-  'exports-wait',
-  'status',
-  'queue-list',
-  'requests-list',
-  'delegations-list',
-  'delegations-read',
-  'delegations-conflicts',
-  'wait',
-] as const
 
 export const SESSION_QUERY_CONTRACT_VERSION = 2 as const
 // Keep query pages below the Local Session transport's 64 MiB logical-message ceiling.
@@ -69,102 +45,9 @@ export const SESSION_QUERY_MAX_CURSOR_LENGTH = 4_096
 export const SESSION_QUERY_MAX_PATH_LENGTH = 4_096
 export const SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT = 1_000
 
-/**
- * A catalog query's current project: the Sessions of the project this path belongs to, so the
- * project checkout and every managed worktree of it. The Host resolves a managed worktree (or a
- * directory inside one) to its Session's project, as it maps a Workspace to its project
- * elsewhere; any other path stands for the project at that path.
- */
-export type SessionCatalogWorkingPath = string
+export type SessionQuery = SchemaType<typeof sessionQuerySchema>
 
-export type SessionQuery =
-  | {
-      readonly operation: 'list'
-      readonly limit: number
-      readonly cursor?: string
-      readonly archived?: boolean
-      readonly interrupted?: boolean
-      readonly unreadTerminalStatus?: 'completed' | 'failed'
-      readonly projectPath?: string
-      readonly projectPaths?: readonly string[]
-      readonly workingPath?: SessionCatalogWorkingPath
-      /** Only the direct Workers of this Session. */
-      readonly parentSessionId?: string
-      readonly searchText?: string
-    }
-  | {
-      readonly operation: 'search'
-      readonly query: string
-      readonly limit: number
-      readonly cursor?: string
-      readonly projectPath?: string
-      readonly workingPath?: SessionCatalogWorkingPath
-      readonly includeArchived?: boolean
-      readonly searchScope?: 'discovery' | 'full-transcript'
-      readonly mode?: SessionDiscoveryMode
-      readonly requireFresh?: boolean
-      readonly waitTimeoutMs?: number
-    }
-  | { readonly operation: 'read'; readonly sessionId: string }
-  | {
-      readonly operation: 'turns'
-      readonly sessionId: string
-      readonly limit: number
-      readonly cursor?: string
-    }
-  | SessionItemsQuery
-  | SessionExportQuery
-  | SessionExportOperationQuery
-  | { readonly operation: 'status'; readonly sessionId: string }
-  | {
-      readonly operation: 'queue-list'
-      readonly sessionId: string
-      readonly includeBodies?: boolean
-    }
-  | {
-      readonly operation: 'requests-list'
-      readonly sessionId: string
-    }
-  | {
-      readonly operation: 'delegations-list'
-      readonly limit: number
-      readonly cursor?: string
-      readonly projectPath?: string
-      readonly workingPath?: SessionCatalogWorkingPath
-      readonly parentSessionId?: string
-      readonly workerSessionId?: string
-      readonly states?: readonly DelegationState[]
-    }
-  | {
-      readonly operation: 'delegations-read'
-      readonly delegationId: string
-      readonly limit?: number
-      readonly cursor?: string
-    }
-  | {
-      readonly operation: 'delegations-conflicts'
-      readonly limit: number
-      readonly cursor?: string
-      readonly projectPath?: string
-      readonly workingPath?: SessionCatalogWorkingPath
-      readonly parentSessionId?: string
-      readonly workerSessionId?: string
-      readonly delegationId?: string
-      readonly kinds?: readonly DelegationConflictKind[]
-      readonly statuses?: readonly DelegationConflictStatus[]
-    }
-  | {
-      readonly operation: 'wait'
-      readonly targets: readonly SessionWaitTarget[]
-      readonly timeoutMs: number
-      readonly after?: SessionHostEventCursor
-    }
-
-export interface SessionQueryRequest {
-  readonly contractVersion: typeof SESSION_QUERY_CONTRACT_VERSION
-  readonly requestId: string
-  readonly query: SessionQuery
-}
+export type SessionQueryRequest = SchemaType<typeof sessionQueryRequestSchema>
 
 export type SessionQueryOutcome =
   | {

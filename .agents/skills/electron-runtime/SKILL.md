@@ -20,8 +20,8 @@ Separate Node test behavior, Electron dev behavior, and packaged Electron behavi
 Use repo scripts before hand-built rebuild commands:
 
 ```bash
-pnpm prepare:native:node
-pnpm prepare:native:electron
+bun run prepare:native:node
+bun run prepare:native:electron
 ```
 
 - Vitest and Electron do not share a native ABI target.
@@ -33,17 +33,17 @@ pnpm prepare:native:electron
 
 - Packaged apps may not inherit the user's shell PATH.
 - Resources copied from `app.asar` may need `app.asar.unpacked` paths.
-- `electron-updater` needs the transitive `ms` runtime dependency explicitly present with pnpm packaging.
-- Validate packaged-only regressions against the rebuilt `.app`, not only `pnpm dev`.
+- `electron-updater` needs its transitive `ms` runtime dependency declared explicitly: the isolated install layout (pnpm's before, Bun's `linker = "isolated"` now) does not hoist it into the packaged app.
+- Validate packaged-only regressions against the rebuilt `.app`, not only `bun run dev`.
 - On Apple silicon, use arm64 output for local performance checks.
 
 ## Playwright And CDP
 
-- `pnpm dev:debug` starts non-disruptive Electron automation with CDP on reserved port 9223. It fails before launch if that port is occupied. Use `pnpm dev:debug:headed` for visible QA on port 9222; `pnpm dev` remains visible for normal development.
-- Hidden `pnpm dev:debug` uses an ephemeral user-data directory and disables the single-instance lock. It never reuses or focuses an existing OpenWaggle process and never mutates the normal development profile.
+- `bun run dev:debug` starts non-disruptive Electron automation with CDP on reserved port 9223. It fails before launch if that port is occupied. Use `bun run dev:debug:headed` for visible QA on port 9222; `bun run dev` remains visible for normal development.
+- Hidden `bun run dev:debug` uses an ephemeral user-data directory and disables the single-instance lock. It never reuses or focuses an existing OpenWaggle process and never mutates the normal development profile.
 - The hidden launcher owns its Electron child, exclusive port lease, ephemeral profile, forwarded logs, signal handling, stale-dead-process metadata recovery, and profile cleanup.
 - The managed CDP page must match the launcher's per-run identity; a free-port preflight alone does not prove ownership. Lease recovery and acquisition are process-serialized, and evidence failure must not skip process-tree cleanup.
-- Apply non-disruptive automation mode to every scripted Electron launch, including E2E, CDP QA, startup measurement, and website screenshot capture. Only ordinary `pnpm dev` and explicitly headed commands may show the app.
+- Apply non-disruptive automation mode to every scripted Electron launch, including E2E, CDP QA, startup measurement, and website screenshot capture. Only ordinary `bun run dev` and explicitly headed commands may show the app.
 - Playwright Electron E2E needs isolated user data and single-instance lock opt-out when another app instance is open.
 - Agent-run E2E and QA must not show or focus an Electron window, open native OS dialogs, or launch external applications. Those automated paths fail closed when an interaction would expose OS UI. A visible app requires an explicit headed command.
 - Enforce the automation policy in the Electron main process. Repository checks must reject unguarded window-show/focus, native-dialog, and external-application calls outside the centralized policy.
@@ -56,9 +56,9 @@ pnpm prepare:native:electron
 For runtime issues, verify the failing runtime path directly:
 
 ```bash
-pnpm prepare:native:electron
-pnpm build
-pnpm dev:debug   # then verify via .agents/skills/electron-qa/SKILL.md
+bun run prepare:native:electron
+bun run build
+bun run dev:debug   # then verify via .agents/skills/electron-qa/SKILL.md
 ```
 
 For UI-visible behavior, use `.agents/skills/electron-qa/SKILL.md`.

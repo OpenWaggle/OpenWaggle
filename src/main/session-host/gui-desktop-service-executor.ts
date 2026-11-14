@@ -40,7 +40,7 @@ function failedCompletion(
   commandId: string,
   command: DesktopServiceCommand,
   cause: Cause.Cause<Error>,
-): DesktopCompletion {
+) {
   const interrupted = Cause.isInterruptedOnly(cause)
   const reason = interrupted ? 'interrupted' : causeMessage(cause)
   logger.warn('A desktop operation failed', {
@@ -50,14 +50,19 @@ function failedCompletion(
     error: reason,
   })
   if (!isReadOnlyDesktopCommand(command)) {
-    return { commandId, outcome: 'failure', uncertain: true, message: UNCERTAIN_FAILURE_MESSAGE }
+    return {
+      commandId,
+      outcome: 'failure',
+      uncertain: true,
+      message: UNCERTAIN_FAILURE_MESSAGE,
+    } satisfies DesktopCompletion
   }
   const message = interrupted ? INTERRUPTED_READ_MESSAGE : reason
   return {
     commandId,
     outcome: 'failure',
     message: message.slice(0, DESKTOP_SERVICE_LIMITS.errorLength),
-  }
+  } satisfies DesktopCompletion
 }
 
 /** Retain this executor for the GUI process lifetime, including Host reconnects. */
@@ -89,9 +94,10 @@ export function makeGuiDesktopServiceExecutor(services: {
     },
   })
 
-  function dispatch(command: DesktopServiceCommand): Effect.Effect<DesktopServiceResult, Error> {
-    if (command.service === 'terminal')
+  function dispatch(command: DesktopServiceCommand) {
+    if (command.service === 'terminal') {
       return executeDesktopTerminalCommand(services.terminal, command)
+    }
     if (command.service === 'fence') {
       return Effect.tryPromise({
         try: () => {
@@ -118,29 +124,27 @@ export function makeGuiDesktopServiceExecutor(services: {
     return executeDesktopBrowserCommand(services.browser, command)
   }
 
-  async function execute(
-    envelope: DesktopCommandEnvelope,
-    leaseId: string,
-  ): Promise<DesktopCompletion> {
-    const failure = (message: string): DesktopCompletion => ({
-      commandId: envelope.commandId,
-      outcome: 'failure',
-      message,
-    })
-    if (envelope.leaseId !== leaseId || envelope.deadline <= Date.now())
+  async function execute(envelope: DesktopCommandEnvelope, leaseId: string) {
+    const failure = (message: string) =>
+      ({ commandId: envelope.commandId, outcome: 'failure', message }) satisfies DesktopCompletion
+    if (envelope.leaseId !== leaseId || envelope.deadline <= Date.now()) {
       return failure('The desktop command lease or deadline is stale.')
-    if (running.has(envelope.commandId) || finished.has(envelope.commandId))
+    }
+    if (running.has(envelope.commandId) || finished.has(envelope.commandId)) {
       return failure('The desktop command was already dispatched.')
-    if (running.size >= DESKTOP_SERVICE_LIMITS.pendingCommands)
+    }
+    if (running.size >= DESKTOP_SERVICE_LIMITS.pendingCommands) {
       return failure('The desktop executor is full.')
+    }
     let command: DesktopServiceCommand
     try {
       command = decodeUnknownExactOrThrow(desktopServiceCommandSchema, envelope.command)
     } catch {
       return failure('The desktop command did not match the supported schema.')
     }
-    if (fences.blocks(command))
+    if (fences.blocks(command)) {
       return failure('This Session or Workspace has an active desktop mutation fence.')
+    }
     const controller = new AbortController()
     const settled = Promise.withResolvers<void>()
     running.set(envelope.commandId, { controller, command, settled: settled.promise })
@@ -150,9 +154,10 @@ export function makeGuiDesktopServiceExecutor(services: {
     )
     timeout.unref?.()
     try {
-      const exit = await Effect.runPromiseExit(dispatch(command), { signal: controller.signal })
+      const effect: Effect.Effect<DesktopServiceResult, Error> = dispatch(command)
+      const exit = await Effect.runPromiseExit(effect, { signal: controller.signal })
       if (Exit.isSuccess(exit)) {
-        return { commandId: envelope.commandId, outcome: 'success', result: exit.value }
+        return { commandId: envelope.commandId, outcome: 'success', result: exit.value } as const
       }
       return failedCompletion(envelope.commandId, command, exit.cause)
     } finally {

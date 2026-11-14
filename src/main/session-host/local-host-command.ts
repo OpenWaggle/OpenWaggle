@@ -17,10 +17,7 @@ export const UPDATE_HOST_STOP_DEADLINE_MS = 10_000
  * Only the local user may stop the Host: the CLI, and the desktop app or an installer when an
  * update installs. Named profiles and agents may not. The desktop app only stops it for updates.
  */
-function hostStopOptions(
-  caller: LocalSessionCallerIdentity,
-  payload: LocalHostCommandPayload,
-): SessionHostDrainOptions {
+function hostStopOptions(caller: LocalSessionCallerIdentity, payload: LocalHostCommandPayload) {
   if (caller.profileAuthority) {
     throw new LocalSessionCommandAuthorizationError({ code: 'capability_denied' })
   }
@@ -49,7 +46,7 @@ export async function dispatchLocalHostCommand(input: {
     readonly runningActions: number
   }
   readonly processId?: number
-}): Promise<LocalHostCommandResult> {
+}) {
   const options = hostStopOptions(input.caller, input.payload)
   // Stop first, so no Run can be admitted between the count and the drain. The count only
   // informs the reply; failing to read it must not cancel the stop.
@@ -67,5 +64,5 @@ export async function dispatchLocalHostCommand(input: {
         ? { processId: input.processId }
         : {}),
     },
-  }
+  } satisfies LocalHostCommandResult
 }

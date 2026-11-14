@@ -8,12 +8,13 @@ import { answerContentKey, withoutSavedRunAnswers } from '../saved-run-answers'
  * content, the two must still be one answer.
  */
 
-const answer = (id: string, parts: UIMessage['parts'], order?: number): UIMessage => ({
-  id,
-  role: 'assistant',
-  parts,
-  ...(order === undefined ? {} : { metadata: { sessionNodeCreatedOrder: order } }),
-})
+const answer = (id: string, parts: UIMessage['parts'], order?: number) =>
+  ({
+    id,
+    role: 'assistant',
+    parts,
+    ...(order === undefined ? {} : { metadata: { sessionNodeCreatedOrder: order } }),
+  }) satisfies UIMessage
 const text = (content: string) => ({ type: 'text' as const, content })
 const tool = (id: string) => ({
   type: 'tool-call' as const,

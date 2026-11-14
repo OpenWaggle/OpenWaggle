@@ -208,8 +208,12 @@ export function ChatErrorDisplay({
             info={info}
             isAuthError={isAuthError}
             copy={{ copied, onCopy: handleCopy }}
-            retry={{ lastUserMessage, onRetry, onDismiss: handleDismiss }}
-            onOpenSettings={onOpenSettings}
+            retry={{
+              lastUserMessage,
+              ...(onRetry === undefined ? {} : { onRetry }),
+              onDismiss: handleDismiss,
+            }}
+            {...(onOpenSettings === undefined ? {} : { onOpenSettings })}
             onDismiss={handleDismiss}
             onReport={() => openFeedbackModal(info)}
           />

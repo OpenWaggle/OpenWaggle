@@ -1,4 +1,3 @@
-import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import { validateMcpCliPositionals } from './mcp-cli-positional-contract'
 
 export { formatMcpCliOutput, readSecretFromStdin } from './mcp-cli-io'
@@ -86,6 +85,33 @@ export function isFlagValue(value: string) {
   return value === 'true' || value === OPTION_WITHOUT_VALUE
 }
 
+/**
+ * The usage error for options given the wrong kind of value, or null: a valued option with no
+ * value, or a boolean option given one. Names are sorted so the message is stable.
+ */
+export function optionValueProblem(
+  arguments_: ParsedArguments,
+  booleanOptions: ReadonlySet<string>,
+) {
+  const missingValues = [...arguments_.options.entries()]
+    .flatMap(([name, values]) =>
+      !booleanOptions.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
+    )
+    .sort()
+  if (missingValues.length > 0) {
+    return `Missing value for ${missingValues.map((name) => `--${name}`).join(', ')}.`
+  }
+  const valuedBooleans = [...arguments_.options.entries()]
+    .flatMap(([name, values]) =>
+      booleanOptions.has(name) && values.some((value) => !isFlagValue(value)) ? [name] : [],
+    )
+    .sort()
+  if (valuedBooleans.length > 0) {
+    return `${valuedBooleans.map((name) => `--${name}`).join(', ')} do not accept values.`
+  }
+  return null
+}
+
 function parseOption(args: readonly string[], index: number, options: Map<string, string[]>) {
   const value = args[index] ?? ''
   const separator = value.indexOf('=')
@@ -104,7 +130,7 @@ function parseOption(args: readonly string[], index: number, options: Map<string
   return consumesNext ? OPTION_AND_VALUE_COUNT : NEXT_ARGUMENT_OFFSET
 }
 
-export function parseMcpCliArguments(args: readonly string[]): ParsedArguments {
+export function parseMcpCliArguments(args: readonly string[]) {
   const positionals: string[] = []
   const passthrough: string[] = []
   const options = new Map<string, string[]>()
@@ -122,7 +148,8 @@ export function parseMcpCliArguments(args: readonly string[]): ParsedArguments {
     }
     index += parseOption(args, index, options)
   }
-  return { positionals, passthrough, options }
+  const parsed: ParsedArguments = { positionals, passthrough, options }
+  return parsed
 }
 
 export function option(arguments_: ParsedArguments, name: string) {
@@ -145,26 +172,12 @@ export function validateMcpCliOptions(command: string, arguments_: ParsedArgumen
       `Unknown option${unknown.length === 1 ? '' : 's'}: ${unknown.map((name) => `--${name}`).join(', ')}.`,
     )
   }
-  const missingValues = [...arguments_.options.entries()]
-    .flatMap(([name, values]) =>
-      !BOOLEAN_OPTIONS.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
-    )
-    .sort()
-  if (missingValues.length > 0) {
-    throw new Error(`Missing value for ${missingValues.map((name) => `--${name}`).join(', ')}.`)
-  }
-  const valuedBooleans = [...arguments_.options.entries()]
-    .flatMap(([name, values]) =>
-      BOOLEAN_OPTIONS.has(name) && values.some((value) => !isFlagValue(value)) ? [name] : [],
-    )
-    .sort()
-  if (valuedBooleans.length > 0) {
-    throw new Error(`${valuedBooleans.map((name) => `--${name}`).join(', ')} do not accept values.`)
-  }
+  const valueProblem = optionValueProblem(arguments_, BOOLEAN_OPTIONS)
+  if (valueProblem !== null) throw new Error(valueProblem)
   if (command === 'serve') serveAuthorizationCeiling(arguments_)
 }
 
-export function serveAuthorizationCeiling(arguments_: ParsedArguments): AgentAuthorizationMode {
+export function serveAuthorizationCeiling(arguments_: ParsedArguments) {
   const value = option(arguments_, 'authorization-ceiling') ?? 'ask-for-approval'
   if (value === 'ask-for-approval' || value === 'yolo') return value
   throw new Error(

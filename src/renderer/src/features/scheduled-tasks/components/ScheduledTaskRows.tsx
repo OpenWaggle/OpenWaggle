@@ -3,7 +3,7 @@ import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
-import { useNow } from '../hooks/useNow'
+import { useNow } from '@/shared/hooks/useNow'
 import { useSetScheduledTaskEnabled } from '../hooks/useScheduledTaskMutations'
 import { describeSchedule } from '../lib/schedule-presets'
 import {

@@ -49,15 +49,18 @@ export function BrowserImportConfigureStep({
             >
               From
             </p>
-            {model.source.profiles.map((profile) => (
-              <WizardSelectableTile
-                key={profile.directory}
-                selected={model.sourceProfileDirectory === profile.directory}
-                title={profile.name}
-                subtitle={cookieCountLabel(profile.cookieCount)}
-                onSelect={() => model.setSourceProfileDirectory(profile.directory)}
-              />
-            ))}
+            {model.source.profiles.map((profile) => {
+              const subtitle = cookieCountLabel(profile.cookieCount)
+              return (
+                <WizardSelectableTile
+                  key={profile.directory}
+                  selected={model.sourceProfileDirectory === profile.directory}
+                  title={profile.name}
+                  {...(subtitle === undefined ? {} : { subtitle })}
+                  onSelect={() => model.setSourceProfileDirectory(profile.directory)}
+                />
+              )
+            })}
           </section>
           <div aria-hidden="true" className="flex shrink-0 justify-center text-text-quaternary">
             <ArrowDown className="size-4 sm:hidden" />

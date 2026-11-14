@@ -1,5 +1,7 @@
-import type { AgentSendReport } from '@shared/types/agent'
-import type { LocalSessionWaggleCommandPayload } from '@shared/types/local-session-waggle'
+import type {
+  LocalSessionWaggleCommandPayload,
+  WaggleSendReport,
+} from '@shared/types/local-session-waggle'
 import { Context, type Effect } from 'effect'
 import type { SessionControlRepositoryError } from '../errors'
 
@@ -16,14 +18,14 @@ export interface ExplicitWaggleOperationInput {
 export type ExplicitWaggleOperationClaim =
   | { readonly status: 'claimed' }
   | { readonly status: 'pending'; readonly replayed: true }
-  | { readonly status: 'completed'; readonly replayed: true; readonly report: AgentSendReport }
+  | { readonly status: 'completed'; readonly replayed: true; readonly report: WaggleSendReport }
 
 export interface ExplicitWaggleOperationJournalShape {
   readonly claim: (
     input: ExplicitWaggleOperationInput,
   ) => Effect.Effect<ExplicitWaggleOperationClaim, SessionControlRepositoryError>
   readonly complete: (
-    input: ExplicitWaggleOperationInput & { readonly report: AgentSendReport },
+    input: ExplicitWaggleOperationInput & { readonly report: WaggleSendReport },
   ) => Effect.Effect<void, SessionControlRepositoryError>
 }
 

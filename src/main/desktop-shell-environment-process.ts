@@ -5,6 +5,7 @@ import {
   type StartedDesktopShellEnvironment,
   startDesktopShellEnvironment,
 } from './desktop-shell-environment-start'
+import { liveProcessEnvironment } from './env'
 
 let desktopShellEnvironment: StartedDesktopShellEnvironment | null = null
 let cacheRefreshStartedAt: number | null = null
@@ -18,6 +19,16 @@ function userLoginShell() {
     return userInfo().shell || undefined
   } catch {
     return undefined
+  }
+}
+
+/** The login shell and uid of this process's user, leaving out the ones it does not have. */
+function processUserIdentity() {
+  const userShell = userLoginShell()
+  const uid = process.getuid?.()
+  return {
+    ...(userShell === undefined ? {} : { userShell }),
+    ...(uid === undefined ? {} : { uid }),
   }
 }
 
@@ -41,15 +52,14 @@ export interface ProcessDesktopShellEnvironmentOptions {
 export function installProcessDesktopShellEnvironment(
   environment: Record<string, string | undefined>,
   options: ProcessDesktopShellEnvironmentOptions = {},
-): StartedDesktopShellEnvironment {
+) {
   if (desktopShellEnvironment) return desktopShellEnvironment
   const writesCache = options.cacheFile !== undefined && options.writeCache !== false
   if (writesCache) cacheRefreshStartedAt = Date.now()
   desktopShellEnvironment = startDesktopShellEnvironment({
     env: environment,
     platform: process.platform,
-    userShell: userLoginShell(),
-    uid: process.getuid?.(),
+    ...processUserIdentity(),
     exists: existsSync,
     ...(options.cacheFile ? { cache: fileShellEnvironmentCache(options.cacheFile) } : {}),
     writeCache: writesCache,
@@ -65,11 +75,18 @@ export function installProcessDesktopShellEnvironment(
   return desktopShellEnvironment
 }
 
+/** Hydrates this process's environment from the login shell. */
+export function installDesktopShellEnvironment(
+  options: ProcessDesktopShellEnvironmentOptions = {},
+) {
+  return installProcessDesktopShellEnvironment(liveProcessEnvironment(), options)
+}
+
 /**
  * When this process started refreshing the profile's login-shell cache (the desktop app), so a
  * Host it launches can wait for that refresh instead of probing again; null if it does not.
  */
-export function desktopShellEnvironmentRefreshStartedAt(): number | null {
+export function desktopShellEnvironmentRefreshStartedAt() {
   return cacheRefreshStartedAt
 }
 
@@ -79,7 +96,7 @@ export function desktopShellEnvironmentRefreshStartedAt(): number | null {
  * git and stdio MCP servers wait for it before they start a process. A process that never
  * hydrates (the CLI, tests) does not wait.
  */
-export function desktopShellEnvironmentReady(): Promise<void> {
+export function desktopShellEnvironmentReady() {
   return desktopShellEnvironment
     ? desktopShellEnvironment.ready.catch(() => undefined)
     : Promise.resolve()

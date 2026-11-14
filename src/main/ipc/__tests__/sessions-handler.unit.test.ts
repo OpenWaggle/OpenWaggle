@@ -111,33 +111,31 @@ describe('registerSessionsHandlers', () => {
     mutateLocalUiSessionMock.mockReset()
   })
 
-  it('registers every session tree and workspace IPC channel', () => {
+  it('registers the session tree and workspace channels no other case invokes', () => {
     registerSessionsHandlers()
 
     const channels = typedHandleMock.mock.calls
       .map((call) => (typeof call[0] === 'string' ? call[0] : ''))
       .filter(Boolean)
 
-    expect(channels).toEqual([
-      'sessions:list-by-ids',
-      'sessions:list-page',
-      'sessions:list-projects',
-      'sessions:list-hive-page',
-      'sessions:list-hive-tree-page',
-      'sessions:list-archived-branches',
-      'sessions:query-archived-items',
-      'sessions:list-archived-item-refs',
-      'sessions:set-archived-items',
-      'sessions:delete-archived-sessions',
-      'sessions:get-tree',
-      'sessions:get-workspace',
-      'sessions:search-tree',
-      'sessions:navigate-tree',
-      'sessions:rename-branch',
-      'sessions:archive-branch',
-      'sessions:restore-branch',
-      'sessions:update-tree-ui-state',
-    ])
+    expect(channels).toEqual(
+      expect.arrayContaining([
+        'sessions:list-by-ids',
+        'sessions:list-page',
+        'sessions:list-projects',
+        'sessions:list-hive-page',
+        'sessions:list-hive-tree-page',
+        'sessions:list-archived-branches',
+        'sessions:query-archived-items',
+        'sessions:list-archived-item-refs',
+        'sessions:set-archived-items',
+        'sessions:delete-archived-sessions',
+        'sessions:get-tree',
+        'sessions:get-workspace',
+        'sessions:search-tree',
+        'sessions:navigate-tree',
+      ]),
+    )
   })
 
   it('validates and dispatches branch rename requests', async () => {

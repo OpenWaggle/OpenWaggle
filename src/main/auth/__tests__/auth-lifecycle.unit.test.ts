@@ -7,7 +7,7 @@ interface ProviderState {
 }
 
 const mocks = vi.hoisted(() => ({
-  runGuiEffect: vi.fn(async (): Promise<readonly ProviderState[]> => []),
+  runGuiEffect: vi.fn<() => Promise<readonly ProviderState[]>>(async () => []),
 }))
 
 vi.mock('../../gui-runtime', () => ({ runGuiEffect: mocks.runGuiEffect }))

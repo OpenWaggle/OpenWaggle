@@ -1,8 +1,7 @@
 import path from 'node:path'
 import { MCP_CONFIG } from '@shared/constants/mcp'
-import type { McpSecretSummary } from '@shared/types/mcp'
 import { Effect, Layer } from 'effect'
-import { safeStorage } from 'electron'
+import { secureStorage } from '../../desktop-shell/secure-storage'
 import { McpVaultError, toMcpVaultError } from '../../ports/mcp-errors'
 import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
 import { deferredMcpSecret } from './config/mcp-deferred-secrets'
@@ -103,7 +102,7 @@ function secretNotFound(name: string) {
 
 export function createEncryptedMcpSecretVault(
   filePath: string,
-  encryption: McpVaultEncryption = safeStorage,
+  encryption: McpVaultEncryption = secureStorage,
   options: EncryptedMcpSecretVaultOptions = {},
 ) {
   let writeQueue: Promise<void> = Promise.resolve()
@@ -132,9 +131,7 @@ export function createEncryptedMcpSecretVault(
     return { version: 1 as const, secrets: await ownLegacySecrets(legacy, encryption) }
   }
 
-  async function mutate(
-    update: (vault: VaultFile) => VaultFile | Promise<VaultFile>,
-  ): Promise<McpSecretSummary[]> {
+  async function mutate(update: (vault: VaultFile) => VaultFile | Promise<VaultFile>) {
     const mutation = writeQueue.then(() =>
       withProcessFileLock(filePath, async () => {
         const next = await update(await vaultToChange())
@@ -188,11 +185,12 @@ export function createEncryptedMcpSecretVault(
     async set(name: string, value: string) {
       await assertEncryptionAvailable(encryption)
       const normalized = validateSecretName(name)
-      if (value.length === 0)
+      if (value.length === 0) {
         throw new McpVaultError({
           reason: 'validation',
           message: 'MCP secret values cannot be empty.',
         })
+      }
       // Sealed before the vault's lock is taken, so a slow keychain never holds the lock.
       const encryptedValue = (await encrypt(encryption, value)).toString('base64')
       return mutate((vault) => {
@@ -228,7 +226,7 @@ let liveVault: ReturnType<typeof createEncryptedMcpSecretVault> | undefined
 function getLiveVault() {
   liveVault ??= createEncryptedMcpSecretVault(
     path.join(mcpBuildStateDirectory(), MCP_CONFIG.GLOBAL_VAULT_FILE_NAME),
-    safeStorage,
+    secureStorage,
     {
       legacyFilePath: path.join(sharedMcpStateDirectory(), MCP_CONFIG.GLOBAL_VAULT_FILE_NAME),
     },
@@ -273,11 +271,7 @@ const PRESENT_SECRET = 'vault-secret'
  */
 export async function checkMcpVaultSecret(name: string) {
   if (await mcpVaultHasSecret(name)) return PRESENT_SECRET
-  throw new McpVaultError({
-    reason: 'secret-not-found',
-    secretName: name,
-    message: `MCP secret ${JSON.stringify(name)} was not found.`,
-  })
+  throw secretNotFound(name)
 }
 
 /**
@@ -304,7 +298,7 @@ export function resolveMcpVaultSecret(name: string) {
   return getLiveVault().resolve(name)
 }
 
-function toVaultError(error: unknown): McpVaultError {
+function toVaultError(error: unknown) {
   return error instanceof McpVaultError ? error : toMcpVaultError('io', error)
 }
 

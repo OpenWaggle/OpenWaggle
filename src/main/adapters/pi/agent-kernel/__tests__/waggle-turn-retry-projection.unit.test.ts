@@ -19,7 +19,7 @@ function assistant(
   id: string,
   parentId: string,
   message: Partial<Pick<AssistantMessage, 'content' | 'stopReason' | 'errorMessage'>> = {},
-): SessionEntry {
+) {
   return fromPartial<SessionEntry>({
     type: 'message',
     id,

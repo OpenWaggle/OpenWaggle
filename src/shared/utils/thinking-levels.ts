@@ -10,7 +10,7 @@ const FALLBACK_THINKING_LEVEL: ThinkingLevel = 'off'
 export function clampThinkingLevel(
   requestedLevel: ThinkingLevel,
   availableLevels: readonly ThinkingLevel[],
-): ThinkingLevel {
+) {
   // Set lookup: the level list is probed once per candidate in both scan loops.
   const available = new Set(availableLevels)
   if (available.has(requestedLevel)) {

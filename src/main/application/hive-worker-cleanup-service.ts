@@ -14,7 +14,6 @@ import {
   HIVE_CLEANUP_IDEMPOTENCY_PREFIX,
   type HiveWorkerCleanupCandidate,
   HiveWorkerCleanupRepository,
-  type HiveWorkerMutationEnvelope,
 } from '../ports/hive-worker-cleanup-repository'
 import { SessionOrganizationRepository } from '../ports/session-organization-repository'
 import { SessionWorkspaceResourceRepository } from '../ports/session-workspace-resource-repository'
@@ -113,7 +112,7 @@ function keepWhenBusy<A, E, R>(effect: Effect.Effect<A, E | HiveWorkerKept, R>) 
  * The idempotency key names one terminal Delegation transition, so a Worker is archived at most
  * once per transition. If its parent agent restores it, the replay keeps it restored.
  */
-function cleanupEnvelope(candidate: HiveWorkerCleanupCandidate): HiveWorkerMutationEnvelope {
+function cleanupEnvelope(candidate: HiveWorkerCleanupCandidate) {
   const key = `${HIVE_CLEANUP_IDEMPOTENCY_PREFIX}${candidate.delegationId}:${String(candidate.delegationUpdatedAt)}`
   return {
     contractVersion: SESSION_CONTROL_CONTRACT_VERSION,

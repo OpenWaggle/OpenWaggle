@@ -12,7 +12,7 @@ interface ModelCheckboxRowProps {
   readonly checked: boolean
   readonly search: string
   /** Shown before the model name when the list mixes providers. */
-  readonly providerLabel?: string | undefined
+  readonly providerLabel?: string
   readonly onToggle: (modelRef: string, enabled: boolean) => void
 }
 

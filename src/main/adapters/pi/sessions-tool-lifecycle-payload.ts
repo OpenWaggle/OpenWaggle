@@ -1,9 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
-import {
-  SESSION_LIFECYCLE_CONTRACT_VERSION,
-  type SessionExecutionSpecialization,
-} from '@shared/types/session-lifecycle'
+import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
 import type { SessionsToolParameters } from './sessions-tool-parameters'
 import type { SessionsToolSource } from './sessions-tool-payload'
 import { sessionsToolThinkingLevel } from './sessions-tool-thinking'
@@ -27,9 +24,7 @@ function rootAttachmentTransport(
   return 'attachmentPaths' in input ? attachmentTransport(input) : {}
 }
 
-function specialization(
-  input: SpecializableLifecycleParameters,
-): SessionExecutionSpecialization | undefined {
+function specialization(input: SpecializableLifecycleParameters) {
   const thinking = sessionsToolThinkingLevel(input.thinking)
   return input.agent || input.model || thinking
     ? {
@@ -59,7 +54,7 @@ function rootWorkspace(input: Extract<LifecycleParameters, { action: 'create' | 
 function rootPayload(
   input: Extract<LifecycleParameters, { action: 'create' | 'launch' }>,
   source: SessionsToolSource,
-): LocalSessionCommandPayload {
+) {
   const selectedWorkspace = rootWorkspace(input)
   const selectedSpecialization = specialization(input)
   const projectPath =
@@ -86,7 +81,7 @@ function rootPayload(
           ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
           ...(input.authorization ? { runAuthorizationOverride: input.authorization } : {}),
         }
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     ...rootAttachmentTransport(input),
     request: {
@@ -96,6 +91,7 @@ function rootPayload(
       command,
     },
   }
+  return payload
 }
 
 type WorkerParameters = Extract<LifecycleParameters, { action: 'spawn' }>
@@ -117,13 +113,10 @@ function workerWorkspace(input: WorkerParameters) {
   return input.workspace === 'local' ? { mode: input.workspace } : { mode: 'share-parent' as const }
 }
 
-function workerPayload(
-  input: WorkerParameters,
-  source: SessionsToolSource,
-): LocalSessionCommandPayload {
+function workerPayload(input: WorkerParameters, source: SessionsToolSource) {
   const workspace = workerWorkspace(input)
   const selectedSpecialization = specialization(input)
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     ...attachmentTransport(input),
     request: {
@@ -152,12 +145,13 @@ function workerPayload(
       },
     },
   }
+  return payload
 }
 
 function forkPayload(
   input: Extract<LifecycleParameters, { action: 'fork' }>,
   source: SessionsToolSource,
-): LocalSessionCommandPayload {
+) {
   const workspace =
     input.workspace === 'existing'
       ? {
@@ -179,7 +173,7 @@ function forkPayload(
         : input.workspace
           ? { mode: input.workspace }
           : undefined
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     request: {
       contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
@@ -195,6 +189,7 @@ function forkPayload(
       },
     },
   }
+  return payload
 }
 
 export function isSessionsToolLifecycleAction(

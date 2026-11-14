@@ -4,8 +4,6 @@ import type { VcsStatus } from '@shared/types/git'
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import type { SessionDetail } from '@shared/types/session'
 import type { SessionResource } from '@shared/types/session-resource'
-import type { QueryClient } from '@tanstack/react-query'
-import type { RenderResult } from '@testing-library/react'
 import { type Mock, vi } from 'vitest'
 import { useComposerActionStore, useComposerStore } from '@/features/composer/state'
 import type {
@@ -22,7 +20,7 @@ import { SessionSummaryHub } from '../SessionSummaryHub'
 import { SESSION_SUMMARY_SECTION_ORDER } from '../SessionSummaryPanelSections'
 
 const mocks = vi.hoisted(() => ({
-  actionRuns: ((): ActionRun[] => [])(),
+  actionRuns: new Array<ActionRun>(),
   toggleTerminal: vi.fn(),
   listSessionResources: vi.fn<OpenWaggleApi['listSessionResources']>(),
   listArchivedSessions: vi.fn(),
@@ -57,13 +55,14 @@ export const invalidateVcsStatus: Mock<(workingPath: string) => Promise<void>> =
 export const refreshSourceControlStatus: Mock<OpenWaggleApi['refreshSourceControlStatus']> =
   mocks.refreshSourceControlStatus
 
+// The Hub asks to toggle the Session terminal; useTerminalCommands.component.test.tsx covers it.
 vi.mock('@/features/terminal', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/terminal')>()),
   useTerminalCommands: () => ({ toggleTerminal: mocks.toggleTerminal }),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     manageProjectActions: vi.fn<OpenWaggleApi['manageProjectActions']>(async ({ operation }) => {
       if (operation.type === 'runs') return { type: 'runs', runs: mocks.actionRuns }
       if (operation.type === 'preparation') return { type: 'preparation', preparation: null }
@@ -73,6 +72,9 @@ vi.mock('@/shared/lib/ipc', () => ({
       }
     }),
     listSessionResources: mocks.listSessionResources,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(mocks.listSessionResources),
     listArchivedSessions: mocks.listArchivedSessions,
     getSessionHiveRelations: vi
       .fn()
@@ -80,19 +82,22 @@ vi.mock('@/shared/lib/ipc', () => ({
     openExternal: mocks.openExternal,
     getChangeRequestOpenDestination: mocks.getChangeRequestOpenDestination,
     refreshSourceControlStatus: mocks.refreshSourceControlStatus,
-  },
+  }),
 }))
 
+// Git status polling is another feature; the Hub tests drive the status it shows through this.
 vi.mock('@/features/git/hooks', () => ({
   useGit: mocks.useGit,
 }))
 
+// The commit and push dialogs run Git operations; their own tests cover them.
 vi.mock('@/features/git/components', () => ({
   CommitOrPushDialog: mocks.commitOrPushDialog,
   CommitOrPushStatusDialog: () => null,
   CommitMessageDialog: () => null,
 }))
 
+// See '@/features/git/hooks' above: the combined VCS status and stacked actions are Git's.
 vi.mock('@/features/git', () => ({
   resolveQuickAction: () => ({
     label: 'Commit & push',
@@ -105,8 +110,8 @@ vi.mock('@/features/git', () => ({
   invalidateVcsStatus: mocks.invalidateVcsStatus,
 }))
 
-export function session(id = 'session-1'): SessionDetail {
-  return {
+export function session(id = 'session-1') {
+  const detail: SessionDetail = {
     id: SessionId(id),
     title: `Session ${id}`,
     projectPath: '/project',
@@ -115,10 +120,11 @@ export function session(id = 'session-1'): SessionDetail {
     createdAt: 1000,
     updatedAt: 1000,
   }
+  return detail
 }
 
-export function resource(overrides: Partial<SessionResource>): SessionResource {
-  return {
+export function resource(overrides: Partial<SessionResource>) {
+  const result: SessionResource = {
     id: 'resource-1',
     sessionId: SessionId('session-1'),
     canonicalKey: 'sha256:image',
@@ -135,12 +141,11 @@ export function resource(overrides: Partial<SessionResource>): SessionResource {
     ...overrides,
     managed: overrides.managed ?? true,
   }
+  return result
 }
 
-export function gitState(
-  overrides: Partial<ReturnType<typeof useGitHook>> = {},
-): ReturnType<typeof useGitHook> {
-  return {
+export function gitState(overrides: Partial<ReturnType<typeof useGitHook>> = {}) {
+  const result: ReturnType<typeof useGitHook> = {
     workingPath: WorkingPath('/project'),
     repositoryPath: RepositoryPath('/project'),
     status: {
@@ -168,9 +173,10 @@ export function gitState(
     createBranch: vi.fn(),
     ...overrides,
   }
+  return result
 }
 
-type HubProps = {
+interface HubProps {
   readonly activeSession?: SessionDetail | null
   readonly messageCount?: number
   readonly hiveAvailable?: boolean
@@ -211,10 +217,7 @@ export function hubElement(props: HubProps = {}, includeHeaderToggle = false) {
   )
 }
 
-export function renderHub(
-  props: HubProps = {},
-  includeHeaderToggle = false,
-): RenderResult & { readonly client: QueryClient } {
+export function renderHub(props: HubProps = {}, includeHeaderToggle = false) {
   return renderWithQueryClient(hubElement(props, includeHeaderToggle))
 }
 
@@ -223,8 +226,8 @@ export function sessionSummarySectionOrder() {
 }
 
 /** The Git status every Session Summary Hub test starts from. */
-export function hubVcsStatus(): VcsStatus {
-  return {
+export function hubVcsStatus() {
+  const status: VcsStatus = {
     isRepo: true,
     sourceControlProvider: { id: 'github', host: 'github.com' },
     sourceControlHost: { host: 'github.com', provider: 'github', source: 'public-host' },
@@ -246,6 +249,7 @@ export function hubVcsStatus(): VcsStatus {
     changeRequestAttention: null,
     changeRequestAccount: null,
   }
+  return status
 }
 
 export function setupSessionSummaryHubHarness() {
@@ -271,6 +275,7 @@ export function setupSessionSummaryHubHarness() {
     isRunning: false,
     progress: null,
     run: vi.fn(),
+    start: vi.fn(),
     cancel: vi.fn(),
   })
   useCombinedVcsStatus.mockReset().mockReturnValue({

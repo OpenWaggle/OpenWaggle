@@ -11,7 +11,7 @@ import {
 
 describe('SQLite Session catalog search', () => {
   let temporaryRoot = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-query-'))
@@ -204,7 +204,7 @@ describe('SQLite Session catalog search', () => {
       archived: false,
       unreadTerminalStatus: 'failed',
       limit: 200,
-      cursor: first.outcome.nextCursor,
+      ...(first.outcome.nextCursor ? { cursor: first.outcome.nextCursor } : {}),
     })
     if (second.outcome.operation !== 'list' || !('sessions' in second.outcome)) {
       throw new Error('Expected a terminal Session list page.')

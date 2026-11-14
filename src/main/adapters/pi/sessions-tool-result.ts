@@ -2,7 +2,10 @@ import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { Schema, type SchemaType } from '@shared/schema'
+import { lenientOptional } from '@shared/schemas/lenient'
 import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
 import { ensurePrivateDirectory } from '../../utils/session-scratch-directory'
 
 /**
@@ -50,9 +53,10 @@ function compactNode(value: unknown, key?: string): unknown {
  * without tree links or usage and cost metadata. `verbose: true` keeps all of it, under the same
  * size cap.
  */
-export function compactHiveResult(result: unknown): unknown {
+export function compactHiveResult(result: unknown) {
   if (!isRecord(result)) return result
-  const response = isRecord(result.response) ? result.response : result
+  const { response: wrapped } = resultFields(result)
+  const response = isRecord(wrapped) ? wrapped : result
   const { replayed, ...kept } = withoutKeys(
     { ...withoutKeys(result, new Set(['response'])), ...response },
     ENVELOPE_KEYS,
@@ -73,32 +77,56 @@ interface PagedOutcome {
   readonly withOutcome: (outcome: Record<string, unknown>) => Record<string, unknown>
 }
 
+/** The fields of a hive result, its `response` and its items that paging reads. */
+const resultFieldsSchema = Schema.Struct({
+  response: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  outcome: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  items: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  createdOrder: lenientOptional(Schema.Number),
+})
+
+const decodeResultFields = Schema.decodeUnknownOption(resultFieldsSchema)
+
+type ResultFields = SchemaType<typeof resultFieldsSchema>
+
+function resultFields(value: unknown) {
+  const fields: ResultFields = Option.getOrElse(decodeResultFields(value), () => ({}))
+  return fields
+}
+
+/** An outcome with an `items` array. */
+function itemsOutcome(outcome: unknown) {
+  if (!isRecord(outcome)) return undefined
+  const { items } = resultFields(outcome)
+  return Array.isArray(items) ? { outcome, items } : undefined
+}
+
 /**
  * The outcome whose `items` are paged with `afterCreatedOrder`, when the result has one: at the
  * top of a compacted result, or under `response` in a verbose one.
  */
-function pagedOutcome(result: unknown): PagedOutcome | undefined {
+function pagedOutcome(result: unknown) {
   if (!isRecord(result)) return undefined
-  if (isRecord(result.outcome) && Array.isArray(result.outcome.items)) {
-    return {
-      outcome: result.outcome,
-      items: result.outcome.items,
+  const top = itemsOutcome(resultFields(result).outcome)
+  if (top) {
+    const value: PagedOutcome | undefined = {
+      ...top,
       withOutcome: (outcome) => ({ ...result, outcome }),
     }
+    return value
   }
-  const { response } = result
-  if (isRecord(response) && isRecord(response.outcome) && Array.isArray(response.outcome.items)) {
-    return {
-      outcome: response.outcome,
-      items: response.outcome.items,
-      withOutcome: (outcome) => ({ ...result, response: { ...response, outcome } }),
-    }
+  const { response } = resultFields(result)
+  const nested = isRecord(response) ? itemsOutcome(resultFields(response).outcome) : undefined
+  if (!isRecord(response) || !nested) return undefined
+  const value: PagedOutcome | undefined = {
+    ...nested,
+    withOutcome: (outcome) => ({ ...result, response: { ...response, outcome } }),
   }
-  return undefined
+  return value
 }
 
 function createdOrderOf(item: unknown) {
-  return isRecord(item) && typeof item.createdOrder === 'number' ? item.createdOrder : undefined
+  return resultFields(item).createdOrder
 }
 
 function pageText(

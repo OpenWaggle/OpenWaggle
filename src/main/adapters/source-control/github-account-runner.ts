@@ -35,13 +35,13 @@ interface AccountCandidate {
   readonly active: boolean
 }
 
-function unreadableTokenResult(login: string): CliResult {
+function unreadableTokenResult(login: string) {
   return {
     stdout: '',
     stderr: `Could not read the stored gh sign-in for @${login}. Sign in again with gh auth login.`,
     code: 1,
     missing: false,
-  }
+  } satisfies CliResult
 }
 
 export function isRepositoryAccessFailure(result: CliResult) {
@@ -63,10 +63,7 @@ function orderedCandidates(accounts: readonly AccountCandidate[], preferred: str
  * (`gh auth token --user`), for that one command only (ADR 0048). gh's active account is never
  * switched, and inherited token variables stay stripped.
  */
-export function createGithubAccountRunner(
-  host: string,
-  preference: ProviderAccountPreference,
-): GithubAccountRunner {
+export function createGithubAccountRunner(host: string, preference: ProviderAccountPreference) {
   let chosen: AccountCandidate | null = null
   let chosenEnv: Readonly<Record<string, string | undefined>> | undefined
   let lastAccount: string | null = null
@@ -103,7 +100,7 @@ export function createGithubAccountRunner(
     })
   }
 
-  async function run(args: readonly string[], cwd: string): Promise<CliResult> {
+  async function run(args: readonly string[], cwd: string) {
     unreachable = null
     const refused: string[] = []
     let last: CliResult | null = null
@@ -116,8 +113,9 @@ export function createGithubAccountRunner(
     const hosts = await readSourceControlCliHosts()
     const accounts = hosts.github.find((entry) => entry.host === host.toLowerCase())?.accounts ?? []
     // An account that was just refused is not asked again for this command.
+    const refusedLogins = new Set(refused)
     const candidates = orderedCandidates(accounts, preference.preferredLogin).filter(
-      (candidate) => !refused.includes(candidate.login),
+      (candidate) => !refusedLogins.has(candidate.login),
     )
     if (candidates.length === 0 && last === null) return runCli('gh', args, cwd)
     const tried: string[] = [...refused]
@@ -137,7 +135,7 @@ export function createGithubAccountRunner(
     return last ?? runCli('gh', args, cwd)
   }
 
-  async function runWrite(args: readonly string[], cwd: string): Promise<CliResult> {
+  async function runWrite(args: readonly string[], cwd: string) {
     unreachable = null
     if (chosen) return runCli('gh', args, cwd, chosenEnv ? { env: chosenEnv } : {})
     const hosts = await readSourceControlCliHosts()
@@ -152,5 +150,11 @@ export function createGithubAccountRunner(
     return attempt.result
   }
 
-  return { run, runWrite, account: () => lastAccount, unreachableBy: () => unreachable }
+  const runner: GithubAccountRunner = {
+    run,
+    runWrite,
+    account: () => lastAccount,
+    unreachableBy: () => unreachable,
+  }
+  return runner
 }

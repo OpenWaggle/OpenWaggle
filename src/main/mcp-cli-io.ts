@@ -4,8 +4,9 @@ import { sessionsCliResponseText } from './sessions-cli-output'
 const MAX_STDIN_SECRET_BYTES = 1_000_000
 
 export async function readSecretFromStdin() {
-  if (process.stdin.isTTY)
+  if (process.stdin.isTTY) {
     throw new Error('Secret input must be piped on stdin; values are never accepted as arguments.')
+  }
   const chunks: Buffer[] = []
   let total = 0
   for await (const chunk of process.stdin) {

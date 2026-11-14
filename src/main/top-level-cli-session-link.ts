@@ -13,17 +13,23 @@ export type SessionLinkLaunchRoute =
  * when the first argument is not an `openwaggle:` URL. Any other `openwaggle:` value is refused
  * here, so it never reaches the desktop app or raises a window.
  */
-export function routeSessionLinkLaunch(argv: readonly string[]): SessionLinkLaunchRoute | null {
+export function routeSessionLinkLaunch(argv: readonly string[]) {
   const [first] = argv
   if (first === undefined || !hasSessionLinkScheme(first)) return null
   if (argv.length > 1) {
-    return {
+    const route: SessionLinkLaunchRoute = {
       kind: 'usage-error',
       message: `unexpected argument '${argv[1] ?? ''}' after a Session link.`,
     }
+    return route
   }
   if (parseSessionLink(first) === null) {
-    return { kind: 'usage-error', message: `not a Session link. ${SESSION_LINK_FORMAT_HINT}` }
+    const route: SessionLinkLaunchRoute = {
+      kind: 'usage-error',
+      message: `not a Session link. ${SESSION_LINK_FORMAT_HINT}`,
+    }
+    return route
   }
-  return { kind: 'open-session-link', link: first.trim() }
+  const route: SessionLinkLaunchRoute | null = { kind: 'open-session-link', link: first.trim() }
+  return route
 }

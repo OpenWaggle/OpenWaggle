@@ -39,23 +39,24 @@ export function listWorkspaceOccupants(sql: SqlClient.SqlClient) {
   `.pipe(
     Effect.map((rows) =>
       rows.map(
-        (row): WorkspaceOccupant => ({
-          sessionId: row.session_id,
-          title: row.title,
-          archived: row.archived !== 0,
-          archivedAt: row.archived !== 0 ? row.archived_at : null,
-          activeRun: row.active_run_id !== null,
-          sessionProjectPath: row.session_project_path,
-          workspace:
-            row.workspace_id !== null && row.kind !== null && row.working_path !== null
-              ? {
-                  id: row.workspace_id,
-                  kind: row.kind,
-                  workingPath: row.working_path,
-                  lifecycleState: row.lifecycle_state ?? 'ready',
-                }
-              : null,
-        }),
+        (row) =>
+          ({
+            sessionId: row.session_id,
+            title: row.title,
+            archived: row.archived !== 0,
+            archivedAt: row.archived !== 0 ? row.archived_at : null,
+            activeRun: row.active_run_id !== null,
+            sessionProjectPath: row.session_project_path,
+            workspace:
+              row.workspace_id !== null && row.kind !== null && row.working_path !== null
+                ? {
+                    id: row.workspace_id,
+                    kind: row.kind,
+                    workingPath: row.working_path,
+                    lifecycleState: row.lifecycle_state ?? 'ready',
+                  }
+                : null,
+          }) satisfies WorkspaceOccupant,
       ),
     ),
     Effect.mapError(

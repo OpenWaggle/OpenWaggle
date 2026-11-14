@@ -1,11 +1,12 @@
 import type { SessionTitleContextMessage } from '../src/main/domain/session-title/session-title-context'
 
-function message(role: 'user' | 'assistant', text: string): SessionTitleContextMessage {
-  return { role, text, attachments: [] }
+function message(role: 'user' | 'assistant', text: string) {
+  const result: SessionTitleContextMessage = { role, text, attachments: [] }
+  return result
 }
 
 /**
- * Title scenarios for `pnpm evaluate:session-titles`. Adapted from T3 Code
+ * Title scenarios for `bun run evaluate:session-titles`. Adapted from T3 Code
  * (`apps/server/scripts/threadTitleEvaluationCases.ts`, MIT License, Copyright (c) 2026 T3 Tools
  * Inc.) per ADR 0043; repeated text adds context pressure.
  */
@@ -28,7 +29,10 @@ export const SESSION_TITLE_EVALUATION_CASES = [
     previousTitle: 'Fix failing test',
     messages: [
       message('user', 'Fix this failing test.'),
-      message('assistant', 'The lazy feed test expects a full message body before the client requests it.'),
+      message(
+        'assistant',
+        'The lazy feed test expects a full message body before the client requests it.',
+      ),
     ],
     rubric: 'Name the lazy feed test. Do not invent a wider regression.',
   },
@@ -39,7 +43,10 @@ export const SESSION_TITLE_EVALUATION_CASES = [
     messages: [
       message('user', 'Improve QR sharing layout.'),
       message('user', 'Change of plan. Fix pairing token expiry. Keep remote access working.'),
-      message('assistant', `The token expires before redemption. ${'Implementation detail. '.repeat(800)}`),
+      message(
+        'assistant',
+        `The token expires before redemption. ${'Implementation detail. '.repeat(800)}`,
+      ),
       message('user', 'Ship it.'),
     ],
     rubric: 'Name pairing expiry and honor the explicit scope change.',
@@ -98,10 +105,10 @@ export const SESSION_TITLE_EVALUATION_CASES = [
     messages: [message('user', 'hey')],
     rubric: 'Return a short meaningful title instead of refusing or copying the greeting.',
   },
-] satisfies ReadonlyArray<{
+] satisfies readonly {
   readonly id: string
   readonly request: string
   readonly previousTitle: string
   readonly messages: readonly SessionTitleContextMessage[]
   readonly rubric: string
-}>
+}[]

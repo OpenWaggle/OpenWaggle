@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createExtensionBrokerSdk,
   type ExtensionBrokerTransport,
-  type ExtensionCapabilityAuditEntry,
   type ExtensionInvokeInput,
   OPENWAGGLE_EXTENSION,
   OPENWAGGLE_EXTENSION_BROKER,
@@ -17,7 +16,7 @@ const SESSION_SCOPE = {
 } as const
 const TIMESTAMP = 1234
 
-function auditFor(input: ExtensionInvokeInput): ExtensionCapabilityAuditEntry {
+function auditFor(input: ExtensionInvokeInput) {
   return {
     extensionId: input.extensionId,
     contributionId: input.contributionId,
@@ -152,6 +151,7 @@ describe('createExtensionBrokerSdk', () => {
       error: {
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
         message: 'Extension broker returned an invalid session resource result.',
+        issues: ['sessionId: Must be the Session the request named.'],
       },
     })
   })
@@ -261,6 +261,7 @@ describe('createExtensionBrokerSdk', () => {
       error: {
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD,
         message: 'Extension broker returned an invalid OpenWaggle docs result.',
+        issues: [expect.stringMatching(/^docs: /u)],
       },
       audit: {
         extensionId: 'sample-extension',

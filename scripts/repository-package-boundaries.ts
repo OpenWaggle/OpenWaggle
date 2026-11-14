@@ -178,7 +178,7 @@ function externalBoundaryViolation(input: {
   readonly file: string
   readonly rule: PackageBoundaryRule
   readonly specifier: string
-}): RepositoryViolation | null {
+}) {
   if (builtinSpecifiers.has(input.specifier) && !input.rule.allowNodeBuiltins) {
     return {
       detail: input.specifier,
@@ -195,7 +195,10 @@ function externalBoundaryViolation(input: {
     }
   }
 
-  if (input.specifier.startsWith('@openwaggle/') && !isAllowedExternal(input.rule, input.specifier)) {
+  if (
+    input.specifier.startsWith('@openwaggle/') &&
+    !isAllowedExternal(input.rule, input.specifier)
+  ) {
     return {
       detail: input.specifier,
       file: input.file,

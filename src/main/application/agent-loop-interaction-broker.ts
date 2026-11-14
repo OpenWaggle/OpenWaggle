@@ -41,7 +41,7 @@ function pendingKey(input: {
   return `${String(input.sessionId)}:${input.runId}:${input.interactionId}`
 }
 
-function fallbackForKind(kind: AgentLoopInteractionKind): AgentLoopInteractionResponse {
+function fallbackForKind(kind: AgentLoopInteractionKind) {
   if (kind === 'confirm') return { kind, accepted: false }
   if (kind === 'select') return { kind, selected: null }
   if (kind === 'input') return { kind, value: null }
@@ -50,11 +50,11 @@ function fallbackForKind(kind: AgentLoopInteractionKind): AgentLoopInteractionRe
   return notifyAckResponse
 }
 
-function interactionStatus(response: AgentLoopInteractionResponse): AgentLoopInteractionStatus {
-  if (response.kind === 'select' && response.selected === null) return 'cancelled'
-  if (response.kind === 'input' && response.value === null) return 'cancelled'
-  if (response.kind === 'editor' && response.value === null) return 'cancelled'
-  return 'resolved'
+function interactionStatus(response: AgentLoopInteractionResponse) {
+  if (response.kind === 'select' && response.selected === null) return 'cancelled' as const
+  if (response.kind === 'input' && response.value === null) return 'cancelled' as const
+  if (response.kind === 'editor' && response.value === null) return 'cancelled' as const
+  return 'resolved' as const
 }
 
 function emitResolved(input: {
@@ -90,7 +90,7 @@ function settlePending(input: {
   emitResolved({
     interaction: input.pending.interaction,
     response: input.response,
-    status: input.status,
+    ...(input.status === undefined ? {} : { status: input.status }),
     onEvent: input.pending.onEvent,
   })
   input.pending.resolve(input.response)
@@ -144,12 +144,12 @@ function selectedChoiceIsValid(input: {
   )
 }
 
-function invalidResponse(message: string): AgentLoopInteractionSubmitResult {
-  return { ok: false, error: { code: 'invalid-response-payload', message } }
+function invalidResponse(message: string) {
+  return { ok: false, error: { code: 'invalid-response-payload', message } } as const
 }
 
-function mismatch(message: string): AgentLoopInteractionSubmitResult {
-  return { ok: false, error: { code: 'interaction-mismatch', message } }
+function mismatch(message: string) {
+  return { ok: false, error: { code: 'interaction-mismatch', message } } as const
 }
 
 function isPendingInteraction(
@@ -253,7 +253,7 @@ export function failAgentLoopInteraction(input: {
 export function submitAgentLoopInteractionResponse(
   input: AgentLoopInteractionResponseInput,
   channel?: 'approval' | 'response',
-): AgentLoopInteractionSubmitResult {
+) {
   const key = pendingKey(input)
   const pending = pendingInteractions.get(key)
   if (!pending) {
@@ -263,7 +263,7 @@ export function submitAgentLoopInteractionResponse(
         code: 'interaction-not-found',
         message: 'No pending agent-loop interaction matches this response.',
       },
-    }
+    } satisfies AgentLoopInteractionSubmitResult
   }
 
   if (pending.interaction.kind !== input.kind) {
@@ -289,7 +289,11 @@ export function submitAgentLoopInteractionResponse(
   }
 
   settlePending({ key, pending, response: input.response })
-  return { ok: true, interactionId: input.interactionId, status: interactionStatus(input.response) }
+  return {
+    ok: true,
+    interactionId: input.interactionId,
+    status: interactionStatus(input.response),
+  } satisfies AgentLoopInteractionSubmitResult
 }
 
 export function listPendingAgentLoopInteractions(sessionId?: SessionId) {

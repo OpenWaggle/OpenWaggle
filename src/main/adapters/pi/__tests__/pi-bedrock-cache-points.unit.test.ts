@@ -9,18 +9,18 @@ import {
 } from './bedrock-loopback-server.test-utils'
 
 /** The cache points Pi's patched Bedrock transport writes, read from the request it sends. */
-
-const MODEL = AMAZON_BEDROCK_MODELS['eu.anthropic.claude-haiku-4-5-20251001-v1:0']
-
 interface ConverseBody {
   readonly system?: readonly Record<string, unknown>[]
   readonly toolConfig?: { readonly tools: readonly Record<string, unknown>[] }
 }
 
-function parseBody(body: string): ConverseBody {
+const MODEL = AMAZON_BEDROCK_MODELS['eu.anthropic.claude-haiku-4-5-20251001-v1:0']
+
+function parseBody(body: string) {
   const parsed: unknown = JSON.parse(body)
   if (typeof parsed !== 'object' || parsed === null) throw new Error('Not a JSON object')
-  return parsed
+  const converse: ConverseBody = parsed
+  return converse
 }
 
 const READ_TOOL = {
@@ -29,8 +29,8 @@ const READ_TOOL = {
   parameters: { type: 'object', properties: { path: { type: 'string' } } },
 }
 
-function sectionedContext(): Context {
-  return {
+function sectionedContext() {
+  const context: Context = {
     messages: [
       {
         role: 'system',
@@ -47,6 +47,7 @@ function sectionedContext(): Context {
       { role: 'user', content: 'hello', timestamp: 1 },
     ],
   }
+  return context
 }
 
 describe('Amazon Bedrock cache points', () => {

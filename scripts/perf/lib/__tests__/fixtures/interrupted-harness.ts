@@ -4,13 +4,18 @@
  */
 import { launchApp } from '../../perf-app'
 import { createPerfProfile } from '../../perf-profile'
+import { scriptEnv } from '../../../../support/env'
 
 const IDLE_MS = 600_000
 
 async function main() {
   const profile = await createPerfProfile({ label: 'interrupt' })
-  const app = { label: 'stand-in', executable: process.execPath, leadingArguments: ['-e', `setTimeout(() => {}, ${String(IDLE_MS)})`] }
-  const launched = launchApp(app, { PATH: process.env.PATH ?? '' }, [])
+  const app = {
+    label: 'stand-in',
+    executable: process.execPath,
+    leadingArguments: ['-e', `setTimeout(() => {}, ${String(IDLE_MS)})`],
+  }
+  const launched = launchApp(app, { PATH: scriptEnv().PATH ?? '' }, [])
   process.stdout.write(`${JSON.stringify({ pid: launched.child.pid, root: profile.root })}\n`)
   await new Promise((resolve) => setTimeout(resolve, IDLE_MS))
 }

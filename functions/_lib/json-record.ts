@@ -3,11 +3,11 @@ import { isRecord } from './http'
 
 export type JsonRecord = Readonly<Record<string, unknown>>
 
-export function withoutKeys(record: JsonRecord, keys: ReadonlySet<string>): JsonRecord {
+export function withoutKeys(record: JsonRecord, keys: ReadonlySet<string>) {
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
 }
 
-export function onlyKeys(record: JsonRecord, keys: ReadonlySet<string>): JsonRecord {
+export function onlyKeys(record: JsonRecord, keys: ReadonlySet<string>) {
   return Object.fromEntries(Object.entries(record).filter(([key]) => keys.has(key)))
 }
 

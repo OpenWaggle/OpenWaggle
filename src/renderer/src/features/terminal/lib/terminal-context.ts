@@ -84,9 +84,7 @@ function positiveSafeInteger(value: number | null | undefined) {
   return Number.isSafeInteger(integer) && integer >= 1 ? integer : null
 }
 
-function normalizeRange(
-  range: TerminalContextRange | null | undefined,
-): TerminalContextRange | null {
+function normalizeRange(range: TerminalContextRange | null | undefined) {
   if (range === null || range === undefined) return null
   const startLine = positiveSafeInteger(range.startLine)
   if (startLine === null) return null
@@ -194,14 +192,14 @@ function entryXml(entry: TerminalContextPayloadEntry) {
 export function buildTerminalContextPayload(
   selections: readonly TerminalContextSelection[],
   limits: TerminalContextLimits = TERMINAL_CONTEXT_LIMITS,
-): TerminalContextPayload | null {
+) {
   assertLimits(limits)
 
-  const validSelections: Array<{
+  const validSelections: {
     readonly metadata: NonNullable<ReturnType<typeof normalizedEntryMetadata>>
     readonly text: string
     readonly metrics: TextMetrics
-  }> = []
+  }[] = []
   for (const selection of selections) {
     const metadata = normalizedEntryMetadata(selection, limits)
     const text = normalizeSelectedText(selection.selectedText)

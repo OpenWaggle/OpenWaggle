@@ -4,20 +4,21 @@ import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import {
-  verifyReleaseArtifactBundle,
-} from './package-release-artifact-contract'
 import type {
   PackageReleaseArtifact,
   PackageReleaseArtifactManifest,
 } from './package-release-artifact-contract'
-import { decodePackageReleasePlan } from './package-release-plan'
+import { verifyReleaseArtifactBundle } from './package-release-artifact-contract'
 import type { PackageReleasePlan, PackageReleasePlanItem } from './package-release-plan'
+import { decodePackageReleasePlan } from './package-release-plan'
+import { bunExecutable } from './support/node-runtime'
 
 export type {
   PackageReleaseArtifact,
   PackageReleaseArtifactManifest,
 } from './package-release-artifact-contract'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
 export { verifyReleaseArtifactBundle } from './package-release-artifact-contract'
 
 const CLI_ARGUMENT_START_INDEX = 2
@@ -36,33 +37,43 @@ function run(command: string, args: readonly string[], cwd?: string) {
   })
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-async function readJson(filePath: string): Promise<unknown> {
-  return JSON.parse(await readFile(filePath, 'utf8'))
+async function readJson(filePath: string) {
+  const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'))
+  return parsed
 }
 
 export async function readPackageReleasePlan(planPath: string) {
   return decodePackageReleasePlan(await readJson(planPath))
 }
 
-function packedFilename(value: unknown) {
-  const candidate: unknown = Array.isArray(value) ? value[0] : value
-  if (!isJsonObject(candidate) || typeof candidate.filename !== 'string') {
-    throw new Error('pnpm pack did not return one artifact filename.')
+/** `bun pm pack --quiet` prints only the tarball path. */
+export function packedFilename(output: string) {
+  const lines = output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const [filename] = lines
+  if (lines.length !== 1 || filename === undefined || !filename.endsWith('.tgz')) {
+    throw new Error('bun pm pack did not report one artifact filename.')
   }
-  return candidate.filename
+  return filename
 }
+
+const packedDependenciesSchema = Schema.Struct({ dependencies: unknownField })
 
 function packedDependency(
   plannedPackage: PackageReleasePlanItem,
-  packedManifest: { readonly [key: string]: unknown },
+  packedManifest: Readonly<Record<string, unknown>>,
 ) {
   if (plannedPackage.dependency === undefined) return undefined
-  const dependencyRange = isJsonObject(packedManifest.dependencies)
-    ? packedManifest.dependencies[plannedPackage.dependency]
+  const dependencies = objectFields(packedDependenciesSchema, packedManifest)?.dependencies
+  // The packed dependencies, by name: a map read with the planned dependency's name.
+  const dependencyRange = isJsonObject(dependencies)
+    ? dependencies[plannedPackage.dependency]
     : undefined
   if (
     typeof dependencyRange !== 'string' ||
@@ -74,10 +85,14 @@ function packedDependency(
 }
 
 function releaseHeadingVersion(line: string) {
-  const plainHeading = /^## (\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)(?: \([^)]+\))?$/u.exec(line)
+  const plainHeading =
+    /^## (\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)(?: \([^)]+\))?$/u.exec(line)
   if (plainHeading?.[1] !== undefined) return plainHeading[1]
 
-  const linkedHeading = /^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\]\([^)]+\)(?: \([^)]+\))?$/u.exec(line)
+  const linkedHeading =
+    /^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\]\([^)]+\)(?: \([^)]+\))?$/u.exec(
+      line,
+    )
   return linkedHeading?.[1]
 }
 
@@ -89,9 +104,7 @@ export function extractPackageReleaseNotes(changelog: string, version: string) {
   const nextReleaseOffset = lines
     .slice(releaseLine + 1)
     .findIndex((line) => releaseHeadingVersion(line) !== undefined)
-  const releaseEnd = nextReleaseOffset < 0
-    ? lines.length
-    : releaseLine + 1 + nextReleaseOffset
+  const releaseEnd = nextReleaseOffset < 0 ? lines.length : releaseLine + 1 + nextReleaseOffset
   return lines.slice(releaseLine, releaseEnd).join('\n').trim()
 }
 
@@ -99,25 +112,22 @@ async function packageReleaseNotes(plannedPackage: PackageReleasePlanItem) {
   const changelog = await readFile(path.join(plannedPackage.packagePath, 'CHANGELOG.md'), 'utf8')
   const releaseNotes = extractPackageReleaseNotes(changelog, plannedPackage.version)
   if (releaseNotes === undefined) {
-    throw new Error(`${plannedPackage.name} changelog has no ${plannedPackage.version} release notes.`)
+    throw new Error(
+      `${plannedPackage.name} changelog has no ${plannedPackage.version} release notes.`,
+    )
   }
   return releaseNotes
 }
 
-async function packPlannedPackage(
-  plannedPackage: PackageReleasePlanItem,
-  artifactRoot: string,
-): Promise<PackageReleaseArtifact> {
-  const packOutput = await run('pnpm', [
-    '--dir',
+async function packPlannedPackage(plannedPackage: PackageReleasePlanItem, artifactRoot: string) {
+  // Like `pnpm pack` before it, `bun pm pack` rewrites `workspace:` and `catalog:` ranges to the
+  // versions they resolve to, so the tarball's manifest is what npm consumers install.
+  const packOutput = await run(
+    bunExecutable(),
+    ['pm', 'pack', '--destination', path.resolve(artifactRoot), '--quiet'],
     plannedPackage.packagePath,
-    'pack',
-    '--pack-destination',
-    artifactRoot,
-    '--json',
-  ])
-  const rawPackOutput: unknown = JSON.parse(packOutput)
-  const reportedPath = packedFilename(rawPackOutput)
+  )
+  const reportedPath = packedFilename(packOutput)
   const resolvedPath = await realpath(
     path.isAbsolute(reportedPath)
       ? reportedPath
@@ -147,10 +157,7 @@ async function packPlannedPackage(
   }
 }
 
-export async function prepareReleaseArtifactBundle(
-  plan: PackageReleasePlan,
-  artifactRoot: string,
-) {
+export async function prepareReleaseArtifactBundle(plan: PackageReleasePlan, artifactRoot: string) {
   await mkdir(artifactRoot, { recursive: true })
   if ((await readdir(artifactRoot)).length > 0) {
     throw new Error('Package release artifact directory must start empty.')

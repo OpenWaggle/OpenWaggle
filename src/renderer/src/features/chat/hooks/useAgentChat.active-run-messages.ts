@@ -1,5 +1,4 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { AgentCompactionStatus } from '../lib/compaction-lifecycle'
 import { reconnectedRunScope } from '../lib/reconnect-run-scope'
 import { withoutSavedRunAnswers } from '../lib/saved-run-answers'
 import {
@@ -29,7 +28,7 @@ import type { SessionHydrationContext, SessionHydrationInput } from './useAgentC
 export function activeRunHydrationMessages(
   input: SessionHydrationInput,
   context: SessionHydrationContext,
-): { readonly messages: UIMessage[]; readonly compactionStatus: AgentCompactionStatus | null } {
+) {
   const cachedMessages = input.cachedRenderMessages
   const placed = cachedMessages ? placeCachedRunMessages(input, cachedMessages, context) : null
   if (placed) {

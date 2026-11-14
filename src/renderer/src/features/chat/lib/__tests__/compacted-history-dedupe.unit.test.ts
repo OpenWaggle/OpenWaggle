@@ -18,14 +18,14 @@ function message(
   role: UIMessage['role'],
   text: string,
   at: { readonly order?: number; readonly createdAt: number },
-): UIMessage {
+) {
   return {
     id,
     role,
     parts: [{ type: 'text', content: text }],
     createdAt: new Date(at.createdAt),
     ...(at.order === undefined ? {} : { metadata: { sessionNodeCreatedOrder: at.order } }),
-  }
+  } satisfies UIMessage
 }
 
 /** History above the marker, the marker, and a kept turn: all saved before the send. */

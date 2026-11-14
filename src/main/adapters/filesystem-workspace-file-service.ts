@@ -50,7 +50,7 @@ export function invalidateWorkspaceFileIndex(projectRoot: string) {
   cancelWorkspaceContentSearch(projectRoot)
 }
 
-async function buildProjectIndex(projectRoot: string): Promise<ProjectFileIndex> {
+async function buildProjectIndex(projectRoot: string) {
   const fg = await import('fast-glob')
   const paths = await fg.default('**/*', {
     cwd: projectRoot,
@@ -80,7 +80,7 @@ async function projectIndex(projectPath: string) {
   try {
     const index = await promise
     if ((indexGenerationByProject.get(projectRoot) ?? 0) !== generation) {
-      return projectIndex(projectRoot)
+      return await projectIndex(projectRoot)
     }
     indexByProject.set(projectRoot, index)
     return { projectRoot, index }

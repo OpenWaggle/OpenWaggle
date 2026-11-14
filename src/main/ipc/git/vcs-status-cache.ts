@@ -19,7 +19,7 @@ async function readCached<T extends { readonly ok: boolean }>(
   projectPath: string,
   ttlMs: number,
   fetch: (projectPath: string) => Promise<T>,
-): Promise<T> {
+) {
   // Status is checkout-specific: linked worktrees can have different HEADs, upstreams and dirty
   // files. Canonicalize aliases and opened subdirectories, but never collapse linked worktrees into
   // their shared common Git directory. The mutating fetch itself is repository-locked separately.
@@ -48,27 +48,37 @@ async function readCached<T extends { readonly ok: boolean }>(
   return pending
 }
 
-export function readLocalVcsStatus(projectPath: string): Promise<LocalVcsStatusResult> {
-  return readCached(localCache, projectPath, LOCAL_TTL_MS, getLocalVcsStatus)
+export function readLocalVcsStatus(projectPath: string) {
+  return readCached(
+    localCache,
+    projectPath,
+    LOCAL_TTL_MS,
+    getLocalVcsStatus,
+  ) satisfies Promise<LocalVcsStatusResult>
 }
 
-export function readRemoteVcsStatus(projectPath: string): Promise<RemoteVcsStatusResult> {
-  return readCached(remoteCache, projectPath, REMOTE_TTL_MS, getRemoteVcsStatus)
+export function readRemoteVcsStatus(projectPath: string) {
+  return readCached(
+    remoteCache,
+    projectPath,
+    REMOTE_TTL_MS,
+    getRemoteVcsStatus,
+  ) satisfies Promise<RemoteVcsStatusResult>
 }
 
-export function invalidateLocalVcsStatus(projectPath?: string): void {
+export function invalidateLocalVcsStatus(projectPath?: string) {
   // Resolving a common Git directory is asynchronous, while invalidation is deliberately immediate
   // on mutation paths. Clear this tiny cache conservatively so an alias cannot retain stale state.
   void projectPath
   localCache.clear()
 }
 
-export function invalidateRemoteVcsStatus(projectPath?: string): void {
+export function invalidateRemoteVcsStatus(projectPath?: string) {
   void projectPath
   remoteCache.clear()
 }
 
-export function invalidateVcsStatus(projectPath?: string): void {
+export function invalidateVcsStatus(projectPath?: string) {
   invalidateLocalVcsStatus(projectPath)
   invalidateRemoteVcsStatus(projectPath)
 }

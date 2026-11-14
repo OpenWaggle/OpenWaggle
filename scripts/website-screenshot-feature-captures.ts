@@ -1,4 +1,3 @@
-import type { Page } from '@playwright/test'
 import {
   around,
   CROP_MARGIN_PX,
@@ -37,7 +36,6 @@ const SKILLS_CROP_BOTTOM_PX = 520
 const AGENTS_CROP_BOTTOM_PX = 700
 /** Half the usual crop margin, where a neighbour sits close. */
 const TIGHT_MARGIN_PX = 8
-const TWICE = 2
 const THRICE = 3
 
 /** Seeds the feature Sessions on first use and reloads, so the sidebar lists them. */

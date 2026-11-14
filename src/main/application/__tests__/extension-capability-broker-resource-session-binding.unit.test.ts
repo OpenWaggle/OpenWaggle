@@ -42,7 +42,7 @@ function resourcesPackage() {
   })
 }
 
-function invocation(sessionId: string): ExtensionInvokeInput {
+function invocation(sessionId: string) {
   return {
     extensionId: BROKER_EXTENSION_ID,
     contributionId: CONTRIBUTION_ID,
@@ -50,7 +50,7 @@ function invocation(sessionId: string): ExtensionInvokeInput {
     method: OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST_RESOURCES,
     scope: { kind: 'session', projectPath: PROJECT_PATH, sessionId },
     payload: {},
-  }
+  } satisfies ExtensionInvokeInput
 }
 
 function harness(otherSession: ReturnType<typeof makeSessionDetail>) {

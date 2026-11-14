@@ -66,13 +66,10 @@ export function configured(value: string | undefined) {
   return trimmed === undefined || trimmed === '' ? undefined : trimmed
 }
 
-type EndpointAnswer =
-  | { readonly skipped: string }
-  | { readonly skipped?: undefined; readonly text: string; readonly body: unknown }
-
-function parsedJson(text: string): unknown {
+function parsedJson(text: string) {
   try {
-    return JSON.parse(text)
+    const parsed: unknown = JSON.parse(text)
+    return parsed
   } catch {
     return undefined
   }
@@ -87,7 +84,7 @@ export async function postToEndpoint(
   url: string,
   token: string,
   body?: unknown,
-): Promise<EndpointAnswer> {
+) {
   const response = await options.fetch(url, {
     method: 'POST',
     headers: {
@@ -124,7 +121,7 @@ interface FlushAnswer {
 }
 
 /** A flush answer, or an error for one of another shape. */
-function flushAnswer(body: unknown): FlushAnswer {
+function flushAnswer(body: unknown) {
   const cursor = hasCursor(body) ? body.cursor : undefined
   const cleaned = hasCleaned(body) ? body.cleaned : 0
   if (!isFlushResponse(body)) throw new Error('The flush answered an unexpected shape.')
@@ -135,7 +132,12 @@ function flushAnswer(body: unknown): FlushAnswer {
  * The last line of a flush loop that ended on its own. Entries still to send after a call that
  * made no progress are a warning, so a stalled flush shows on a green run.
  */
-function logFlushEnd(options: SnapshotJobOptions, answer: FlushAnswer, flushed: number, calls: number) {
+function logFlushEnd(
+  options: SnapshotJobOptions,
+  answer: FlushAnswer,
+  flushed: number,
+  calls: number,
+) {
   const summary = `Flushed ${String(flushed)} buffered entries in ${String(calls)} calls`
   if (answer.remaining > 0) {
     options.log(

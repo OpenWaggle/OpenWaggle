@@ -33,7 +33,7 @@ function distinctResolver() {
   }
 }
 
-function collectSourceCssVariableNames(): string[] {
+function collectSourceCssVariableNames() {
   const variables: string[] = []
   const source = SOURCE_EXTENSION_THEME_CSS_VARIABLES
   for (const role of Object.values(source.color)) variables.push(role)

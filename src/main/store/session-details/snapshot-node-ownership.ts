@@ -50,9 +50,10 @@ export function findSessionNodeIdConflictsWithSql(
         AND id IN (SELECT CAST(value AS TEXT) FROM json_each(${JSON.stringify(nodeIds)}))
       ORDER BY id
     `
-    return rows.map(
-      (row): SessionNodeIdConflict => ({ nodeId: row.id, ownerSessionId: row.session_id }),
-    )
+    return rows.map((row) => ({
+      nodeId: row.id,
+      ownerSessionId: row.session_id,
+    }))
   })
 }
 

@@ -7,6 +7,7 @@ import { applicationCliStdout } from './electron-cli-stdout'
 import { stopProcessTree } from './qa/child-process-lifecycle'
 import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './qa/session-host-shutdown'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
+import { Schema } from '@shared/schema'
 
 const FIRST_USER_ARGUMENT_INDEX = 2
 const CLI_TIMEOUT_MS = 30_000
@@ -147,17 +148,18 @@ export function runInstalledCli(
   })
 }
 
+/** The envelope names the command by its path after `openwaggle` (ADR 0063). */
+const sessionsListResponseSchema = Schema.Struct({
+  schemaVersion: Schema.Literal(1),
+  type: Schema.Literal('response'),
+  command: Schema.Literal('hive list'),
+  result: Schema.Unknown,
+})
+
 export function assertInstalledCliResponse(stdout: string, platform: NodeJS.Platform) {
   const normalized = applicationCliStdout(stdout, platform)
   const parsed: unknown = JSON.parse(normalized)
-  if (
-    !isRecord(parsed) ||
-    parsed.schemaVersion !== 1 ||
-    parsed.type !== 'response' ||
-    // The envelope names the command by its path after `openwaggle` (ADR 0063).
-    parsed.command !== 'hive list' ||
-    !isRecord(parsed.result)
-  ) {
+  if (!Schema.is(sessionsListResponseSchema)(parsed) || !isRecord(parsed.result)) {
     throw new Error('Installed OpenWaggle CLI returned an invalid sessions list response.')
   }
 }

@@ -3,19 +3,23 @@ import type { EffectiveDefinition, PreparationDefinition } from '@shared/types/a
 export function effective<T extends { readonly id: string }>(
   local: readonly T[],
   shared: readonly T[],
-): EffectiveDefinition<T>[] {
+) {
   const personal = new Map(local.map((definition) => [definition.id, definition]))
   return [
     ...shared.map(
-      (definition): EffectiveDefinition<T> => ({
-        definition: personal.get(definition.id) ?? definition,
-        source: personal.has(definition.id) ? 'override' : 'project',
-      }),
+      (definition) =>
+        ({
+          definition: personal.get(definition.id) ?? definition,
+          source: personal.has(definition.id) ? 'override' : 'project',
+        }) satisfies EffectiveDefinition<T>,
     ),
     ...local
       .filter((definition) => !shared.some((entry) => entry.id === definition.id))
-      .map((definition): EffectiveDefinition<T> => ({ definition, source: 'local' })),
-  ]
+      .map((definition) => {
+        const result: EffectiveDefinition<T> = { definition, source: 'local' }
+        return result
+      }),
+  ] satisfies EffectiveDefinition<T>[]
 }
 
 /** Preparation has one slot per profile/phase, even when peers created independent IDs. */
@@ -25,12 +29,16 @@ export function effectivePreparation(
 ) {
   const sameSlot = (left: PreparationDefinition, right: PreparationDefinition) =>
     left.profileId === right.profileId && left.phase === right.phase
-  return effective(local, shared).flatMap((entry): EffectiveDefinition<PreparationDefinition>[] => {
-    if (entry.source === 'project' && local.some((item) => sameSlot(item, entry.definition)))
-      return []
-    if (entry.source === 'local' && shared.some((item) => sameSlot(item, entry.definition)))
-      return [{ ...entry, source: 'override' }]
-    return [entry]
+  return effective(local, shared).flatMap((entry) => {
+    if (entry.source === 'project' && local.some((item) => sameSlot(item, entry.definition))) {
+      return [] satisfies EffectiveDefinition<PreparationDefinition>[]
+    }
+    if (entry.source === 'local' && shared.some((item) => sameSlot(item, entry.definition))) {
+      return [
+        { ...entry, source: 'override' },
+      ] satisfies EffectiveDefinition<PreparationDefinition>[]
+    }
+    return [entry] satisfies EffectiveDefinition<PreparationDefinition>[]
   })
 }
 

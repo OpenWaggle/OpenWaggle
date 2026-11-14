@@ -56,7 +56,7 @@ describe('useWorkspaceLifecycle Session link shortcut', () => {
   it('still copies while a terminal has focus', () => {
     renderHook(() => useWorkspaceLifecycle())
     const pane = document.createElement('div')
-    pane.dataset.terminalPane = 'term-1'
+    pane.setAttribute('data-terminal-pane', 'term-1')
     const textarea = document.createElement('textarea')
     pane.append(textarea)
     document.body.append(pane)

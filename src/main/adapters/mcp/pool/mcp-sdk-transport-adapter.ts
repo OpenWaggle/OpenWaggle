@@ -10,8 +10,11 @@ import { type JsonRpcMessage, type McpWireTransport, WireTransportEvents } from 
  * pi-mcp transport shape the layer works with.
  */
 export class McpSdkTransportAdapter extends WireTransportEvents implements McpWireTransport {
-  constructor(private readonly transport: Transport) {
+  private readonly transport: Transport
+
+  constructor(transport: Transport) {
     super()
+    this.transport = transport
     transport.onmessage = (message: JSONRPCMessage) => this.emitMessage(toWireMessage(message))
     transport.onerror = (error) => this.emitError(error)
     transport.onclose = () => this.emitClose()
@@ -35,14 +38,16 @@ export class McpSdkTransportAdapter extends WireTransportEvents implements McpWi
   }
 }
 
-function toWireMessage(message: JSONRPCMessage): JsonRpcMessage {
+function toWireMessage(message: JSONRPCMessage) {
   if ('method' in message) {
-    return 'id' in message
-      ? { jsonrpc: '2.0', id: message.id, method: message.method, params: message.params }
-      : { jsonrpc: '2.0', method: message.method, params: message.params }
+    return (
+      'id' in message
+        ? { jsonrpc: '2.0', id: message.id, method: message.method, params: message.params }
+        : { jsonrpc: '2.0', method: message.method, params: message.params }
+    ) satisfies JsonRpcMessage
   }
   if ('error' in message) {
-    return { jsonrpc: '2.0', id: message.id ?? '', error: message.error }
+    return { jsonrpc: '2.0', id: message.id ?? '', error: message.error } satisfies JsonRpcMessage
   }
-  return { jsonrpc: '2.0', id: message.id, result: message.result }
+  return { jsonrpc: '2.0', id: message.id, result: message.result } satisfies JsonRpcMessage
 }

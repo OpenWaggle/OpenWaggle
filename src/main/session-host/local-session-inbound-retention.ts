@@ -20,7 +20,11 @@ interface LocalSessionInboundLease {
 export class LocalSessionInboundRetention {
   private readonly decoder = new LocalSessionFrameDecoder(MAX_PREAUTH_LOCAL_SESSION_FRAME_BYTES)
 
-  constructor(private readonly budget: LocalSessionInboundByteBudget) {}
+  private readonly budget: LocalSessionInboundByteBudget
+
+  constructor(budget: LocalSessionInboundByteBudget) {
+    this.budget = budget
+  }
 
   push(chunk: Buffer, maxFrames?: number) {
     if (!this.budget.reserve(chunk.byteLength)) {

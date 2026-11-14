@@ -1,3 +1,4 @@
+import { errorCode } from '@shared/utils/node-error'
 import { type FileHandle, open, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
@@ -44,10 +45,10 @@ const SHIPIT_APP_RUNNING = 'Aborting update attempt because there are'
 const logger = createLogger('update-install-attempt')
 
 function isMissingFile(error: unknown) {
-  return typeof error === 'object' && error !== null && Reflect.get(error, 'code') === 'ENOENT'
+  return errorCode(error) === 'ENOENT'
 }
 
-async function readOptionalFile(file: string, description: string): Promise<string | null> {
+async function readOptionalFile(file: string, description: string) {
   try {
     return await readFile(file, 'utf8')
   } catch (error) {
@@ -60,7 +61,7 @@ function attemptPath(userDataDirectory: string) {
   return path.join(userDataDirectory, ATTEMPT_FILE_NAME)
 }
 
-function parseAttempt(text: string): UpdateInstallAttempt | null {
+function parseAttempt(text: string) {
   let value: unknown
   try {
     value = parseJsonUnknown(text)
@@ -77,7 +78,7 @@ function parseAttempt(text: string): UpdateInstallAttempt | null {
 export async function recordUpdateInstallAttempt(
   userDataDirectory: string,
   attempt: UpdateInstallAttempt,
-): Promise<void> {
+) {
   try {
     await writeFile(attemptPath(userDataDirectory), `${JSON.stringify(attempt)}\n`, 'utf8')
   } catch (error) {
@@ -87,9 +88,7 @@ export async function recordUpdateInstallAttempt(
 }
 
 /** Reads and removes the last attempt, so each one is reported once. */
-export async function takeUpdateInstallAttempt(
-  userDataDirectory: string,
-): Promise<UpdateInstallAttempt | null> {
+export async function takeUpdateInstallAttempt(userDataDirectory: string) {
   const file = attemptPath(userDataDirectory)
   const text = await readOptionalFile(file, 'the update install attempt')
   if (text === null) return null
@@ -100,7 +99,7 @@ export async function takeUpdateInstallAttempt(
 }
 
 /** Whether ShipIt refused the install after `since` because the app was still running. */
-export function shipItRefusedWhileRunning(log: string, since: number): boolean {
+export function shipItRefusedWhileRunning(log: string, since: number) {
   for (const line of log.split('\n')) {
     const match = SHIPIT_LINE.exec(line)
     if (!match) continue
@@ -124,10 +123,10 @@ export function updateInstallOutcome(input: {
   readonly attempt: UpdateInstallAttempt
   readonly currentVersion: string
   readonly shipItLog: string | null
-}): UpdateInstallOutcome {
+}) {
   const { attempt } = input
   if (input.currentVersion !== attempt.fromVersion) {
-    return { type: 'installed', version: input.currentVersion }
+    return { type: 'installed', version: input.currentVersion } satisfies UpdateInstallOutcome
   }
   const stillRunning =
     input.shipItLog !== null && shipItRefusedWhileRunning(input.shipItLog, attempt.attemptedAt)
@@ -137,11 +136,11 @@ export function updateInstallOutcome(input: {
     message: stillRunning
       ? `Version ${attempt.toVersion} did not install because OpenWaggle was still running (reopened too soon, or an openwaggle command such as mcp serve). Close any openwaggle command, choose Restart to update, and wait for it to reopen.`
       : `Version ${attempt.toVersion} did not finish installing. Restart to update to try again.`,
-  }
+  } satisfies UpdateInstallOutcome
 }
 
 /** The end of ShipIt's log, which only ever grows; the last attempt is at the end. */
-async function readShipItLogTail(bundleIdentifier: string): Promise<string | null> {
+async function readShipItLogTail(bundleIdentifier: string) {
   if (process.platform !== 'darwin') return null
   let file: FileHandle | null = null
   try {
@@ -152,8 +151,9 @@ async function readShipItLogTail(bundleIdentifier: string): Promise<string | nul
     const { bytesRead } = await file.read(buffer, 0, length, size - length)
     return buffer.subarray(0, bytesRead).toString('utf8')
   } catch (error) {
-    if (!isMissingFile(error))
+    if (!isMissingFile(error)) {
       logger.warn('Could not read the macOS updater log', describeError(error))
+    }
     return null
   } finally {
     await file?.close().catch(() => undefined)
@@ -165,7 +165,7 @@ export async function settleUpdateInstallAttempt(input: {
   readonly userDataDirectory: string
   readonly currentVersion: string
   readonly bundleIdentifier: string
-}): Promise<UpdateInstallOutcome | null> {
+}) {
   const attempt = await takeUpdateInstallAttempt(input.userDataDirectory)
   if (!attempt) return null
   const outcome = updateInstallOutcome({

@@ -11,7 +11,7 @@ interface PastePluginProps {
  * If the paste triggers auto-conversion, prevents Lexical from handling it.
  * Otherwise, lets Lexical handle the paste normally.
  */
-export function PastePlugin({ checkAndConvertPaste }: PastePluginProps): null {
+export function PastePlugin({ checkAndConvertPaste }: PastePluginProps) {
   const [editor] = useLexicalComposerContext()
   const checkPaste = useEffectEvent(checkAndConvertPaste)
 

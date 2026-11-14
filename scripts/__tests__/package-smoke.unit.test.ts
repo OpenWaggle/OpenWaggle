@@ -5,44 +5,16 @@ import {
   assertPackedPackageFiles,
   assertPackedWorkspaceDependencyRanges,
   collectManifestPackagePaths,
-  parsePnpmPackTarballPath,
+  parseBunPackTarballPath,
 } from '../package-smoke-assertions'
 import {
   assertBrowserBundleContent,
   resolvePackageSmokeCatalogVersion,
 } from '../package-smoke-runtime-assertions'
 import { createSmokePackageJson, packageManagerInstallArgs } from '../package-smoke'
-import {
-  assertRequiredPackageManagers,
-  availablePackageManagers,
-} from '../package-smoke-package-managers'
 import { assertCanonicalExtensionReactStylesheet } from '../package-smoke-tarballs'
 
 describe('package smoke tarball assertions', () => {
-  it('probes package managers outside the repository and fails closed for required managers', async () => {
-    const probeDirectories: string[] = []
-    const available = await availablePackageManagers(
-      [
-        { name: 'npm', command: 'npm' },
-        { name: 'yarn', command: 'yarn' },
-      ],
-      async (_candidate, cwd) => {
-        probeDirectories.push(cwd)
-      },
-      '/tmp/openwaggle-package-manager-probe',
-    )
-
-    expect(available.map(({ name }) => name)).toEqual(['npm', 'yarn'])
-    expect(probeDirectories).toEqual([
-      '/tmp/openwaggle-package-manager-probe',
-      '/tmp/openwaggle-package-manager-probe',
-    ])
-    expect(() => assertRequiredPackageManagers(available, ['npm', 'yarn'])).not.toThrow()
-    expect(() => assertRequiredPackageManagers(available, ['npm', 'pnpm', 'yarn'])).toThrow(
-      'Required package consumers are unavailable: pnpm.',
-    )
-  })
-
   it('creates a self-contained TypeScript consumer project manifest', () => {
     const manifest = createSmokePackageJson(
       [{ name: '@openwaggle/extension-sdk', tarballPath: '/tmp/extension-sdk.tgz' }],
@@ -76,17 +48,22 @@ describe('package smoke tarball assertions', () => {
       typescript: '6.0.0',
       vite: '7.0.0',
     })
+    // pnpm refuses a project whose packageManager names another manager.
+    expect(manifest).not.toHaveProperty('packageManager')
   })
 
   it('resolves named catalog versions for external package consumers', () => {
-    const workspace = `catalogs:\n  pi-runtime:\n    "@earendil-works/pi-tui": 0.87.1\n`
+    const catalogs = {
+      'pi-runtime': { '@earendil-works/pi-tui': '0.87.1' },
+      default: { react: '19.3.0' },
+    }
     expect(
-      resolvePackageSmokeCatalogVersion(
-        'catalog:pi-runtime',
-        '@earendil-works/pi-tui',
-        workspace,
-      ),
+      resolvePackageSmokeCatalogVersion('catalog:pi-runtime', '@earendil-works/pi-tui', catalogs),
     ).toBe('0.87.1')
+    expect(resolvePackageSmokeCatalogVersion('catalog:', 'react', catalogs)).toBe('19.3.0')
+    expect(() =>
+      resolvePackageSmokeCatalogVersion('catalog:pi-runtime', 'react', catalogs),
+    ).toThrow('Cannot resolve react from catalog:pi-runtime.')
   })
 
   it('uses portable install arguments for each package manager', () => {
@@ -109,20 +86,14 @@ describe('package smoke tarball assertions', () => {
     )
   })
 
-  it('reads the tarball path from pnpm pack JSON output', () => {
-    expect(
-      parsePnpmPackTarballPath(
-        JSON.stringify({
-          name: '@openwaggle/extension-sdk',
-          version: '0.1.0',
-          filename: '/tmp/openwaggle-extension-sdk-0.1.0.tgz',
-        }),
-      ),
-    ).toBe('/tmp/openwaggle-extension-sdk-0.1.0.tgz')
-
-    expect(() => parsePnpmPackTarballPath('{"filename":17}')).toThrowErrorMatchingInlineSnapshot(
-      `[Error: pnpm pack did not report a tarball filename.]`,
+  it('reads the tarball path from bun pm pack --quiet output', () => {
+    expect(parseBunPackTarballPath('/tmp/openwaggle-extension-sdk-0.1.0.tgz\n')).toBe(
+      '/tmp/openwaggle-extension-sdk-0.1.0.tgz',
     )
+
+    expect(() =>
+      parseBunPackTarballPath('bun pack v1.4.4\npacked 1KB package.json\n'),
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: bun pm pack did not report a tarball filename.]`)
   })
 
   it('requires every exported package file to be present in the tarball', () => {

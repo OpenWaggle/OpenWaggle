@@ -6,7 +6,7 @@ export const HTML_BLOCK_START_PATTERN = /^ {0,3}</u
  * The HTML blocks that run past blank lines, to their end marker (CommonMark HTML block kinds 1–5):
  * raw text elements, comments, processing instructions, declarations and CDATA.
  */
-const RAW_HTML_BLOCKS: ReadonlyArray<{ readonly start: RegExp; readonly end: RegExp }> = [
+const RAW_HTML_BLOCKS: readonly { readonly start: RegExp; readonly end: RegExp }[] = [
   {
     start: /^ {0,3}<(?:pre|script|style|textarea)(?:[\s>]|$)/iu,
     end: /<\/(?:pre|script|style|textarea)>/iu,

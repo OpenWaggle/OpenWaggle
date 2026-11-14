@@ -4,13 +4,13 @@ import type { AgentCompactionStatus } from '../compaction-lifecycle'
 import { withoutSavedRunAnswers } from '../saved-run-answers'
 import { placeUnsettledRunMessages, unsettledRunMessages } from '../seeded-run-messages'
 
-function message(id: string, role: UIMessage['role'], order?: number): UIMessage {
+function message(id: string, role: UIMessage['role'], order?: number) {
   return {
     id,
     role,
     parts: [{ type: 'text', content: id }],
     ...(order === undefined ? {} : { metadata: { sessionNodeCreatedOrder: order } }),
-  }
+  } satisfies UIMessage
 }
 
 /** A route's transcript: history, the settled Run 1 under stream ids, the active Run 2. */
@@ -110,10 +110,11 @@ describe('unsettledRunMessages', () => {
   })
 
   it('keeps a settled answer only an earlier Run saved the same text of', () => {
-    const answer = (id: string, order?: number): UIMessage => ({
-      ...message(id, 'assistant', order),
-      parts: [{ type: 'text', content: 'ok' }],
-    })
+    const answer = (id: string, order?: number) =>
+      ({
+        ...message(id, 'assistant', order),
+        parts: [{ type: 'text', content: 'ok' }],
+      }) satisfies UIMessage
     const run = [message('live-u1', 'user', 3), answer('stream-a1')]
     expect(
       ids(
@@ -128,10 +129,11 @@ describe('unsettledRunMessages', () => {
   })
 
   it('leaves a settled answer listed after a later user row to its saved copy', () => {
-    const done = (id: string, order?: number): UIMessage => ({
-      ...message(id, 'assistant', order),
-      parts: [{ type: 'text', content: 'done' }],
-    })
+    const done = (id: string, order?: number) =>
+      ({
+        ...message(id, 'assistant', order),
+        parts: [{ type: 'text', content: 'done' }],
+      }) satisfies UIMessage
     const persistedMessages = [
       message('p1', 'user', 1),
       done('n-a1', 2),
@@ -150,10 +152,11 @@ describe('unsettledRunMessages', () => {
   })
 
   it('keeps a later same-text answer whose save failed when the earlier one is shown by id', () => {
-    const ok = (id: string, order?: number): UIMessage => ({
-      ...message(id, 'assistant', order),
-      parts: [{ type: 'text', content: 'ok' }],
-    })
+    const ok = (id: string, order?: number) =>
+      ({
+        ...message(id, 'assistant', order),
+        parts: [{ type: 'text', content: 'ok' }],
+      }) satisfies UIMessage
     const persistedMessages = [message('p1', 'user', 1), ok('n-a1', 2)]
     const cachedMessages = [...persistedMessages, ok('stream-a2')]
     expect(
@@ -194,7 +197,7 @@ describe('unsettledRunMessages', () => {
   })
 })
 
-function completedCompaction(anchors: readonly number[]): AgentCompactionStatus {
+function completedCompaction(anchors: readonly number[]) {
   return {
     type: 'completed',
     reason: 'threshold',
@@ -206,7 +209,7 @@ function completedCompaction(anchors: readonly number[]): AgentCompactionStatus 
       summaryCountAtStart: 0,
       messageCountAtStart,
     })),
-  }
+  } satisfies AgentCompactionStatus
 }
 
 describe('placeUnsettledRunMessages', () => {
@@ -293,10 +296,11 @@ describe('placeUnsettledRunMessages', () => {
 })
 
 describe('withoutSavedRunAnswers', () => {
-  const answer = (id: string, content: string, order?: number): UIMessage => ({
-    ...message(id, 'assistant', order),
-    parts: [{ type: 'text', content }],
-  })
+  const answer = (id: string, content: string, order?: number) =>
+    ({
+      ...message(id, 'assistant', order),
+      parts: [{ type: 'text', content }],
+    }) satisfies UIMessage
   const shown = [message('p1', 'user', 1), answer('old', 'Done'), answer('stream-a1', 'Done')]
 
   it('drops a streamed answer the transcript saved under a Pi id, once per saved copy', () => {

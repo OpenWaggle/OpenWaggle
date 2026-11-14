@@ -60,7 +60,7 @@ vi.mock('../usage-statistics/usage-statistics-last-known-setting', () => ({
   usageStatisticsSettingWithoutSettings: () => state.lastKnownSetting,
   recordLastKnownUsageStatisticsSetting: lastKnown.record,
 }))
-vi.mock('../adapters/error-reporting/sentry-main-error-reporter', () => ({
+vi.mock('../adapters/electron/error-reporting/sentry-main-error-reporter', () => ({
   startSentryMainErrorReporter: adapter.startSentryMainErrorReporter,
 }))
 vi.mock('../usage-statistics/usage-statistics-enablement', () => ({

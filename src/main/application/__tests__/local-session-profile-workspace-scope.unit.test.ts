@@ -49,14 +49,14 @@ function request(workspaceRoot: string) {
       operation: 'update' as const,
       profileName: 'worker',
       capabilities: ['sessions:read'] as const,
-      scope: { workspaceRoots: [workspaceRoot] },
+      scope: { projectPaths: [workspaceRoot] },
       authorizationCeiling: 'ask-for-approval' as const,
     },
   }
 }
 
 describe('Local Session profile workspace scope management', () => {
-  it('canonicalizes bounded workspace roots and rejects workspace expansion', async () => {
+  it('canonicalizes bounded project roots and rejects project expansion', async () => {
     const executeManagement = vi.fn(async (input) => ({
       contractVersion: LOCAL_SESSION_PROFILE_MANAGEMENT_CONTRACT_VERSION,
       requestId: input.request.requestId,
@@ -84,11 +84,11 @@ describe('Local Session profile workspace scope management', () => {
         profileId: 'admin',
         profileName: 'admin',
         capabilities: ['access:profiles'] as const,
-        scope: { workspaceRoots: [ALLOWED_ROOT] },
+        scope: { projectPaths: [ALLOWED_ROOT] },
         authorizationCeiling: 'ask-for-approval' as const,
         managementEnvelope: {
           capabilities: ['sessions:read'] as const,
-          scope: { workspaceRoots: [ALLOWED_ROOT] },
+          scope: { projectPaths: [ALLOWED_ROOT] },
           authorizationCeiling: 'ask-for-approval' as const,
         },
       },
@@ -108,7 +108,7 @@ describe('Local Session profile workspace scope management', () => {
     expect(allowed.outcome.effect).toBe('profile-updated')
     expect(executeManagement).toHaveBeenCalledTimes(1)
     expect(executeManagement.mock.calls[0]?.[0].request.command).toMatchObject({
-      scope: { workspaceRoots: [fs.realpathSync(ALLOWED_ROOT)] },
+      scope: { projectPaths: [fs.realpathSync(ALLOWED_ROOT)] },
     })
     expect(denied.outcome).toMatchObject({
       effect: 'rejected',

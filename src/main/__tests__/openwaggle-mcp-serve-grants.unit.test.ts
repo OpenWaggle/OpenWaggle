@@ -1,20 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { OpenWaggleMcpServeOptions } from '../openwaggle-mcp-server-policy'
 import { OPENWAGGLE_MCP_SESSION_OPERATIONS_V2 } from '../openwaggle-mcp-session-operations-v2'
+import { acceptsInput } from './openwaggle-mcp-session-input.test-support'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn(), getVersion: vi.fn(() => 'test') } }))
 
-const { MCP_SESSION_OPERATION_BASE_CAPABILITIES_V2 } = await import(
-  '../openwaggle-mcp-session-operation-grants-v2'
-)
+const { MCP_SESSION_OPERATION_BASE_CAPABILITIES_V2 } =
+  await import('../openwaggle-mcp-session-operation-grants-v2')
 const { buildMcpSessionPayloadV2, mcpSessionHostIdentity, sessionInputSchemaForGrantsV2 } =
   await import('../openwaggle-mcp-session-tool-v2')
 const { advertisedSessionInputSchemaV2 } = await import('../openwaggle-mcp-session-input-v2')
-const { requiredSessionQueryCapabilities, requiredSessionControlCapabilities } = await import(
-  '../domain/session-control/session-capability-authorization'
-)
+const { requiredSessionQueryCapabilities, requiredSessionControlCapabilities } =
+  await import('../domain/session-control/session-capability-authorization')
 
-function options(identity: OpenWaggleMcpServeOptions['identity']): OpenWaggleMcpServeOptions {
+function options(identity: OpenWaggleMcpServeOptions['identity']) {
   return {
     transport: 'stdio',
     grants: new Set(['sessions:discover', 'sessions:read']),
@@ -23,14 +22,14 @@ function options(identity: OpenWaggleMcpServeOptions['identity']): OpenWaggleMcp
     identity,
     userDataRoot: '/user-data',
     version: 'test',
-  }
+  } satisfies OpenWaggleMcpServeOptions
 }
 
 describe('mcp serve grants (#350)', () => {
   it('advertises exactly the operations whose base capabilities were granted', () => {
     const schema = advertisedSessionInputSchemaV2(new Set(['sessions:read']))
-    const advertised = OPENWAGGLE_MCP_SESSION_OPERATIONS_V2.filter(
-      (operation) => schema.safeParse({ operation }).success,
+    const advertised = OPENWAGGLE_MCP_SESSION_OPERATIONS_V2.filter((operation) =>
+      acceptsInput(schema, { operation }),
     )
 
     expect(advertised).toEqual([

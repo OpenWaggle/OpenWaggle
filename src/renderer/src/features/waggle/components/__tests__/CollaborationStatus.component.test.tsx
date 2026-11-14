@@ -10,7 +10,7 @@ import { WaggleCollaborationStatus } from '../CollaborationStatus'
 const SESSION_ID = SessionId('session-1')
 const SELECTED_MODEL = SupportedModelId('openai/gpt-5.5')
 
-function inheritedConfig(): WaggleConfig {
+function inheritedConfig() {
   return {
     mode: 'sequential',
     agents: [
@@ -28,7 +28,7 @@ function inheritedConfig(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: 4 },
-  }
+  } satisfies WaggleConfig
 }
 
 describe('WaggleCollaborationStatus', () => {

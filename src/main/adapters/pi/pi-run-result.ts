@@ -18,7 +18,7 @@ function makeMessage(
     id: MessageId(randomUUID()),
     role,
     parts,
-    model,
+    ...(model ? { model } : {}),
     createdAt: Date.now(),
   }
 }
@@ -67,7 +67,7 @@ function isPiRuntimeToolResultMessage(value: unknown): value is PiRuntimeToolRes
   )
 }
 
-export function getPiAssistantStopReason(messages: readonly unknown[]): string | null {
+export function getPiAssistantStopReason(messages: readonly unknown[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (!isPiRuntimeAssistantMessage(message)) {
@@ -80,7 +80,7 @@ export function getPiAssistantStopReason(messages: readonly unknown[]): string |
   return null
 }
 
-export function extractPiAssistantTerminalError(messages: readonly unknown[]): string | null {
+export function extractPiAssistantTerminalError(messages: readonly unknown[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (!isPiRuntimeAssistantMessage(message)) {
@@ -100,16 +100,19 @@ export function extractPiAssistantTerminalError(messages: readonly unknown[]): s
 export function buildPiRunNewMessages(
   payload: PersistedUserMessagePartsPayload,
   appendedMessages: readonly unknown[],
-): Message[] {
+) {
   const filteredAppended = appendedMessages.filter(
     (message) => isPiRuntimeAssistantMessage(message) || isPiRuntimeToolResultMessage(message),
   )
 
   const assistantAndToolMessages = piHistoryToProjectedMessages(filteredAppended)
-  return [makeMessage('user', buildPersistedUserMessageParts(payload)), ...assistantAndToolMessages]
+  return [
+    makeMessage('user', buildPersistedUserMessageParts(payload)),
+    ...assistantAndToolMessages,
+  ] satisfies Message[]
 }
 
-export function buildPiRunAssistantMessages(appendedMessages: readonly unknown[]): Message[] {
+export function buildPiRunAssistantMessages(appendedMessages: readonly unknown[]) {
   const filteredAppended = appendedMessages.filter(
     (message) => isPiRuntimeAssistantMessage(message) || isPiRuntimeToolResultMessage(message),
   )
@@ -125,7 +128,7 @@ export function buildPiRunAssistantMessages(appendedMessages: readonly unknown[]
 export function buildClassicRunMessages(
   input: { readonly hiveWake?: boolean; readonly payload: PersistedUserMessagePartsPayload },
   appendedMessages: readonly unknown[],
-): Message[] {
+) {
   return input.hiveWake
     ? buildPiRunAssistantMessages(appendedMessages)
     : buildPiRunNewMessages(input.payload, appendedMessages)

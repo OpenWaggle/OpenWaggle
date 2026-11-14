@@ -8,12 +8,12 @@ import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { createSessionControlQueryReader } from '../session-control-query-reader'
 
-function request(requestId: string, sessionId = 'session-1'): SessionQueryRequest {
+function request(requestId: string, sessionId = 'session-1') {
   return {
     contractVersion: SESSION_QUERY_CONTRACT_VERSION,
     requestId,
     query: { operation: 'queue-list', sessionId: SessionId(sessionId) },
-  }
+  } satisfies SessionQueryRequest
 }
 
 describe('createSessionControlQueryReader (boot fetch dedupe)', () => {

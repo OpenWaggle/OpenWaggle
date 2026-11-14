@@ -1,6 +1,16 @@
+import { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
+import { useSessionStore } from '@/features/sessions/state'
+import { usePreferencesStore } from '@/features/settings/state'
+import { useUIStore } from '@/shell/ui-store'
 
+/*
+ * Only the preload and the router's navigate are replaced: the chat, preferences and UI stores
+ * are the real ones, so each case asserts the Session the app selects and the notice it shows.
+ */
 const mocks = vi.hoisted(() => {
   const listener: { current: (() => void) | null } = { current: null }
   const requests: (string | null)[] = []
@@ -10,41 +20,52 @@ const mocks = vi.hoisted(() => {
     known: new Map<string, { id: string; archived?: boolean }>(),
     listSessionsByIds: vi.fn(),
     navigate: vi.fn(async (_options: unknown) => undefined),
-    setActiveSession: vi.fn(),
-    showToast: vi.fn(),
     unsubscribe: vi.fn(),
-    settingsLoaded: { current: true },
   }
 })
 
+// A memory router would add a route tree for one navigate call; navigation is the outcome here.
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
-vi.mock('@/features/chat/state', () => ({
-  useChatStore: { getState: () => ({ setActiveSession: mocks.setActiveSession }) },
-}))
-vi.mock('@/features/settings/state', () => ({
-  usePreferencesStore: (select: (state: { isLoaded: boolean }) => boolean) =>
-    select({ isLoaded: mocks.settingsLoaded.current }),
-}))
-vi.mock('@/shell/ui-store', () => ({
-  useUIStore: { getState: () => ({ showToast: mocks.showToast }) },
-}))
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     listSessionsByIds: mocks.listSessionsByIds,
     takeOpenSessionLinkRequest: async () => mocks.requests.shift() ?? null,
     onOpenSessionLinkRequested: (listener: () => void) => {
       mocks.listener.current = listener
       return mocks.unsubscribe
     },
-  },
+    // Selecting a Session reads its detail, as the sidebar does.
+    getSessionDetail: async (id: string) => (mocks.known.has(id) ? sessionDetail(id) : null),
+  }),
 }))
 
 const { useOpenSessionLinkRequests } = await import('../useOpenSessionLinkRequests')
+
+function sessionDetail(id: string) {
+  const detail: SessionDetail = {
+    id: SessionId(id),
+    title: id,
+    projectPath: '/repo',
+    messages: [],
+    createdAt: 1,
+    updatedAt: 1,
+  }
+  return detail
+}
 
 const navigatedSessions = () =>
   mocks.navigate.mock.calls.map(([options]) =>
     typeof options === 'object' && options !== null && 'params' in options ? options.params : null,
   )
+const activeSessionId = () => useChatStore.getState().activeSessionId
+const toast = () => useUIStore.getState().toastData
+
+function resetStores() {
+  usePreferencesStore.setState({ ...usePreferencesStore.getInitialState(), isLoaded: true }, true)
+  useChatStore.setState(useChatStore.getInitialState(), true)
+  useSessionStore.setState(useSessionStore.getInitialState(), true)
+  useUIStore.setState({ toastMessage: null, toastData: null })
+}
 
 beforeEach(() => {
   mocks.listener.current = null
@@ -53,37 +74,28 @@ beforeEach(() => {
   mocks.listSessionsByIds.mockReset().mockImplementation(async (ids: readonly string[]) =>
     ids.flatMap((id) => {
       const session = mocks.known.get(id)
-      return session ? [session] : []
+      return session ? [{ ...session, id: SessionId(session.id) }] : []
     }),
   )
   mocks.navigate.mockClear()
-  mocks.setActiveSession.mockClear()
-  mocks.showToast.mockClear()
   mocks.unsubscribe.mockClear()
-  mocks.settingsLoaded.current = true
+  resetStores()
 })
+afterEach(resetStores)
 
 describe('Session link requests', () => {
-  it('opens a Session linked before the window loaded', async () => {
-    mocks.known.set('session-1', { id: 'session-1' })
-    mocks.requests.push('session-1')
+  it.each([
+    ['a Session linked before the window loaded', { id: 'session-1' }],
+    ['an archived Session without restoring it', { id: 'session-archived', archived: true }],
+  ])('opens %s', async (_case, session) => {
+    mocks.known.set(session.id, session)
+    mocks.requests.push(session.id)
 
     renderHook(useOpenSessionLinkRequests)
 
-    await vi.waitFor(() => expect(navigatedSessions()).toEqual([{ sessionId: 'session-1' }]))
-    expect(mocks.setActiveSession).toHaveBeenCalledWith('session-1')
-    expect(mocks.showToast).not.toHaveBeenCalled()
-  })
-
-  it('opens an archived Session without restoring it', async () => {
-    mocks.known.set('session-archived', { id: 'session-archived', archived: true })
-    mocks.requests.push('session-archived')
-
-    renderHook(useOpenSessionLinkRequests)
-
-    await vi.waitFor(() => expect(navigatedSessions()).toEqual([{ sessionId: 'session-archived' }]))
-    expect(mocks.setActiveSession).toHaveBeenCalledWith('session-archived')
-    expect(mocks.showToast).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(navigatedSessions()).toEqual([{ sessionId: session.id }]))
+    expect(activeSessionId()).toBe(session.id)
+    expect(toast()).toBeNull()
   })
 
   it('reports an unknown Session and stays on the current page', async () => {
@@ -92,10 +104,13 @@ describe('Session link requests', () => {
     renderHook(useOpenSessionLinkRequests)
 
     await vi.waitFor(() =>
-      expect(mocks.showToast).toHaveBeenCalledWith('Session not found: session-missing', 'error'),
+      expect(toast()).toMatchObject({
+        message: 'Session not found: session-missing',
+        variant: 'error',
+      }),
     )
     expect(mocks.navigate).not.toHaveBeenCalled()
-    expect(mocks.setActiveSession).not.toHaveBeenCalled()
+    expect(activeSessionId()).toBeNull()
   })
 
   it('opens links received while the app is running, one at a time', async () => {
@@ -114,11 +129,13 @@ describe('Session link requests', () => {
       mocks.listener.current?.()
     })
     await vi.waitFor(() => expect(navigatedSessions()).toEqual([{ sessionId: 'session-a' }]))
+    expect(activeSessionId()).toBe('session-a')
     finishFirst()
 
     await vi.waitFor(() =>
       expect(navigatedSessions()).toEqual([{ sessionId: 'session-a' }, { sessionId: 'session-b' }]),
     )
+    expect(activeSessionId()).toBe('session-b')
   })
 
   it('shows an error instead of silently losing a link whose lookup fails', async () => {
@@ -128,21 +145,23 @@ describe('Session link requests', () => {
     renderHook(useOpenSessionLinkRequests)
 
     await vi.waitFor(() =>
-      expect(mocks.showToast).toHaveBeenCalledWith('Could not open session session-1.', 'error'),
+      expect(toast()).toMatchObject({
+        message: 'Could not open session session-1.',
+        variant: 'error',
+      }),
     )
   })
 
   it('waits for settings before taking a link', async () => {
-    mocks.settingsLoaded.current = false
+    usePreferencesStore.setState({ isLoaded: false })
     mocks.known.set('session-1', { id: 'session-1' })
     mocks.requests.push('session-1')
 
-    const { rerender } = renderHook(useOpenSessionLinkRequests)
+    renderHook(useOpenSessionLinkRequests)
     await Promise.resolve()
     expect(mocks.requests).toEqual(['session-1'])
 
-    mocks.settingsLoaded.current = true
-    rerender()
+    act(() => usePreferencesStore.setState({ isLoaded: true }))
     await vi.waitFor(() => expect(navigatedSessions()).toEqual([{ sessionId: 'session-1' }]))
   })
 })

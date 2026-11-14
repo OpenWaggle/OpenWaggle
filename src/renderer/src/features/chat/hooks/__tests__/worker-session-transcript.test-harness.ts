@@ -44,10 +44,10 @@ const apiMock = vi.hoisted(() => {
     onRunCompleted: vi.fn(subscribe(runCompletedHandlers)),
     onSessionHostResyncRequired: vi.fn((_handler: () => void) => () => {}),
     listActiveRuns: vi.fn(async () => []),
-    getBackgroundRun: vi.fn(
-      async (_sessionId: string): Promise<BackgroundRunSnapshot | null> => null,
+    getBackgroundRun: vi.fn<(_sessionId: string) => Promise<BackgroundRunSnapshot | null>>(
+      async (_sessionId: string) => null,
     ),
-    getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
+    getSessionDetail: vi.fn<() => Promise<SessionDetail | null>>(async () => null),
     querySessionControl: vi.fn(
       async (request: {
         readonly requestId: string
@@ -61,7 +61,9 @@ const apiMock = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMock),
+}))
 
 const chatStoreMock = vi.hoisted(() => ({
   refreshSession: vi.fn(async (_sessionId: string) => {}),
@@ -121,8 +123,8 @@ export function emitAssistantText(messageId: string, text: string, timestamp: nu
 }
 
 /** What the Host can answer mid-Run: nothing of this Run is persisted yet. */
-export function workerDetailWithoutRunMessages(): SessionDetail {
-  return {
+export function workerDetailWithoutRunMessages() {
+  const detail: SessionDetail = {
     id: WORKER_ID,
     title: 'Worker',
     projectPath: '/tmp/project',
@@ -130,11 +132,12 @@ export function workerDetailWithoutRunMessages(): SessionDetail {
     updatedAt: 1,
     messages: [],
   }
+  return detail
 }
 
 /** The reconnect buffer keeps the Run's user messages and only the answer streaming now. */
-export function workerReconnectBuffer(): BackgroundRunSnapshot {
-  return {
+export function workerReconnectBuffer() {
+  const snapshot: BackgroundRunSnapshot = {
     activity: 'agent-run',
     sessionId: WORKER_ID,
     model: MODEL,
@@ -152,6 +155,7 @@ export function workerReconnectBuffer(): BackgroundRunSnapshot {
       },
     ],
   }
+  return snapshot
 }
 
 /** The transcript as rendered: a streamed token reaches its bubble before the chat's state. */

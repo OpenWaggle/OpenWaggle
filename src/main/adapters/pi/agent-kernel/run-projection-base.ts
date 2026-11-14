@@ -1,10 +1,7 @@
 import type { SessionDetail } from '@shared/types/session'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import { piSessionFileStillHasTail } from '../../../store/pi-session-file-tail'
-import {
-  type PiProjectionBase,
-  readPiProjectionBase,
-} from '../../../store/session-details/pi-projection-base'
+import { readPiProjectionBase } from '../../../store/session-details/pi-projection-base'
 import { logger } from './constants'
 
 /**
@@ -17,7 +14,7 @@ import { logger } from './constants'
 export async function readRunProjectionBase(
   session: Pick<SessionDetail, 'id'>,
   piSessionFile: string | undefined,
-): Promise<PiProjectionBase | null> {
+) {
   if (!piSessionFile) return null
   try {
     const base = await readPiProjectionBase(session.id)

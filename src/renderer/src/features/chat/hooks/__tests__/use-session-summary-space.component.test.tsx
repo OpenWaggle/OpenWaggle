@@ -62,11 +62,9 @@ describe('useSessionSummarySpace', () => {
   })
 
   function renderPanel() {
-    let hasSpace: boolean | null = null
     function Panel() {
-      const space = useSessionSummarySpace(false)
-      hasSpace = space.hasSpace
-      return <div ref={space.panelRef} data-testid="panel" />
+      const { panelRef, hasSpace } = useSessionSummarySpace(false)
+      return <div ref={panelRef} data-testid="panel" data-has-space={String(hasSpace)} />
     }
     const panel = render(<Panel />).getByTestId('panel')
     const resize = (width: number) => {
@@ -75,7 +73,7 @@ describe('useSessionSummarySpace', () => {
       if (!callback) throw new Error('The panel is not observed.')
       act(() => callback([], { observe() {}, unobserve() {}, disconnect() {} }))
       return {
-        hasSpace,
+        hasSpace: panel.getAttribute('data-has-space') === 'true',
         reserve: panel.style.getPropertyValue('--session-summary-reserve'),
       }
     }

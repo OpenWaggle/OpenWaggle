@@ -9,6 +9,6 @@ import { clearSessionGrants } from '../application/agent-authorization-grants'
  * nothing could read them again, but a grant that outlives the thing it was scoped to is exactly
  * what "this session only" promises not to do.
  */
-export function cleanupSessionRun(sessionId: SessionId): void {
+export function cleanupSessionRun(sessionId: SessionId) {
   clearSessionGrants(sessionId)
 }

@@ -84,7 +84,7 @@ interface FenceRun {
   readonly trailing: string
 }
 
-function fenceRun(line: string): FenceRun | null {
+function fenceRun(line: string) {
   let indent = 0
   while (indent < line.length && line[indent] === SPACE) indent += 1
   if (indent > MAX_FENCE_INDENT) return null
@@ -94,7 +94,7 @@ function fenceRun(line: string): FenceRun | null {
   while (end < line.length && line[end] === character) end += 1
   const length = end - indent
   if (length < MIN_FENCE_LENGTH) return null
-  return { character, length, indent, trailing: line.slice(end) }
+  return { character, length, indent, trailing: line.slice(end) } satisfies FenceRun
 }
 
 function opensFence(run: FenceRun) {
@@ -132,19 +132,19 @@ function isListItemLine(line: string) {
   return columns < INDENTED_CODE_COLUMNS && LIST_MARKER_PATTERN.test(rest)
 }
 
-type Continuation = 'continues' | 'ends' | 'undecided'
-
 /**
  * Whether the first non-blank line after a blank line continues the block above it. Unsure means
  * it continues: parsing two blocks together reads them as the whole text does.
  */
-function continuation(line: MarkdownLine, blockHasList: boolean): Continuation {
+function continuation(line: MarkdownLine, blockHasList: boolean) {
   const { columns, rest } = indentation(line.text)
-  if (columns >= INDENTED_CODE_COLUMNS) return 'continues'
-  if (!blockHasList) return 'ends'
-  if (columns > 0) return 'continues'
-  if (LIST_MARKER_PATTERN.test(rest)) return 'continues'
-  return !line.complete && PARTIAL_LIST_MARKER_PATTERN.test(rest) ? 'undecided' : 'ends'
+  if (columns >= INDENTED_CODE_COLUMNS) return 'continues' as const
+  if (!blockHasList) return 'ends' as const
+  if (columns > 0) return 'continues' as const
+  if (LIST_MARKER_PATTERN.test(rest)) return 'continues' as const
+  return !line.complete && PARTIAL_LIST_MARKER_PATTERN.test(rest)
+    ? ('undecided' as const)
+    : ('ends' as const)
 }
 
 function fenceLanguage(openingLine: string) {
@@ -171,7 +171,7 @@ interface MarkdownLine {
   readonly complete: boolean
 }
 
-function* markdownLines(text: string): Generator<MarkdownLine> {
+function* markdownLines(text: string) {
   let cursor = 0
   while (cursor < text.length) {
     const newline = text.indexOf('\n', cursor)
@@ -271,7 +271,7 @@ class BlockBoundaryScanner {
   }
 }
 
-function completedBlocks(text: string, boundaries: readonly number[]): StreamingMarkdownBlock[] {
+function completedBlocks(text: string, boundaries: readonly number[]) {
   return boundaries.map((end, index) => {
     const start = boundaries[index - 1] ?? 0
     return { start, text: text.slice(start, end) }
@@ -292,33 +292,35 @@ function scan(text: string) {
  * The blocks of text that ends where a split ended a block (the text before a split's tail): the
  * same blocks the split found there, its end included, though no line after it shows it ended.
  */
-export function completedMarkdownBlocks(prefix: string): StreamingMarkdownBlock[] {
+export function completedMarkdownBlocks(prefix: string) {
   const { scanner } = scan(prefix)
   scanner.endBlockAt(prefix.length)
   return completedBlocks(prefix, scanner.boundaries)
 }
 
 /** The live tail after the completed blocks, which end at `prefixEnd`. */
-function liveTail(
-  text: string,
-  prefixEnd: number,
-  fence: Fence | null,
-): StreamingMarkdownTail | null {
+function liveTail(text: string, prefixEnd: number, fence: Fence | null) {
   if (prefixEnd >= text.length) return null
   if (fence?.topLevel && isBlank(text.slice(prefixEnd, fence.start))) {
-    return { kind: 'open-fence', start: prefixEnd, ...fencedCode(text, fence) }
+    return { kind: 'open-fence', start: prefixEnd, ...fencedCode(text, fence) } as const
   }
-  return { kind: 'markdown', start: prefixEnd, text: text.slice(prefixEnd) }
+  return { kind: 'markdown', start: prefixEnd, text: text.slice(prefixEnd) } as const
 }
 
-export function splitStreamingMarkdown(text: string): StreamingMarkdownSplit {
+export function splitStreamingMarkdown(text: string) {
   const { scanner, definitions } = scan(text)
   if (definitions.needsWholeDocument) {
-    return { blocks: [], tail: liveTail(text, 0, null), definitions: '' }
+    const split: StreamingMarkdownSplit = {
+      blocks: [],
+      tail: liveTail(text, 0, null),
+      definitions: '',
+    }
+    return split
   }
-  return {
+  const split: StreamingMarkdownSplit = {
     blocks: completedBlocks(text, scanner.boundaries),
     tail: liveTail(text, scanner.boundaries.at(-1) ?? 0, scanner.fence),
     definitions: definitions.lines.join('\n'),
   }
+  return split
 }

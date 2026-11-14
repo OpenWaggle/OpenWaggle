@@ -15,8 +15,8 @@ export const firstPartyDocTopicSchema = nonEmptyStringSchema.pipe(
 )
 
 export const extensionDocsDiscoverPayloadSchema = Schema.Struct({
-  projectPaths: Schema.optional(Schema.Array(nonEmptyStringSchema)),
-  includeExtensions: Schema.optional(Schema.Boolean),
+  projectPaths: Schema.optionalWith(Schema.Array(nonEmptyStringSchema), { exact: true }),
+  includeExtensions: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 export const extensionDocsResolveTopicPayloadSchema = Schema.Struct({
@@ -27,7 +27,7 @@ export const docsDiscoveryDiagnosticSchema = Schema.Struct({
   severity: Schema.Literal('warning', 'error'),
   code: nonEmptyStringSchema,
   message: nonEmptyStringSchema,
-  path: Schema.optional(nonEmptyStringSchema),
+  path: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
 })
 
 export const firstPartyDocsTopicSummarySchema = Schema.Struct({
@@ -35,8 +35,8 @@ export const firstPartyDocsTopicSummarySchema = Schema.Struct({
   source: Schema.Literal('openwaggle', 'pi'),
   group: nonEmptyStringSchema,
   title: nonEmptyStringSchema,
-  description: Schema.optional(nonEmptyStringSchema),
-  section: Schema.optional(nonEmptyStringSchema),
+  description: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
+  section: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
   order: Schema.Number,
   path: nonEmptyStringSchema,
   bundlePath: nonEmptyStringSchema,
@@ -52,7 +52,7 @@ export const extensionDocsPackageScopeViewSchema = Schema.Struct({
     OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
   ),
   label: nonEmptyStringSchema,
-  projectPath: Schema.optional(nonEmptyStringSchema),
+  projectPath: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
 })
 
 export const extensionDocsProvenanceSchema = Schema.Struct({
@@ -72,7 +72,7 @@ export const extensionDocsTopicSummarySchema = Schema.Struct({
   topic: nonEmptyStringSchema,
   localTopic: nonEmptyStringSchema,
   title: nonEmptyStringSchema,
-  description: Schema.optional(nonEmptyStringSchema),
+  description: Schema.optionalWith(nonEmptyStringSchema, { exact: true }),
   path: nonEmptyStringSchema,
   aliases: Schema.Array(nonEmptyStringSchema),
   keywords: Schema.Array(nonEmptyStringSchema),

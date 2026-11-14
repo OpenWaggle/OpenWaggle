@@ -1,4 +1,7 @@
-export type SettingsPatchWrite = { readonly key: string; readonly value: unknown }
+export interface SettingsPatchWrite {
+  readonly key: string
+  readonly value: unknown
+}
 
 export function appendChangedSetting(
   writes: SettingsPatchWrite[],

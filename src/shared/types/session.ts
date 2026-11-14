@@ -1,3 +1,12 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  pinnedSessionMoveSchema,
+  sessionDeleteOptionsSchema,
+  sessionNavigateTreeOptionsSchema,
+  sessionTreeUiStatePatchSchema,
+  sessionWorkspaceSelectionSchema,
+  sessionWorktreePlanSchema,
+} from '@shared/schemas/session-operation-requests'
 import type { SessionTitleSource } from '../session-title-source'
 import type { Message } from './agent'
 import type { AgentAuthorizationMode } from './agent-authorization'
@@ -19,6 +28,16 @@ import type { ThinkingLevel } from './settings'
 import type { WaggleConfig } from './waggle'
 
 export type { SessionNode, SessionNodeKind, SessionTranscriptNode, SessionTreeNode }
+
+/** Per-session worktree birth plan persisted by the composer strip (WS1b). */
+export type SessionWorktreePlan = SchemaType<typeof sessionWorktreePlanSchema>
+export type SessionTreeUiStatePatch = SchemaType<typeof sessionTreeUiStatePatchSchema>
+/** A request to reposition one pin between the neighbours it should land between. */
+export type PinnedSessionMove = SchemaType<typeof pinnedSessionMoveSchema>
+export type SessionWorkspaceSelection = SchemaType<typeof sessionWorkspaceSelectionSchema>
+/** How the desktop user deletes a Session. */
+export type SessionDeleteOptions = SchemaType<typeof sessionDeleteOptionsSchema>
+export type SessionNavigateTreeOptions = SchemaType<typeof sessionNavigateTreeOptionsSchema>
 
 export type SessionFutureMode = 'standard' | 'waggle'
 export type SessionTreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
@@ -192,13 +211,6 @@ export interface SessionResumePosition {
   readonly piEntryCount: number
 }
 
-/** Per-session worktree birth plan persisted by the composer strip (WS1b). */
-export interface SessionWorktreePlan {
-  readonly environmentMode: SessionEnvironmentMode
-  readonly baseRef: string | null
-  readonly startFromOrigin: boolean
-}
-
 export interface SessionBranch {
   readonly id: SessionBranchId
   readonly sessionId: SessionId
@@ -231,12 +243,6 @@ export interface SessionTreeUiState {
   readonly updatedAt: number
 }
 
-export interface SessionTreeUiStatePatch {
-  readonly expandedNodeIds?: readonly SessionNodeId[]
-  readonly branchesSidebarCollapsed?: boolean
-  readonly lastVisitedAt?: number
-}
-
 /**
  * A Pinned session: one session the user marked for quick access.
  *
@@ -247,18 +253,6 @@ export interface PinnedSession {
   readonly sessionId: SessionId
   readonly pinnedAt: number
   readonly sortKey: string
-}
-
-/**
- * A request to reposition one pin, expressed by the neighbours it should land between.
- *
- * Neighbours are session ids rather than sort keys so callers work from what they
- * rendered and never handle keys. `null` on either side means that end of the list.
- */
-export interface PinnedSessionMove {
-  readonly sessionId: SessionId
-  readonly afterSessionId: SessionId | null
-  readonly beforeSessionId: SessionId | null
 }
 
 /** A Session's tree as the desktop window reads it, without node content (see `SessionTreeNode`). */
@@ -273,24 +267,6 @@ export interface SessionTree {
 /** A Session's tree with every node's content, as the Host reads it from its projection. */
 export interface SessionContentTree extends SessionTree {
   readonly nodes: readonly SessionNode[]
-}
-
-export interface SessionWorkspaceSelection {
-  readonly branchId?: SessionBranchId | null
-  readonly nodeId?: SessionNodeId | null
-}
-
-/** How the desktop user deletes a Session. */
-export interface SessionDeleteOptions {
-  /** As part of removing its project: a discovered Pi file stays listable (ADR 0051). */
-  readonly removingProject?: boolean
-  /** Only while still archived (Settings > Archived items); see `SESSION_NOT_ARCHIVED_MESSAGE`. */
-  readonly requireArchived?: boolean
-}
-
-export interface SessionNavigateTreeOptions {
-  readonly summarize?: boolean
-  readonly customInstructions?: string
 }
 
 export interface SessionCopyToNewResult {

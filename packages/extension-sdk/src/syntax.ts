@@ -38,11 +38,12 @@ export function createPlainExtensionSyntaxResult(input: {
   readonly source: string
   readonly language?: string
   readonly diagnostic?: string
-}): OpenWaggleExtensionSyntaxHighlightResult {
-  return {
+}) {
+  const result: OpenWaggleExtensionSyntaxHighlightResult = {
     status: 'plain-text',
     language: input.language?.trim() || 'text',
     lines: input.source.split('\n').map((line) => [{ content: line }]),
     ...(input.diagnostic ? { diagnostic: input.diagnostic } : {}),
   }
+  return result
 }

@@ -20,10 +20,11 @@ export async function readBoundedSessionResourceSource(input: ReadSessionResourc
   ) {
     throw new Error('Session resource source read limits are invalid.')
   }
-  const roots = await Promise.all(
-    input.allowedRoots.map((root) => fs.realpath(root).catch(() => null)),
-  )
-  const handle = await fs.open(input.sourcePath, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK)
+  // Resolving a root never rejects, so opening the source decides whether this throws.
+  const [roots, handle] = await Promise.all([
+    Promise.all(input.allowedRoots.map((root) => fs.realpath(root).catch(() => null))),
+    fs.open(input.sourcePath, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK),
+  ])
   try {
     const [sourcePath, stats] = await Promise.all([
       fs.realpath(input.sourcePath),

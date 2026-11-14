@@ -6,11 +6,10 @@ import {
 } from '@shared/constants/mcp-app-frame'
 import type {
   McpAppFrameRegisterInput,
-  McpAppFrameRegisterResult,
   McpAppFrameUnregisterInput,
 } from '@shared/types/mcp-app-frame'
 import { mcpAppContentSecurityPolicy, mcpAppFrameUrl } from '@shared/utils/mcp-app-csp'
-import { protocol } from 'electron'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 
 const TEXT_HTML_CONTENT_TYPE = 'text/html; charset=utf-8'
 const HTTP_NOT_FOUND_STATUS = 404
@@ -63,10 +62,7 @@ function frameHost(frameId: string) {
  * renderer's). A `srcdoc` frame would inherit the page's own CSP and load nothing from the
  * network (ADR 0053).
  */
-export function registerMcpAppFrame(
-  input: McpAppFrameRegisterInput,
-  ownerId: number,
-): McpAppFrameRegisterResult {
+export function registerMcpAppFrame(input: McpAppFrameRegisterInput, ownerId: number) {
   if (!FRAME_ID_PATTERN.test(input.frameId)) throw new Error('Invalid MCP App frame id')
   if (Buffer.byteLength(input.html, 'utf8') > MAX_MCP_APP_DOCUMENT_BYTES) {
     throw new Error('MCP App document is too large')
@@ -151,5 +147,5 @@ export function mcpAppFrameResponse(requestUrl: string) {
 export function registerMcpAppFrameProtocolOnce() {
   if (protocolRegistered) return
   protocolRegistered = true
-  protocol.handle(MCP_APP_FRAME_PROTOCOL.SCHEME, (request) => mcpAppFrameResponse(request.url))
+  trustedOrigins.serve('mcp-app-frame', (request) => mcpAppFrameResponse(request.url))
 }

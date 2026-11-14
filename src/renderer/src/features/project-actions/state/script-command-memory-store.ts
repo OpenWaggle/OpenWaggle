@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { resolveActionPanelStorage } from './action-panel-storage'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const SCRIPT_COMMAND_MEMORY_STORAGE_KEY = 'openwaggle:action-panel:script-commands:v1'
 const MAX_REMEMBERED_SCRIPT_COMMANDS = 500
@@ -19,7 +20,7 @@ export function scriptCommandMemoryKey(projectPath: string, scriptKey: string) {
   return `${projectPath}\u0000${scriptKey}`
 }
 
-function sanitize(value: unknown): Record<string, string> {
+function sanitize(value: unknown) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   return Object.fromEntries(
     Object.entries(value)
@@ -43,11 +44,7 @@ export const useScriptCommandMemory = create<ScriptCommandMemoryState>()(
       partialize: (state) => ({ commands: state.commands }),
       merge: (persisted, current) => ({
         ...current,
-        commands: sanitize(
-          persisted !== null && typeof persisted === 'object'
-            ? Reflect.get(persisted, 'commands')
-            : undefined,
-        ),
+        commands: sanitize(uncheckedFields<{ readonly commands: unknown }>(persisted).commands),
       }),
     },
   ),

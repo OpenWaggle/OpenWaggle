@@ -28,13 +28,13 @@ export function decideTerminalOpen(
   input: TerminalOpenInput,
   cwdExists: boolean,
   persistedHistory: string,
-): TerminalOpenDecision {
+) {
   if (!cwdExists) {
     const persisted = record?.scrollback.toString() ?? persistedHistory
-    return { kind: 'cwd-missing', persisted }
+    return { kind: 'cwd-missing', persisted } satisfies TerminalOpenDecision
   }
   if (record === undefined) {
-    return { kind: 'create', persisted: persistedHistory }
+    return { kind: 'create', persisted: persistedHistory } satisfies TerminalOpenDecision
   }
   const environmentChanged =
     input.env !== undefined &&
@@ -46,14 +46,14 @@ export function decideTerminalOpen(
     record.termination === null &&
     !launchContextChanged
   ) {
-    return { kind: 'reuse' }
+    return { kind: 'reuse' } satisfies TerminalOpenDecision
   }
   if (launchContextChanged) {
-    return { kind: 'context-change' }
+    return { kind: 'context-change' } satisfies TerminalOpenDecision
   }
   // A null live process plus a null exit code is the runtime's explicit
   // "spawn in flight" state. Re-opening during that window must attach to the
   // pending shell instead of incrementing the generation and spawning twice.
-  if (record.exitCode === null) return { kind: 'reuse-spawning' }
-  return { kind: 'respawn' }
+  if (record.exitCode === null) return { kind: 'reuse-spawning' } satisfies TerminalOpenDecision
+  return { kind: 'respawn' } satisfies TerminalOpenDecision
 }

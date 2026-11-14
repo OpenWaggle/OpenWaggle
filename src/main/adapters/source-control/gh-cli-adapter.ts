@@ -3,7 +3,6 @@ import type {
   ChangeRequestListResult,
   ChangeRequestMergeMethod,
   ChangeRequestResult,
-  MergeChangeRequestResult,
   OpenChangeRequestPayload,
   SourceControlAuthResult,
   SourceControlFailure,
@@ -58,15 +57,13 @@ const PR_DETAILS_JSON_FIELDS = [
 function verifiedPullRequest<TChangeRequest extends VcsChangeRequest>(
   repository: SourceControlRepositoryIdentity,
   changeRequest: TChangeRequest,
-): TChangeRequest | null {
+) {
   const identity = resolveRepositoryChangeRequestIdentity(repository, changeRequest.url)
-  return identity ? { ...changeRequest, url: identity.url } : null
+  const request: TChangeRequest | null = identity ? { ...changeRequest, url: identity.url } : null
+  return request
 }
 
-async function authStatus(
-  repository: SourceControlRepositoryIdentity,
-  projectPath: string,
-): Promise<SourceControlAuthResult> {
+async function authStatus(repository: SourceControlRepositoryIdentity, projectPath: string) {
   const result = await runCli(
     'gh',
     ['auth', 'status', '--active', '--hostname', repository.host],
@@ -77,7 +74,8 @@ async function authStatus(
   if (status.authenticated && status.host?.toLowerCase() !== repository.host.toLowerCase()) {
     return invalidRepositoryFailure()
   }
-  return { ok: true, status }
+  const value: SourceControlAuthResult = { ok: true, status }
+  return value
 }
 
 async function viewPullRequest(
@@ -85,7 +83,7 @@ async function viewPullRequest(
   repository: SourceControlRepositoryIdentity,
   projectPath: string,
   ref: string,
-): Promise<ChangeRequestResult> {
+) {
   const boundReference = repositoryBoundChangeRequestReference(repository, ref)
   if (!boundReference) return invalidRepositoryFailure()
   const result = await run(
@@ -103,10 +101,18 @@ async function viewPullRequest(
   if (result.code !== 0) return classifyFailure(result)
   const changeRequest = mapGhPullRequest(safeJsonParse(result.stdout))
   if (!changeRequest) {
-    return { ok: false, code: 'no-change-request', message: 'No pull request found for ref.' }
+    const value: ChangeRequestResult = {
+      ok: false,
+      code: 'no-change-request',
+      message: 'No pull request found for ref.',
+    }
+    return value
   }
   const verified = verifiedPullRequest(repository, changeRequest)
-  return verified ? { ok: true, changeRequest: verified } : invalidRepositoryFailure()
+  const value: ChangeRequestResult = verified
+    ? { ok: true, changeRequest: verified }
+    : invalidRepositoryFailure()
+  return value
 }
 
 async function viewPullRequestDetails(
@@ -114,7 +120,7 @@ async function viewPullRequestDetails(
   repository: SourceControlRepositoryIdentity,
   projectPath: string,
   ref: string,
-): Promise<ChangeRequestDetailsResult> {
+) {
   const boundReference = repositoryBoundChangeRequestReference(repository, ref)
   if (!boundReference) return invalidRepositoryFailure()
   const result = await run(
@@ -132,10 +138,18 @@ async function viewPullRequestDetails(
   if (result.code !== 0) return classifyFailure(result)
   const changeRequest = mapGhPullRequestDetails(safeJsonParse(result.stdout))
   if (!changeRequest) {
-    return { ok: false, code: 'no-change-request', message: 'No pull request found for ref.' }
+    const value: ChangeRequestDetailsResult = {
+      ok: false,
+      code: 'no-change-request',
+      message: 'No pull request found for ref.',
+    }
+    return value
   }
   const verified = verifiedPullRequest(repository, changeRequest)
-  return verified ? { ok: true, changeRequest: verified } : invalidRepositoryFailure()
+  const value: ChangeRequestDetailsResult = verified
+    ? { ok: true, changeRequest: verified }
+    : invalidRepositoryFailure()
+  return value
 }
 
 async function mergePullRequest(
@@ -145,7 +159,7 @@ async function mergePullRequest(
   reference: string,
   method: ChangeRequestMergeMethod,
   expectedHeadCommit: string,
-): Promise<MergeChangeRequestResult> {
+) {
   const boundReference = repositoryBoundChangeRequestReference(repository, reference)
   if (!boundReference) return invalidRepositoryFailure()
   const result = await runners.runWrite(
@@ -169,7 +183,7 @@ async function listPullRequests(
   run: GhRun,
   repository: SourceControlRepositoryIdentity,
   projectPath: string,
-): Promise<ChangeRequestListResult> {
+) {
   const result = await run(
     [
       'pr',
@@ -197,28 +211,29 @@ async function listPullRequests(
       changeRequests.push(verified)
     }
   }
-  return { ok: true, changeRequests }
+  const value: ChangeRequestListResult = { ok: true, changeRequests }
+  return value
 }
 
 export function createGithubProvider(
   repository: SourceControlRepositoryIdentity,
   options: SourceControlProviderOptions = {},
-): SourceControlProvider {
+) {
   const accounts = options.accountPreference
     ? createGithubAccountRunner(repository.host, options.accountPreference)
     : null
   const run: GhRun = accounts ? accounts.run : (args, cwd) => runCli('gh', args, cwd)
   const runWrite: GhRun = accounts ? accounts.runWrite : run
-  async function bound<T extends { readonly ok: boolean }>(
-    operation: () => Promise<T>,
-  ): Promise<T | SourceControlFailure> {
+  async function bound<T extends { readonly ok: boolean }>(operation: () => Promise<T>) {
     const result = await operation()
     const unreachable = accounts?.unreachableBy() ?? null
-    return !result.ok && unreachable && unreachable.length > 0
-      ? noAccountAccessFailure(repository, unreachable)
-      : result
+    const value: T | SourceControlFailure =
+      !result.ok && unreachable && unreachable.length > 0
+        ? noAccountAccessFailure(repository, unreachable)
+        : result
+    return value
   }
-  return {
+  const provider: SourceControlProvider = {
     id: 'github',
     authStatus: (projectPath) => authStatus(repository, projectPath),
     openChangeRequest: (projectPath: string, payload: OpenChangeRequestPayload) =>
@@ -274,11 +289,13 @@ export function createGithubProvider(
         ),
       ),
   }
+  return provider
 }
 
-function safeJsonParse(text: string): unknown {
+function safeJsonParse(text: string) {
   try {
-    return JSON.parse(text)
+    const result: unknown = JSON.parse(text)
+    return result
   } catch {
     return null
   }

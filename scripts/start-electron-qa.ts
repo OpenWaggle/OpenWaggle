@@ -22,6 +22,7 @@ import {
 } from './electron-qa-shutdown'
 import { electronDevInvocation } from './run-electron-dev'
 import { buildSafeElectronEnvironment } from './safe-electron-environment'
+import { scriptEnv } from './support/env'
 
 const QA_HOST = '127.0.0.1'
 const CDP_TIMEOUT_MS = 60_000
@@ -49,7 +50,9 @@ export async function assertQaPortAvailable(port = QA_CDP_PORT) {
     })
   }).catch((error: unknown) => {
     if (errorCode(error) === 'EADDRINUSE') {
-      throw new Error(`Reserved Electron QA port ${port} is already occupied; Electron was not launched.`)
+      throw new Error(
+        `Reserved Electron QA port ${port} is already occupied; Electron was not launched.`,
+      )
     }
     throw error
   })
@@ -100,8 +103,9 @@ export async function prepareQaHome(
 export function electronEnvironment(
   lease: Pick<QaLease, 'automationIdentity' | 'metadata'>,
   callerEnvironment: NodeJS.ProcessEnv = process.env,
-): NodeJS.ProcessEnv {
+) {
   const home = qaHome(lease)
+  const caller = scriptEnv(callerEnvironment)
   return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
     HOME: home.home,
@@ -112,15 +116,15 @@ export function electronEnvironment(
     OPENWAGGLE_AUTOMATION_PROJECT_PATH: lease.metadata.projectPath,
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: lease.metadata.profilePath,
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
+    ...(caller.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
       ? { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }
       : {}),
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PROJECT_MCP === '1'
+    ...(caller.OPENWAGGLE_AUTOMATION_PROJECT_MCP === '1'
       ? { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' }
       : {}),
     // A QA fixture extension (a fake provider or a router), named explicitly by the caller.
-    ...(callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
-      ? { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: callerEnvironment.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS }
+    ...(caller.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS
+      ? { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: caller.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS }
       : {}),
   })
 }
@@ -141,8 +145,8 @@ export function electronQaLaunchArguments(platform: NodeJS.Platform = process.pl
 }
 
 function startElectron(lease: QaLease) {
-  // electron-vite's entry script runs with this Node: spawning `pnpm` fails on Windows, where it
-  // is a `.cmd` shim that Node does not start without a shell.
+  // electron-vite's entry script runs on Node by its path, so no shell or `.cmd` shim is needed
+  // on Windows.
   const invocation = electronDevInvocation('vite', electronQaLaunchArguments(), {
     environment: electronEnvironment(lease),
     projectRoot: lease.metadata.projectPath,
@@ -163,10 +167,7 @@ export function qaPageMatchesAutomationIdentity(url: string, automationIdentity:
   return new URL(url).searchParams.get(AUTOMATION_IDENTITY_QUERY_PARAM) === automationIdentity
 }
 
-async function connectWhenReady(
-  child: ChildProcess,
-  automationIdentity: string,
-): Promise<QaConnection> {
+async function connectWhenReady(child: ChildProcess, automationIdentity: string) {
   const endpoint = `http://${QA_HOST}:${QA_CDP_PORT}`
   const deadline = Date.now() + CDP_TIMEOUT_MS
   let browser: Browser | null = null
@@ -215,7 +216,8 @@ async function run() {
   const childExitPromise = observeElectronQaChildExit(child)
   let connection: QaConnection | null = null
   let evidenceCaptured = false
-  let shutdownPromise: Promise<void> | null = null
+  // Held in an object because the signal handler, not this function's flow, starts the shutdown.
+  const shutdownState: { promise: Promise<void> | null } = { promise: null }
 
   const captureEvidence = async () => {
     if (evidenceCaptured) return
@@ -225,7 +227,7 @@ async function run() {
     console.info(`[electron-qa] screenshot: ${screenshotPath}`)
   }
   const shutdown = () => {
-    shutdownPromise ??= completeElectronQaShutdown({
+    shutdownState.promise ??= completeElectronQaShutdown({
       captureEvidence: connection === null ? async () => undefined : captureEvidence,
       closeConnection: async () => connection?.browser.close(),
       stopChild: () => stopElectronQaChild(child),
@@ -233,7 +235,7 @@ async function run() {
       // running with the profile's SQLite files open.
       stopSessionHost: () => stopElectronQaSessionHost(lease.metadata.profilePath),
     })
-    return shutdownPromise
+    return shutdownState.promise
   }
 
   const onSignal = () => {
@@ -256,7 +258,7 @@ async function run() {
     console.info(`[electron-qa] ready: http://${QA_HOST}:${QA_CDP_PORT}`)
     console.info(`[electron-qa] screenshots: ${lease.metadata.artifactsPath}`)
     const exitCode = await childExitPromise
-    await shutdownPromise
+    await shutdownState.promise
     if (process.exitCode === undefined) process.exitCode = exitCode
   } finally {
     process.removeListener('SIGINT', onSignal)

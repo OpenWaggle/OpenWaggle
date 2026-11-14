@@ -20,11 +20,11 @@ import type {
  *   step and in Settings > MCP. Only `info` notices from `before_agent_start` are dropped: warnings
  *   and errors (servers that need attention, failed loads) and every other event's notices show.
  */
-export function forOpenWaggleMcpSurface(factory: ExtensionFactory): ExtensionFactory {
-  return (pi) => {
+export function forOpenWaggleMcpSurface(factory: ExtensionFactory) {
+  return ((pi) => {
     pi.on('tool_result', withOpenWaggleMcpGuidanceInResult)
     return factory(openWaggleMcpApi(pi))
-  }
+  }) satisfies ExtensionFactory
 }
 
 /** Pi's MCP command, which Settings > MCP replaces in OpenWaggle. */
@@ -35,7 +35,7 @@ const PI_MCP_COMMAND = 'mcp'
  * things are done in Settings: servers in Settings > MCP, provider sign-in in Settings >
  * Connections. Pi's own wording is matched exactly, so a server's own message is left alone.
  */
-export function withOpenWaggleMcpGuidance(text: string): string {
+export function withOpenWaggleMcpGuidance(text: string) {
   return text
     .replaceAll('Run /mcp to fix.', 'Open Settings > MCP to fix this.')
     .replaceAll('Run /mcp to sign in.', 'Sign in from Settings > MCP.')
@@ -72,10 +72,10 @@ function withOpenWaggleMcpGuidanceInResult(event: ToolResultEvent) {
  * the Proxy trap returns `any`, so the type system does not check these replacements:
  * `mcp-openwaggle-surface.integration.test.ts` does, against Pi's real MCP extension.
  */
-function openWaggleMcpApi(pi: ExtensionAPI): ExtensionAPI {
+function openWaggleMcpApi(pi: ExtensionAPI) {
   const on = (event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
     const quiet = event === 'before_agent_start'
-    const unsubscribe: unknown = Reflect.apply(pi.on, pi, [
+    const unsubscribe: unknown = Reflect.apply(pi.on.bind(pi), undefined, [
       event,
       (payload: unknown, ctx: ExtensionContext) => handler(payload, openWaggleContext(ctx, quiet)),
     ])
@@ -94,7 +94,7 @@ function openWaggleMcpApi(pi: ExtensionAPI): ExtensionAPI {
   })
 }
 
-function openWaggleContext(ctx: ExtensionContext, withoutInfoNotices: boolean): ExtensionContext {
+function openWaggleContext(ctx: ExtensionContext, withoutInfoNotices: boolean) {
   return new Proxy(ctx, {
     // Pi's context reads its fields through getters that check the runner is still active, so the
     // UI is read when the handler uses it, not when the event starts.
@@ -105,7 +105,7 @@ function openWaggleContext(ctx: ExtensionContext, withoutInfoNotices: boolean): 
   })
 }
 
-function openWaggleUi(ui: ExtensionUIContext, withoutInfoNotices: boolean): ExtensionUIContext {
+function openWaggleUi(ui: ExtensionUIContext, withoutInfoNotices: boolean) {
   const notify: ExtensionUIContext['notify'] = (message, level) => {
     if (withoutInfoNotices && (level === undefined || level === 'info')) return
     ui.notify(withOpenWaggleMcpGuidance(message), level)
@@ -116,7 +116,8 @@ function openWaggleUi(ui: ExtensionUIContext, withoutInfoNotices: boolean): Exte
 }
 
 /** A member read as from the target itself, so methods keep their own `this`. */
-export function boundMember(target: object, property: string | symbol): unknown {
+export function boundMember(target: object, property: string | symbol) {
   const value: unknown = Reflect.get(target, property, target)
-  return typeof value === 'function' ? value.bind(target) : value
+  const result: unknown = typeof value === 'function' ? value.bind(target) : value
+  return result
 }

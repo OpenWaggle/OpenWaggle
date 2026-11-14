@@ -45,7 +45,7 @@ function repeatableMatchEvent(event: KeyboardEvent) {
   }
 }
 
-function shortcutContext(event: KeyboardEvent): ProjectActionShortcutContext {
+function shortcutContext(event: KeyboardEvent) {
   const target = event.target instanceof Element ? event.target : null
   return {
     terminalFocus: target !== null && target.closest('[data-terminal-pane]') !== null,

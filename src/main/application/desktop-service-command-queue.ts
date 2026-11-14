@@ -55,8 +55,9 @@ export class DesktopServiceCommandQueue {
     ) {
       return Promise.reject(new Error('The desktop command queue is full.'))
     }
-    if (signal.aborted)
+    if (signal.aborted) {
       return Promise.reject(new Error('Desktop operation was cancelled before dispatch.'))
+    }
     const commandId = randomUUID()
     return new Promise<DesktopServiceResult>((resolve, reject) => {
       const settle = (result: DesktopServiceResult | Error) => {
@@ -104,8 +105,9 @@ export class DesktopServiceCommandQueue {
       if (
         commands.length >= DESKTOP_SERVICE_LIMITS.batchCommands ||
         bytes + entry.bytes > DESKTOP_SERVICE_LIMITS.payloadBytes
-      )
+      ) {
         break
+      }
       entry.dispatched = true
       commands.push(entry.envelope)
       bytes += entry.bytes

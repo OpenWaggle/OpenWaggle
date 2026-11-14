@@ -52,12 +52,12 @@ export function scrubJsonRecord(
   value: JsonRecord,
   verbatim: ReadonlySet<string> = new Set(),
   pathsOnly: ReadonlySet<string> = new Set(),
-): JsonRecord | undefined {
+) {
   try {
-    const entries = Object.entries(value).map(([key, item]): [string, unknown] => {
-      if (verbatim.has(key)) return [key, item]
+    const entries = Object.entries(value).map(([key, item]) => {
+      if (verbatim.has(key)) return [key, item] satisfies [string, unknown]
       const scrub = pathsOnly.has(key) ? scrubPaths : scrubReportText
-      return [scrubReportText(key), scrubValue(item, 1, scrub)]
+      return [scrubReportText(key), scrubValue(item, 1, scrub)] satisfies [string, unknown]
     })
     return Object.fromEntries(entries)
   } catch (error) {
@@ -67,7 +67,7 @@ export function scrubJsonRecord(
 }
 
 /** Keeps the allowlisted contexts and fields, dropping contexts left empty. */
-export function allowlistedContexts(contexts: JsonRecord): JsonRecord {
+export function allowlistedContexts(contexts: JsonRecord) {
   const kept: [string, JsonRecord][] = []
   for (const [name, fields] of ERROR_REPORT_CONTEXT_ALLOWLIST) {
     const context = contexts[name]
@@ -82,7 +82,7 @@ export function allowlistedContexts(contexts: JsonRecord): JsonRecord {
  * A frame without variables or source lines. The shared rule rewrites it in place, so it gets
  * a copy: code outside the app keeps only `<external>` and loses its function and module names.
  */
-function scrubbedFrame(frame: JsonRecord): JsonRecord {
+function scrubbedFrame(frame: JsonRecord) {
   const kept = { ...withoutKeys(frame, ERROR_REPORT_DROPPED_FRAME_KEYS) }
   scrubErrorReportFrameLocation(kept)
   return kept
@@ -95,14 +95,14 @@ function withoutFrameVariables(holder: JsonRecord) {
 }
 
 /** Debug images of code outside the app keep only their files' basenames, on copies. */
-function externalDebugImages(debugMeta: JsonRecord): JsonRecord {
+function externalDebugImages(debugMeta: JsonRecord) {
   const copy = updateList(debugMeta, 'images', (image) => ({ ...image }))
   scrubErrorReportDebugMeta(copy)
   return copy
 }
 
 /** An exception code outside the app threw keeps only a built-in error type, on a copy. */
-function withBuiltInErrorType(exception: JsonRecord): JsonRecord {
+function withBuiltInErrorType(exception: JsonRecord) {
   const kept = { ...exception }
   scrubErrorReportExceptionType(kept)
   return kept
@@ -118,7 +118,7 @@ function withoutValueFrameVariables(container: JsonRecord) {
  * text rules, and reduces message text to error codes unless `keepsErrorReportMessageText`. The app
  * scrubs the same way before sending (src/shared/error-reporting); this is the second line.
  */
-export function scrubSentryEvent(event: JsonRecord): JsonRecord | undefined {
+export function scrubSentryEvent(event: JsonRecord) {
   const scrubbed = scrubJsonRecord(
     event,
     ERROR_REPORT_VERBATIM_EVENT_KEYS,
@@ -145,7 +145,7 @@ export function scrubSentryEvent(event: JsonRecord): JsonRecord | undefined {
  * The header of a forwarded envelope: the app's placeholder DSN is replaced by the real one,
  * and the trace context, which can name a user segment, is dropped.
  */
-export function forwardedEnvelopeHeader(header: JsonRecord, dsn: string): JsonRecord | undefined {
+export function forwardedEnvelopeHeader(header: JsonRecord, dsn: string) {
   const scrubbed = scrubJsonRecord(header, ENVELOPE_HEADER_VERBATIM_KEYS)
   if (scrubbed === undefined) return undefined
   return { ...withoutKeys(scrubbed, ENVELOPE_HEADER_DROPPED_KEYS), dsn }

@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
-import { afterEach, beforeEach, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import {
   REMOVED_PERSISTENCE_MIGRATION_IDS,
   REMOVED_PERSISTENCE_TABLES,
@@ -40,7 +40,14 @@ async function disposeRuntime() {
   await disposeAppRuntime()
 }
 
+/** The first import transforms the whole app runtime, which took 30 to 40 s on a busy machine. */
+const COLD_RUNTIME_IMPORT_TIMEOUT_MS = 180_000
+
 export function installSettingsStoreTestLifecycle() {
+  beforeAll(async () => {
+    await Promise.all([import('../../runtime'), import('../settings')])
+  }, COLD_RUNTIME_IMPORT_TIMEOUT_MS)
+
   beforeEach(async () => {
     state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-settings-test-'))
     // Deliberately NOT vi.resetModules(). Resetting the registry gave every test its

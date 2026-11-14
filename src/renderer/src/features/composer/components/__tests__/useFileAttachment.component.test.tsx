@@ -102,7 +102,11 @@ describe('useFileAttachment', () => {
         pending = hook.result.current.handleDrop(createDragEvent([createFile('draft.txt')]))
       })
       if (change === 'disabled') hook.rerender({ ...params, disabled: true })
-      else act(() => useComposerStore.getState().switchScopedDraftContext('next-draft'))
+      else {
+        act(() => {
+          useComposerStore.getState().switchScopedDraftContext('next-draft')
+        })
+      }
       await act(async () => {
         finish([])
         await pending

@@ -8,7 +8,7 @@ import {
   SessionNodeId,
   SupportedModelId,
 } from '@shared/types/brand'
-import type { SessionNode, SessionWorkspace } from '@shared/types/session'
+import type { SessionNode } from '@shared/types/session'
 import type {
   AgentTransportCustomEvent,
   AgentTransportInteractionRequestEvent,
@@ -40,7 +40,7 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
-): SessionNode {
+) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -60,7 +60,7 @@ function sessionNode(
     },
     contentJson: JSON.stringify({ parts: [{ type: 'text', text: content }], model: null }),
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 function agentLoopEventNode(
@@ -68,7 +68,7 @@ function agentLoopEventNode(
   parentId: string | null,
   event: PersistedAgentLoopEvent,
   createdOrder: number,
-): SessionNode {
+) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -86,13 +86,10 @@ function agentLoopEventNode(
     metadataJson: JSON.stringify({
       customType: OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE,
     }),
-  }
+  } satisfies SessionNode
 }
 
-function transcriptPathForActiveNode(
-  nodes: readonly SessionNode[],
-  activeNodeId: SessionNodeId,
-): SessionWorkspace['transcriptPath'] {
+function transcriptPathForActiveNode(nodes: readonly SessionNode[], activeNodeId: SessionNodeId) {
   const nodesById = new Map(nodes.map((node) => [String(node.id), node]))
   const path: SessionNode[] = []
   const seen = new Set<string>()
@@ -106,7 +103,7 @@ function transcriptPathForActiveNode(
 
   return path.map((node) => ({
     node,
-    branchId: node.branchId,
+    ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
     isActive: node.id === activeNodeId,
   }))
 }
@@ -145,8 +142,8 @@ function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionN
   }
 }
 
-function transcriptParams(): TranscriptSectionParams {
-  return {
+function transcriptParams() {
+  const params: TranscriptSectionParams = {
     turnsByAnchorNodeId: new Map(),
     messages: [],
     customMessages: [],
@@ -178,6 +175,7 @@ function transcriptParams(): TranscriptSectionParams {
     turnAnchorMessageIds: new Set<string>(),
     compactionStatus: null,
   }
+  return params
 }
 
 function agentLoopCustomRows(rows: readonly ChatRow[]) {

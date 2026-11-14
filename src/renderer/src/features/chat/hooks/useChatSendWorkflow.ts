@@ -26,7 +26,7 @@ import type { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 
 const logger = createRendererLogger('chat-send-workflow')
 
-interface ChatSendWorkflowParams {
+export interface ChatSendWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly branchSummary: ReturnType<typeof useBranchSummaryWorkflow>
   readonly clearDraftBranchForSession: (sessionId: SessionId) => void
@@ -76,20 +76,23 @@ async function compactSession(params: ChatSendWorkflowParams, customInstructions
   }
 }
 
-function extensionSlashCommandScope(params: ChatSendWorkflowParams): ExtensionInvokeScope | null {
+function extensionSlashCommandScope(params: ChatSendWorkflowParams) {
   if (!params.projectPath) {
     return null
   }
 
   if (!params.activeSessionId) {
-    return { kind: 'project', projectPath: params.projectPath }
+    return {
+      kind: 'project',
+      projectPath: params.projectPath,
+    } satisfies ExtensionInvokeScope
   }
 
   return {
     kind: 'session',
     projectPath: params.projectPath,
     sessionId: params.activeSessionId,
-  }
+  } satisfies ExtensionInvokeScope
 }
 
 async function invokeExtensionSlashCommand(
@@ -183,7 +186,7 @@ async function sendThroughActiveMode(params: ChatSendWorkflowParams, payload: Ag
 
 export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
   return {
-    async sendWithWaggle(payload: AgentSendPayload) {
+    sendWithWaggle: async (payload: AgentSendPayload) => {
       const composerRetainsDraft = useBranchSummaryStore.getState().prompt?.mode === 'custom'
       if (await handleSendCommand(params, payload.text)) {
         if (!composerRetainsDraft) discardSessionResourceAttachments(payload.attachments)
@@ -195,8 +198,9 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
       const draftBranchReady = await params.branchSummary.materializeDraftBranchForSend(
         params.draftBranch,
       )
-      if (!draftBranchReady)
+      if (!draftBranchReady) {
         throw new MessageNotDelivered('refused', 'Branch source is unavailable.')
+      }
 
       // Cleared when the transcript holds the sent row, or below when the send throws. A send path
       // that returns without a row and without throwing would leave it pending in this Session.
@@ -221,14 +225,14 @@ export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
         throw error
       }
     },
-    cancelRun() {
+    cancelRun: () => {
       if (params.activeSessionId && params.waggleStatus !== 'idle') {
         api.cancelWaggle(params.activeSessionId)
         params.stopWaggleCollaboration()
       }
       params.stop()
     },
-    stopCollaboration() {
+    stopCollaboration: () => {
       if (params.activeSessionId) api.cancelWaggle(params.activeSessionId)
       params.stopWaggleCollaboration()
     },

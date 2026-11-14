@@ -1,5 +1,3 @@
-import type { SessionHostErrorKind } from '../domain/session-host-refusals'
-
 export const SCHEDULED_TASK_REJECTION_CODES = [
   'task_not_found',
   'invalid_schedule',
@@ -21,12 +19,3 @@ export const SCHEDULED_TASK_REJECTION_CODES = [
   'run_not_scheduled',
 ] as const
 export type ScheduledTaskRejectionCode = (typeof SCHEDULED_TASK_REJECTION_CODES)[number]
-
-/** A Scheduled task operation the Session Host refused. */
-export interface ScheduledTasksRejectedOutcome {
-  readonly effect: 'rejected'
-  readonly code: ScheduledTaskRejectionCode
-  /** The kind of refusal, from the Session Host's refusal table (ADR 0063). */
-  readonly kind: SessionHostErrorKind
-  readonly message: string
-}

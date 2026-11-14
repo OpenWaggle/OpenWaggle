@@ -9,14 +9,14 @@ import { useProgressiveCodeViewItems } from '../useProgressiveCodeViewItems'
 const NO_ANNOTATIONS: ReadonlyMap<string, readonly ReviewAnnotation[]> = new Map()
 const OPTIONS = { theme: 'github-dark', diffStyle: 'unified' } as const
 
-function changedFile(index: number): GitFileDiff {
+function changedFile(index: number) {
   const path = `src/file-${String(index)}.ts`
   return {
     path,
     additions: 1,
     deletions: 1,
     diff: `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-const previous = 1\n+const current = 2\n`,
-  }
+  } satisfies GitFileDiff
 }
 
 function ProgressivePierreView({ files }: { readonly files: readonly GitFileDiff[] }) {

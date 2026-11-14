@@ -4,9 +4,10 @@
  * package whose exports have only an `import` condition, such as pi-ai. Built with `Function`, this
  * one is not compiled, and resolves from this file as a literal one would.
  */
-export function importEsm(specifier: string): Promise<unknown> {
+export function importEsm(specifier: string) {
   // Created on use, so loading pi-waggle never evaluates code where that is not allowed.
   const dynamicImport = new Function('specifier', 'return import(specifier)')
   const loaded: unknown = Reflect.apply(dynamicImport, undefined, [specifier])
-  return Promise.resolve(loaded)
+  const promise: Promise<unknown> = Promise.resolve(loaded)
+  return promise
 }

@@ -46,7 +46,7 @@ function hasErrorReportingBridge() {
   return typeof window !== 'undefined' && Reflect.has(window, ERROR_REPORTING_BRIDGE_GLOBAL)
 }
 
-function importSentryRendererErrorReporter(): Promise<RendererErrorReporterModule> {
+function importSentryRendererErrorReporter() {
   return import('./sentry-renderer')
 }
 

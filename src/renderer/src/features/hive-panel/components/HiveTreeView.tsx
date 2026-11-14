@@ -8,11 +8,7 @@ function isTreeItem(target: EventTarget): target is HTMLElement {
 }
 
 /** Where a key moves focus in the flat tree, or which row it expands or collapses. */
-function keyTarget(
-  key: string,
-  items: readonly HiveTreeItem[],
-  index: number,
-): { readonly focus?: number; readonly toggle?: boolean } | null {
+function keyTarget(key: string, items: readonly HiveTreeItem[], index: number) {
   const item = items[index]
   if (!item) return null
   const parentIndex = () => {
@@ -21,7 +17,7 @@ function keyTarget(
     }
     return 0
   }
-  return match(key)
+  const result: { readonly focus?: number; readonly toggle?: boolean } | null = match(key)
     .with('ArrowDown', () => ({ focus: Math.min(index + 1, items.length - 1) }))
     .with('ArrowUp', () => ({ focus: Math.max(index - 1, 0) }))
     .with('Home', () => ({ focus: 0 }))
@@ -35,6 +31,7 @@ function keyTarget(
       return item.level > 1 ? { focus: parentIndex() } : null
     })
     .otherwise(() => null)
+  return result
 }
 
 /**

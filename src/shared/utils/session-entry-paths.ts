@@ -1,5 +1,5 @@
 import { parseJsonUnknown } from '@shared/schema'
-import { isRecord } from '@shared/utils/validation'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 /*
  * Two paths through a Session's Pi entries (ADR 0048).
@@ -33,7 +33,7 @@ function getEntryPath<TEntry>(
   activeEntryId: string | null,
   entries: readonly TEntry[],
   accessors: SessionEntryPathAccessors<TEntry>,
-): TEntry[] | null {
+) {
   if (!activeEntryId) return null
   const entryById = new Map(entries.map((entry) => [accessors.getId(entry), entry]))
   const path: TEntry[] = []
@@ -60,7 +60,7 @@ export function buildPiTranscriptPath<TEntry>(
   activeEntryId: string | null,
   entries: readonly TEntry[],
   accessors: SessionEntryPathAccessors<TEntry>,
-): readonly TEntry[] {
+) {
   return getEntryPath(activeEntryId, entries, accessors) ?? entries
 }
 
@@ -70,8 +70,7 @@ function compactionFirstKeptEntryId<TEntry>(
 ) {
   if (accessors.getKind(entry) !== COMPACTION_KIND) return null
   const content = parseJsonUnknown(accessors.getContentJson(entry))
-  if (!isRecord(content)) return null
-  const firstKeptEntryId = content.firstKeptEntryId
+  const { firstKeptEntryId } = uncheckedFields<{ readonly firstKeptEntryId: string }>(content)
   return typeof firstKeptEntryId === 'string' && firstKeptEntryId.trim().length > 0
     ? firstKeptEntryId
     : null
@@ -106,7 +105,7 @@ export function buildPiModelContextPath<TEntry>(
   activeEntryId: string | null,
   entries: readonly TEntry[],
   accessors: SessionModelContextAccessors<TEntry>,
-): readonly TEntry[] {
+) {
   const path = getEntryPath(activeEntryId, entries, accessors)
   if (!path) return entries
   const latest = findLatestCompaction(path, accessors)
@@ -119,5 +118,5 @@ export function buildPiModelContextPath<TEntry>(
     firstKeptIndex >= 0 && firstKeptIndex < latest.index
       ? withoutCompactions(path.slice(firstKeptIndex, latest.index), accessors)
       : []
-  return [latest.entry, ...kept, ...path.slice(latest.index + 1)]
+  return [latest.entry, ...kept, ...path.slice(latest.index + 1)] satisfies readonly TEntry[]
 }

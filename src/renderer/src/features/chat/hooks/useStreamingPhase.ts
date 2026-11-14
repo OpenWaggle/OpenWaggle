@@ -41,11 +41,20 @@ export interface StreamingPhaseHandle extends StreamingPhaseState {
  * giving an accurate picture of where time was spent from the user's
  * perspective.
  */
-export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHandle {
+export function useStreamingPhase(sessionId: SessionId | null) {
   const [currentLabel, setCurrentLabel] = useState<string | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [completedSnapshot, setCompletedSnapshot] = useState<readonly CompletedPhase[]>([])
   const [totalSnapshot, setTotalSnapshot] = useState(0)
+  // Another session's phases start from nothing.
+  const [phaseSessionId, setPhaseSessionId] = useState(sessionId)
+  if (phaseSessionId !== sessionId) {
+    setPhaseSessionId(sessionId)
+    setCurrentLabel(null)
+    setElapsedMs(0)
+    setCompletedSnapshot([])
+    setTotalSnapshot(0)
+  }
 
   // --- Refs for IPC callback (outside React render) ---
   const phaseRef = useRef<AgentPhaseState | null>(null)
@@ -73,10 +82,6 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
     interactionStartRef.current = 0
     clientPhaseStartRef.current = 0
     lastPhaseEndRef.current = 0
-    setCurrentLabel(null)
-    setElapsedMs(0)
-    setCompletedSnapshot([])
-    setTotalSnapshot(0)
 
     if (!sessionId) {
       return
@@ -199,5 +204,11 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
   const current = currentLabel ? { label: currentLabel, elapsedMs } : null
 
   // Every change of `completedRef` is mirrored into state; render never reads the ref.
-  return { current, completed: completedSnapshot, totalElapsedMs: totalSnapshot, reset }
+  const handle: StreamingPhaseHandle = {
+    current,
+    completed: completedSnapshot,
+    totalElapsedMs: totalSnapshot,
+    reset,
+  }
+  return handle
 }

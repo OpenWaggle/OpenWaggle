@@ -128,8 +128,8 @@ const sessionRepository = SessionRepository.of({
   markActiveRunInterrupted: () => Effect.void,
 })
 
-function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>): Promise<A> {
-  const runnableEffect = fromAny<Effect.Effect<A, unknown, never>, typeof effect>(effect)
+function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>) {
+  const runnableEffect = fromAny<Effect.Effect<A, unknown>, typeof effect>(effect)
   return Effect.runPromise(runnableEffect)
 }
 
@@ -188,7 +188,7 @@ describe('Host-backed Session GUI operation dispatcher', () => {
           paths: [
             `/projects/${String(limit)}-${search ?? ''}-${matchingDisplayNamePaths?.join('|') ?? ''}`,
           ],
-          nextCursor: cursor,
+          ...(cursor === undefined ? {} : { nextCursor: cursor }),
         }),
     })
     const effect = dispatchHostBackedSessionGuiOperation('sessions:list-projects', [

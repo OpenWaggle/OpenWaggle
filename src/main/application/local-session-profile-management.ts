@@ -27,8 +27,6 @@ import {
 } from './local-session-profile-management-preparation'
 import { withLocalSessionProfileMutationLock } from './local-session-profile-mutation-lock'
 
-export { canManageLocalSessionProfiles } from './local-session-profile-management-policy'
-
 const PROFILE_REVOCATION_INTERRUPTION_CONCURRENCY = 8
 
 function interruptRevokedRuns(outcome: LocalSessionProfileManagementOutcome, replayed: boolean) {

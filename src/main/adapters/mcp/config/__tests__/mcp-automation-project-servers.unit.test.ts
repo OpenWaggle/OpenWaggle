@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AUTOMATION_PROJECT_MCP_NOTICE, connectsProjectMcpServers } from '../mcp-automation-policy'
 import { loadMcpRuntimeConfig, mcpLeftOutServerNotice } from '../mcp-runtime-config'
+import type { McpSecretResolver } from '../mcp-runtime-secret-resolution'
 
 let root: string
 let homeDir: string
@@ -15,9 +16,7 @@ function write(filePath: string, value: unknown) {
   writeFileSync(filePath, JSON.stringify(value, null, 2))
 }
 
-async function resolveSecret(name: string): Promise<string> {
-  throw new Error(`No secret ${name}`)
-}
+const resolveSecret: McpSecretResolver = (name) => Promise.reject(new Error(`No secret ${name}`))
 
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), 'ow-mcp-automation-'))

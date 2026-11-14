@@ -9,10 +9,7 @@ import {
 } from '../application/scheduled-task-bookkeeping'
 import { scheduledTaskHooks } from '../application/scheduled-task-hooks'
 import { wakeCheckApproval } from '../application/scheduled-task-presentation'
-import type {
-  HeartbeatRunContext,
-  HeartbeatWakeCheckReport,
-} from '../domain/scheduled-tasks/heartbeat-run-context'
+import type { HeartbeatWakeCheckReport } from '../domain/scheduled-tasks/heartbeat-run-context'
 import { decideWakeCheck } from '../domain/scheduled-tasks/wake-check-decision'
 import type {
   ScheduledTaskRecord,
@@ -147,7 +144,7 @@ export function evaluateHeartbeatGate(
 export function heartbeatRunContext(
   record: ScheduledTaskRecord,
   report: HeartbeatWakeCheckReport | undefined,
-): HeartbeatRunContext | undefined {
+) {
   if (record.target.kind !== 'heartbeat') return undefined
   const runNumber = record.runCount + 1
   return {

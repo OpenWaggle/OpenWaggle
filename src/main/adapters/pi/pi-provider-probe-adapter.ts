@@ -49,7 +49,7 @@ async function runPiPromptProbe(input: ProviderProbeInput, services: AgentSessio
   let timeoutId: ReturnType<typeof setTimeout> | null = null
   const timeoutPromise = new Promise<never>((_resolve, reject) => {
     timeoutId = setTimeout(() => {
-      void session.abort().catch((error) => {
+      void session.abort().catch((error: unknown) => {
         logger.warn('Failed to abort provider probe session after timeout', {
           error: error instanceof Error ? error.message : String(error),
           providerId: input.providerId,

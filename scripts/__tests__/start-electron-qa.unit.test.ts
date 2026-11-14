@@ -6,10 +6,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { qaSharedTemporaryDirectory } from '../electron-qa-lease'
 import { spawn } from 'node:child_process'
-import {
-  observeElectronQaChildExit,
-  windowsTaskkillArguments,
-} from '../electron-qa-process'
+import { observeElectronQaChildExit, windowsTaskkillArguments } from '../electron-qa-process'
 import {
   captureRequiredQaEvidence,
   completeElectronQaShutdown,
@@ -42,13 +39,15 @@ const lease = {
 
 describe('managed Electron QA launcher', () => {
   it('keeps first-party Pi extension tools only when the caller asks for them', () => {
-
     expect(electronEnvironment(lease, {})).not.toHaveProperty(
       'OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS',
     )
     expect(
       electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' }),
-    ).toMatchObject({ OPENWAGGLE_AUTOMATION: '1', OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1' })
+    ).toMatchObject({
+      OPENWAGGLE_AUTOMATION: '1',
+      OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS: '1',
+    })
     expect(electronEnvironment(lease, {})).not.toHaveProperty('OPENWAGGLE_AUTOMATION_PI_EXTENSIONS')
     expect(
       electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_PI_EXTENSIONS: '/tmp/qa/router.js' }),
@@ -56,9 +55,8 @@ describe('managed Electron QA launcher', () => {
   })
 
   it('gives the app a home, Pi agent directory, and user data inside the QA profile', () => {
-    const previous = { HOME: process.env.HOME, PI: process.env.PI_CODING_AGENT_DIR }
-    process.env.HOME = '/Users/maintainer'
-    process.env.PI_CODING_AGENT_DIR = '/Users/maintainer/.pi/agent'
+    vi.stubEnv('HOME', '/Users/maintainer')
+    vi.stubEnv('PI_CODING_AGENT_DIR', '/Users/maintainer/.pi/agent')
     try {
       expect(electronEnvironment(lease, {})).toMatchObject({
         HOME: path.join('/tmp/profile', 'qa-home'),
@@ -67,9 +65,7 @@ describe('managed Electron QA launcher', () => {
         OPENWAGGLE_USER_DATA_DIR: '/tmp/profile',
       })
     } finally {
-      process.env.HOME = previous.HOME
-      if (previous.PI === undefined) delete process.env.PI_CODING_AGENT_DIR
-      else process.env.PI_CODING_AGENT_DIR = previous.PI
+      vi.unstubAllEnvs()
     }
   })
 
@@ -89,9 +85,9 @@ describe('managed Electron QA launcher', () => {
 
   it('connects project MCP servers only when the caller asks for them', () => {
     expect(electronEnvironment(lease, {})).not.toHaveProperty('OPENWAGGLE_AUTOMATION_PROJECT_MCP')
-    expect(
-      electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' }),
-    ).toMatchObject({ OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' })
+    expect(electronEnvironment(lease, { OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1' })).toMatchObject({
+      OPENWAGGLE_AUTOMATION_PROJECT_MCP: '1',
+    })
   })
 
   it.each([
@@ -232,11 +228,17 @@ describe('managed Electron QA launcher', () => {
   })
 
   it('drains the QA profile Session Host and clears the profile while it holds ownership', async () => {
-    const ownership = { targetPath: '/tmp/profile/session-host/session-host.sqlite', release: vi.fn() }
+    const ownership = {
+      targetPath: '/tmp/profile/session-host/session-host.sqlite',
+      release: vi.fn(),
+    }
     const finalize = vi.fn(() => Promise.resolve())
     const prepareProfileRemoval = vi.fn(() => Promise.resolve(finalize))
     const shutdownHost = vi.fn(
-      async (_profile: string, whileOwnershipHeld: (held: typeof ownership) => Promise<unknown>) => {
+      async (
+        _profile: string,
+        whileOwnershipHeld: (held: typeof ownership) => Promise<unknown>,
+      ) => {
         await whileOwnershipHeld(ownership)
       },
     )

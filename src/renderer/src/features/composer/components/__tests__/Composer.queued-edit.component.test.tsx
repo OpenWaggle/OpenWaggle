@@ -33,15 +33,15 @@ const queueMock = vi.hoisted(() => {
   return mock
 })
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
     getDefaultThinkingLevel: vi.fn().mockResolvedValue('medium'),
     listWagglePresets: vi.fn().mockResolvedValue([]),
     listExtensionContributions: vi.fn().mockResolvedValue({ projectPaths: [], entries: [] }),
-  },
+  }),
 }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@/features/sessions/hooks', () => ({ useProject: () => ({ projectPath: '/repo' }) }))
@@ -53,7 +53,7 @@ vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', async (importOriginal) 
       snapshot: queueMock.snapshot,
       saveEdit: queueMock.saveEdit,
       cancelEdit: queueMock.cancelEdit,
-      ...resumeFrom(queueMock.snapshot, actual.heldEdit),
+      ...resumeFrom(queueMock.snapshot),
     }),
   }
 })

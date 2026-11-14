@@ -18,9 +18,7 @@ function truncate(value: string) {
     : singleLine
 }
 
-function isJsonObject(
-  value: JsonValue | undefined,
-): value is { readonly [key: string]: JsonValue } {
+function isJsonObject(value: JsonValue | undefined): value is Readonly<Record<string, JsonValue>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -53,7 +51,11 @@ export function summarizeToolArguments(args: JsonValue | undefined) {
 export class RunCliPresenter {
   private stdoutLineOpen = false
 
-  constructor(private readonly output: RunCliPresenterOutput) {}
+  private readonly output: RunCliPresenterOutput
+
+  constructor(output: RunCliPresenterOutput) {
+    this.output = output
+  }
 
   /** Keep stderr progress lines from splitting a partially written stdout line. */
   private note(text: string) {

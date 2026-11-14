@@ -88,7 +88,7 @@ function persistSessionMetadata(
     workspace.kind === 'managed-worktree' && workspace.lifecycle_state === 'ready'
       ? workspace.working_path
       : null
-  const branchId = mainBranchId(String(input.session.sessionId))
+  const branchId = mainBranchId(input.session.sessionId)
   return Effect.gen(function* () {
     const { title, source: titleSource } =
       explicitTitle ?? (yield* defaultLifecycleTitle(sql, command))
@@ -202,9 +202,7 @@ const DEFAULT_LIFECYCLE_TITLE: LifecycleTitle = { title: DEFAULT_SESSION_TITLE, 
  * message, a Provisional title the Title model replaces in the background. An explicitly given
  * title is manual and never generated over.
  */
-function lifecycleTitleFromCommand(
-  command: ExecuteInput['request']['command'],
-): LifecycleTitle | null {
+function lifecycleTitleFromCommand(command: ExecuteInput['request']['command']) {
   if (command.operation === 'spawn' && command.title === undefined) {
     return { title: buildDeterministicTitle(command.delegation.objective), source: 'provisional' }
   }
@@ -240,7 +238,7 @@ function defaultLifecycleTitle(
         `${truncateTitle(source, SESSION_TITLE_MAX_LENGTH - suffix.length)}${suffix}`,
       ),
       source: 'manual',
-    } satisfies LifecycleTitle
+    }
   })
 }
 

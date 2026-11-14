@@ -8,7 +8,7 @@ import {
   mainBranchId,
 } from './branch-utils'
 import { MAIN_BRANCH_NAME } from './constants'
-import type { DerivedSessionBranch, SessionBranchRow } from './types'
+import type { SessionBranchRow } from './types'
 
 interface BranchForHeadInput {
   readonly sessionId: string
@@ -59,7 +59,7 @@ function existingBranchForHead(input: BranchForHeadInput, branchStartNodeId: str
   })
 }
 
-function buildBranchHeadContext(input: BranchForHeadInput): DerivedBranchHeadContext {
+function buildBranchHeadContext(input: BranchForHeadInput) {
   const pathIds = getPathIds(input.nodeById, input.headId)
   const startNodeId = branchStartNodeId(input, pathIds)
 
@@ -98,11 +98,7 @@ function branchName(input: BranchForHeadInput, context: DerivedBranchHeadContext
   )
 }
 
-export function deriveBranchForHead(input: BranchForHeadInput): {
-  readonly branch: DerivedSessionBranch
-  /** Whether the branch continues a saved branch row rather than starting a new one. */
-  readonly continuesSavedBranch: boolean
-} {
+export function deriveBranchForHead(input: BranchForHeadInput) {
   const context = buildBranchHeadContext(input)
 
   return {

@@ -1,4 +1,4 @@
-import type { WaggleAgentSlot, WaggleFileConflictWarning } from '@shared/types/waggle'
+import type { WaggleAgentSlot } from '@shared/types/waggle'
 
 /**
  * Tracks which agent last modified each file path during a Waggle collaboration.
@@ -12,7 +12,7 @@ export class FileConflictTracker {
     agentIndex: number,
     agents: readonly [WaggleAgentSlot, WaggleAgentSlot],
     turnNumber: number,
-  ): WaggleFileConflictWarning | null {
+  ) {
     const previousAgentIndex = this.lastModifiedBy.get(filePath)
     this.lastModifiedBy.set(filePath, agentIndex)
     if (previousAgentIndex === undefined || previousAgentIndex === agentIndex) return null

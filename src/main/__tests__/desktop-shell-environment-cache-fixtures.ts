@@ -10,12 +10,19 @@ export function captured(name: string, value: string) {
  * A login shell that behaves like zsh with `path_helper` and a `.zshrc`: it keeps the PATH and the
  * desktop-session variables it inherits, and adds its own PATH entry in front.
  */
+/** The inherited variables the fake login shell passes on. */
+interface InheritedSessionVariables {
+  readonly PATH?: string
+  readonly XDG_SESSION_TYPE?: string
+  readonly SSH_AUTH_SOCK?: string
+}
+
 export function inheritingLoginShell(added: string) {
   const inherited: (Readonly<Record<string, string | undefined>> | undefined)[] = []
   const runCommand = vi.fn(async (input: ShellEnvironmentCommand) => {
     if (input.probe !== 'login-shell') return ''
     inherited.push(input.env)
-    const env = input.env ?? {}
+    const env: InheritedSessionVariables = input.env ?? {}
     return [
       captured('PATH', `${added}:${env.PATH ?? ''}`),
       env.XDG_SESSION_TYPE ? captured('XDG_SESSION_TYPE', env.XDG_SESSION_TYPE) : '',

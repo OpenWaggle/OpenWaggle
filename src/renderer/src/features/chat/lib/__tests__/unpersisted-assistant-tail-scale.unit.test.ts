@@ -21,13 +21,13 @@ function counted(messages: readonly UIMessage[], reads: { count: number }) {
   })
 }
 
-function history(count: number): UIMessage[] {
+function history(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     id: `m-${String(index)}`,
     role: index % 2 === 0 ? 'user' : 'assistant',
     parts: [{ type: 'text', content: index % 2 === 0 ? 'continue' : 'Done.' }],
     metadata: { sessionNodeCreatedOrder: index },
-  }))
+  })) satisfies UIMessage[]
 }
 
 describe('appendUnpersistedAssistantTail at scale', () => {

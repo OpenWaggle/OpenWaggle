@@ -32,9 +32,11 @@ async function authorizeExportWrite(input: {
         },
         ...(input.signal ? { signal: input.signal } : {}),
       })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
+    : await input.ctx.ui.confirm(
+        title,
+        `${message}\n\nThis approval applies only to this call.`,
+        input.signal ? { signal: input.signal } : {},
+      )
   if (!approved) throw new Error('Session export write was not authorized.')
 }
 
@@ -61,9 +63,11 @@ async function authorizeAttachmentRead(input: {
         },
         ...(input.signal ? { signal: input.signal } : {}),
       })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
+    : await input.ctx.ui.confirm(
+        title,
+        `${message}\n\nThis approval applies only to this call.`,
+        input.signal ? { signal: input.signal } : {},
+      )
   if (!approved) throw new Error('Session attachment read was not authorized.')
 }
 
@@ -90,9 +94,11 @@ async function authorizeExportResourceRead(input: {
         },
         ...(input.signal ? { signal: input.signal } : {}),
       })
-    : await input.ctx.ui.confirm(title, `${message}\n\nThis approval applies only to this call.`, {
-        signal: input.signal,
-      })
+    : await input.ctx.ui.confirm(
+        title,
+        `${message}\n\nThis approval applies only to this call.`,
+        input.signal ? { signal: input.signal } : {},
+      )
   if (!approved) throw new Error('Session export resource read was not authorized.')
 }
 
@@ -114,7 +120,7 @@ export async function authorizeExport(
   input: { readonly workingDirectory: string },
   ctx: ExtensionContext,
   signal?: AbortSignal,
-): Promise<SessionsToolPayload> {
+) {
   if (
     payload.contract !== 'session-control-v2' ||
     payload.request.command.operation !== 'export-create'
@@ -135,7 +141,7 @@ export async function authorizeExport(
     roots: [input.workingDirectory],
     destinationPath: payload.request.command.destinationPath,
   })
-  return {
+  const result: SessionsToolPayload = {
     ...payload,
     request: {
       ...payload.request,
@@ -146,4 +152,5 @@ export async function authorizeExport(
       },
     },
   }
+  return result
 }

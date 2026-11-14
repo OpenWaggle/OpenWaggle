@@ -111,8 +111,9 @@ describe('Session resource protocol', () => {
       { ...request, frameUrl: undefined },
       { ...request, frameUrl: 'https://attacker.example/' },
       { ...request, isMainFrame: false },
-    ])
+    ]) {
       expect(subject.shouldBlockSessionResourceRequest(rejected)).toBe(true)
+    }
     const response = await registeredProtocolHandler()({
       method: 'GET',
       referrer: '',

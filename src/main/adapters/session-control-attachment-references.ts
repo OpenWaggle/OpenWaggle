@@ -1,6 +1,6 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
-import { isRecord } from '@shared/utils/validation'
+import { isObjectValue } from '@shared/utils/object-shape'
 import * as Effect from 'effect/Effect'
 
 interface AttachmentIntentRow {
@@ -11,11 +11,13 @@ const LIVE_RUN_STATUSES = ['starting', 'active', 'stopping'] as const
 
 function attachmentIdsOf(intentJson: string) {
   const intent = parseJsonUnknown(intentJson)
-  if (!isRecord(intent) || !('attachmentIds' in intent))
+  if (!isObjectValue(intent) || !('attachmentIds' in intent)) {
     throw new Error('A retained Session intent has no attachment capability list.')
-  const attachmentIds = intent.attachmentIds
-  if (!Array.isArray(attachmentIds) || !attachmentIds.every((id) => typeof id === 'string'))
+  }
+  const { attachmentIds } = intent
+  if (!Array.isArray(attachmentIds) || !attachmentIds.every((id) => typeof id === 'string')) {
     throw new Error('A retained Session intent has an invalid attachment capability list.')
+  }
   return attachmentIds
 }
 

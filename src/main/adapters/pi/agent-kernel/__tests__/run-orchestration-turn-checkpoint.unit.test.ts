@@ -58,8 +58,9 @@ function sessionRunningTools(toolNames: readonly string[]) {
     },
     prompt: async (text: string) => {
       for (const toolName of toolNames) {
-        for (const listener of listeners)
+        for (const listener of listeners) {
           listener({ type: 'tool_execution_start', toolCallId: toolName, toolName, args: {} })
+        }
       }
       await base.prompt(text)
     },

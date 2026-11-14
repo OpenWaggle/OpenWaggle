@@ -1,5 +1,4 @@
 import { Schema } from '@shared/schema'
-import type { BrowserImportInput, GuidedBrowserImportInput } from '@shared/types/browser-import'
 import { BROWSER_IMPORT_LIMITS, BROWSER_IMPORT_SOURCE_IDS } from '@shared/types/browser-import'
 import { browserProfileIdSchema } from './browser-profile'
 
@@ -15,24 +14,30 @@ const browserImportProfileDirectorySchema = Schema.String.pipe(
   ),
 )
 
-export const browserImportInputSchema: Schema.Schema<BrowserImportInput> = Schema.Struct({
+/** The one source of the browser import request types in `@shared/types/browser-import`. */
+export const browserImportInputSchema = Schema.Struct({
   sourceId: browserImportSourceIdSchema,
   sourceProfileDirectory: browserImportProfileDirectorySchema,
   targetProfileId: browserProfileIdSchema,
 })
 
-export const guidedBrowserImportInputSchema: Schema.Schema<GuidedBrowserImportInput> =
+export const browserImportTargetSchema = Schema.Union(
   Schema.Struct({
-    sourceId: browserImportSourceIdSchema,
-    sourceProfileDirectory: browserImportProfileDirectorySchema,
-    target: Schema.Union(
-      Schema.Struct({
-        kind: Schema.Literal('new'),
-        profileId: browserProfileIdSchema,
-      }),
-      Schema.Struct({
-        kind: Schema.Literal('existing'),
-        profileId: browserProfileIdSchema,
-      }),
-    ),
-  })
+    kind: Schema.Literal('new'),
+    profileId: browserProfileIdSchema,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('existing'),
+    profileId: browserProfileIdSchema,
+  }),
+)
+
+/**
+ * Guided import request. The existing direct import request stays available for
+ * callers that already manage a persistent destination profile.
+ */
+export const guidedBrowserImportInputSchema = Schema.Struct({
+  sourceId: browserImportSourceIdSchema,
+  sourceProfileDirectory: browserImportProfileDirectorySchema,
+  target: browserImportTargetSchema,
+})

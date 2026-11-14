@@ -22,7 +22,9 @@ export function buildZshStartupScripts(options: {
       ...shared,
       startupFile: '.zshenv',
       captureInitialState: true,
-      initialUserDirectory: options.originalZdotdir,
+      ...(options.originalZdotdir === undefined
+        ? {}
+        : { initialUserDirectory: options.originalZdotdir }),
       integration,
     }),
     '.zprofile': zshStartupWrapper({ ...shared, startupFile: '.zprofile', integration }),
@@ -161,7 +163,7 @@ function zshPromptIntegration(
   return `typeset -g ${markerVariable}=$'\\e]633;B;${readinessNonce}\\a'
 function ${hookFunction} {
   if [[ "$PROMPT" != *"$${markerVariable}"* ]]; then
-    PROMPT="${'$'}{PROMPT}%{${'$'}{${markerVariable}}%}"
+    PROMPT="\${PROMPT}%{\${${markerVariable}}%}"
   fi
 }
 builtin autoload -Uz add-zsh-hook

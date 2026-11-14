@@ -24,8 +24,6 @@ function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning'
 
 type ContextMessage = ContextEvent['messages'][number]
 
-type ContextResult = { readonly messages?: ContextEvent['messages'] }
-
 function isWaggleDisplayMessage(message: ContextMessage) {
   return (
     message.role === 'custom' &&
@@ -90,7 +88,7 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
         startRun: startDefaultWaggleRun,
       }),
   })
-  pi.on('context', (event): ContextResult => {
+  pi.on('context', (event) => {
     const messagesWithoutWaggleDisplay = event.messages.filter(
       (message) => !isWaggleDisplayMessage(message),
     )
@@ -112,7 +110,11 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
     if (event.source === 'extension') return { action: 'continue' }
     if (activeRun) {
       clearRunStatus(ctx, setActiveRun)
-      return { action: 'transform', text: event.text, images: event.images }
+      return {
+        action: 'transform',
+        text: event.text,
+        ...(event.images ? { images: event.images } : {}),
+      }
     }
     if (event.text.trim().startsWith('/')) return { action: 'continue' }
     if (!ctx.isIdle()) return { action: 'continue' }

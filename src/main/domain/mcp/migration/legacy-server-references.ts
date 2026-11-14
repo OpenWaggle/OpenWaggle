@@ -7,7 +7,7 @@
 export function resolveLegacyMcpServerReferences(
   references: readonly string[],
   legacyNames: ReadonlyMap<string, string>,
-): readonly string[] {
+) {
   return [...new Set(references.map((reference) => legacyNames.get(reference) ?? reference))]
 }
 
@@ -15,7 +15,7 @@ export function resolveLegacyMcpServerReferences(
 export function legacyMcpServerAliases(
   names: readonly string[],
   legacyNames: ReadonlyMap<string, string>,
-): readonly string[] {
+) {
   const configured = new Set(names)
   return [...legacyNames]
     .filter(([instanceId, name]) => configured.has(name) && !configured.has(instanceId))

@@ -114,7 +114,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         }}
         actions={{
           onRestart: () => void actions.restartShell(),
-          onSendInputNow: () => void session.sendInputNow(),
+          onSendInputNow: () => session.sendInputNow(),
         }}
       />
       <TerminalPortPreviews

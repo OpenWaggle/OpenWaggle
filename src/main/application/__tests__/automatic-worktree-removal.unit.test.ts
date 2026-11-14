@@ -21,18 +21,14 @@ const { listWorktreeInventoryMock, removeHostUiWorktreeMock } = vi.hoisted(() =>
 vi.mock('../worktree-inventory', () => ({ listWorktreeInventory: listWorktreeInventoryMock }))
 vi.mock('../host-ui-worktree-operation', () => ({ removeHostUiWorktree: removeHostUiWorktreeMock }))
 
-const { AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS, runAutomaticWorktreeRemovalPass } = await import(
-  '../automatic-worktree-removal'
-)
+const { AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS, runAutomaticWorktreeRemovalPass } =
+  await import('../automatic-worktree-removal')
 
 const NOW = 10 * AUTOMATIC_WORKTREE_REMOVAL_INTERVAL_MS
 const MEASURED_BYTES = 2048
 
-function entry(
-  path: string,
-  automaticRemoval: WorktreeInventoryEntry['automaticRemoval'],
-): WorktreeInventoryEntry {
-  return {
+function entry(path: string, automaticRemoval: WorktreeInventoryEntry['automaticRemoval']) {
+  const result: WorktreeInventoryEntry = {
     path,
     projectPath: '/repo',
     branch: `branch${path}`,
@@ -55,6 +51,7 @@ function entry(
     attention: [],
     automaticRemoval,
   }
+  return result
 }
 
 function layer(options: {
@@ -105,18 +102,18 @@ function pass(options: Parameters<typeof layer>[0], isDraining = () => false) {
   const provided = runAutomaticWorktreeRemovalPass(() => NOW, isDraining).pipe(
     Effect.provide(layer(options)),
   )
-  return fromAny<
-    Effect.Effect<Effect.Effect.Success<typeof provided>, Error, never>,
-    typeof provided
-  >(provided)
+  return fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, Error>, typeof provided>(
+    provided,
+  )
 }
 
 function runPass(options: Parameters<typeof layer>[0], isDraining = () => false) {
   return Effect.runPromise(pass(options, isDraining))
 }
 
-function listing(...entries: WorktreeInventoryEntry[]): WorktreeInventory {
-  return { projects: [], problems: [], entries }
+function listing(...entries: WorktreeInventoryEntry[]) {
+  const inventory: WorktreeInventory = { projects: [], problems: [], entries }
+  return inventory
 }
 
 describe('Automatic worktree removal pass', () => {
@@ -216,11 +213,10 @@ describe('Automatic worktree removal pass', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
-    removeHostUiWorktreeMock.mockImplementation(
-      (_projectPath: string, payload: { path: string }) =>
-        payload.path === '/wt/b'
-          ? Effect.promise(() => gate).pipe(Effect.as({ ok: true }))
-          : Effect.succeed({ ok: true }),
+    removeHostUiWorktreeMock.mockImplementation((_projectPath: string, payload: { path: string }) =>
+      payload.path === '/wt/b'
+        ? Effect.promise(() => gate).pipe(Effect.as({ ok: true }))
+        : Effect.succeed({ ok: true }),
     )
     const recorded: AutomaticWorktreeRemovalRun[] = []
     const checks: boolean[] = []
@@ -250,13 +246,12 @@ describe('Automatic worktree removal pass', () => {
       ],
     }
     listWorktreeInventoryMock.mockReturnValue(Effect.succeed(inventory))
-    removeHostUiWorktreeMock.mockImplementation(
-      (_projectPath: string, payload: { path: string }) =>
-        payload.path === '/wt/a'
-          ? Effect.succeed({ ok: true })
-          : payload.path === '/wt/d'
-            ? Effect.succeed({ ok: false, code: 'dirty-worktree', message: 'It changed.' })
-            : Effect.fail(new Error('Git crashed.')),
+    removeHostUiWorktreeMock.mockImplementation((_projectPath: string, payload: { path: string }) =>
+      payload.path === '/wt/a'
+        ? Effect.succeed({ ok: true })
+        : payload.path === '/wt/d'
+          ? Effect.succeed({ ok: false, code: 'dirty-worktree', message: 'It changed.' })
+          : Effect.fail(new Error('Git crashed.')),
     )
     const recorded: AutomaticWorktreeRemovalRun[] = []
     const checks: boolean[] = []

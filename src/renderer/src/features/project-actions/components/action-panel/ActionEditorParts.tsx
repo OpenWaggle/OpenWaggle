@@ -14,7 +14,7 @@ export function ActionRemoval(props: {
   readonly onRemove: () => void
 }) {
   const running = 'Anything already running keeps running.'
-  if (props.entry.source === 'override')
+  if (props.entry.source === 'override') {
     return (
       <RemovalSection
         label="Restore shared version"
@@ -24,6 +24,7 @@ export function ActionRemoval(props: {
         onConfirm={props.onRemove}
       />
     )
+  }
   return (
     <RemovalSection
       label="Remove this action"
@@ -50,7 +51,7 @@ export function BaseStateNotice(props: {
   const { draft } = props
   const state = draftBaseState(draft, props.catalog)
   if (state.kind === 'current' || draft.base === null) return null
-  if (state.kind === 'removed')
+  if (state.kind === 'removed') {
     return (
       <RemovedSinceNotice
         name={draft.base.name}
@@ -67,6 +68,7 @@ export function BaseStateNotice(props: {
         }
       />
     )
+  }
   const current = props.catalog.actions.find(({ definition }) => definition.id === draft.base?.id)
   if (!current) return null
   return (

@@ -46,13 +46,22 @@ export class SqliteSessionSemanticProjection {
   #modelRevisionReconciled = false
   #storageReconciled = false
 
+  private readonly sql: SqlClient.SqlClient
+  private readonly model: SessionEmbeddingModel
+  private readonly storagePolicy: SessionSemanticDiscoveryStoragePolicy
+  /** `settleMs`: a Session is embedded once it has not changed for this long (D3). */
+  private readonly options: { readonly settleMs?: number; readonly now?: () => number }
+
   constructor(
-    private readonly sql: SqlClient.SqlClient,
-    private readonly model: SessionEmbeddingModel,
-    private readonly storagePolicy: SessionSemanticDiscoveryStoragePolicy = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
-    /** `settleMs`: a Session is embedded once it has not changed for this long (D3). */
-    private readonly options: { readonly settleMs?: number; readonly now?: () => number } = {},
+    sql: SqlClient.SqlClient,
+    model: SessionEmbeddingModel,
+    storagePolicy: SessionSemanticDiscoveryStoragePolicy = SESSION_SEMANTIC_DISCOVERY_STORAGE_POLICY,
+    options: { readonly settleMs?: number; readonly now?: () => number } = {},
   ) {
+    this.sql = sql
+    this.model = model
+    this.storagePolicy = storagePolicy
+    this.options = options
     if (!Number.isSafeInteger(storagePolicy.recordLimit) || storagePolicy.recordLimit < 1) {
       throw new Error('Semantic discovery record limit must be a positive safe integer.')
     }

@@ -67,7 +67,7 @@ export function makeProjectInvocation(
     readonly payload?: unknown
     readonly scope?: ExtensionInvokeInput['scope']
   } = {},
-): ExtensionInvokeInput {
+) {
   return {
     extensionId: BROKER_EXTENSION_ID,
     contributionId: input.contributionId ?? BROKER_CONTRIBUTION_ID,
@@ -75,7 +75,7 @@ export function makeProjectInvocation(
     method: input.method ?? OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
     scope: input.scope ?? { kind: 'project', projectPath: PROJECT_PATH },
     ...(input.payload !== undefined ? { payload: input.payload } : { payload: {} }),
-  }
+  } satisfies ExtensionInvokeInput
 }
 
 interface BrokerHarnessInput {
@@ -110,10 +110,10 @@ export function makeBrokerHarness(input: Omit<BrokerHarnessInput, 'invocation'>)
   const layer = makeBrokerLayer({
     packages: input.packages ?? [],
     lifecycles: input.lifecycles ?? [],
-    projectOverrides: input.projectOverrides,
-    sessionDetail: input.sessionDetail,
-    sessionDetails: input.sessionDetails,
-    sessionTree: input.sessionTree,
+    ...(input.projectOverrides === undefined ? {} : { projectOverrides: input.projectOverrides }),
+    ...(input.sessionDetail === undefined ? {} : { sessionDetail: input.sessionDetail }),
+    ...(input.sessionDetails === undefined ? {} : { sessionDetails: input.sessionDetails }),
+    ...(input.sessionTree === undefined ? {} : { sessionTree: input.sessionTree }),
     storageItems,
     capturedLogs,
     currentProjectPath: input.currentProjectPath ?? PROJECT_PATH,
@@ -148,7 +148,7 @@ export function makeBrokerHarness(input: Omit<BrokerHarnessInput, 'invocation'>)
     return Effect.runPromise(
       invokeExtensionCapability(invocation, {
         now: () => TIMESTAMP,
-        invocationBinding,
+        ...(invocationBinding === undefined ? {} : { invocationBinding }),
       }).pipe(Effect.provide(layer)),
     )
   }

@@ -23,7 +23,7 @@ export function withCallerCeiling(
     readonly callerId: string
     readonly ceiling: AgentAuthorizationMode | undefined
   },
-): SessionControlSessionState {
+) {
   if (previous.run.state !== 'idle' || state.run.state !== 'starting') return state
   if (state.run.intent.callerId !== caller.callerId) return state
   const runAuthorizationOverride = clampRunAuthorizationOverride(

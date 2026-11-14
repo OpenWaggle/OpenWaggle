@@ -20,8 +20,8 @@ import { memoryMcpToolCatalogStore } from '../../../mcp/pool/mcp-connection-cata
 import { mcpServerIdentity } from '../../../mcp/pool/mcp-server-identity'
 import { McpSessionConnectionPool } from '../../../mcp/pool/mcp-session-connection-pool'
 import { forgetMcpAppTools } from '../mcp-app-registry'
+import type { CachedMcpAppTools } from '../mcp-known-app-tools'
 import {
-  type CachedMcpAppTools,
   mcpCodemodeReach,
   withDirectKeptWithoutCodemode,
   withKnownMcpAppToolsOf,
@@ -48,7 +48,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
 `
 
 const SESSION_ID = 'exposure-session'
-const cleanups: Array<() => Promise<void> | void> = []
+const cleanups: (() => Promise<void> | void)[] = []
 let root: string
 let roots: { homeDir: string; piAgentDir: string; projectPath: null }
 
@@ -195,10 +195,10 @@ describe('MCP exposure as OpenWaggle runs it', () => {
     // Reached through codemode, which Pi activates for codemode servers.
     expect(active).toContain('codemode')
     expect(active).not.toContain('mcp__fixture__search')
-    expect(exposures.mcp__fixture__search).toBe('deferred')
+    expect(exposures).toMatchObject({ mcp__fixture__search: 'deferred' })
     // The App tool is declared to the model, so the model calls it and the App shows.
     expect(active).toContain('mcp__fixture__show')
-    expect(exposures.mcp__fixture__show).toBe('direct')
+    expect(exposures).toMatchObject({ mcp__fixture__show: 'direct' })
   }, 60_000)
 
   it('declares an App tool known from an earlier Run in the first request', async () => {
@@ -266,7 +266,7 @@ describe('MCP exposure in a Run without codemode (review R5 P2-3)', () => {
 
     expect(active).not.toContain('codemode')
     expect(active).toContain('mcp__fixture__search')
-    expect(exposures.mcp__fixture__search).toBe('direct')
+    expect(exposures).toMatchObject({ mcp__fixture__search: 'direct' })
     expect(notices.some((notice) => notice.includes('cannot be called'))).toBe(false)
   }, 60_000)
 })

@@ -1,8 +1,9 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { canonicalJson } from '@shared/canonical-json'
-import { parseJsonUnknown } from '@shared/schema'
-import type { AgentSendReport } from '@shared/types/agent'
-import { isRecord } from '@shared/utils/validation'
+import { parseJsonUnknown, Schema } from '@shared/schema'
+import { waggleSendReportSchema } from '@shared/schemas/local-session-command-response'
+import type { WaggleSendReport } from '@shared/types/local-session-waggle'
+import { Option } from 'effect'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SessionControlRepositoryError } from '../errors'
@@ -29,23 +30,21 @@ function commandJson(request: ExplicitWaggleRequest) {
   return canonicalJson(command)
 }
 
-function decodeReport(raw: string | null): AgentSendReport {
-  const value = raw === null ? null : parseJsonUnknown(raw)
-  if (
-    !isRecord(value) ||
-    (value.outcome !== 'delivered' &&
-      value.outcome !== 'refused' &&
-      value.outcome !== 'cancelled') ||
-    (value.message !== undefined && typeof value.message !== 'string') ||
-    (value.code !== undefined && typeof value.code !== 'string')
-  ) {
-    throw new Error('Completed explicit Waggle operation has an invalid report.')
+/** The report a completed explicit Waggle operation stored for replay. */
+const decodeStoredReport = Schema.decodeUnknownOption(waggleSendReportSchema)
+
+/** A replayed report says how the send ended; the Run it started belongs to the first answer. */
+function decodeReport(raw: string | null) {
+  const report = Option.getOrUndefined(
+    decodeStoredReport(raw === null ? null : parseJsonUnknown(raw)),
+  )
+  if (!report) throw new Error('Completed explicit Waggle operation has an invalid report.')
+  const result: WaggleSendReport = {
+    outcome: report.outcome,
+    ...(report.message === undefined ? {} : { message: report.message }),
+    ...(report.code === undefined ? {} : { code: report.code }),
   }
-  return {
-    outcome: value.outcome,
-    ...(typeof value.message === 'string' ? { message: value.message } : {}),
-    ...(typeof value.code === 'string' ? { code: value.code } : {}),
-  }
+  return result
 }
 
 function claim(

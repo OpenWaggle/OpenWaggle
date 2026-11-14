@@ -26,39 +26,41 @@ export interface WaggleTurnDecision {
 }
 
 export function getWaggleTurnAgentIndex(turnNumber: number) {
-  return turnNumber % WAGGLE_AGENT_COUNT === FIRST_AGENT_INDEX
-    ? FIRST_AGENT_INDEX
-    : SECOND_AGENT_INDEX
+  const result: 0 | 1 =
+    turnNumber % WAGGLE_AGENT_COUNT === FIRST_AGENT_INDEX ? FIRST_AGENT_INDEX : SECOND_AGENT_INDEX
+  return result
 }
 
-export function getWaggleTurn(config: WaggleConfig, turnNumber: number): WaggleTurn {
+export function getWaggleTurn(config: WaggleConfig, turnNumber: number) {
   const agentIndex = getWaggleTurnAgentIndex(turnNumber)
   const agent = config.agents[agentIndex]
-  return { turnNumber, agentIndex, agent }
+  const turn: WaggleTurn = { turnNumber, agentIndex, agent }
+  return turn
 }
 
 function completedTurnCount(turnNumber: number) {
   return turnNumber + NEXT_TURN_INCREMENT
 }
 
-export function decideNextWaggleTurn(
-  config: WaggleConfig,
-  completion: WaggleTurnCompletion,
-): WaggleTurnDecision {
+export function decideNextWaggleTurn(config: WaggleConfig, completion: WaggleTurnCompletion) {
   if (completion.terminalError) {
-    return { continue: false, reason: 'terminal-error' }
+    const decision: WaggleTurnDecision = { continue: false, reason: 'terminal-error' }
+    return decision
   }
 
   if (completion.consensusReached) {
-    return { continue: false, reason: 'consensus' }
+    const decision: WaggleTurnDecision = { continue: false, reason: 'consensus' }
+    return decision
   }
 
   if (completedTurnCount(completion.turnNumber) >= config.stop.maxTurnsSafety) {
-    return { continue: false, reason: 'turn-limit' }
+    const decision: WaggleTurnDecision = { continue: false, reason: 'turn-limit' }
+    return decision
   }
 
-  return {
+  const decision: WaggleTurnDecision = {
     continue: true,
     nextTurn: getWaggleTurn(config, completion.turnNumber + NEXT_TURN_INCREMENT),
   }
+  return decision
 }

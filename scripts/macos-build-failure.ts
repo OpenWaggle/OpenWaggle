@@ -71,7 +71,7 @@ export type TransientMacosBuildFailure =
  * trailer line repeats the message (`stackTrace=Error: <marker>`), so the search for the next
  * report resumes after it.
  */
-function failureReports(log: string, marker: string): string[] {
+function failureReports(log: string, marker: string) {
   const reports: string[] = []
   let start = log.indexOf(marker)
   while (start !== -1) {
@@ -91,16 +91,20 @@ function everyReportMatches(reports: readonly string[], transientError: RegExp) 
   return reports.every((report) => transientError.test(report))
 }
 
-export function transientMacosBuildFailure(log: string): TransientMacosBuildFailure | null {
+export function transientMacosBuildFailure(log: string) {
   const notaryReports = failureReports(log, NOTARYTOOL_FAILURE)
   if (notaryReports.length > 0) {
-    return everyReportMatches(notaryReports, TRANSIENT_NOTARY_ERROR) ? 'notarization-connection' : null
+    return everyReportMatches(notaryReports, TRANSIENT_NOTARY_ERROR)
+      ? ('notarization-connection' as const)
+      : null
   }
   const stapleReports = failureReports(log, STAPLE_FAILURE)
   if (stapleReports.length > 0) {
-    return everyReportMatches(stapleReports, TRANSIENT_STAPLE_ERROR) ? 'staple-connection' : null
+    return everyReportMatches(stapleReports, TRANSIENT_STAPLE_ERROR)
+      ? ('staple-connection' as const)
+      : null
   }
-  return FAILED_DMGBUILD_HDIUTIL_ERROR.test(log) ? 'disk-image-device' : null
+  return FAILED_DMGBUILD_HDIUTIL_ERROR.test(log) ? ('disk-image-device' as const) : null
 }
 
 const REASON_MESSAGES: Record<TransientMacosBuildFailure, string> = {

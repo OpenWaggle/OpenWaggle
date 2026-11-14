@@ -5,6 +5,7 @@
  * records which name each ID stood for.
  */
 import { isRecord } from '@shared/utils/validation'
+import { legacyServerFields } from './legacy-entry-fields'
 import { mcpServerIdentity } from '../pool/mcp-server-identity'
 import type { McpFileSources } from './file-computation'
 import { legacyServerIdentityKey } from './legacy-pi-import'
@@ -26,13 +27,15 @@ function legacyServerFiles(sources: McpFileSources, projects: readonly string[])
 
 /** The identity of what an old entry ran or connected to, as `mcpServerIdentity` makes it. */
 function legacyEntryIdentity(name: string, entry: unknown) {
-  if (!isRecord(entry)) return undefined
-  if (typeof entry.url === 'string') return mcpServerIdentity(name, { url: entry.url })
-  if (typeof entry.command !== 'string') return undefined
-  const args = Array.isArray(entry.args)
-    ? entry.args.filter((arg): arg is string => typeof arg === 'string')
+  const fields = legacyServerFields(entry)
+  if (!fields) return undefined
+  const { url, command } = fields
+  if (typeof url === 'string') return mcpServerIdentity(name, { url })
+  if (typeof command !== 'string') return undefined
+  const args = Array.isArray(fields.args)
+    ? fields.args.filter((arg): arg is string => typeof arg === 'string')
     : []
-  return mcpServerIdentity(name, { command: entry.command, args })
+  return mcpServerIdentity(name, { command, args })
 }
 
 /** For every server in the files the old code read: its name and what it was, by instance ID. */
@@ -44,9 +47,15 @@ export async function legacyServerRecords(input: {
   const names = new Map<string, string>()
   const identities = new Map<string, McpLegacyServerIdentity>()
   if (Object.keys(input.state.servers).length === 0) return { names, identities }
-  for (const filePath of legacyServerFiles(input.sources, input.projects)) {
-    // As the old code saw the file: a migrated file is read from its backup.
-    const config = await input.sources.legacyConfig(filePath).catch(() => undefined)
+  // As the old code saw each file: a migrated file is read from its backup. A file that cannot be
+  // read is skipped, so the files are read at once and handled in order.
+  const files = await Promise.all(
+    legacyServerFiles(input.sources, input.projects).map(async (filePath) => ({
+      filePath,
+      config: await input.sources.legacyConfig(filePath).catch(() => undefined),
+    })),
+  )
+  for (const { filePath, config } of files) {
     if (!isRecord(config)) continue
     for (const [name, entry] of Object.entries(legacyServerMap(config))) {
       const server = input.state.servers[legacyServerIdentityKey(filePath, name)]
@@ -68,11 +77,11 @@ export async function legacyServerRecords(input: {
 export async function readLegacyMcpServerIdentities(
   homeDir: string,
   fs: McpMigrationFs = nodeMcpMigrationFs,
-): Promise<ReadonlyMap<string, McpLegacyServerIdentity>> {
+) {
   try {
     return (await McpMigrationRecord.load(fs, homeDir)).legacyServerIdentities
   } catch {
-    return new Map()
+    return new Map<string, McpLegacyServerIdentity>()
   }
 }
 
@@ -80,10 +89,10 @@ export async function readLegacyMcpServerIdentities(
 export async function readLegacyMcpServerNames(
   homeDir: string,
   fs: McpMigrationFs = nodeMcpMigrationFs,
-): Promise<ReadonlyMap<string, string>> {
+) {
   try {
     return (await McpMigrationRecord.load(fs, homeDir)).legacyServerNames
   } catch {
-    return new Map()
+    return new Map<string, string>()
   }
 }

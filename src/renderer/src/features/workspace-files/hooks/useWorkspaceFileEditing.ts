@@ -57,19 +57,30 @@ export function useWorkspaceFileEditing({
     setWorkspaceLanguagePatternAssociation(window.localStorage, projectPath, file.path, language)
   }
 
-  useEffect(() => {
+  // Another file, or newly registered languages, resolve the language again.
+  const languageSource = {
+    language: file.language,
+    path: file.path,
+    projectPath,
+    registeredLanguages,
+  }
+  const [resolvedFor, setResolvedFor] = useState<typeof languageSource | null>(null)
+  if (
+    resolvedFor === null ||
+    resolvedFor.language !== languageSource.language ||
+    resolvedFor.path !== languageSource.path ||
+    resolvedFor.projectPath !== languageSource.projectPath ||
+    resolvedFor.registeredLanguages !== languageSource.registeredLanguages
+  ) {
+    setResolvedFor(languageSource)
     const associated = workspaceLanguageAssociation(window.localStorage, projectPath, file.path)
-    if (associated) {
-      setLanguage(resolveSyntaxLanguage(associated, registeredLanguages))
-      return
-    }
     setLanguage(
       resolveSyntaxLanguage(
-        file.language ?? languageFromPath(file.path, registeredLanguages),
+        associated ?? file.language ?? languageFromPath(file.path, registeredLanguages),
         registeredLanguages,
       ),
     )
-  }, [file.language, file.path, projectPath, registeredLanguages])
+  }
 
   function toggleWordWrap() {
     const next = !wordWrap

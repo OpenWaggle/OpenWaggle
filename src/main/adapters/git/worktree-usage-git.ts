@@ -9,7 +9,7 @@ const STATUS_TIMEOUT_MS = 30_000
  * Commits reachable from the worktree's HEAD that no remote-tracking ref has, i.e. work that only
  * this checkout's branch holds. Null when Git cannot tell.
  */
-export async function countUnpublishedCommits(worktreePath: string): Promise<number | null> {
+export async function countUnpublishedCommits(worktreePath: string) {
   const result = await runGit(worktreePath, ['rev-list', '--count', 'HEAD', '--not', '--remotes'])
   if (result.code !== 0) return null
   const count = Number.parseInt(result.stdout.trim(), DECIMAL_RADIX)
@@ -20,7 +20,7 @@ export async function countUnpublishedCommits(worktreePath: string): Promise<num
  * Changed, staged and untracked entries in a worktree, as `git status` lists them (an untracked
  * folder counts once). Ignored files are not counted. Null when Git cannot tell.
  */
-export async function countUncommittedChanges(worktreePath: string): Promise<number | null> {
+export async function countUncommittedChanges(worktreePath: string) {
   /*
    * `--no-optional-locks`: the page reads every worktree, including ones a Run is using, and
    * must not take `index.lock` to refresh the index. `--untracked-files=normal` overrides a
@@ -46,7 +46,7 @@ export async function countUncommittedChanges(worktreePath: string): Promise<num
 }
 
 /** The checkout a folder belongs to, by its canonical top-level path; null outside Git. */
-export async function checkoutTopLevel(folder: string): Promise<string | null> {
+export async function checkoutTopLevel(folder: string) {
   const result = await runGit(folder, ['rev-parse', '--show-toplevel'])
   const topLevel = result.code === 0 ? result.stdout.trim() : ''
   if (!topLevel) return null

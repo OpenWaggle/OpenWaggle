@@ -18,8 +18,9 @@ export function refuseAccessProfile(profile: string | undefined) {
 /** How long `--wait` waits, or `undefined` without `--wait`. Checked before the Host is asked. */
 export function waitTimeout(parsed: ParsedArguments) {
   if (!hasFlag(parsed, 'wait')) {
-    if (parsed.options.has('timeout-ms'))
+    if (parsed.options.has('timeout-ms')) {
       throw new CommandCliUsageError('--wait must be given to use --timeout-ms.')
+    }
     return undefined
   }
   const timeoutMs = option(parsed, 'timeout-ms')

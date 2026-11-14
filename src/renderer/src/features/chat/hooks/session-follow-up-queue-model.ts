@@ -8,8 +8,9 @@ import type {
   SessionFollowUpSource,
 } from '@shared/types/session-control-queue'
 import type { SessionQueryOutcome } from '@shared/types/session-query'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
 import type { WaggleInvocation } from '@shared/types/waggle'
-import { isRecord } from '@shared/utils/validation'
+import { isObjectValue } from '@shared/utils/object-shape'
 
 export interface SessionFollowUpQueueItem {
   readonly id: string
@@ -84,12 +85,14 @@ export interface SessionFollowUpEditPayload {
  * `queue_byte_capacity_reached`, `follow_up_edit_requires_desktop_user`.
  */
 export class SessionControlRejectedError extends Error {
-  constructor(
-    readonly operation: string,
-    readonly code: string,
-  ) {
+  readonly operation: string
+  readonly code: string
+
+  constructor(operation: string, code: string) {
     super(`Session Control rejected ${operation}: ${code}`)
     this.name = 'SessionControlRejectedError'
+    this.operation = operation
+    this.code = code
   }
 }
 
@@ -129,22 +132,20 @@ export const EMPTY_SNAPSHOT: SessionFollowUpQueueSnapshot = {
 }
 
 /** The open edit of a Follow-up this user holds, from the latest snapshot (see `resumeEdit`). */
-export function heldEdit(
-  snapshot: SessionFollowUpQueueSnapshot,
-  followUpId: string,
-): SessionFollowUpEdit | null {
+export function heldEdit(snapshot: SessionFollowUpQueueSnapshot, followUpId: string) {
   const item = snapshot.items.find((candidate) => candidate.id === followUpId)
   const hold = item?.editHold
   if (!item || !hold?.heldByCurrentUser || !hold.holdId || hold.baseQueueRevision === undefined) {
     return null
   }
-  return {
+  const edit: SessionFollowUpEdit | null = {
     followUpId,
     holdId: hold.holdId,
     queueRevision: hold.baseQueueRevision,
     leaseExpiresAt: hold.leaseExpiresAt,
     item,
   }
+  return edit
 }
 
 type SessionFollowUpQueueIntent = Pick<
@@ -170,34 +171,48 @@ function queuedVisualizationContext(value: unknown) {
   return decoded.success ? { visualizationContext: decoded.data } : {}
 }
 
-function queueIntent(value: unknown): SessionFollowUpQueueIntent {
-  if (!isRecord(value)) {
-    return { text: '', attachmentCount: 0 }
-  }
-  const record = value
-  const waggle = isRecord(record.waggle) ? record.waggle : undefined
-  return {
-    text: typeof record.text === 'string' ? record.text : '',
-    attachmentCount: Array.isArray(record.attachmentIds) ? record.attachmentIds.length : 0,
-    ...(waggle && typeof waggle.presetName === 'string'
-      ? { wagglePresetName: waggle.presetName }
-      : {}),
-    ...(waggle && (waggle.source === 'user' || waggle.source === 'agent')
-      ? { waggleSource: waggle.source }
-      : {}),
-    ...(typeof record.callerId === 'string' ? { callerId: record.callerId } : {}),
-    ...queuedWaggle(record.waggle),
-    ...queuedVisualizationContext(record.visualizationContext),
-  }
+/** A queued Follow-up's send intent, as far as the queue rows read it. */
+interface QueuedIntentFields {
+  readonly text: string
+  readonly attachmentIds: readonly string[]
+  readonly waggle: { readonly presetName: string; readonly source: 'user' | 'agent' }
+  readonly callerId: string
+  readonly visualizationContext: InlineVisualizationContext
 }
 
-export function queueSnapshot(outcome: SessionQueryOutcome): SessionFollowUpQueueSnapshot {
+function uncheckedFields<T>(value: unknown) {
+  const fields: UncheckedFields<T> | null = isObjectValue(value) ? value : null
+  return fields
+}
+
+function queueIntent(value: unknown) {
+  const intent = uncheckedFields<QueuedIntentFields>(value)
+  if (intent === null) {
+    const result: SessionFollowUpQueueIntent = { text: '', attachmentCount: 0 }
+    return result
+  }
+  const waggle = uncheckedFields<QueuedIntentFields['waggle']>(intent.waggle)
+  const result: SessionFollowUpQueueIntent = {
+    text: typeof intent.text === 'string' ? intent.text : '',
+    attachmentCount: Array.isArray(intent.attachmentIds) ? intent.attachmentIds.length : 0,
+    ...(typeof waggle?.presetName === 'string' ? { wagglePresetName: waggle.presetName } : {}),
+    ...(waggle?.source === 'user' || waggle?.source === 'agent'
+      ? { waggleSource: waggle.source }
+      : {}),
+    ...(typeof intent.callerId === 'string' ? { callerId: intent.callerId } : {}),
+    ...queuedWaggle(intent.waggle),
+    ...queuedVisualizationContext(intent.visualizationContext),
+  }
+  return result
+}
+
+export function queueSnapshot(outcome: SessionQueryOutcome) {
   if (outcome.operation !== 'queue-list') {
     throw new Error('Session Host returned the wrong response for a Follow-up queue query.')
   }
   if ('error' in outcome) throw new Error(outcome.error.message)
   const items = outcome.items.map(queueItem)
-  return {
+  const snapshot: SessionFollowUpQueueSnapshot = {
     state: outcome.queueState,
     ...(outcome.queuePauseReason ? { pauseReason: outcome.queuePauseReason } : {}),
     revision: outcome.queueRevision,
@@ -205,6 +220,7 @@ export function queueSnapshot(outcome: SessionQueryOutcome): SessionFollowUpQueu
     items,
     waitingOnEdit: items.some((item) => item.editHold !== undefined),
   }
+  return snapshot
 }
 
 type QueueListItem = Extract<
@@ -212,8 +228,8 @@ type QueueListItem = Extract<
   { operation: 'queue-list'; items: unknown }
 >['items'][number]
 
-function queueItem(item: QueueListItem): SessionFollowUpQueueItem {
-  return {
+function queueItem(item: QueueListItem) {
+  const result: SessionFollowUpQueueItem = {
     id: item.followUpId,
     ...queueIntent(item.intent),
     createdAt: item.createdAt,
@@ -221,7 +237,7 @@ function queueItem(item: QueueListItem): SessionFollowUpQueueItem {
     ...(item.attentionReason ? { attentionReason: item.attentionReason } : {}),
     attachments: item.attachments ?? [],
     ...(item.source ? { source: item.source } : {}),
-    editable: item.editable === true,
+    editable: item.editable,
     ...(item.editHold
       ? {
           editHold: {
@@ -236,4 +252,5 @@ function queueItem(item: QueueListItem): SessionFollowUpQueueItem {
         }
       : {}),
   }
+  return result
 }

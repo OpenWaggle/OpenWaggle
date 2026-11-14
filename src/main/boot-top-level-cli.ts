@@ -1,6 +1,6 @@
-import { app } from 'electron'
 import { applicationCliArguments } from './application-cli-arguments'
 import { parseCliOutputFd, writeAllToFd, writeWritableChunk } from './cli-output-writer'
+import { bootShell } from './desktop-shell/boot-shell'
 import { type TopLevelCliAnswer, topLevelCliAnswer } from './top-level-cli-answer'
 import { nodeTopLevelCliEnvironment } from './top-level-cli-environment'
 import {
@@ -46,24 +46,26 @@ const DESKTOP_APP_ROUTES = new Set(['gui', 'open-project', 'open-session-link'])
  * routes it as before; the outcome says whether that opens the desktop app. The answers are the
  * ones top-level-cli-entry.ts prints.
  */
-export function answerTopLevelCliInBoot(input: BootTopLevelCliInput): BootTopLevelCliOutcome {
+export function answerTopLevelCliInBoot(input: BootTopLevelCliInput) {
   let outputFd: number | null
   try {
     outputFd = parseCliOutputFd(input.cliOutputFd)
   } catch {
     // The main bundle reports a malformed descriptor the way every command does.
-    return 'main-bundle'
+    return 'main-bundle' satisfies BootTopLevelCliOutcome
   }
-  const argv = applicationCliArguments(input.argv, { isPackaged: app.isPackaged })
-  const route = routeTopLevelCli(argv, nodeTopLevelCliEnvironment(app.isPackaged))
-  const answer = topLevelCliAnswer(route, app.getVersion())
+  const argv = applicationCliArguments(input.argv, { isPackaged: bootShell.isPackaged() })
+  const route = routeTopLevelCli(argv, nodeTopLevelCliEnvironment(bootShell.isPackaged()))
+  const answer = topLevelCliAnswer(route, bootShell.version())
   if (!answer) {
-    if (DESKTOP_APP_ROUTES.has(route.kind)) return 'desktop-app'
-    if (route.kind === 'delegate' && route.argv[0] === SESSION_HOST_COMMAND) return 'session-host'
-    return 'main-bundle'
+    if (DESKTOP_APP_ROUTES.has(route.kind)) return 'desktop-app' satisfies BootTopLevelCliOutcome
+    if (route.kind === 'delegate' && route.argv[0] === SESSION_HOST_COMMAND) {
+      return 'session-host' satisfies BootTopLevelCliOutcome
+    }
+    return 'main-bundle' satisfies BootTopLevelCliOutcome
   }
   hideCliFromDock(input.platform)
   ignoreCliOutputStreamErrors()
   writeCliOutputAndExit(() => writeAnswer(answer, outputFd), answer.exitCode, writeStderr)
-  return 'answered'
+  return 'answered' satisfies BootTopLevelCliOutcome
 }

@@ -51,7 +51,7 @@ function ownerKeyOfOrigin(originCallerId: string) {
 export function sessionAgentAuthorityLimits(
   caller: LocalSessionCallerIdentity,
   originCallerId: string,
-): LocalSessionAuthorityLimits | null {
+) {
   const authority = caller.profileAuthority
   // An agent caller always carries its authority; one without it is held to nothing.
   if (!authority) return NO_AUTHORITY_LIMITS
@@ -68,7 +68,7 @@ export function sessionAgentAuthorityLimits(
     capabilities: [...authority.capabilities],
     scope,
     authorizationCeiling: authority.authorizationCeiling,
-  }
+  } satisfies LocalSessionAuthorityLimits
 }
 
 export function resolveScheduledTaskPrincipal(caller: LocalSessionCallerIdentity) {

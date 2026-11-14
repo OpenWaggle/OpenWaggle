@@ -63,10 +63,10 @@ function authenticationRecord(row: ProfileRow) {
 
 function findProfile(operation: string, rows: Effect.Effect<readonly ProfileRow[], unknown>) {
   return Effect.gen(function* () {
-    const selected = yield* rows
-    if (!selected[0]) return null
+    const [profile] = yield* rows
+    if (!profile) return null
     return yield* Effect.try({
-      try: () => authenticationRecord(selected[0]),
+      try: () => authenticationRecord(profile),
       catch: (cause) => repositoryError('decode-profile', cause),
     })
   }).pipe(

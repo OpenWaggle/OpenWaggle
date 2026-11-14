@@ -66,11 +66,15 @@ function profileCaller(callerId: string, limits: LocalSessionAuthorityLimits | n
     },
     ...(limits ? { authorityLimits: limits } : {}),
   }).pipe(
-    Effect.map((caller): CallerCheck => {
+    Effect.map((caller) => {
       if (!caller.profileAuthority?.capabilities.includes(SCHEDULING_CAPABILITY)) {
-        return revoked('The CLI client profile that created this task can no longer schedule work.')
+        const check: CallerCheck = revoked(
+          'The CLI client profile that created this task can no longer schedule work.',
+        )
+        return check
       }
-      return { live: true, caller }
+      const check: CallerCheck = { live: true, caller }
+      return check
     }),
     Effect.catchAll(() =>
       Effect.succeed(revoked('The CLI client profile that created this task was revoked.')),
@@ -93,11 +97,15 @@ function legacyAgentCaller(
     runId: agent.runId,
     workingDirectory: record.creatorWorkingDirectory ?? '',
   }).pipe(
-    Effect.map((caller): CallerCheck => {
+    Effect.map((caller) => {
       if (!caller.profileAuthority.capabilities.includes(SCHEDULING_CAPABILITY)) {
-        return revoked('The Session agent that created this task can no longer schedule work.')
+        const check: CallerCheck = revoked(
+          'The Session agent that created this task can no longer schedule work.',
+        )
+        return check
       }
-      return { live: true, caller }
+      const check: CallerCheck = { live: true, caller }
+      return check
     }),
     Effect.catchAllCause((cause) => {
       if (Cause.isInterruptedOnly(cause)) return Effect.failCause(cause)
@@ -189,7 +197,7 @@ export function resolveScheduledTaskCaller(sql: SqlClient.SqlClient, stored: Sch
     const refusal = yield* heartbeatCheck(record)
     if (refusal) return refusal
     return { live: true, caller: resolved.caller, record } as const
-  }).pipe(Effect.map((resolution): ScheduledTaskCallerResolution => resolution))
+  }).pipe(Effect.map((resolution: ScheduledTaskCallerResolution) => resolution))
 }
 
 /**

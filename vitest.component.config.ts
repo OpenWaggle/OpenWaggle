@@ -4,7 +4,11 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import {
+  BUN_RUNTIME_ALIASES,
   COMPONENT_TIER_TIMEOUTS,
+  REUSED_WORKER_SETUP,
+  REUSED_WORKERS,
+  TEST_REPORTERS,
   TEST_TEMPORARY_ROOT_SETUP,
   TEST_TIME_ZONE_ENV,
 } from './scripts/test-support/vitest-tier-options'
@@ -42,6 +46,7 @@ export default defineConfig({
   plugins: [svgStubPlugin(), react(), babel({ presets: [reactCompilerPreset()] })],
   resolve: {
     alias: {
+      ...BUN_RUNTIME_ALIASES,
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
       '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
@@ -51,12 +56,18 @@ export default defineConfig({
     },
   },
   test: {
+    reporters: TEST_REPORTERS,
     environment: 'jsdom',
+    ...REUSED_WORKERS,
     globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
     ...COMPONENT_TIER_TIMEOUTS,
     env: TEST_TIME_ZONE_ENV,
     include: ['src/**/*.component.test.tsx', 'packages/**/*.component.test.tsx'],
-    setupFiles: ['scripts/test-support/isolate-user-home.ts', 'src/renderer/src/test-setup.ts'],
+    setupFiles: [
+      REUSED_WORKER_SETUP,
+      'scripts/test-support/isolate-user-home.ts',
+      'src/renderer/src/test-setup.ts',
+    ],
     coverage: {
       enabled: false,
     },

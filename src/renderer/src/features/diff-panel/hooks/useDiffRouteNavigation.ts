@@ -10,17 +10,6 @@ import { useUIStore } from '@/shell/ui-store'
 
 type RightPanelMode = 'diff' | 'session-tree' | null
 
-interface DiffRouteNavigation {
-  readonly diffOpen: boolean
-  readonly isChatRoute: boolean
-  readonly rightPanel: RightPanelMode
-  readonly sessionTreeOpen: boolean
-  readonly toggleDiff: () => void
-  readonly closeDiff: () => void
-  readonly toggleSessionTree: () => void
-  readonly closeSessionTree: () => void
-}
-
 function isChatPath(pathname: string) {
   return pathname === '/' || pathname.startsWith('/sessions/')
 }
@@ -43,7 +32,7 @@ function routePanelIsVisible(panel: RightPanelMode, activeClaim: RightSidebarCla
   return activeClaim.kind === 'route' && activeClaim.requestKey === requestKey(panel)
 }
 
-export function useDiffRouteNavigation(): DiffRouteNavigation {
+export function useDiffRouteNavigation() {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const rightPanel = useRouterState({

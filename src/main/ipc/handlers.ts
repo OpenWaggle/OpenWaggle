@@ -39,7 +39,7 @@ import { registerWorkspaceFileHandlers } from './workspace-files-handler'
 
 export { cleanupTerminals } from './terminal-handler'
 
-export function registerAllIpcHandlers(): void {
+export function registerAllIpcHandlers() {
   registerProfileAccessHandlers()
   registerAgentDefinitionsHandlers()
   registerAuthHandlers()

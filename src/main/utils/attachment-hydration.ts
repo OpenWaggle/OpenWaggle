@@ -12,13 +12,14 @@ function contentSha256(bytes: Uint8Array) {
 async function hydrateAttachmentSource(
   attachment: PreparedAttachment,
   validateCapability: boolean,
-): Promise<HydratedAttachment> {
+) {
   const preparedAttachment = validateCapability
     ? await resolvePreparedAttachmentCapability(attachment)
     : attachment
   const needsBinarySource = preparedAttachment.kind === 'image' || preparedAttachment.kind === 'pdf'
   if (!needsBinarySource && preparedAttachment.extractedText) {
-    return { ...preparedAttachment, source: null }
+    const result: HydratedAttachment = { ...preparedAttachment, source: null }
+    return result
   }
 
   const stats = await fs.stat(preparedAttachment.path)
@@ -49,10 +50,16 @@ async function hydrateAttachmentSource(
       })
 
   if (!needsBinarySource) {
-    return { ...preparedAttachment, contentSha256: hydratedSha256, extractedText, source: null }
+    const result: HydratedAttachment = {
+      ...preparedAttachment,
+      contentSha256: hydratedSha256,
+      extractedText,
+      source: null,
+    }
+    return result
   }
 
-  return {
+  const result: HydratedAttachment = {
     ...preparedAttachment,
     contentSha256: hydratedSha256,
     extractedText,
@@ -62,17 +69,10 @@ async function hydrateAttachmentSource(
       mimeType: attachment.mimeType,
     },
   }
+  return result
 }
 
-export async function hydrateAttachmentSources(
-  attachments: readonly PreparedAttachment[],
-): Promise<HydratedAttachment[]> {
+export async function hydrateAttachmentSources(attachments: readonly PreparedAttachment[]) {
   // Independent per-attachment reads; Promise.all preserves input order.
   return Promise.all(attachments.map((attachment) => hydrateAttachmentSource(attachment, true)))
-}
-
-export async function hydrateTrustedAttachmentSources(
-  attachments: readonly PreparedAttachment[],
-): Promise<HydratedAttachment[]> {
-  return Promise.all(attachments.map((attachment) => hydrateAttachmentSource(attachment, false)))
 }

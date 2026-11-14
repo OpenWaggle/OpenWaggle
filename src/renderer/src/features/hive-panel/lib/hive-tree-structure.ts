@@ -79,7 +79,7 @@ function attachUnreachable(rootNode: TreeNode, nodes: ReadonlyMap<string, TreeNo
 }
 
 /** The Queen with every loaded member under its parent; unloaded parents leave orphans on top. */
-function buildNodes(root: HiveSession, members: readonly HiveSession[]): TreeNode {
+function buildNodes(root: HiveSession, members: readonly HiveSession[]) {
   const rootNode: TreeNode = { session: root, children: [], orphanParentTitle: null }
   const nodes = new Map<string, TreeNode>()
   for (const member of members) {
@@ -148,8 +148,8 @@ export function buildHiveTreeItems(input: {
   readonly showArchived: boolean
   readonly collapsed: ReadonlySet<string>
   readonly statusOf?: HiveStatusOf
-}): readonly HiveTreeItem[] {
-  if (input.root === null) return []
+}) {
+  if (input.root === null) return [] satisfies readonly HiveTreeItem[]
   const rootNode = buildNodes(input.root, input.members)
   const facts = new Map<TreeNode, Subtree>()
   summarize(rootNode, facts, input.statusOf ?? (() => undefined))

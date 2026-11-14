@@ -25,7 +25,7 @@ export function seedComposerWorkspace() {
 
 export function makeMessage(
   overrides: Partial<UIMessage> & { id: string; role: 'user' | 'assistant' },
-): UIMessage {
+) {
   return fromPartial<UIMessage>({
     parts: [],
     ...overrides,
@@ -36,7 +36,7 @@ export function makeMessage(
 export function createSections(
   overrides: Partial<ChatPanelSections['transcript']> = {},
   composerOverrides: Partial<ChatPanelSections['composer']> = {},
-): ChatPanelSections {
+) {
   const transcript = {
     messages: [],
     isLoading: false,
@@ -73,7 +73,7 @@ export function createSections(
   const repositoryPath =
     transcript.projectPath === null ? null : RepositoryPath(transcript.projectPath)
 
-  return {
+  const sections: ChatPanelSections = {
     transcript,
     composer: {
       activeSessionId: transcript.activeSessionId,
@@ -124,4 +124,5 @@ export function createSections(
     extensionProjectPaths: transcript.extensionProjectPaths,
     onRespondAgentInteraction: vi.fn().mockResolvedValue(undefined),
   }
+  return sections
 }

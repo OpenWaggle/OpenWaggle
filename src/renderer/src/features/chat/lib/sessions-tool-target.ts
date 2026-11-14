@@ -1,23 +1,20 @@
-import type { JsonObject, JsonValue } from '@shared/types/json'
+import type { JsonObject } from '@shared/types/json'
 import { parseSessionLink } from '@shared/utils/session-link'
 import type { HiveSession } from '@/queries/session-hive-contract'
 import { parseToolArgs } from './tool-args'
 import { getToolResultText } from './tool-call-block'
 import type { SessionsToolTarget } from './tool-labels-sessions'
+import { hiveToolArgFields, hiveToolCreatedSessionId, hiveToolTargetFields } from './hive-tool-args'
 
 /** The actions whose Session is the one the call created, named by the call's result. */
 const CREATING_ACTIONS: ReadonlySet<string> = new Set(['spawn', 'launch', 'create'])
 
-function objectField(value: JsonValue | undefined): JsonObject | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null
-}
-
-function stringField(value: JsonValue | undefined) {
+function stringField(value: unknown) {
   return typeof value === 'string' && value ? value : null
 }
 
 /** A Session id argument, which the tool also accepts as a Session link (ADR 0056). */
-function sessionIdField(value: JsonValue | undefined) {
+function sessionIdField(value: unknown) {
   const id = stringField(value)
   return id === null ? null : (parseSessionLink(id) ?? id)
 }
@@ -26,7 +23,7 @@ function sessionIdField(value: JsonValue | undefined) {
 function createdSessionId(resultContent: unknown) {
   if (resultContent === undefined) return null
   const body = parseToolArgs(getToolResultText(resultContent))
-  return stringField(objectField(objectField(body.response)?.outcome)?.sessionId)
+  return stringField(hiveToolCreatedSessionId(body))
 }
 
 /**
@@ -37,15 +34,21 @@ export function sessionsToolTargetId(
   args: JsonObject,
   resultContent: unknown,
   callerSessionId: string | null,
-): string | null {
-  const action = stringField(args.action)
+) {
+  const fields = hiveToolArgFields(args)
+  const action = stringField(fields.action)
   if (action !== null && CREATING_ACTIONS.has(action)) return createdSessionId(resultContent)
   if (action === 'report') {
-    const target = objectField(args.target)
-    return target?.type === 'session' ? sessionIdField(target.sessionId) : null
+    const target = hiveToolTargetFields(args)
+    const result: string | null =
+      target.type === 'session' ? sessionIdField(target.sessionId) : null
+    return result
   }
-  if (action === 'fork') return sessionIdField(args.sessionId) ?? callerSessionId
-  return sessionIdField(args.sessionId)
+  if (action === 'fork') {
+    const result: string | null = sessionIdField(fields.sessionId) ?? callerSessionId
+    return result
+  }
+  return sessionIdField(fields.sessionId)
 }
 
 export function findHiveSession(id: string | null, sessions: readonly HiveSession[]) {
@@ -54,11 +57,12 @@ export function findHiveSession(id: string | null, sessions: readonly HiveSessio
 }
 
 /** The Session as the Hive panel shows it. */
-export function sessionsToolTarget(session: HiveSession | null): SessionsToolTarget | null {
+export function sessionsToolTarget(session: HiveSession | null) {
   if (!session) return null
-  return {
+  const target: SessionsToolTarget | null = {
     title: session.title,
     agentName: session.lineage?.agentDefinitionName ?? null,
     isWorker: session.lineage?.role === 'worker',
   }
+  return target
 }

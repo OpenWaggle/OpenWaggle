@@ -115,16 +115,18 @@ export interface SessionTitlePromptInput {
   readonly attachments?: readonly SessionTitleContextAttachment[]
 }
 
-export function buildSessionTitlePrompt(input: SessionTitlePromptInput): SessionTitlePrompt {
+export function buildSessionTitlePrompt(input: SessionTitlePromptInput) {
   const attachments = attachmentSuffix(input.attachments ?? [])
   if (input.previousTitle === undefined) {
-    return {
+    const result: SessionTitlePrompt = {
       systemPrompt: INITIAL_SESSION_TITLE_PROMPT,
       prompt: `User message:\n${limitTitleMessage(input.message, INITIAL_MESSAGE_BUDGET)}${attachments}`,
     }
+    return result
   }
-  return {
+  const result: SessionTitlePrompt = {
     systemPrompt: regenerateSessionTitlePrompt(input.previousTitle),
     prompt: `Session contents:\n${preserveMessageEnd(input.message)}${attachments}`,
   }
+  return result
 }

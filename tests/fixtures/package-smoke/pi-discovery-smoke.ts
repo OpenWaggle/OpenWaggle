@@ -13,18 +13,26 @@ function piExtensionPaths(manifest: unknown) {
   }
 
   const pi = manifest.pi
-  if (typeof pi !== 'object' || pi === null || !('extensions' in pi) || !Array.isArray(pi.extensions)) {
+  if (
+    typeof pi !== 'object' ||
+    pi === null ||
+    !('extensions' in pi) ||
+    !Array.isArray(pi.extensions)
+  ) {
     throw new Error('@openwaggle/pi-waggle must expose Pi extension discovery metadata.')
   }
 
-  if (pi.extensions.length === 0 || pi.extensions.some((extensionPath) => typeof extensionPath !== 'string')) {
+  if (
+    pi.extensions.length === 0 ||
+    pi.extensions.some((extensionPath) => typeof extensionPath !== 'string')
+  ) {
     throw new Error('@openwaggle/pi-waggle Pi extension metadata must contain string paths.')
   }
 
   return pi.extensions
 }
 
-const packageEntry = await import.meta.resolve('@openwaggle/pi-waggle')
+const packageEntry = import.meta.resolve('@openwaggle/pi-waggle')
 const packageRoot = path.dirname(path.dirname(fileURLToPath(packageEntry)))
 const manifestPath = path.join(packageRoot, 'package.json')
 const manifest: unknown = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
@@ -64,13 +72,17 @@ try {
     const resolved = await fs.realpath(path.join(packageRoot, extensionPath))
     const loaded = await Promise.all(loadedPaths.map((loadedPath) => fs.realpath(loadedPath)))
     if (!loaded.includes(resolved)) {
-      throw new Error(`Pi did not load the declared extension ${extensionPath}; loaded: ${loadedPaths.join(', ')}`)
+      throw new Error(
+        `Pi did not load the declared extension ${extensionPath}; loaded: ${loadedPaths.join(', ')}`,
+      )
     }
   }
   const commands = result.extensions.flatMap((extension) => [...extension.commands.keys()])
   for (const command of EXPECTED_COMMANDS) {
     if (!commands.includes(command)) {
-      throw new Error(`@openwaggle/pi-waggle did not register /${command}; commands: ${commands.join(', ')}`)
+      throw new Error(
+        `@openwaggle/pi-waggle did not register /${command}; commands: ${commands.join(', ')}`,
+      )
     }
   }
   if (!result.extensions.some((extension) => extension.messageRenderers.has(EXPECTED_RENDERER))) {

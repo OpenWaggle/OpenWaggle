@@ -1,7 +1,5 @@
-import type {
-  WorkspaceDocumentChange,
-  WorkspaceDocumentEditBatch,
-} from '@shared/types/workspace-files'
+import { decodeUnknownOrThrow, getParseIssuePaths, parseJsonUnknown, Schema } from '@shared/schema'
+import type { WorkspaceDocumentEditBatch } from '@shared/types/workspace-files'
 import { createRendererLogger } from '@/shared/lib/logger'
 
 const DRAFT_STORAGE_PREFIX = 'openwaggle:document-draft:v1:'
@@ -23,80 +21,47 @@ export interface PersistedDraftJournal {
   readonly conflicted: boolean
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const nonNegativeInteger = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
 
-function parseDocumentChanges(value: unknown) {
-  if (!Array.isArray(value)) return null
-  const changes: WorkspaceDocumentChange[] = []
-  for (const candidate of value) {
-    if (
-      !isRecord(candidate) ||
-      typeof candidate.rangeOffset !== 'number' ||
-      !Number.isInteger(candidate.rangeOffset) ||
-      candidate.rangeOffset < 0 ||
-      typeof candidate.rangeLength !== 'number' ||
-      !Number.isInteger(candidate.rangeLength) ||
-      candidate.rangeLength < 0 ||
-      typeof candidate.text !== 'string'
-    ) {
-      return null
-    }
-    changes.push({
-      rangeOffset: candidate.rangeOffset,
-      rangeLength: candidate.rangeLength,
-      text: candidate.text,
-    })
-  }
-  return changes
-}
+const draftJournalSchema = Schema.Struct({
+  baselineRevision: Schema.String,
+  baseVersion: Schema.Number,
+  content: Schema.String,
+  batches: Schema.Array(
+    Schema.Struct({
+      version: nonNegativeInteger,
+      changes: Schema.Array(
+        Schema.Struct({
+          rangeOffset: nonNegativeInteger,
+          rangeLength: nonNegativeInteger,
+          text: Schema.String,
+        }),
+      ),
+    }),
+  ),
+  // Anything but `true` reads as not conflicted, as journals written before the flag do.
+  conflicted: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
-function parseDocumentBatches(value: unknown) {
-  if (!Array.isArray(value)) return null
-  const batches: WorkspaceDocumentEditBatch[] = []
-  for (const candidate of value) {
-    if (!isRecord(candidate) || typeof candidate.version !== 'number') return null
-    const changes = parseDocumentChanges(candidate.changes)
-    if (!Number.isInteger(candidate.version) || candidate.version < 0 || changes === null) {
-      return null
-    }
-    batches.push({ version: candidate.version, changes })
-  }
-  return batches
-}
-
-export function readDraftJournal(
-  storage: Storage,
-  projectPath: string,
-  path: string,
-): PersistedDraftJournal | null {
+export function readDraftJournal(storage: Storage, projectPath: string, path: string) {
   try {
     const stored = storage.getItem(draftStorageKey(projectPath, path))
     if (!stored) return null
-    const parsed: unknown = JSON.parse(stored)
-    if (
-      !isRecord(parsed) ||
-      typeof parsed.baselineRevision !== 'string' ||
-      typeof parsed.baseVersion !== 'number' ||
-      typeof parsed.content !== 'string'
-    ) {
-      logger.warn('Ignored an invalid workspace draft journal', { projectPath, path })
-      return null
-    }
-    const batches = parseDocumentBatches(parsed.batches)
-    if (batches === null) {
-      logger.warn('Ignored an invalid workspace draft journal', { projectPath, path })
-      return null
-    }
+    const journal = decodeUnknownOrThrow(draftJournalSchema, parseJsonUnknown(stored))
     return {
-      baselineRevision: parsed.baselineRevision,
-      baseVersion: parsed.baseVersion,
-      content: parsed.content,
-      batches,
-      conflicted: parsed.conflicted === true,
+      baselineRevision: journal.baselineRevision,
+      baseVersion: journal.baseVersion,
+      content: journal.content,
+      batches: journal.batches,
+      conflicted: journal.conflicted === true,
     }
   } catch (error) {
+    // Issue paths only: the messages would quote the draft's content.
+    const issues = getParseIssuePaths(error)
+    if (issues !== null) {
+      logger.warn('Ignored an invalid workspace draft journal', { projectPath, path, issues })
+      return null
+    }
     logger.warn('Could not read a workspace draft journal', {
       projectPath,
       path,

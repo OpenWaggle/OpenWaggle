@@ -14,7 +14,7 @@ import {
   waitForNormalSecondInstanceExit,
 } from '../single-instance-lock-proof'
 
-function exitedChild(exitCode: number | null, signalCode: NodeJS.Signals | null): StoppableChild {
+function exitedChild(exitCode: number | null, signalCode: NodeJS.Signals | null) {
   return {
     exitCode,
     signalCode,

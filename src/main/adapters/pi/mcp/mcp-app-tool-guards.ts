@@ -3,7 +3,6 @@
  * so it is held to what a Run of the Session could call, and to what the server offers apps.
  */
 import { getMcpToolExposure } from '@earendil-works/pi-coding-agent'
-import { isRecord } from '@shared/utils/validation'
 import { agentToolAllowlist } from '../../../domain/agents/agent-tool-allowlist'
 import type { McpServerConfig } from '../../../domain/mcp/config/mcp-server-config'
 import type { McpAppServerInput } from '../../../ports/mcp-app-runtime-service'
@@ -13,6 +12,7 @@ import {
 } from '../../../store/session-details/session-mcp-server-allowlist'
 import { resolveLegacyMcpServerAllowlist } from './legacy-mcp-server-allowlist'
 import { mcpToolVisibleToApps, recordMcpToolVisibility } from './mcp-app-registry'
+import { mcpToolListPage } from './mcp-tool-list-schema'
 
 /** How many `tools/list` pages an App's tool check reads before it gives up. */
 const MCP_APP_TOOL_LIST_MAX_PAGES = 50
@@ -46,10 +46,9 @@ async function findAdvertisedTool(
   for (let page = 0; page < MCP_APP_TOOL_LIST_MAX_PAGES; page += 1) {
     const listed = await listTools(cursor === undefined ? {} : { cursor })
     recordMcpToolVisibility(input.sessionId, input.serverName, listed)
-    const tools = isRecord(listed) && Array.isArray(listed.tools) ? listed.tools : []
-    if (tools.some((tool) => isRecord(tool) && tool.name === input.toolName)) return
-    cursor =
-      isRecord(listed) && typeof listed.nextCursor === 'string' ? listed.nextCursor : undefined
+    const page = mcpToolListPage(listed)
+    if (page?.tools.some((tool) => tool.name === input.toolName)) return
+    cursor = page?.nextCursor
     if (cursor === undefined) break
   }
   throw new Error('The MCP App requested a tool that its server did not advertise.')

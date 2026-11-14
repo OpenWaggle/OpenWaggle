@@ -19,9 +19,11 @@ describe('interrupted E2E Session fixtures', () => {
   beforeEach(async () => {
     userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-session-fixture-test-'))
     await fs.mkdir(path.dirname(getDatabasePath(userDataDir)), { recursive: true })
-    await Effect.runPromise(runAppDatabaseMigrations.pipe(
-      Effect.provide(SqliteClient.layer({ filename: getDatabasePath(userDataDir) })),
-    ))
+    await Effect.runPromise(
+      runAppDatabaseMigrations.pipe(
+        Effect.provide(SqliteClient.layer({ filename: getDatabasePath(userDataDir) })),
+      ),
+    )
   })
 
   afterEach(async () => {
@@ -38,7 +40,13 @@ describe('interrupted E2E Session fixtures', () => {
         messages: [],
         interruptedRun: true,
       },
-      { title: 'Stuck beta', projectPath: '/beta', updatedAt: 10, messages: [], interruptedRun: true },
+      {
+        title: 'Stuck beta',
+        projectPath: '/beta',
+        updatedAt: 10,
+        messages: [],
+        interruptedRun: true,
+      },
     ])
     const database = new Database(getDatabasePath(userDataDir))
     try {
@@ -107,18 +115,29 @@ describe('interrupted E2E Session fixtures', () => {
     const projectPath = path.join(userDataDir, 'project')
     const worktreePath = path.join(projectPath, '.openwaggle', 'worktrees', 'fixture')
     const sessionId = await seedSingleSession(userDataDir, {
-      title: 'Worktree fixture', projectPath, environmentMode: 'worktree', worktreePath,
-      updatedAt: 10, messages: [],
+      title: 'Worktree fixture',
+      projectPath,
+      environmentMode: 'worktree',
+      worktreePath,
+      updatedAt: 10,
+      messages: [],
     })
     const database = new Database(getDatabasePath(userDataDir))
     try {
-      expect(database.prepare(`SELECT resources.kind, resources.working_path
+      expect(
+        database
+          .prepare(`SELECT resources.kind, resources.working_path
         FROM session_workspace_bindings AS binding
         JOIN workspace_resources AS resources ON resources.id = binding.workspace_id
-        WHERE binding.session_id = ?`).get(sessionId)).toEqual({
-        kind: 'managed-worktree', working_path: worktreePath,
+        WHERE binding.session_id = ?`)
+          .get(sessionId),
+      ).toEqual({
+        kind: 'managed-worktree',
+        working_path: worktreePath,
       })
-    } finally { database.close() }
+    } finally {
+      database.close()
+    }
   })
 
   it('rolls back the canonical Run when its branch projection cannot be seeded', async () => {
@@ -133,7 +152,9 @@ describe('interrupted E2E Session fixtures', () => {
           { title: 'Rejected interruption', updatedAt: 10, messages: [], interruptedRun: true },
         ]),
       ).rejects.toThrow('branch fixture rejected')
-      expect(database.prepare('SELECT COUNT(*) AS count FROM session_runs').get()).toEqual({ count: 0 })
+      expect(database.prepare('SELECT COUNT(*) AS count FROM session_runs').get()).toEqual({
+        count: 0,
+      })
       expect(database.prepare('SELECT COUNT(*) AS count FROM session_active_runs').get()).toEqual({
         count: 0,
       })

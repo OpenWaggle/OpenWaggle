@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { selectThreadDiffScopeSelection, useDiffScopeStore } from '../diff-scope-store'
 
+/** The thread whose diff scope these cases set. */
+const THREAD_KEY = 't1'
+
 function reset() {
   useDiffScopeStore.setState({ byThreadKey: {}, branchBaseRefByThreadKey: {} })
 }
@@ -24,11 +27,11 @@ describe('diff-scope-store', () => {
     const store = useDiffScopeStore.getState()
     store.selectBranchBaseRef('t1', 'origin/main')
     store.selectGitScope('t1', 'unstaged')
-    expect(useDiffScopeStore.getState().byThreadKey.t1).toEqual({ kind: 'unstaged' })
+    expect(useDiffScopeStore.getState().byThreadKey[THREAD_KEY]).toEqual({ kind: 'unstaged' })
 
     // Switching back to branch restores the remembered base ref.
     useDiffScopeStore.getState().selectGitScope('t1', 'branch')
-    expect(useDiffScopeStore.getState().byThreadKey.t1).toEqual({
+    expect(useDiffScopeStore.getState().byThreadKey[THREAD_KEY]).toEqual({
       kind: 'branch',
       baseRef: 'origin/main',
     })
@@ -36,27 +39,32 @@ describe('diff-scope-store', () => {
 
   it('normalizes empty base refs to null', () => {
     useDiffScopeStore.getState().selectBranchBaseRef('t1', '   ')
-    expect(useDiffScopeStore.getState().byThreadKey.t1).toEqual({ kind: 'branch', baseRef: null })
+    expect(useDiffScopeStore.getState().byThreadKey[THREAD_KEY]).toEqual({
+      kind: 'branch',
+      baseRef: null,
+    })
   })
 
   it('increments revealRequestId on repeated turn selection', () => {
     const store = useDiffScopeStore.getState()
     store.selectTurn('t1', 'turn-1', 'a.ts')
-    expect(useDiffScopeStore.getState().byThreadKey.t1).toMatchObject({
+    expect(useDiffScopeStore.getState().byThreadKey[THREAD_KEY]).toMatchObject({
       kind: 'turn',
       turnId: 'turn-1',
       filePath: 'a.ts',
       revealRequestId: 1,
     })
     useDiffScopeStore.getState().selectTurn('t1', 'turn-1')
-    expect(useDiffScopeStore.getState().byThreadKey.t1).toMatchObject({ revealRequestId: 2 })
+    expect(useDiffScopeStore.getState().byThreadKey[THREAD_KEY]).toMatchObject({
+      revealRequestId: 2,
+    })
   })
 
   it('reconciles a stale turn selection to the latest available turn', () => {
     const store = useDiffScopeStore.getState()
     store.selectTurn('t1', 'gone')
     store.reconcileTurnSelection('t1', ['turn-latest', 'turn-older'])
-    expect(useDiffScopeStore.getState().byThreadKey.t1).toMatchObject({
+    expect(useDiffScopeStore.getState().byThreadKey[THREAD_KEY]).toMatchObject({
       kind: 'turn',
       turnId: 'turn-latest',
     })
@@ -66,7 +74,7 @@ describe('diff-scope-store', () => {
     const store = useDiffScopeStore.getState()
     store.selectTurn('t1', 'turn-b')
     store.reconcileTurnSelection('t1', ['turn-a', 'turn-b'])
-    expect(useDiffScopeStore.getState().byThreadKey.t1).toMatchObject({ turnId: 'turn-b' })
+    expect(useDiffScopeStore.getState().byThreadKey[THREAD_KEY]).toMatchObject({ turnId: 'turn-b' })
   })
 
   it('removes all state for a thread', () => {
@@ -74,8 +82,8 @@ describe('diff-scope-store', () => {
     store.selectBranchBaseRef('t1', 'main')
     store.removeThread('t1')
     const state = useDiffScopeStore.getState()
-    expect(state.byThreadKey.t1).toBeUndefined()
-    expect(state.branchBaseRefByThreadKey.t1).toBeUndefined()
+    expect(state.byThreadKey[THREAD_KEY]).toBeUndefined()
+    expect(state.branchBaseRefByThreadKey[THREAD_KEY]).toBeUndefined()
   })
 
   it('preserves an explicit scope selection over the default', () => {
@@ -93,7 +101,7 @@ describe('diff-scope-store', () => {
     store.selectBranchBaseRef('t1', 'origin/main')
     store.selectGitScope('t1', 'unstaged')
     // The unstaged selection carries no baseRef field.
-    expect(useDiffScopeStore.getState().byThreadKey.t1).toEqual({ kind: 'unstaged' })
+    expect(useDiffScopeStore.getState().byThreadKey[THREAD_KEY]).toEqual({ kind: 'unstaged' })
   })
 
   it('gives a session with no recorded scope the default one', () => {

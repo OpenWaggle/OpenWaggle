@@ -26,16 +26,16 @@ async function withHttp2Server<T>(
 ) {
   const server = createHttp2Server()
   let sessions = 0
+  const sessionCounts = new WeakMap<object, { readonly id: number; streams: number }>()
   server.on('session', (session) => {
     sessions += 1
-    Reflect.set(session, 'testSessionId', sessions)
-    Reflect.set(session, 'testStreams', 0)
+    sessionCounts.set(session, { id: sessions, streams: 0 })
   })
   server.on('stream', (stream) => {
-    const session = stream.session
-    const streams = Number(Reflect.get(session ?? {}, 'testStreams')) + 1
-    Reflect.set(session ?? {}, 'testStreams', streams)
-    const sessionId = Number(Reflect.get(session ?? {}, 'testSessionId'))
+    const counts = stream.session ? sessionCounts.get(stream.session) : undefined
+    if (counts) counts.streams += 1
+    const streams = counts?.streams ?? Number.NaN
+    const sessionId = counts?.id ?? Number.NaN
     stream.on('data', () => undefined)
     stream.on('end', () => {
       // A connection whose path died: the request is sent and never answered.

@@ -1,14 +1,13 @@
 import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
 import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
 import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useSessionStatusStore } from '@/features/sessions/state/session-status-store'
 
-interface SessionNavItem {
-  readonly id: SessionId
-  readonly projectPath: string | null
-  readonly environmentMode?: 'local' | 'worktree'
-  readonly worktreePath?: string | null
-}
+type SessionNavItem = Pick<
+  SessionSummary,
+  'id' | 'projectPath' | 'environmentMode' | 'worktreePath'
+>
 
 interface SessionNavDeps {
   readonly sessions: readonly SessionNavItem[]
@@ -22,15 +21,8 @@ interface SessionNavDeps {
   readonly refreshGitBranches: (repositoryPath: RepositoryPath | null) => Promise<void>
 }
 
-interface SessionNavHandlers {
-  readonly handleSelectSession: (id: SessionId) => Promise<void>
-  readonly handleNewSession: () => void
-  readonly handleOpenProject: () => Promise<void>
-  readonly handleSelectProjectPath: (path: string) => Promise<void>
-}
-
 /** Pure factory — testable without React. */
-export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandlers {
+export function createSessionNavHandlers(deps: SessionNavDeps) {
   const {
     sessions,
     projectPath,
@@ -43,10 +35,7 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
     refreshGitBranches,
   } = deps
 
-  function refreshGit(
-    session: { environmentMode?: 'local' | 'worktree'; worktreePath?: string | null } | null,
-    path: string | null,
-  ) {
+  function refreshGit(session: SessionNavItem | null, path: string | null) {
     // Status targets the selected session's working tree via the sole WorkingPath
     // producer; the branch list is repository-level.
     void Promise.all([
@@ -97,6 +86,6 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
 }
 
 /** Hook wrapper — calls the factory with current deps. */
-export function useSessionNav(deps: SessionNavDeps): SessionNavHandlers {
+export function useSessionNav(deps: SessionNavDeps) {
   return createSessionNavHandlers(deps)
 }

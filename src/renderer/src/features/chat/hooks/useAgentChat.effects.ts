@@ -199,7 +199,9 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
         hasActiveRun: activeRun,
         cachedRenderMessages: activeRun ? (cachedRenderSnapshot?.messages ?? null) : null,
         cachedRenderSeeded: activeRun && cachedRenderSnapshot?.seededByRunId !== undefined,
-        cachedSettledMessageIds: cachedRenderSnapshot?.settledMessageIds,
+        ...(cachedRenderSnapshot?.settledMessageIds === undefined
+          ? {}
+          : { cachedSettledMessageIds: cachedRenderSnapshot?.settledMessageIds }),
         cachedCompactionStatus: cachedRenderSnapshot?.compactionStatus ?? null,
         resyncRevision,
         activityRestoreRevision,

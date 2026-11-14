@@ -16,39 +16,43 @@ interface UpdaterToast {
   readonly action?: { readonly label: string; readonly run: () => Promise<void> }
 }
 
-function installingToast(version: string): UpdaterToast {
-  return {
+function installingToast(version: string) {
+  const toast: UpdaterToast = {
     message: `Installing v${version}. ${PRODUCT_NAME} reopens when it is done`,
     variant: 'neutral',
   }
+  return toast
 }
 
-function updaterToast(status: DownloadedUpdateStatus): UpdaterToast {
+function updaterToast(status: DownloadedUpdateStatus) {
   const waitingForRuns = status.waitingForRuns
   if (waitingForRuns !== undefined && waitingForRuns > 0) {
     const runs = waitingForRuns === 1 ? '1 agent run' : `${waitingForRuns} agent runs`
-    return {
+    const toast: UpdaterToast = {
       message: `Update v${status.version} will install when ${runs} finish${waitingForRuns === 1 ? 'es' : ''}`,
       variant: 'success',
       action: { label: 'Restart now', run: () => api.installUpdateNow() },
     }
+    return toast
   }
   if (status.installFailure) {
-    return {
+    const toast: UpdaterToast = {
       message: status.installFailure,
       variant: 'error',
       action: { label: 'Restart to update', run: () => api.installUpdate() },
     }
+    return toast
   }
-  return {
+  const toast: UpdaterToast = {
     message: `Update v${status.version} ready`,
     variant: 'success',
     action: { label: 'Restart to update', run: () => api.installUpdate() },
   }
+  return toast
 }
 
 /** The toast a status shows, or whether it clears the updater's toast or leaves it as it is. */
-function toastFor(status: UpdateStatus): UpdaterToast | 'clear' | 'keep' {
+function toastFor(status: UpdateStatus) {
   return matchBy(status, 'type')
     .with('downloaded', (downloaded) => updaterToast(downloaded))
     .with('installing', (installing) => installingToast(installing.version))
@@ -61,14 +65,12 @@ function toastFor(status: UpdateStatus): UpdaterToast | 'clear' | 'keep' {
     .exhaustive()
 }
 
-export function useAutoUpdater(): void {
+export function useAutoUpdater() {
   const showPersistentToast = useUIStore((s) => s.showPersistentToast)
   const clearToast = useUIStore((s) => s.clearToast)
   const shownToastRef = useRef<UpdaterToast | null>(null)
 
   useEffect(() => {
-    if (typeof api.onUpdateStatus !== 'function') return
-
     const clearShownToast = () => {
       const shown = shownToastRef.current
       if (!shown) return

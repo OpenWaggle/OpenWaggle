@@ -11,7 +11,7 @@ function message(
   role: SessionTitleContextMessage['role'],
   text: string,
   attachments: SessionTitleContextMessage['attachments'] = [],
-): SessionTitleContextMessage {
+) {
   return { role, text, attachments }
 }
 

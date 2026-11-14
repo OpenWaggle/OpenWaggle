@@ -1,6 +1,6 @@
-import type { CredentialInfo } from '@earendil-works/pi-ai'
 import type { AgentSessionServices, ModelRuntime } from '@earendil-works/pi-coding-agent'
 import type { ThinkingLevel } from '@shared/types/settings'
+import type { CredentialInfo } from '@earendil-works/pi-ai'
 
 export interface ProviderModelRecord {
   readonly ref: string

@@ -6,8 +6,6 @@ import { SessionControlRepositoryError } from '../errors'
 import {
   HIVE_AGENT_CALLER_PREFIX,
   HIVE_CLEANUP_IDEMPOTENCY_PREFIX,
-  type HiveWorkerArchiveResult,
-  type HiveWorkerCleanupCandidate,
   HiveWorkerCleanupRepository,
   type HiveWorkerCleanupRepositoryShape,
   isHiveAgentCaller,
@@ -132,7 +130,7 @@ export function hiveWorkerCleanupCandidateStatement(
   `
 }
 
-function toCandidate(row: CandidateRow): HiveWorkerCleanupCandidate {
+function toCandidate(row: CandidateRow) {
   return {
     workerSessionId: SessionId(row.worker_session_id),
     parentSessionId: SessionId(row.parent_session_id),
@@ -185,10 +183,7 @@ function archiveIfStillEligible(
         return { status: 'archived', response } as const
       }),
     )
-    .pipe(
-      Effect.map((result): HiveWorkerArchiveResult => result),
-      Effect.mapError(repositoryError('archive-hive-cleanup-worker')),
-    )
+    .pipe(Effect.mapError(repositoryError('archive-hive-cleanup-worker')))
 }
 
 function restoreCleanupArchive(

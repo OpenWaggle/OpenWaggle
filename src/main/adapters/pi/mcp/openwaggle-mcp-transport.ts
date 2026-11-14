@@ -35,8 +35,8 @@ export function openWaggleMcpTransport(
   input: OpenWaggleMcpTransportInput,
   config: Pick<McpRuntimeConfig, 'transports'> &
     Partial<Pick<McpRuntimeConfig, 'connectionConfigs'>>,
-): McpTransportFactory {
-  return (entry, cwd, authProvider) => {
+) {
+  return ((entry, cwd, authProvider) => {
     if (input.serverAllowlist && !input.serverAllowlist.includes(entry.name)) {
       throw new Error(
         `This Session's Agent definition does not use the MCP server "${entry.name}".`,
@@ -79,5 +79,5 @@ export function openWaggleMcpTransport(
       },
       roots: () => [{ uri: pathToFileURL(cwd).href, name: path.basename(cwd) }],
     })
-  }
+  }) satisfies McpTransportFactory
 }

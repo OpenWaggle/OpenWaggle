@@ -11,8 +11,12 @@ type TerminalInputWriter = (
   identity: TerminalInputIdentity,
 ) => Promise<TerminalWriteResult>
 
-function accepted(data: string, identity: TerminalInputIdentity): TerminalWriteResult {
-  return { status: 'written', acceptedBytes: new TextEncoder().encode(data).byteLength, identity }
+function accepted(data: string, identity: TerminalInputIdentity) {
+  return {
+    status: 'written',
+    acceptedBytes: new TextEncoder().encode(data).byteLength,
+    identity,
+  } satisfies TerminalWriteResult
 }
 
 function testDispatcher(writer: TerminalInputWriter) {

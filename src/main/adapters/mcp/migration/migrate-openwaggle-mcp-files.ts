@@ -12,8 +12,8 @@
  * again.
  */
 import type { Logger } from '@shared/types/logger'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { createLogger } from '../../../logger'
-import type { McpServerMigrationChange } from './entry-migration'
 import {
   computeGlobalFile,
   computeProjectFile,
@@ -33,6 +33,7 @@ import {
   projectMcpPaths,
 } from './migration-paths'
 import { MCP_FILE_MIGRATION_VERSION, type McpMigrationRecord } from './migration-record'
+import type { McpFileMigrationReport } from './migration-report'
 import {
   decideLegacyProjects,
   loadMigrationStart,
@@ -40,11 +41,7 @@ import {
   startFailureReport,
   startWithoutOldState,
 } from './migration-start'
-import {
-  type McpOAuthMigrationResult,
-  type McpOAuthMigrationSink,
-  migrateLegacyOAuthStates,
-} from './oauth-state-migration'
+import { type McpOAuthMigrationSink, migrateLegacyOAuthStates } from './oauth-state-migration'
 import { keepsEnablement, migrationProjects, presentMigrationProjects } from './project-spellings'
 import {
   type McpSessionSwitchMigrationSink,
@@ -52,9 +49,7 @@ import {
   noteNoSessionSwitches,
 } from './session-switch-migration'
 
-export type { McpServerMigrationChange } from './entry-migration'
-export type { McpOAuthMigrationResult, McpOAuthMigrationSink } from './oauth-state-migration'
-
+export type { McpOAuthMigrationSink } from './oauth-state-migration'
 export interface MigrateOpenWaggleMcpFilesInput {
   readonly homeDir: string
   /** Pi's agent directory (`getPiAgentDir()`); defaults to `~/.pi/agent`. */
@@ -77,32 +72,7 @@ export interface MigrateOpenWaggleMcpFilesInput {
   readonly keepCreatedFileOutOfGit?: (filePath: string) => Promise<unknown>
 }
 
-export type McpFileMigrationStatus = 'migrated' | 'unchanged' | 'already-migrated' | 'failed'
-
-export interface McpFileMigrationReport {
-  readonly path: string
-  readonly status: McpFileMigrationStatus
-  readonly backupPath?: string
-  readonly changes: readonly McpServerMigrationChange[]
-  readonly error?: string
-}
-
-export interface McpMigrationReport {
-  readonly files: readonly McpFileMigrationReport[]
-  readonly oauth: readonly McpOAuthMigrationResult[]
-  /** Old per-Session MCP switches not carried over to the Host ('on' and 'inherit' need none). */
-  readonly droppedSessionStates: number
-  /** Set when the migration could not start (unreadable record or old state). */
-  readonly error?: string
-  /** Projects left alone as their folder is gone; each migrates once it is back. */
-  readonly goneProjects?: readonly string[]
-}
-
 const defaultLogger = createLogger('mcp-migration')
-
-function describeError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
 
 interface FileJob {
   readonly path: string
@@ -111,18 +81,37 @@ interface FileJob {
   readonly compute: (original: string | undefined) => Promise<FileComputation>
 }
 
-class McpFileMigrator {
-  constructor(
-    private readonly fs: McpMigrationFs,
-    private readonly record: McpMigrationRecord,
-    private readonly logger: Logger,
-    private readonly input: Pick<
-      MigrateOpenWaggleMcpFilesInput,
-      'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
-    > & { readonly unreadableState?: McpMigrationSourceError },
-  ) {}
+interface McpFileMigratorInput extends Pick<
+  MigrateOpenWaggleMcpFilesInput,
+  'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
+> {
+  readonly unreadableState: McpMigrationSourceError | undefined
+}
 
-  async run(job: FileJob): Promise<McpFileMigrationReport> {
+function failedFileReport(path: string, error: string) {
+  const report: McpFileMigrationReport = { path, status: 'failed', changes: [], error }
+  return report
+}
+
+class McpFileMigrator {
+  private readonly fs: McpMigrationFs
+  private readonly record: McpMigrationRecord
+  private readonly logger: Logger
+  private readonly input: McpFileMigratorInput
+
+  constructor(
+    fs: McpMigrationFs,
+    record: McpMigrationRecord,
+    logger: Logger,
+    input: McpFileMigratorInput,
+  ) {
+    this.fs = fs
+    this.record = record
+    this.logger = logger
+    this.input = input
+  }
+
+  async run(job: FileJob) {
     const report = await this.migrate(job)
     const { unreadableState } = this.input
     recordMcpFileMigrationOutcome(job.path, report.status === 'failed' ? report.error : undefined, {
@@ -132,21 +121,21 @@ class McpFileMigrator {
     return report
   }
 
-  private async migrate(job: FileJob): Promise<McpFileMigrationReport> {
+  private async migrate(job: FileJob) {
     if (this.record.isFileMigrated(job.path)) {
-      return { path: job.path, status: 'already-migrated', changes: [] }
+      return { path: job.path, status: 'already-migrated', changes: [] } as const
     }
     // Its old on/off state is in the state.json that cannot be read: it waits until it can be.
     const { unreadableState } = this.input
     if (unreadableState && job.keepsLegacyState) {
-      return { path: job.path, status: 'failed', changes: [], error: unreadableState.message }
+      return failedFileReport(job.path, unreadableState.message)
     }
     try {
       const original = await this.fs.readText(job.path)
       const result = await job.compute(original)
       if (result.text === undefined) {
         await this.recordFile(job.path, 'unchanged', original)
-        return { path: job.path, status: 'unchanged', changes: result.changes }
+        return { path: job.path, status: 'unchanged', changes: result.changes } as const
       }
       const backupPath = migrationBackupPath(job.path, this.input.homeDir)
       if (original !== undefined) await this.fs.createTextExclusive(backupPath, original)
@@ -157,24 +146,25 @@ class McpFileMigrator {
         path: job.path,
         servers: result.changes.map((change) => `${change.server}:${change.action}`),
       })
-      return {
+      const report: McpFileMigrationReport = {
         path: job.path,
         status: 'migrated',
         ...(original === undefined ? {} : { backupPath }),
         changes: result.changes,
       }
+      return report
     } catch (error) {
       this.logger.error('MCP file migration failed; the file was left unchanged', {
         path: job.path,
-        error: describeError(error),
+        error: formatErrorMessage(error),
       })
-      return { path: job.path, status: 'failed', changes: [], error: describeError(error) }
+      return failedFileReport(job.path, formatErrorMessage(error))
     }
   }
 
   private async keepCreatedOutOfGit(filePath: string) {
     await this.input.keepCreatedFileOutOfGit?.(filePath).catch((error: unknown) => {
-      const context = { path: filePath, error: describeError(error) }
+      const context = { path: filePath, error: formatErrorMessage(error) }
       this.logger.warn('Could not keep a created MCP file out of git', context)
     })
   }
@@ -190,9 +180,7 @@ class McpFileMigrator {
 }
 
 /** Run the migration for the global file and every known project. Safe to call repeatedly. */
-export async function migrateOpenWaggleMcpFiles(
-  input: MigrateOpenWaggleMcpFilesInput,
-): Promise<McpMigrationReport> {
+export async function migrateOpenWaggleMcpFiles(input: MigrateOpenWaggleMcpFilesInput) {
   const fs = input.fs ?? nodeMcpMigrationFs
   const logger = input.logger ?? defaultLogger
   let start: Awaited<ReturnType<typeof loadMigrationStart>>
@@ -209,8 +197,9 @@ export async function migrateOpenWaggleMcpFiles(
     kept = await decideLegacyProjects(input, start, fs, knownProjectPaths)
   } catch (error) {
     const withoutState = await startWithoutOldState(fs, input.homeDir, error)
-    if (!withoutState)
+    if (!withoutState) {
       return startFailureReport({ fs, homeDir: input.homeDir, input, error, logger })
+    }
     logger.warn('MCP migration goes on without the old MCP state, which cannot be read', {
       error: withoutState.unreadableState.message,
     })
@@ -224,7 +213,7 @@ export async function migrateOpenWaggleMcpFiles(
   const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
   const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
   const paths = globalMcpPaths(input.homeDir, piAgentDir)
-  const { present: projects, gone } = await presentMigrationProjects(
+  const { present: projects, gone: goneProjects } = await presentMigrationProjects(
     fs,
     await migrationProjects({
       ...input,
@@ -299,5 +288,5 @@ export async function migrateOpenWaggleMcpFiles(
   })
   // A sign-in run reads the old sign-ins' servers from the old state: tried again later.
   const error = input.oauth && unreadableState ? { error: unreadableState.message } : {}
-  return { files, oauth, droppedSessionStates, goneProjects: gone, ...error }
+  return { files, oauth, droppedSessionStates, goneProjects, ...error }
 }

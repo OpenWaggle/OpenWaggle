@@ -35,7 +35,8 @@ export function isIndeterminateDesktopOperation(error: unknown, depth = 0): bool
   if (
     error instanceof AggregateError &&
     error.errors.some((nested: unknown) => isIndeterminateDesktopOperation(nested, depth + 1))
-  )
+  ) {
     return true
+  }
   return error instanceof Error && isIndeterminateDesktopOperation(error.cause, depth + 1)
 }

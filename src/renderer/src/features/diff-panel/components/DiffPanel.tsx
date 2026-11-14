@@ -282,15 +282,15 @@ export function DiffPanel({
             requestStackedAction({
               action,
               commitPaths,
-              run: workflow.stackedActions.run,
+              run: workflow.stackedActions.start,
               showToast,
               onNeedsMessage: workflow.setPendingCommitAction,
               onCreateChangeRequest: workflow.openChangeRequest,
             }),
-          onPull: () => workflow.stackedActions.run('pull'),
+          onPull: () => workflow.stackedActions.start('pull'),
           onOpenChangeRequest: () =>
             openSessionChangeRequest(workflow.vcsStatus, session, onOpenChangeRequest),
-          onPublish: () => workflow.stackedActions.run('push'),
+          onPublish: () => workflow.stackedActions.start('push'),
         }}
       />
       <DiffPanelDialogs
@@ -304,7 +304,7 @@ export function DiffPanel({
           changeRequestOpen: workflow.changeRequestOpen,
           setPendingCommitAction: workflow.setPendingCommitAction,
           setChangeRequestOpen: workflow.setChangeRequestOpen,
-          run: workflow.stackedActions.run,
+          run: workflow.stackedActions.start,
           onCompleted: workflow.refreshAfterAction,
         }}
       />

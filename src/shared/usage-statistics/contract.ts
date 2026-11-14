@@ -91,8 +91,8 @@ const IDENTIFIER = { kind: 'identifier' } as const satisfies UsageStatisticsFiel
 const IDENTIFIER_LIST = { kind: 'identifier-list' } as const satisfies UsageStatisticsFieldSpec
 const VERSION = { kind: 'version' } as const satisfies UsageStatisticsFieldSpec
 
-function enumField(values: readonly string[]): UsageStatisticsFieldSpec {
-  return { kind: 'enum', values }
+function enumField(values: readonly string[]) {
+  return { kind: 'enum', values } satisfies UsageStatisticsFieldSpec
 }
 
 function featureFlagFields() {

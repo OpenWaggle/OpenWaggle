@@ -5,14 +5,13 @@ import type {
 } from '@shared/types/extensions'
 import { describe, expect, it } from 'vitest'
 import { resolveExtensionSidePanelContribution } from '../extension-side-panel-resolution'
+import { omitKey } from '@/test-utils/omit-key'
 
 const PROJECT_PATH = '/tmp/project'
 const OTHER_PROJECT_PATH = '/tmp/other-project'
 
-function sidePanelEntry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function sidePanelEntry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'sample-extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -44,15 +43,14 @@ function sidePanelEntry(
     diagnostics: [],
     ...overrides,
   }
+  return entry
 }
 
-function registry(
-  entries: readonly ExtensionContributionRegistryEntry[],
-): ExtensionContributionRegistryView {
+function registry(entries: readonly ExtensionContributionRegistryEntry[]) {
   return {
     projectPaths: [PROJECT_PATH],
     entries,
-  }
+  } satisfies ExtensionContributionRegistryView
 }
 
 describe('resolveExtensionSidePanelContribution', () => {
@@ -171,7 +169,7 @@ describe('resolveExtensionSidePanelContribution', () => {
 
   it('rejects side panel entries missing host metadata before mounting a module', () => {
     const resolution = resolveExtensionSidePanelContribution({
-      registry: registry([sidePanelEntry({ entryPath: undefined })]),
+      registry: registry([omitKey(sidePanelEntry(), 'entryPath')]),
       target: {
         extensionId: 'sample-extension',
         sidePanelId: 'sample.side-panel',

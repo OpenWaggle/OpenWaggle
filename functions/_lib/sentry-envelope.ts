@@ -39,17 +39,15 @@ function readItem(bytes: Uint8Array, start: number) {
   const header = jsonObjectLine(bytes, start, headerEnd)
   if (header === undefined) return undefined
   const payloadStart = Math.min(headerEnd + 1, bytes.length)
-  const end = payloadEnd(bytes, payloadStart, header.length)
+  const { length } = header
+  const end = payloadEnd(bytes, payloadStart, length)
   if (end === undefined) return undefined
   const item: SentryEnvelopeItem = { header, payload: bytes.subarray(payloadStart, end) }
   return { item, next: bytes[end] === NEWLINE_BYTE ? end + 1 : end }
 }
 
 /** Parses an envelope, or returns `undefined` when it is malformed or has too many items. */
-export function parseSentryEnvelope(
-  bytes: Uint8Array,
-  maxItems: number,
-): SentryEnvelope | undefined {
+export function parseSentryEnvelope(bytes: Uint8Array, maxItems: number) {
   const headerEnd = lineEnd(bytes, 0)
   const header = jsonObjectLine(bytes, 0, headerEnd)
   if (header === undefined) return undefined
@@ -78,7 +76,7 @@ export interface OutgoingEnvelopeItem {
 export function serializeSentryEnvelope(
   header: Readonly<Record<string, unknown>>,
   items: readonly OutgoingEnvelopeItem[],
-): string {
+) {
   const lines = [JSON.stringify(header)]
   for (const item of items) {
     const payload = JSON.stringify(item.payload)

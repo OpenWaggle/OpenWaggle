@@ -156,15 +156,19 @@ function close(server: Server) {
 
 function outboundBudgetFor(dependencies: LocalSessionServerDependencies) {
   return new LocalSessionOutboundByteBudget(dependencies.maxPendingOutboundBytesGlobal, {
-    capacityWaitMs: dependencies.outboundCapacityWaitMs,
-    maxWaitMs: dependencies.outboundMaxWaitMs,
+    ...(dependencies.outboundCapacityWaitMs === undefined
+      ? {}
+      : { capacityWaitMs: dependencies.outboundCapacityWaitMs }),
+    ...(dependencies.outboundMaxWaitMs === undefined
+      ? {}
+      : { maxWaitMs: dependencies.outboundMaxWaitMs }),
   })
 }
 
 export async function listenLocalSessionServer(
   endpoint: string,
   dependencies: LocalSessionServerDependencies,
-): Promise<LocalSessionServerHandle> {
+) {
   await prepareLocalSessionEndpoint(endpoint)
   const connections = new Set<LocalSessionConnection>()
   const inboundBudget = new LocalSessionInboundByteBudget(dependencies.maxPendingInboundBytesGlobal)

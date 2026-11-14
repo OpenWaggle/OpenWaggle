@@ -4,7 +4,7 @@ import { useChat } from '@/features/chat/hooks'
 import { useSessions } from '@/features/sessions/hooks'
 
 /**
- * The open Session's Running Workers (ADR 0063), for the header line and the Hive rail dot, which
+ * The open Session's Running Workers (ADR 0065), for the header line and the Hive rail dot, which
  * must agree. The catalog entry wins: it is read again whenever a Worker below starts or settles a
  * Run, and the open tree is not. The tree answers only for a Session the catalog does not hold.
  */

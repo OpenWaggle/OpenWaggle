@@ -11,7 +11,7 @@ import type { AgentLoopNotifyLevel } from '../types/agent-loop-interaction'
  * drift into a transcript that disagrees with itself after a reload, and neither side's unit tests
  * would notice, since each is individually consistent.
  */
-export function notificationCreatesDurableRecord(level: AgentLoopNotifyLevel): boolean {
+export function notificationCreatesDurableRecord(level: AgentLoopNotifyLevel) {
   return level !== 'info'
 }
 
@@ -22,6 +22,6 @@ export function notificationCreatesDurableRecord(level: AgentLoopNotifyLevel): b
  * synthesises for itself. Persisting it is what produced the original "Interaction resolved" cards
  * carrying nothing but `{"acknowledged": true}`.
  */
-export function notificationResolutionCreatesDurableRecord(): boolean {
+export function notificationResolutionCreatesDurableRecord() {
   return false
 }

@@ -62,7 +62,7 @@ function exportSelection(
   const query = request.query
   return Effect.gen(function* () {
     const branchScope = query.branchScope ?? 'active-branch'
-    if (!sessionExportBranchSelectionIsValid({ branchScope, branchId: query.branchId })) {
+    if (!sessionExportBranchSelectionIsValid(branchScope, query.branchId)) {
       return yield* Effect.fail(
         new Error('A Session branch can be selected only for an active-branch export.'),
       )

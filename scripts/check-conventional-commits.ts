@@ -1,10 +1,12 @@
 import { execFile as execFileCallback } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { type CommitSubject, readCommitSubjects } from './commit-subjects'
 import { isAncestor } from './git-ancestry'
 import { collectUpstreamUpdateMergeHashes } from './upstream-merge-attribution'
 import { checkPackageReleaseLines } from './package-release-lines'
 import { touchesPublishablePackage } from './publishable-package-diff'
+import { scriptEnv } from './support/env'
 
 const execFile = promisify(execFileCallback)
 
@@ -40,9 +42,7 @@ export function hasPackageReleaseIntent(title: string) {
 const PUBLISHABLE_PATH_PREFIX = 'packages/'
 
 function affectsPublishablePackage(commit: CommitSubject) {
-  return commit.changedPaths.some((changedPath) =>
-    changedPath.startsWith(PUBLISHABLE_PATH_PREFIX),
-  )
+  return commit.changedPaths.some((changedPath) => changedPath.startsWith(PUBLISHABLE_PATH_PREFIX))
 }
 
 function isGeneratedNonPackageMerge(commit: CommitSubject) {
@@ -112,7 +112,7 @@ async function resolveBaseline(input: {
   readonly options: ConventionalCommitValidationOptions
   readonly to: string
 }) {
-  const explicitBaseline = input.options.baseline ?? process.env.OPENWAGGLE_COMMIT_POLICY_BASELINE
+  const explicitBaseline = input.options.baseline ?? scriptEnv().OPENWAGGLE_COMMIT_POLICY_BASELINE
   if (explicitBaseline !== undefined && explicitBaseline.length > 0) {
     return explicitBaseline
   }
@@ -128,7 +128,9 @@ async function resolveBaseline(input: {
 }
 
 function resolveFrom(options: ConventionalCommitValidationOptions, baseline: string) {
-  return options.from === undefined || options.from.length === 0 || ALL_ZERO_SHA_PATTERN.test(options.from)
+  return options.from === undefined ||
+    options.from.length === 0 ||
+    ALL_ZERO_SHA_PATTERN.test(options.from)
     ? baseline
     : options.from
 }
@@ -160,7 +162,9 @@ async function resolveEffectiveFrom(input: {
  * Merges in the range whose incoming parents are all already contained in the base ref.
  * See {@link isUpstreamUpdateMerge} for why those are exempt from the package rule.
  */
-export async function validateConventionalCommits(options: ConventionalCommitValidationOptions = {}) {
+export async function validateConventionalCommits(
+  options: ConventionalCommitValidationOptions = {},
+) {
   const cwd = options.cwd ?? process.cwd()
   const to = options.to ?? 'HEAD'
   const baseline = await resolveBaseline({ cwd, options, to })
@@ -183,9 +187,7 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
       ? []
       : CONVENTIONAL_COMMIT_SUBJECT_PATTERN.test(options.prTitle)
         ? []
-        : [
-            `Pull request title "${options.prTitle}" is not an allowed Conventional Commit subject.`,
-          ]
+        : [`Pull request title "${options.prTitle}" is not an allowed Conventional Commit subject.`]
 
   /*
    * The same exemption as the commit-level rule: a sync merge of an already-released base branch
@@ -250,28 +252,68 @@ export async function validateConventionalCommits(options: ConventionalCommitVal
   }
 }
 
+// git's verbose commit template puts the diff below this line; nothing under it is the message.
+const SCISSORS_LINE = '# ------------------------ >8 ------------------------'
+// Subjects git writes itself (`git merge`) or that `git rebase --autosquash` folds away. The
+// branch-range policy still judges them at push time.
+const GENERATED_SUBJECT_PATTERN = /^(?:Merge |fixup! |squash! |amend! )/
+
+/** The subject git will record for a commit message file: its first non-comment, non-blank line. */
+export function commitMessageSubject(message: string) {
+  const [body = ''] = message.split(SCISSORS_LINE)
+  return (
+    body
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0 && !line.startsWith('#')) ?? ''
+  )
+}
+
+/** The commit-msg hook's check: the subject must be a Conventional Commit, as the policy requires. */
+export function validateCommitMessage(message: string) {
+  const subject = commitMessageSubject(message)
+  if (subject.length === 0) {
+    return ['The commit message is empty.']
+  }
+  if (
+    GENERATED_SUBJECT_PATTERN.test(subject) ||
+    CONVENTIONAL_COMMIT_SUBJECT_PATTERN.test(subject)
+  ) {
+    return []
+  }
+  return [
+    `${JSON.stringify(subject)} is not an allowed Conventional Commit subject. Use \`<type>(<scope>)?: <summary>\` with a type of feat, fix, docs, test, chore, refactor, perf, ci, build or revert.`,
+  ]
+}
+
 function readArgumentValue(args: readonly string[], name: string) {
   const index = args.indexOf(name)
-
-  if (index === -1) {
-    return undefined
-  }
-
+  if (index === -1) return undefined
   const value = args[index + 1]
-  if (value === undefined || value.startsWith('--')) {
-    throw new Error(`${name} requires a value.`)
-  }
-
+  if (value === undefined || value.startsWith('--')) throw new Error(`${name} requires a value.`)
   return value
 }
 
 async function main() {
   const args = process.argv.slice(CLI_ARGUMENT_START_INDEX)
+  const messageFile = readArgumentValue(args, '--message-file')
+  if (messageFile !== undefined) {
+    const violations = validateCommitMessage(await readFile(messageFile, 'utf8'))
+    if (violations.length > 0) {
+      console.error(`commit-msg: ${violations.join('\n')}`)
+      process.exitCode = 1
+    }
+    return
+  }
+  const baseline = readArgumentValue(args, '--baseline')
+  const from = readArgumentValue(args, '--from')
+  const prTitle = readArgumentValue(args, '--pr-title')
+  const to = readArgumentValue(args, '--to')
   const result = await validateConventionalCommits({
-    baseline: readArgumentValue(args, '--baseline'),
-    from: readArgumentValue(args, '--from'),
-    prTitle: readArgumentValue(args, '--pr-title'),
-    to: readArgumentValue(args, '--to'),
+    ...(baseline === undefined ? {} : { baseline }),
+    ...(from === undefined ? {} : { from }),
+    ...(prTitle === undefined ? {} : { prTitle }),
+    ...(to === undefined ? {} : { to }),
   })
 
   if (result.violations.length === 0) {
@@ -283,7 +325,7 @@ async function main() {
   process.exitCode = 1
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
   void main().catch((error: unknown) => {
     console.error(String(error))
     process.exitCode = 1

@@ -67,7 +67,7 @@ export function MarkdownCodeBlock({
           key="complete"
           source={source}
           language={language ?? 'text'}
-          theme={theme}
+          {...(theme === undefined ? {} : { theme })}
           ariaLabel={`${language ?? 'Plain text'} source`}
           className="bg-transparent text-sm leading-relaxed"
         />

@@ -51,8 +51,12 @@ function UserMessageRow({
   return (
     <UserMessageBubble
       message={message}
-      onBranchFromMessage={actions?.onBranchFromMessage}
-      onForkFromMessage={actions?.onForkFromMessage}
+      {...(actions?.onBranchFromMessage === undefined
+        ? {}
+        : { onBranchFromMessage: actions?.onBranchFromMessage })}
+      {...(actions?.onForkFromMessage === undefined
+        ? {}
+        : { onForkFromMessage: actions?.onForkFromMessage })}
     />
   )
 }
@@ -84,9 +88,9 @@ export function MessageBubble({
     <AssistantMessageBubble
       message={message}
       runtime={runtime}
-      run={run}
-      waggle={waggle}
-      presentation={presentation}
+      {...(run === undefined ? {} : { run })}
+      {...(waggle === undefined ? {} : { waggle })}
+      {...(presentation === undefined ? {} : { presentation })}
       actions={headerTurnDiff}
     />
   )

@@ -22,22 +22,25 @@ interface DesktopLease {
   draining: boolean
 }
 
+interface DesktopServiceLeasesInput {
+  readonly getHostInstanceId: () => string
+  readonly fences: DesktopFenceRepositoryShape
+  readonly owners: DesktopOwnerRepositoryShape
+  readonly queue: DesktopServiceCommandQueue
+}
+
 export class DesktopServiceLeases {
   private lease: DesktopLease | undefined
   private closed = false
   private admissionTail = Promise.resolve()
   private boundHostInstanceId: string | undefined
+  private readonly input: DesktopServiceLeasesInput
 
-  constructor(
-    private readonly input: {
-      readonly getHostInstanceId: () => string
-      readonly fences: DesktopFenceRepositoryShape
-      readonly owners: DesktopOwnerRepositoryShape
-      readonly queue: DesktopServiceCommandQueue
-    },
-  ) {}
+  constructor(input: DesktopServiceLeasesInput) {
+    this.input = input
+  }
 
-  admit<A>(operation: () => Promise<A>): Promise<A> {
+  admit<A>(operation: () => Promise<A>) {
     const current = this.admissionTail.then(operation)
     // A rejected admission must not poison later independent admissions.
     this.admissionTail = current.then(
@@ -65,8 +68,9 @@ export class DesktopServiceLeases {
 
   current() {
     if (this.closed) throw desktopUnavailableError()
-    if (this.lease && Date.now() - this.lease.lastSeen > DESKTOP_SERVICE_LIMITS.leaseTimeoutMs)
+    if (this.lease && Date.now() - this.lease.lastSeen > DESKTOP_SERVICE_LIMITS.leaseTimeoutMs) {
       this.revoke()
+    }
     return this.lease
   }
 
@@ -83,16 +87,17 @@ export class DesktopServiceLeases {
     this.lease = undefined
   }
 
-  private async register(guiInstanceId: string, recover = false): Promise<DesktopServiceResponse> {
-    return this.admit(async () => {
+  private async register(guiInstanceId: string, recover = false) {
+    return this.admit<DesktopServiceResponse>(async () => {
       const current = this.current()
       const durable = await Effect.runPromise(this.input.owners.get())
       if (durable?.state === 'active' && durable.guiInstanceId !== guiInstanceId) {
         if (!recover) return { operation: 'quarantined', reason: 'previous-owner-unclean' }
         await this.recoverStaleOwner(current, durable, guiInstanceId)
       }
-      if (current && current.guiInstanceId !== guiInstanceId)
+      if (current && current.guiInstanceId !== guiInstanceId) {
         throw new Error('Another OpenWaggle desktop owns the current lease.')
+      }
       await Effect.runPromise(
         this.input.owners.activate({ guiInstanceId, hostInstanceId: this.hostInstanceId() }),
       )
@@ -154,10 +159,8 @@ export class DesktopServiceLeases {
     )
   }
 
-  private async markClosed(
-    request: Extract<DesktopServiceRequest, { operation: 'markClosed' }>,
-  ): Promise<DesktopServiceResponse> {
-    return this.admit(async () => {
+  private async markClosed(request: Extract<DesktopServiceRequest, { operation: 'markClosed' }>) {
+    return this.admit<DesktopServiceResponse>(async () => {
       const current = this.current()
       const durable = await Effect.runPromise(this.input.owners.get())
       if (
@@ -184,7 +187,7 @@ export class DesktopServiceLeases {
     })
   }
 
-  private async poll(leaseId: string, signal: AbortSignal): Promise<DesktopServiceResponse> {
+  private async poll(leaseId: string, signal: AbortSignal) {
     const owner = this.require(leaseId, true)
     if (owner.polling) throw new Error('This desktop already has a pending poll.')
     owner.polling = true
@@ -207,31 +210,32 @@ export class DesktopServiceLeases {
       const fences = await this.readFences()
       this.require(leaseId, true)
       owner.lastSeen = Date.now()
-      return {
+      const response: DesktopServiceResponse = {
         operation: 'poll',
         commands,
         cancelledCommandIds: this.input.queue.cancelledFor(leaseId),
         fences,
       }
+      return response
     } finally {
       owner.polling = false
     }
   }
 
-  async handle(
-    request: DesktopServiceRequest,
-    signal: AbortSignal,
-  ): Promise<DesktopServiceResponse> {
-    if (request.operation === 'register' || request.operation === 'recoverOwner')
+  async handle(request: DesktopServiceRequest, signal: AbortSignal) {
+    if (request.operation === 'register' || request.operation === 'recoverOwner') {
       return this.register(request.guiInstanceId, request.operation === 'recoverOwner')
+    }
     if (request.operation === 'markClosed') return this.markClosed(request)
-    if (request.operation === 'disconnect' && !this.current())
-      return { operation: 'disconnect', accepted: true }
+    if (request.operation === 'disconnect' && !this.current()) {
+      const response: DesktopServiceResponse = { operation: 'disconnect', accepted: true }
+      return response
+    }
     const owner = this.require(request.leaseId)
     owner.lastSeen = Date.now()
     if (request.operation === 'poll') return this.poll(request.leaseId, signal)
     if (request.operation === 'ready') {
-      return this.admit(async () => {
+      return this.admit<DesktopServiceResponse>(async () => {
         const records = await this.readFences()
         this.require(owner.id)
         const active = records
@@ -251,32 +255,40 @@ export class DesktopServiceLeases {
         return { operation: 'ready', accepted: true }
       })
     }
-    if (request.operation === 'complete')
-      return {
+    if (request.operation === 'complete') {
+      const response: DesktopServiceResponse = {
         operation: 'complete',
         accepted: this.input.queue.complete(owner.id, request.completion),
       }
+      return response
+    }
     if (request.operation === 'acknowledgeReleased') {
       await Effect.runPromise(
         this.input.fences.removeReleased(request.token, request.hostInstanceId),
       )
       this.require(owner.id)
       this.input.queue.wake()
-      return { operation: 'acknowledgeReleased', accepted: true }
+      const response: DesktopServiceResponse = { operation: 'acknowledgeReleased', accepted: true }
+      return response
     }
-    if (request.operation === 'heartbeat') return { operation: 'heartbeat', accepted: true }
+    if (request.operation === 'heartbeat') {
+      const response: DesktopServiceResponse = { operation: 'heartbeat', accepted: true }
+      return response
+    }
     if (request.operation === 'prepareDisconnect' || request.operation === 'resumeDesktop') {
-      return this.admit(async () => {
+      return this.admit<DesktopServiceResponse>(async () => {
         this.require(owner.id)
         owner.draining = request.operation === 'prepareDisconnect'
         this.input.queue.wake()
-        if (request.operation === 'prepareDisconnect')
+        if (request.operation === 'prepareDisconnect') {
           return { operation: 'prepareDisconnect', accepted: true, fences: await this.readFences() }
+        }
         return { operation: request.operation, accepted: true }
       })
     }
     this.revoke()
-    return { operation: 'disconnect', accepted: true }
+    const response: DesktopServiceResponse = { operation: 'disconnect', accepted: true }
+    return response
   }
 
   close() {

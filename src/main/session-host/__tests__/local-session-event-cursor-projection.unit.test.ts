@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { SessionHostEventHub } from '../../application/session-host-event-hub'
 import { LocalSessionEventCursorProjection } from '../local-session-event-cursor-projection'
 
-function restrictedCaller(profileId: string): LocalSessionCallerIdentity {
+function restrictedCaller(profileId: string) {
   return {
     callerId: `profile:${profileId}`,
     profileAuthority: {
@@ -13,7 +13,7 @@ function restrictedCaller(profileId: string): LocalSessionCallerIdentity {
       scope: { sessionIds: ['session-visible'] },
       authorizationCeiling: 'ask-for-approval',
     },
-  }
+  } satisfies LocalSessionCallerIdentity
 }
 
 describe('Local Session restricted event cursor projection', () => {

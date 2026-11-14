@@ -13,21 +13,17 @@ import { isAllowedMcpHostname, normalizeMcpAllowedHosts } from '../runtime/mcp-n
 export interface McpAuthorizationOrigin {
   readonly serverUrl: string
   /** The user's `oauth.authServerMetadataUrl`, which Pi trusts as configured. */
-  readonly authServerMetadataUrl?: string | undefined
+  readonly authServerMetadataUrl?: string
   /** What Pi's sign-in discovered and saved before it asked to open the page. */
-  readonly discovery?:
-    | {
-        readonly authorizationServerUrl?: string | undefined
-        readonly authorizationServerMetadata?:
-          | {
-              readonly issuer?: string | undefined
-              readonly authorization_endpoint?: string | undefined
-              readonly token_endpoint?: string | undefined
-              readonly registration_endpoint?: string | undefined
-            }
-          | undefined
-      }
-    | undefined
+  readonly discovery?: {
+    readonly authorizationServerUrl?: string
+    readonly authorizationServerMetadata?: {
+      readonly issuer?: string
+      readonly authorization_endpoint?: string
+      readonly token_endpoint?: string
+      readonly registration_endpoint?: string
+    }
+  }
 }
 
 function allowedHosts(origin: McpAuthorizationOrigin) {
@@ -46,7 +42,7 @@ function allowedHosts(origin: McpAuthorizationOrigin) {
 }
 
 /** The authorization page to open, or an error saying why it must not be opened. */
-export function checkMcpAuthorizationUrl(href: string, origin: McpAuthorizationOrigin): URL {
+export function checkMcpAuthorizationUrl(href: string, origin: McpAuthorizationOrigin) {
   if (!URL.canParse(href)) throw new Error('The MCP sign-in page is not a valid URL.')
   const url = new URL(href)
   if (url.username || url.password) {

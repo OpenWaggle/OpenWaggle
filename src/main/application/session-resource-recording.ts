@@ -23,7 +23,7 @@ interface RecordedCommit {
 export function resolveSessionOutputOccurrenceContext(sessionId: SessionId) {
   return SessionRepository.pipe(
     Effect.flatMap((sessions) => sessions.getWorkspace(sessionId)),
-    Effect.map((workspace): SessionOutputOccurrenceContext => {
+    Effect.map((workspace) => {
       const createdAt = Date.now()
       return {
         nodeId: workspace?.activeNodeId ? String(workspace.activeNodeId) : null,

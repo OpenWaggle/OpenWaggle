@@ -9,19 +9,19 @@ function node(input: {
   readonly role?: SessionTreeNode['role']
   readonly parentId?: string | null
   readonly contentText?: string
-}): SessionTreeNode {
+}) {
   return {
     id: SessionNodeId(input.id),
     sessionId: SessionId('session-1'),
     parentId: input.parentId ? SessionNodeId(input.parentId) : null,
     piEntryType: input.kind === 'label' ? 'label' : 'message',
     kind: input.kind,
-    role: input.role,
+    ...(input.role === undefined ? {} : { role: input.role }),
     timestampMs: 1,
     createdOrder: 1,
     pathDepth: 0,
     ...(input.role ? { hasMessage: true, preview: input.contentText ?? input.id } : {}),
-  }
+  } satisfies SessionTreeNode
 }
 
 describe('filterSessionTreeNodes', () => {
@@ -117,7 +117,7 @@ describe('searchSessionTreeNodes', () => {
     expect(
       searchSessionTreeNodes({
         nodes,
-        filteredNodes: [nodes[0], nodes[2]],
+        filteredNodes: nodes.filter((item) => item.id !== 'hidden-tool'),
         query: 'needle',
       }).map((item) => String(item.id)),
     ).toEqual(['root', 'leaf'])

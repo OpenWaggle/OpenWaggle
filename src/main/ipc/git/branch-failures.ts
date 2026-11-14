@@ -1,13 +1,11 @@
 import type { GitBranchMutationFailure } from '@shared/types/git'
 
-export function branchFailure(
-  code: GitBranchMutationFailure['code'],
-  message: string,
-): GitBranchMutationFailure {
-  return { ok: false, code, message }
+export function branchFailure(code: GitBranchMutationFailure['code'], message: string) {
+  const failure: GitBranchMutationFailure = { ok: false, code, message }
+  return failure
 }
 
-export function mapBranchFailure(stderr: string): GitBranchMutationFailure {
+export function mapBranchFailure(stderr: string) {
   const message = stderr.trim()
   const lower = message.toLowerCase()
 

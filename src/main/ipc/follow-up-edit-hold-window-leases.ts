@@ -37,7 +37,11 @@ export class FollowUpEditHoldWindowLeases {
   private stopRenewal: (() => void) | undefined
   private renewing = false
 
-  constructor(private readonly dependencies: FollowUpEditHoldWindowLeaseDependencies) {}
+  private readonly dependencies: FollowUpEditHoldWindowLeaseDependencies
+
+  constructor(dependencies: FollowUpEditHoldWindowLeaseDependencies) {
+    this.dependencies = dependencies
+  }
 
   /** Starts tracking a hold the window began. Tracking the same hold again is a no-op. */
   track(windowId: number, hold: WindowFollowUpEditHold) {
@@ -47,7 +51,7 @@ export class FollowUpEditHoldWindowLeases {
     this.holdsByWindow.set(windowId, holds)
     if (!this.watchedWindows.has(windowId)) {
       this.watchedWindows.add(windowId)
-      this.dependencies.watchWindow(windowId, () => this.releaseWindow(windowId))
+      this.dependencies.watchWindow(windowId, () => void this.releaseWindow(windowId))
     }
     this.ensureTimer()
   }
@@ -76,8 +80,11 @@ export class FollowUpEditHoldWindowLeases {
     this.stopTimerWhenIdle()
   }
 
-  heldBy(windowId: number): readonly WindowFollowUpEditHold[] {
-    return [...(this.holdsByWindow.get(windowId)?.values() ?? [])]
+  heldBy(windowId: number) {
+    const hold: readonly WindowFollowUpEditHold[] = [
+      ...(this.holdsByWindow.get(windowId)?.values() ?? []),
+    ]
+    return hold
   }
 
   /** Releases every hold of a window that closed, reloaded, or crashed. */
@@ -123,11 +130,6 @@ export class FollowUpEditHoldWindowLeases {
     }
   }
 
-  dispose() {
-    this.holdsByWindow.clear()
-    this.stopTimer()
-  }
-
   private ensureTimer() {
     if (this.stopRenewal) return
     const repeat = this.dependencies.repeat ?? repeatWithTimer
@@ -154,15 +156,22 @@ export class FollowUpEditHoldWindowLeases {
 export class WindowPageGenerations {
   private readonly generations = new Map<number, number>()
 
+  /** Subscribes to the window's page changes; `false` when the window is already gone. */
+  private readonly watch: (
+    windowId: number,
+    events: { readonly pageChanged: () => void; readonly destroyed: () => void },
+  ) => boolean
+
   constructor(
-    /** Subscribes to the window's page changes; `false` when the window is already gone. */
-    private readonly watch: (
+    watch: (
       windowId: number,
       events: { readonly pageChanged: () => void; readonly destroyed: () => void },
     ) => boolean,
-  ) {}
+  ) {
+    this.watch = watch
+  }
 
-  snapshot(windowId: number): number | undefined {
+  snapshot(windowId: number) {
     const current = this.generations.get(windowId)
     if (current !== undefined) return current
     const watching = this.watch(windowId, {

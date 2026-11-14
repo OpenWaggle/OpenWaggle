@@ -59,9 +59,7 @@ async function persistBrowserProfiles(profiles: Settings['browserProfiles'], set
   })
 }
 
-export function createBrowserAndScalarPreferencesActions(
-  set: PreferencesSet,
-): BrowserAndScalarActions {
+export function createBrowserAndScalarPreferencesActions(set: PreferencesSet) {
   return {
     setUpdateChannel: async (value) => {
       await persistSetting('updateChannel', value, set)
@@ -100,5 +98,5 @@ export function createBrowserAndScalarPreferencesActions(
     setBrowserAutoShowFloatingPreview: (value) =>
       persistSetting('browserAutoShowFloatingPreview', value, set),
     setEnableAgentBrowserAccess: (value) => persistSetting('enableAgentBrowserAccess', value, set),
-  }
+  } satisfies BrowserAndScalarActions
 }

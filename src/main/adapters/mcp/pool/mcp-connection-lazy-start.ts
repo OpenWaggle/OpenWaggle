@@ -1,10 +1,10 @@
-import { isRecord } from '@shared/utils/validation'
 import { createLogger } from '../../../logger'
 import { hasToolsCapability, type McpConnectionCatalog } from './mcp-connection-catalog'
 import type { McpConnectionHandshake } from './mcp-connection-handshake'
 import type { McpConnectionLease } from './mcp-connection-lease'
 import { INITIALIZE, INITIALIZED, type McpPooledConnectionOptions } from './mcp-connection-support'
 import { isJsonRpcNotification, isJsonRpcRequest, type JsonRpcMessage } from './mcp-wire'
+import { mcpMessageFields, stringField } from './mcp-message-fields'
 
 const logger = createLogger('mcp-lazy-start')
 
@@ -33,10 +33,10 @@ export class McpConnectionLazyStart {
   /** Whether the catalog can be served: at once, or once another Session filled it. */
   private readonly servable: Promise<boolean> | undefined
 
-  constructor(
-    private readonly host: LazyStartHost,
-    fill?: Promise<void>,
-  ) {
+  private readonly host: LazyStartHost
+
+  constructor(host: LazyStartHost, fill?: Promise<void>) {
+    this.host = host
     this.servable = fill?.then(() => host.catalog.reload())
   }
 
@@ -136,8 +136,7 @@ export async function listToolsForCatalog(
     const params = cursor === undefined ? {} : { cursor }
     const result = await sendInternal('tools/list', params)
     observeResult?.('tools/list', params, result)
-    cursor =
-      isRecord(result) && typeof result.nextCursor === 'string' ? result.nextCursor : undefined
+    cursor = stringField(mcpMessageFields(result)?.nextCursor)
   } while (cursor !== undefined)
 }
 

@@ -26,6 +26,7 @@ import {
   createPiWaggleTurnDetails,
   PI_WAGGLE_TURN_CUSTOM_TYPE,
   PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE,
+  type PiWaggleTurnDetails,
 } from './protocol.js'
 import {
   createPiWaggleStopPolicyState,
@@ -65,12 +66,17 @@ export interface DefaultPiWaggleRunState {
 export function buildDefaultTurnMessage(
   run: Pick<DefaultPiWaggleRunState, 'config' | 'inheritedModelReference' | 'runId' | 'userPrompt'>,
   turn: WaggleTurn,
-  resolvedModelReference = effectiveAgentModelReference(
+  resolvedModelReference: string = effectiveAgentModelReference(
     turn.agent.model,
     run.inheritedModelReference,
   ),
 ) {
-  return {
+  const result: {
+    customType: string
+    content: string
+    display: boolean
+    details: PiWaggleTurnDetails
+  } = {
     customType: PI_WAGGLE_TURN_CUSTOM_TYPE,
     content: buildWaggleTurnPrompt({
       config: run.config,
@@ -87,6 +93,7 @@ export function buildDefaultTurnMessage(
       agentColor: turn.agent.color,
     }),
   }
+  return result
 }
 
 function continuationPrompt(turn: WaggleTurn) {
@@ -235,8 +242,15 @@ function buildDefaultWaggleRunHandler(input: {
 export function createStartDefaultWaggleRun(input: {
   readonly getActiveRun: () => DefaultPiWaggleRunState | null
   readonly setActiveRun: (run: DefaultPiWaggleRunState | null) => void
-}): StartDefaultPiWaggleRun {
-  return async ({ pi, ctx, config, prompt, images, dispatchPrompt = true }) => {
+}) {
+  const result: StartDefaultPiWaggleRun = async ({
+    pi,
+    ctx,
+    config,
+    prompt,
+    images,
+    dispatchPrompt = true,
+  }) => {
     if (!ctx.model) {
       throw new Error('Select a Pi model before starting Waggle mode.')
     }
@@ -301,4 +315,5 @@ export function createStartDefaultWaggleRun(input: {
       throw error
     }
   }
+  return result
 }

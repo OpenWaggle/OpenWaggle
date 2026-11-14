@@ -1,3 +1,4 @@
+import { namedGroups } from '@shared/utils/regex-named-groups'
 function repositoryUrl(remoteUrl: string) {
   try {
     return new URL(remoteUrl)
@@ -17,7 +18,10 @@ export function repositoryWebUrl(remoteUrl: string) {
     return repositoryPath ? `https://${webHost}/${repositoryPath}` : null
   }
 
-  const scp = /^(?:[^@/\s]+@)?(?<host>[^:/\s]+):(?<path>[^/].+)$/u.exec(remoteUrl)
-  if (!scp?.groups?.host || !scp.groups.path) return null
-  return `https://${scp.groups.host}/${scp.groups.path.replace(/\.git$/u, '')}`
+  const scp = namedGroups(/^(?:[^@/\s]+@)?(?<host>[^:/\s]+):(?<path>[^/].+)$/u.exec(remoteUrl), [
+    'host',
+    'path',
+  ])
+  if (!scp?.host || !scp.path) return null
+  return `https://${scp.host}/${scp.path.replace(/\.git$/u, '')}`
 }

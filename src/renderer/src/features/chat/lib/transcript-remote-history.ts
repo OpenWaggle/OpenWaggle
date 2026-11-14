@@ -23,7 +23,7 @@ const NODE_ROW_KEY_PREFIXES = ['message:', 'turn-fold:', 'compaction:', 'branch-
  * id, which is their node id once persisted, and so are the fold, compaction and branch-summary
  * rows of a node. A repeated key's `#n` occurrence suffix is dropped.
  */
-export function rowKeyNodeId(rowKey: string): string | null {
+export function rowKeyNodeId(rowKey: string) {
   const key = rowKey.replace(/#\d+$/u, '')
   const prefix = NODE_ROW_KEY_PREFIXES.find((candidate) => key.startsWith(candidate))
   if (!prefix) return null
@@ -37,7 +37,7 @@ const pathNodeIdsByWorkspace = new WeakMap<SessionWorkspace, readonly string[]>(
  * Every node id of the displayed path, from the tree's structure: the workspace holds only the
  * newest window of the path (ADR 0036, B5). Built once per loaded workspace, not per render.
  */
-export function workspacePathNodeIds(workspace: SessionWorkspace): readonly string[] {
+export function workspacePathNodeIds(workspace: SessionWorkspace) {
   const cached = pathNodeIdsByWorkspace.get(workspace)
   if (cached) return cached
   const ids =
@@ -57,7 +57,7 @@ export function remoteTranscriptHistory(input: {
   readonly sessionId: SessionId | null
   readonly loadEarlier: (sessionId: SessionId) => Promise<void>
   readonly loadThrough: (sessionId: SessionId, nodeId: SessionNodeId) => Promise<void>
-}): TranscriptRemoteHistory | null {
+}) {
   const { workspace, sessionId } = input
   if (!workspace || !sessionId || workspace.tree.session.id !== sessionId) return null
   if ((workspace.transcriptWindow?.startIndex ?? 0) === 0) return null
@@ -65,5 +65,5 @@ export function remoteTranscriptHistory(input: {
     hasEarlier: true,
     loadEarlier: () => void input.loadEarlier(sessionId),
     loadThrough: (nodeId) => void input.loadThrough(sessionId, SessionNodeId(nodeId)),
-  }
+  } satisfies TranscriptRemoteHistory
 }

@@ -3,6 +3,7 @@ import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import { PI_CACHE_WARMING_MODES, type PiCacheWarmingMode } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
+import { piSettingsFields } from './pi-settings-fields'
 
 /**
  * OpenWaggle settings that have a Pi equivalent. OpenWaggle stores them in its own Settings and
@@ -19,7 +20,7 @@ export interface OpenWagglePiAppSettings {
 const JSON_INDENT_SPACES = 2
 const CODEMODE_TOOL = 'codemode'
 
-function parseSettings(content: string | undefined): JsonObject {
+function parseSettings(content: string | undefined) {
   if (!content || content.trim().length === 0) return {}
   const parsed: unknown = JSON.parse(content)
   return decodeUnknownOrThrow(jsonObjectSchema, parsed)
@@ -29,7 +30,7 @@ function serializeSettings(settings: JsonObject) {
   return `${JSON.stringify(settings, null, JSON_INDENT_SPACES)}\n`
 }
 
-function stringEntries(value: JsonValue | undefined): readonly JsonValue[] | undefined {
+function stringEntries(value: JsonValue | undefined) {
   return Array.isArray(value) ? value : undefined
 }
 
@@ -38,12 +39,12 @@ function stringEntries(value: JsonValue | undefined): readonly JsonValue[] | und
  * OpenWaggle (or their own Pi value, which it already reflects) wins over the global list. A
  * project list that names plain tools still replaces it, as Pi documents.
  */
-function defaultToolsWithCodemode(stored: JsonValue | undefined, enabled: boolean): JsonValue[] {
+function defaultToolsWithCodemode(stored: JsonValue | undefined, enabled: boolean) {
   const entries = stringEntries(stored) ?? []
-  return [...entries, `${enabled ? '+' : '-'}${CODEMODE_TOOL}`]
+  return [...entries, `${enabled ? '+' : '-'}${CODEMODE_TOOL}`] satisfies JsonValue[]
 }
 
-function safeParseSettings(content: string | undefined): JsonObject {
+function safeParseSettings(content: string | undefined) {
   try {
     return parseSettings(content)
   } catch {
@@ -55,7 +56,7 @@ function safeParseSettings(content: string | undefined): JsonObject {
  * Whether the user's own `defaultTools` turn codemode on or off, resolved as Pi does (plain names
  * replace the defaults, then `+name` and `-name` in order). Undefined unless they name codemode.
  */
-function piUserCodemode(defaultTools: JsonValue | undefined): boolean | undefined {
+function piUserCodemode(defaultTools: JsonValue | undefined) {
   const entries = (stringEntries(defaultTools) ?? []).filter(
     (entry): entry is string => typeof entry === 'string',
   )
@@ -70,10 +71,10 @@ function piUserCodemode(defaultTools: JsonValue | undefined): boolean | undefine
 }
 
 /** The user's own Pi values for OpenWaggle's settings, from their global Pi settings content. */
-export function piUserAppSettings(content: string | undefined): Partial<OpenWagglePiAppSettings> {
+export function piUserAppSettings(content: string | undefined) {
   const settings = safeParseSettings(content)
-  const codemodeEnabled = piUserCodemode(settings.defaultTools)
-  const cacheWarming = settings.cacheWarming
+  const { defaultTools, cacheWarming } = piSettingsFields(settings)
+  const codemodeEnabled = piUserCodemode(defaultTools)
   return {
     ...(codemodeEnabled === undefined ? {} : { codemodeEnabled }),
     ...(typeof cacheWarming === 'string' && includes(PI_CACHE_WARMING_MODES, cacheWarming)
@@ -86,11 +87,14 @@ export function piUserAppSettings(content: string | undefined): Partial<OpenWagg
 export function withOpenWagglePiAppSettings(
   content: string | undefined,
   app: OpenWagglePiAppSettings,
-): string {
+) {
   const settings = parseSettings(content)
   return serializeSettings({
     ...settings,
-    defaultTools: defaultToolsWithCodemode(settings.defaultTools, app.codemodeEnabled),
+    defaultTools: defaultToolsWithCodemode(
+      piSettingsFields(settings).defaultTools,
+      app.codemodeEnabled,
+    ),
     cacheWarming: app.cacheWarming,
   })
 }
@@ -108,7 +112,7 @@ export function withStoredPiAppSettings(
   stored: string | undefined,
   next: string | undefined,
   app: OpenWagglePiAppSettings,
-): string | undefined {
+) {
   if (next === undefined) return undefined
   const settings = parseSettings(next)
   const storedSettings = parseSettings(stored)

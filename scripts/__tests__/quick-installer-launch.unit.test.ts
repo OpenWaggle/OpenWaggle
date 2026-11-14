@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
+import { scriptEnv } from '../support/env'
 
 const execFileAsync = promisify(execFile)
 const LAUNCH_POLICY_START = '# BEGIN TESTABLE LAUNCH POLICY'
@@ -21,7 +22,7 @@ NO_LAUNCH_ARGUMENT="${noLaunchArgument ? '1' : ''}"
 ${source.slice(start + LAUNCH_POLICY_START.length, end)}
 launch_skip_reason "$1"`
   const result = await execFileAsync('bash', ['-c', script, 'installer-launch-test', platform], {
-    env: { PATH: process.env.PATH ?? '', ...environment },
+    env: { PATH: scriptEnv().PATH ?? '', ...environment },
   })
   return result.stdout.trim()
 }
@@ -42,9 +43,9 @@ describe('quick installer launch policy', () => {
 
   it('skips the launch without a graphical session', async () => {
     await expect(launchSkipReason('mac', { CI: 'true' })).resolves.toBe('running in CI')
-    await expect(launchSkipReason('mac', { SSH_CONNECTION: '10.0.0.1 22 10.0.0.2 22' })).resolves.toBe(
-      'running over SSH',
-    )
+    await expect(
+      launchSkipReason('mac', { SSH_CONNECTION: '10.0.0.1 22 10.0.0.2 22' }),
+    ).resolves.toBe('running over SSH')
     await expect(launchSkipReason('linux', {})).resolves.toBe('no graphical session is available')
   })
 

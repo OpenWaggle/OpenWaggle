@@ -161,7 +161,7 @@ describe('Session Control Run coordinator', () => {
       markActivationEntered = resolve
     })
     let executorCalls = 0
-    const settlements: Array<{ runId: RunId; terminalStatus: string }> = []
+    const settlements: { runId: RunId; terminalStatus: string }[] = []
     const layer = Layer.mergeAll(
       Layer.succeed(SessionControlIdentityService, {
         nextRunId: Effect.succeed(RunId('run-unused')),

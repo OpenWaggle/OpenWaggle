@@ -1,6 +1,7 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import { listAgentDefinitions, previewAgentDefinition } from '../agents/agent-definition-catalog'
+import { agentDefinitionEnabled } from '../agents/agent-definition-discovery'
 import { agentDefinitionTogglesForProject } from '../agents/agent-definition-toggle-settings'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
@@ -43,7 +44,7 @@ export function listAgentDefinitionDisplayOperation(rawProjectPath: string) {
       sourcePath: item.sourcePath,
       ...(item.contentDigest ? { contentDigest: item.contentDigest } : {}),
       ...(item.loadError ? { loadError: item.loadError } : {}),
-      enabled: toggles[item.name] !== false,
+      enabled: agentDefinitionEnabled(toggles, item.name),
     }))
   })
 }
@@ -79,7 +80,7 @@ export function setAgentDefinitionEnabledOperation(
     const next = {
       ...settings.agentDefinitionTogglesByProject,
       [projectPath]: {
-        ...(settings.agentDefinitionTogglesByProject[projectPath] ?? {}),
+        ...settings.agentDefinitionTogglesByProject[projectPath],
         [name]: enabled,
       },
     }

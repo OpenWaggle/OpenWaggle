@@ -21,7 +21,7 @@ import { SettingsService } from '../../services/settings-service'
 export const PROJECT_A = fs.realpathSync(os.tmpdir())
 export const PROJECT_B = '/'
 
-export type LiveProfile = {
+export interface LiveProfile {
   capabilities: LocalSessionProfileAuthority['capabilities']
   scope: LocalSessionProfileAuthority['scope']
   authorizationCeiling: LocalSessionProfileAuthority['authorizationCeiling']
@@ -59,11 +59,7 @@ export const payload = {
   },
 } as const satisfies LocalSessionCommandPayload
 
-export function searchResponse(
-  requestId: string,
-  sessionId: string,
-  projectPath: string,
-): SessionQueryResponse {
+export function searchResponse(requestId: string, sessionId: string, projectPath: string) {
   return {
     contractVersion: 2,
     requestId,
@@ -84,7 +80,7 @@ export function searchResponse(
       requestedSearchMode: 'semantic',
       searchBackend: 'semantic',
     },
-  }
+  } satisfies SessionQueryResponse
 }
 
 export function testLayer(liveProfile: LiveProfile, repository: SessionQueryRepositoryShape) {

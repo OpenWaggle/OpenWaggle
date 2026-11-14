@@ -11,8 +11,8 @@ export const PROJECT_PATH = '/project'
 export function baseEntry(
   family: ExtensionContributionRegistryEntry['family'],
   contributionId: string,
-): ExtensionContributionRegistryEntry {
-  return {
+) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'summary-extension',
     extensionName: 'Summary Extension',
     extensionVersion: '1.0.0',
@@ -41,10 +41,11 @@ export function baseEntry(
     diagnostics: [],
     invocationBinding: 'host-issued-binding',
   }
+  return entry
 }
 
-export function summaryEntry(): ExtensionContributionRegistryEntry {
-  return {
+export function summaryEntry() {
+  const entry: ExtensionContributionRegistryEntry = {
     ...baseEntry(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS, 'summary'),
     title: 'Build status',
     sessionSummary: {
@@ -61,17 +62,15 @@ export function summaryEntry(): ExtensionContributionRegistryEntry {
       ],
     },
   }
+  return entry
 }
 
 export function registry(entries: readonly ExtensionContributionRegistryEntry[]) {
   return { projectPaths: [PROJECT_PATH], entries } satisfies ExtensionContributionRegistryView
 }
 
-export function sessionResource(
-  kind: SessionResource['kind'],
-  sessionId = 'session-one',
-): SessionResource {
-  return {
+export function sessionResource(kind: SessionResource['kind'], sessionId = 'session-one') {
+  const resource: SessionResource = {
     id: 'resource-one',
     sessionId: SessionId(sessionId),
     canonicalKey: 'file:resource-one',
@@ -87,4 +86,5 @@ export function sessionResource(
     createdAt: 1,
     updatedAt: 1,
   }
+  return resource
 }

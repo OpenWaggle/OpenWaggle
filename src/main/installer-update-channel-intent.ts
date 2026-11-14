@@ -11,7 +11,7 @@ function isMissingFile(error: unknown): error is NodeJS.ErrnoException {
 export async function applyInstallerUpdateChannelIntent(
   userDataRoot: string,
   persist: (channel: UpdateChannel) => Promise<void>,
-): Promise<UpdateChannel | null> {
+) {
   const intentPath = path.join(userDataRoot, INSTALLER_UPDATE_CHANNEL_INTENT_FILENAME)
   let raw: string
   try {

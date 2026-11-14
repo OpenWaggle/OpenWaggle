@@ -28,9 +28,7 @@ import { recordUsageStatisticsObservation } from '../application/usage-statistic
 import { createBrowserCookieImporter } from '../browser-import/browser-cookie-importer'
 import { openBrowserImportFullDiskAccessSettings } from '../browser-import/browser-import-system-settings'
 import { createGuidedBrowserImporter } from '../browser-import/guided-browser-import'
-import { browserPreviewManager } from '../browser-preview'
-import { browserPreviewOwnerRegistry } from '../browser-preview-owner-registry'
-import { clearBrowserPreviewProfileData } from '../browser-preview-profile-session'
+import { browserPreviewViews } from '../desktop-shell/browser-preview-views'
 import { SettingsService, type SettingsServiceShape } from '../services/settings-service'
 import { registerBrowserPreviewControlHandlers } from './browser-preview-control-handler'
 import { typedHandle } from './typed-ipc'
@@ -53,14 +51,14 @@ function browserImportServicesFor(settings: SettingsServiceShape) {
     getConfiguredProfiles: () => getGuiBrowserProfiles(settings),
     updateConfiguredProfiles: (profiles) => updateGuiBrowserProfiles(settings, profiles),
     importCookiesIntoPreparedProfile: cookies.importCookiesIntoPreparedProfile,
-    clearProfileData: clearBrowserPreviewProfileData,
+    clearProfileData: (profileId) => browserPreviewViews.clearProfileData(profileId),
   })
   const created = { cookies, guided }
   browserImportServices.set(settings, created)
   return created
 }
 
-function decode<T, I>(schema: EffectSchema<T, I, never>, value: unknown) {
+function decode<T, I>(schema: EffectSchema<T, I>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
   return decoded.success
     ? Effect.succeed(decoded.data)
@@ -71,7 +69,7 @@ function registerBrowserPreviewNavigationHandlers() {
   typedHandle('browser-preview:open', (event, input: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decode(browserPreviewOpenInputSchema, input)
-      const opened = yield* Effect.sync(() => browserPreviewManager.open(event.sender, decoded))
+      const opened = yield* Effect.sync(() => browserPreviewViews.open(event.sender, decoded))
       yield* recordUsageStatisticsObservation({ kind: 'feature', flag: 'browser_preview' })
       return opened
     }),
@@ -84,7 +82,7 @@ function registerBrowserPreviewNavigationHandlers() {
         bounds,
       ])
       yield* Effect.sync(() =>
-        browserPreviewManager.setBounds(event.sender, decodedPreviewId, decodedBounds),
+        browserPreviewViews.setBounds(event.sender, decodedPreviewId, decodedBounds),
       )
     }),
   )
@@ -96,7 +94,7 @@ function registerBrowserPreviewNavigationHandlers() {
         url,
       ])
       return yield* Effect.sync(() =>
-        browserPreviewManager.navigate(event.sender, decodedPreviewId, decodedUrl),
+        browserPreviewViews.navigate(event.sender, decodedPreviewId, decodedUrl),
       )
     }),
   )
@@ -104,30 +102,28 @@ function registerBrowserPreviewNavigationHandlers() {
   typedHandle('browser-preview:go-back', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const decodedPreviewId = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.sync(() => browserPreviewManager.goBack(event.sender, decodedPreviewId))
+      return yield* Effect.sync(() => browserPreviewViews.goBack(event.sender, decodedPreviewId))
     }),
   )
 
   typedHandle('browser-preview:go-forward', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const decodedPreviewId = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.sync(() =>
-        browserPreviewManager.goForward(event.sender, decodedPreviewId),
-      )
+      return yield* Effect.sync(() => browserPreviewViews.goForward(event.sender, decodedPreviewId))
     }),
   )
 
   typedHandle('browser-preview:reload', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const decodedPreviewId = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.sync(() => browserPreviewManager.reload(event.sender, decodedPreviewId))
+      return yield* Effect.sync(() => browserPreviewViews.reload(event.sender, decodedPreviewId))
     }),
   )
 
   typedHandle('browser-preview:stop', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const decodedPreviewId = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.sync(() => browserPreviewManager.stop(event.sender, decodedPreviewId))
+      return yield* Effect.sync(() => browserPreviewViews.stop(event.sender, decodedPreviewId))
     }),
   )
 
@@ -135,7 +131,7 @@ function registerBrowserPreviewNavigationHandlers() {
     Effect.gen(function* () {
       const decodedPreviewId = yield* decode(browserPreviewIdSchema, previewId)
       yield* Effect.tryPromise({
-        try: () => browserPreviewManager.close(event.sender, decodedPreviewId),
+        try: () => browserPreviewViews.close(event.sender, decodedPreviewId),
         catch: (error) => error,
       })
     }),
@@ -148,7 +144,7 @@ function registerBrowserPreviewNavigationHandlers() {
         action,
       ])
       return yield* Effect.sync(() =>
-        browserPreviewManager.zoom(event.sender, decodedPreviewId, decodedAction),
+        browserPreviewViews.zoom(event.sender, decodedPreviewId, decodedAction),
       )
     }),
   )
@@ -157,7 +153,7 @@ function registerBrowserPreviewNavigationHandlers() {
     Effect.gen(function* () {
       const decodedBindings = yield* decode(browserPreviewShortcutBindingsSchema, bindings)
       yield* Effect.sync(() =>
-        browserPreviewManager.setShortcutBindings(event.sender, decodedBindings),
+        browserPreviewViews.setShortcutBindings(event.sender, decodedBindings),
       )
     }),
   )
@@ -167,22 +163,22 @@ function registerBrowserPreviewOwnerHandlers() {
   typedHandle('browser-preview:register-owner', (event, ownerKey: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decode(browserPreviewOwnerKeySchema, ownerKey)
-      yield* Effect.sync(() => browserPreviewOwnerRegistry.register(decoded, event.sender))
+      yield* Effect.sync(() => browserPreviewViews.registerOwner(decoded, event.sender))
     }),
   )
 
   typedHandle('browser-preview:unregister-owner', (event, ownerKey: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decode(browserPreviewOwnerKeySchema, ownerKey)
-      yield* Effect.sync(() => browserPreviewOwnerRegistry.unregister(decoded, event.sender))
-      yield* Effect.sync(() => browserPreviewManager.forgetOwnerSelection(event.sender, decoded))
+      yield* Effect.sync(() => browserPreviewViews.unregisterOwner(decoded, event.sender))
+      yield* Effect.sync(() => browserPreviewViews.forgetOwnerSelection(event.sender, decoded))
     }),
   )
 
   typedHandle('browser-preview:ack-open-request', (event, acknowledgment: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decode(browserPreviewOpenRequestAckSchema, acknowledgment)
-      yield* Effect.sync(() => browserPreviewOwnerRegistry.acknowledge(event.sender, decoded))
+      yield* Effect.sync(() => browserPreviewViews.acknowledgeOpenRequest(event.sender, decoded))
     }),
   )
 
@@ -193,7 +189,7 @@ function registerBrowserPreviewOwnerHandlers() {
         [ownerKey, previewId],
       )
       yield* Effect.sync(() =>
-        browserPreviewManager.setCurrentPreview(event.sender, decodedOwnerKey, decodedPreviewId),
+        browserPreviewViews.setCurrentPreview(event.sender, decodedOwnerKey, decodedPreviewId),
       )
     }),
   )
@@ -243,12 +239,12 @@ function registerBrowserPreviewImportHandlers() {
       if (!configuredProfiles.some((profile) => profile.id === decoded)) {
         return yield* Effect.fail(new Error('The selected browser profile does not exist.'))
       }
-      yield* Effect.tryPromise(() => clearBrowserPreviewProfileData(decoded))
+      yield* Effect.tryPromise(() => browserPreviewViews.clearProfileData(decoded))
     }),
   )
 }
 
-export function registerBrowserPreviewHandlers(): void {
+export function registerBrowserPreviewHandlers() {
   registerBrowserPreviewControlHandlers()
   registerBrowserPreviewNavigationHandlers()
   registerBrowserPreviewOwnerHandlers()

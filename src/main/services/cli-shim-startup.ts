@@ -1,5 +1,5 @@
 import type { CliShimMutationResult, CliShimStatus } from '@shared/types/cli-shim'
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { describeError } from '../error-description'
 import { createLogger } from '../logger'
 import {
@@ -23,7 +23,7 @@ export function createCliShimSetupGate(
       setup ??= ensureCliShimInstalled(service)
       return setup
     },
-    async status(): Promise<CliShimStatus> {
+    async status() {
       if (setup && !(await waitForCliSetupBeforeExit(setup, statusWaitMs))) {
         return {
           management: 'user-shim',
@@ -31,7 +31,7 @@ export function createCliShimSetupGate(
           commandPath: null,
           onPath: false,
           detail: 'CLI setup is still running. Reopen Settings to check again.',
-        }
+        } satisfies CliShimStatus
       }
       return service.status()
     },
@@ -50,17 +50,20 @@ export function beginAppCliShimSetup() {
 }
 
 /** Begins CLI setup when `enabled`, logging rather than throwing on failure. */
-export function beginAppCliShimSetupWhen(enabled: boolean): Promise<void> {
+export function beginAppCliShimSetupWhen(enabled: boolean) {
   if (!enabled) return Promise.resolve()
   return beginAppCliShimSetup()
     .then((result) => {
-      if (!result.ok)
+      if (!result.ok) {
         logger.warn('Could not make the bundled CLI available', { detail: result.error })
+      }
     })
-    .catch((error: unknown) => logger.warn('CLI setup failed', describeError(error)))
+    .catch((error: unknown) =>
+      logger.warn('CLI setup failed', describeError(error)),
+    ) satisfies Promise<void>
 }
 
-export function getAppCliShimStatus(isPackaged = app.isPackaged) {
+export function getAppCliShimStatus(isPackaged = appLifecycle.isPackaged()) {
   if (!isPackaged) return Promise.resolve(null)
   return getAppCliSetupGate().status()
 }

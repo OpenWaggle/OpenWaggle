@@ -35,27 +35,25 @@ function StatusPill({
   )
 }
 
-function projectOverridePill(
-  projectOverride: ExtensionProjectOverrideView | null,
-): { readonly tone: StatusPillTone; readonly label: string } | null {
+function projectOverridePill(projectOverride: ExtensionProjectOverrideView | null) {
   if (!projectOverride) {
     return null
   }
 
-  return projectOverride.disabled
-    ? {
-        tone: 'warning',
-        label: OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.DISABLED_LABEL,
-      }
-    : {
-        tone: 'neutral',
-        label: OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.ACTIVE_LABEL,
-      }
+  return (
+    projectOverride.disabled
+      ? {
+          tone: 'warning',
+          label: OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.DISABLED_LABEL,
+        }
+      : {
+          tone: 'neutral',
+          label: OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.ACTIVE_LABEL,
+        }
+  ) satisfies { readonly tone: StatusPillTone; readonly label: string } | null
 }
 
-function projectOverridesSummaryPill(
-  extensionPackage: ExtensionPackageSummary,
-): { readonly tone: StatusPillTone; readonly label: string } | null {
+function projectOverridesSummaryPill(extensionPackage: ExtensionPackageSummary) {
   if (extensionPackage.projectOverride || extensionPackage.projectOverrides.length === 0) {
     return null
   }
@@ -64,26 +62,35 @@ function projectOverridesSummaryPill(
     (projectOverride) => projectOverride.disabled,
   ).length
   if (disabledCount === 0) {
-    return { tone: 'neutral', label: 'All projects active' }
+    return { tone: 'neutral', label: 'All projects active' } satisfies {
+      readonly tone: StatusPillTone
+      readonly label: string
+    }
   }
 
   return {
     tone: 'warning',
     label: `${disabledCount} project opt-out${disabledCount === 1 ? '' : 's'}`,
-  }
+  } satisfies { readonly tone: StatusPillTone; readonly label: string }
 }
 
-function sdkStatusPill(extensionPackage: ExtensionPackageSummary): {
-  readonly tone: StatusPillTone
-  readonly label: string
-} {
+function sdkStatusPill(extensionPackage: ExtensionPackageSummary) {
   if (hasErrorDiagnostics(extensionPackage)) {
-    return { tone: 'error', label: 'Invalid' }
+    return { tone: 'error', label: 'Invalid' } satisfies {
+      readonly tone: StatusPillTone
+      readonly label: string
+    }
   }
   if (isSdkCompatible(extensionPackage)) {
-    return { tone: 'good', label: 'SDK compatible' }
+    return { tone: 'good', label: 'SDK compatible' } satisfies {
+      readonly tone: StatusPillTone
+      readonly label: string
+    }
   }
-  return { tone: 'warning', label: 'SDK blocked' }
+  return { tone: 'warning', label: 'SDK blocked' } satisfies {
+    readonly tone: StatusPillTone
+    readonly label: string
+  }
 }
 
 function ProjectStatusPills({

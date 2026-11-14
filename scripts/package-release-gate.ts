@@ -35,9 +35,9 @@ const REQUIRED_JOB_NAMES_BY_TIER: Readonly<
    * future divergence has a place to land without re-plumbing the CI_TIER selector.
    */
   /*
-   * The rehearsals stay conditional even in the full tier: they are path-scoped, so a
-   * merge result that touches no package or website/docs surfaces legitimately skips
-   * them. A rehearsal that RUNS and fails still fails the gate through the generic
+   * The rehearsals stay conditional in every tier: they are path-scoped, so a pull
+   * request or merge result that touches no package or website/docs surfaces legitimately
+   * skips them. A rehearsal that RUNS and fails still fails the gate through the generic
    * rejected-conclusion check below.
    */
   full: [
@@ -103,7 +103,9 @@ const RESULT_KEYS = [
  * other job must conclude with `success` or `skipped` — a conditional job that does not
  * apply to the event is legitimate, while a failed or cancelled job never is.
  */
-export function validatePackageReleaseGate(input: Readonly<{ results: PackageReleaseGateResults; tier: string }>) {
+export function validatePackageReleaseGate(
+  input: Readonly<{ results: PackageReleaseGateResults; tier: string }>,
+) {
   if (!isGateTier(input.tier)) {
     throw new Error(`Unknown package release gate tier: ${JSON.stringify(input.tier)}.`)
   }
@@ -125,7 +127,7 @@ export function validatePackageReleaseGate(input: Readonly<{ results: PackageRel
   }
 }
 
-function readGateResults(args: readonly (string | undefined)[]): PackageReleaseGateResults {
+function readGateResults(args: readonly (string | undefined)[]) {
   const [
     commitPolicyResult,
     checkResult,
@@ -147,7 +149,7 @@ function readGateResults(args: readonly (string | undefined)[]): PackageReleaseG
     rehearsalWebsiteResult: rehearsalWebsiteResult ?? '',
     testIntegrationComponentResult: testIntegrationComponentResult ?? '',
     testUnitResult: testUnitResult ?? '',
-  }
+  } satisfies PackageReleaseGateResults
 }
 
 export function runPackageReleaseGateCli(args: readonly string[]) {

@@ -19,11 +19,16 @@ function schemaShape(schema: unknown) {
     {
       type?: string
       anyOf?: unknown[]
-      properties?: Record<string, unknown>
+      properties?: {
+        action?: unknown
+        objective?: { description?: string }
+        sessionId?: unknown
+        projectPath?: { description?: string }
+      }
       required?: string[]
     },
     unknown
-  >(JSON.parse(JSON.stringify(schema)))
+  >(structuredClone(schema))
 }
 
 // Issue #218: GLM via OpenRouter silently emits `{}` tool arguments when the tool's
@@ -65,13 +70,12 @@ describe('hive tool flattened schema', () => {
 
   it('names the actions that require a property the flat schema leaves optional', () => {
     const shape = schemaShape(flattenSessionsToolParameters(sessionsToolParameterVariants))
-    const objective = fromAny<{ description?: string }, unknown>(shape.properties?.objective)
-    const projectPath = fromAny<{ description?: string }, unknown>(shape.properties?.projectPath)
+    const projectPath = shape.properties?.projectPath
 
-    expect(objective.description).toBe('Required for launch, spawn.')
+    expect(shape.properties?.objective?.description).toBe('Required for launch, spawn.')
     // Optional for every action, so it names none; its own description explains catalogScope.
-    expect(projectPath.description).not.toContain('Required for')
-    expect(projectPath.description).toContain('only with catalogScope project')
+    expect(projectPath?.description).not.toContain('Required for')
+    expect(projectPath?.description).toContain('only with catalogScope project')
     expect(shape.required).toEqual(['action'])
   })
 
@@ -82,9 +86,7 @@ describe('hive tool flattened schema', () => {
         modelMultiAgentEnabled: true,
       }),
     )
-    const objective = fromAny<{ description?: string }, unknown>(shape.properties?.objective)
-
-    expect(objective.description).toBe('Required for spawn.')
+    expect(shape.properties?.objective?.description).toBe('Required for spawn.')
   })
 
   it('keeps TypeBox internal keys out of the serialized provider schema', () => {

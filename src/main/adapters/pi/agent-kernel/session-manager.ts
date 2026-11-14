@@ -3,10 +3,11 @@ import path, { basename, dirname, join, resolve } from 'node:path'
 import { getAgentDir, SessionManager } from '@earendil-works/pi-coding-agent'
 import { SESSION_WORKTREE_MISSING_MESSAGE } from '@shared/domain/session-worktree-messages'
 import type { SessionDetail } from '@shared/types/session'
-import { isRecord } from '@shared/utils/validation'
+import { errorCode } from '@shared/utils/node-error'
 import { resolvePiSessionDirectory } from '../pi-session-directory'
 import { isInsideProjectLocation, physicalPath } from '../pi-session-project-paths'
 import { logger, REUSE_PARSED_PI_FILE } from './constants'
+import { loggedErrorCode } from './logged-error-code'
 import {
   assertNoPiSessionFileToReplace,
   isReadablePiSessionFile,
@@ -24,7 +25,7 @@ import { onlyUsageAppendedAfter } from './usage-only-appends'
  * never a Session worktree. Worktree birth needs it specifically, because it creates the
  * worktree *from* the primary checkout.
  */
-export function requireSessionProjectPath(session: SessionDetail): string {
+export function requireSessionProjectPath(session: SessionDetail) {
   const projectPath = session.projectPath
   if (!projectPath) {
     throw new Error('No project path set on the session - cannot run Pi agent')
@@ -95,7 +96,7 @@ export function resolveLocalWorkingPath(session: SessionDetail, projectPath: str
  * reason, and the composer blocks the send and offers to recreate or switch, so a user
  * who hits this has a way forward that does not involve guessing.
  */
-export function resolveSessionWorkingPath(session: SessionDetail): string {
+export function resolveSessionWorkingPath(session: SessionDetail) {
   const projectPath = requireSessionProjectPath(session)
   if (session.environmentMode !== 'worktree') return resolveLocalWorkingPath(session, projectPath)
 
@@ -150,10 +151,10 @@ function piSessionFilesIn(directory: string, piSessionId: string) {
       .filter((name) => piSessionIdOfFile(name) === piSessionId)
       .map((name) => join(directory, name))
   } catch (error) {
-    if (!(isRecord(error) && error.code === 'ENOENT')) {
+    if (errorCode(error) !== 'ENOENT') {
       logger.warn('Could not list a Pi session directory', {
         directory,
-        code: isRecord(error) && typeof error.code === 'string' ? error.code : 'unknown',
+        code: loggedErrorCode(error),
       })
     }
     return []

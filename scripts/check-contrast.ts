@@ -83,13 +83,16 @@ export interface ContrastFailure {
   readonly floor: number
 }
 
-export function parseHexColor(hex: string): RgbColor {
+export function parseHexColor(hex: string) {
   if (!HEX_COLOR_PATTERN.test(hex)) {
     throw new Error(`Invalid six-digit hex color: ${hex}`)
   }
 
   return {
-    red: Number.parseInt(hex.slice(RED_CHANNEL_START, RED_CHANNEL_START + HEX_CHANNEL_LENGTH), HEX_BASE),
+    red: Number.parseInt(
+      hex.slice(RED_CHANNEL_START, RED_CHANNEL_START + HEX_CHANNEL_LENGTH),
+      HEX_BASE,
+    ),
     green: Number.parseInt(
       hex.slice(GREEN_CHANNEL_START, GREEN_CHANNEL_START + HEX_CHANNEL_LENGTH),
       HEX_BASE,
@@ -133,11 +136,7 @@ function colorValue(colors: ColorValues, role: string) {
   return value
 }
 
-function failuresForRoles(
-  colors: ColorValues,
-  roles: readonly string[],
-  floor: number,
-): ContrastFailure[] {
+function failuresForRoles(colors: ColorValues, roles: readonly string[], floor: number) {
   const failures: ContrastFailure[] = []
 
   for (const role of roles) {
@@ -153,11 +152,11 @@ function failuresForRoles(
   return failures
 }
 
-export function findContrastFailures(colors: ColorValues): ContrastFailure[] {
+export function findContrastFailures(colors: ColorValues) {
   return [
     ...failuresForRoles(colors, TEXT_COLOR_ROLES, TEXT_CONTRAST_FLOOR),
     ...failuresForRoles(colors, NON_TEXT_COLOR_ROLES, NON_TEXT_CONTRAST_FLOOR),
-  ]
+  ] satisfies ContrastFailure[]
 }
 
 function compareContractKeys(label: string, values: ColorValues) {
@@ -174,9 +173,11 @@ function compareContractKeys(label: string, values: ColorValues) {
 
 export function validatePublicColorContract(colors: ColorValues, sourceVariables: ColorValues) {
   const issues: string[] = []
-  if (PUBLIC_COLOR_ROLES.length !== PUBLIC_COLOR_ROLE_COUNT) {
+  // Typed as number so the check still runs, and reads, when the role list changes.
+  const definedRoleCount: number = PUBLIC_COLOR_ROLES.length
+  if (definedRoleCount !== PUBLIC_COLOR_ROLE_COUNT) {
     issues.push(
-      `Contrast gate defines ${PUBLIC_COLOR_ROLES.length} roles; ADR 0024 requires ${PUBLIC_COLOR_ROLE_COUNT}`,
+      `Contrast gate defines ${definedRoleCount} roles; ADR 0024 requires ${PUBLIC_COLOR_ROLE_COUNT}`,
     )
   }
   issues.push(...compareContractKeys('SDK color contract', colors))
@@ -253,7 +254,9 @@ export function validateHostColorVariables(
       continue
     }
     if (comparableColor(actual) !== comparableColor(expected)) {
-      issues.push(`Host variable ${variableName} for ${role} is ${actual}; SDK default is ${expected}`)
+      issues.push(
+        `Host variable ${variableName} for ${role} is ${actual}; SDK default is ${expected}`,
+      )
     }
   }
   return issues

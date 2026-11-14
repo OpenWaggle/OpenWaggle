@@ -6,7 +6,7 @@ import {
 } from '@earendil-works/pi-ai/bedrock-provider'
 import { AMAZON_BEDROCK_MODELS } from '@earendil-works/pi-ai/providers/amazon-bedrock.models'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { withExpiredCredentialRetry } from '../pi-bedrock-credential-retry'
 import {
   BEDROCK_LOOPBACK_ENV as ENV,
@@ -33,6 +33,11 @@ function send(
     ...(options.headers ? { headers: options.headers } : {}),
   }).result()
 }
+
+// The client cache lives in Pi's module, which other files in a reused worker also fill.
+beforeEach(() => {
+  clearBedrockClients()
+})
 
 afterEach(() => {
   clearBedrockClients()

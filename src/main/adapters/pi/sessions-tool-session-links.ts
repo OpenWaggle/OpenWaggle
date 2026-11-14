@@ -3,7 +3,7 @@ import type { SessionsToolParameters } from './sessions-tool-parameters'
 
 type SessionsToolTarget = Extract<SessionsToolParameters, { readonly target: unknown }>['target']
 
-function resolveTarget(target: SessionsToolTarget): SessionsToolTarget {
+function resolveTarget(target: SessionsToolTarget) {
   if (target.type === 'session') {
     return { ...target, sessionId: sessionIdFromReference(target.sessionId, 'target.sessionId') }
   }
@@ -27,9 +27,7 @@ function resolveTarget(target: SessionsToolTarget): SessionsToolTarget {
  * Session twice, as a link and as its ID, keeps it once. Snapshot manifests are left exactly as
  * a previous export returned them.
  */
-export function resolveSessionsToolSessionLinks(
-  params: SessionsToolParameters,
-): SessionsToolParameters {
+export function resolveSessionsToolSessionLinks(params: SessionsToolParameters) {
   let resolved = params
   if ('sessionId' in resolved && resolved.sessionId !== undefined) {
     resolved = { ...resolved, sessionId: sessionIdFromReference(resolved.sessionId, 'sessionId') }

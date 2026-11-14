@@ -14,8 +14,8 @@ vi.mock('@pierre/diffs', () => ({
 import { setImportedPierreSyntaxResources } from '../pierre-syntax'
 import { pierreLanguageId, registerPendingPierreSyntaxResources } from '../pierre-syntax-runtime'
 
-function theme(name: string): SyntaxThemeResource {
-  return {
+function theme(name: string) {
+  const resource: SyntaxThemeResource = {
     id: 'theme:acme:dark',
     packageId: 'acme',
     revision: name,
@@ -33,10 +33,11 @@ function theme(name: string): SyntaxThemeResource {
     },
     original: {},
   }
+  return resource
 }
 
-function language(revision: string): SyntaxLanguageResource {
-  return {
+function language(revision: string) {
+  const resource: SyntaxLanguageResource = {
     id: `language:acme:test:${revision}`,
     packageId: 'acme',
     revision,
@@ -64,6 +65,7 @@ function language(revision: string): SyntaxLanguageResource {
     },
     original: {},
   }
+  return resource
 }
 
 describe('Pierre syntax theme registration', () => {

@@ -15,7 +15,7 @@ import { SessionHostLiveness } from '../session-host-liveness'
 import { dispatchAcceptedLifecycleRun } from '../session-lifecycle-command-service'
 import { NoSteeringLayer } from './agent-steering-test-layer'
 
-function launchedResponse(replayed = false): SessionLifecycleResponse {
+function launchedResponse(replayed = false) {
   return {
     contractVersion: 2,
     requestId: 'request-launch',
@@ -28,7 +28,7 @@ function launchedResponse(replayed = false): SessionLifecycleResponse {
       runId: 'run-launch',
       workspaceId: 'workspace-launch',
     },
-  }
+  } satisfies SessionLifecycleResponse
 }
 
 describe('Session lifecycle command dispatch', () => {
@@ -135,9 +135,12 @@ describe('Session lifecycle command dispatch', () => {
       }),
     )
 
-    await Effect.runPromise(
-      dispatchAcceptedLifecycleRun(launchedResponse(true)).pipe(Effect.provide(layer)),
-    )
+    await expect(
+      Effect.runPromise(
+        dispatchAcceptedLifecycleRun(launchedResponse(true)).pipe(Effect.provide(layer)),
+      ),
+    ).resolves.toBe(false)
+    expect(activeRuns.has(SessionId('session-launch'))).toBe(false)
   })
 
   it('drains the Host when a launched Run cannot be durably settled', async () => {

@@ -1,9 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import {
-  readReleaseCiWorkflowJobs,
-  type ReleaseCiWorkflowJob,
-} from './release-ci-policy-workflow'
+import { readReleaseCiWorkflowJobs, type ReleaseCiWorkflowJob } from './release-ci-policy-workflow'
 import { matchesReleaseCiWorkflowAstContract } from './package-release-validator-workflow-structure'
 import {
   SESSION_PERFORMANCE_WORKFLOW_PATH,
@@ -49,9 +46,7 @@ function hasMainBranchTrigger(workflow: string, trigger: string) {
 }
 
 function readSteps(job: ReleaseCiWorkflowJob) {
-  const starts = [...job.block.matchAll(/^ {6}- /gm)].flatMap((match) =>
-    match.index === undefined ? [] : [match.index],
-  )
+  const starts = [...job.block.matchAll(/^ {6}- /gm)].map((match) => match.index)
 
   return starts.map((start, index) =>
     job.block.slice(start, starts[index + 1] ?? job.block.length).trimEnd(),
@@ -94,7 +89,8 @@ function validateDispatchSupport(
   jobs: readonly ReleaseCiWorkflowJob[],
   violations: string[],
 ) {
-  const dispatchInput = /^ {2}workflow_dispatch:\s*\n {4}inputs:\s*\n {6}head_sha:\s*\n(?: {8}.+\n)*? {8}required: true\s*\n {8}type: string$/m
+  const dispatchInput =
+    /^ {2}workflow_dispatch:\s*\n {4}inputs:\s*\n {6}head_sha:\s*\n(?: {8}.+\n)*? {8}required: true\s*\n {8}type: string$/m
   if (!dispatchInput.test(workflow)) {
     violations.push('CI must accept a required workflow_dispatch head_sha input.')
   }
@@ -102,9 +98,7 @@ function validateDispatchSupport(
   const requiredJobs = jobs.filter((job) => isRequiredCheck(job.name))
   const guardedJobs = requiredJobs.filter((job) => readSteps(job)[0] === DISPATCH_GUARD_STEP)
   const checkoutJobs = requiredJobs.filter((job) =>
-    readSteps(job).some(
-      (step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP,
-    ),
+    readSteps(job).some((step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP),
   )
 
   if (checkoutJobs.length !== REQUIRED_CI_CHECKS.length) {
@@ -209,11 +203,10 @@ function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: stri
 }
 
 function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violations: string[]) {
-  const jobNames = new Set(jobs.map((job) => job.name))
   for (const requiredName of REQUIRED_CI_CHECKS) {
     if (ALLOWED_JOB_CONDITIONS.has(requiredName)) continue
     const job = jobs.find((candidate) => candidate.name === requiredName)
-    if (job !== undefined && job.keys.includes('if')) {
+    if (job?.keys.includes('if')) {
       violations.push('CI required jobs must run unconditionally for every configured trigger.')
       break
     }
@@ -223,9 +216,7 @@ function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violatio
     if (job === undefined) continue
     const hasExactCondition = conditionLines.every((line) => job.block.includes(line))
     if (!hasExactCondition) {
-      violations.push(
-        `CI queue-only job ${jobName} must run exactly on merge-queue results and dispatched full runs.`,
-      )
+      violations.push(`CI conditional job ${jobName} must keep its exact job-level condition.`)
     }
   }
 }
@@ -257,7 +248,10 @@ function validateRequiredChecks(
     const expected = EXPECTED_STEPS.get(job.name)
     if (expected === undefined) continue
     const actual = readSteps(job)
-    if (actual.length === expected.length && actual.every((step, index) => step === expected[index])) {
+    if (
+      actual.length === expected.length &&
+      actual.every((step, index) => step === expected[index])
+    ) {
       continue
     }
 
@@ -265,7 +259,9 @@ function validateRequiredChecks(
     if (requiredCommand !== undefined) {
       const exactStep = `      - run: ${requiredCommand}`
       if (!actual.includes(exactStep)) {
-        violations.push(`CI job ${job.name} must run ${requiredCommand} as an exact, fail-closed step.`)
+        violations.push(
+          `CI job ${job.name} must run ${requiredCommand} as an exact, fail-closed step.`,
+        )
       }
     }
     violations.push(`CI job ${job.name} steps must match the fail-closed required sequence.`)
@@ -311,7 +307,7 @@ async function main() {
   process.exitCode = 1
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
   void main().catch((error: unknown) => {
     console.error(String(error))
     process.exitCode = 1

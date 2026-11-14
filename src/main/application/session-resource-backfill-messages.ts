@@ -10,7 +10,7 @@ export interface ProjectedResourceMessage {
 export function projectResourceMessages(input: {
   readonly messages?: readonly Message[]
   readonly nodes?: readonly SessionNode[]
-}): readonly ProjectedResourceMessage[] {
+}) {
   return input.nodes
     ? input.nodes.flatMap((node) =>
         node.message

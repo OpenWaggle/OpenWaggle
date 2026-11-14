@@ -176,11 +176,11 @@ interface TerminalSelectionToolbarProps {
   readonly onCopy: () => void
 }
 
-export function TerminalSelectionToolbar(props: TerminalSelectionToolbarProps) {
+export function TerminalSelectionToolbar({ toolbarRef, ...props }: TerminalSelectionToolbarProps) {
   if (props.selectionText.length === 0 || props.position === null) return null
   return (
     <div
-      ref={props.toolbarRef}
+      ref={toolbarRef}
       role="toolbar"
       aria-label="Terminal selection actions"
       className="fixed z-30 flex items-center overflow-hidden rounded border border-border bg-bg-secondary shadow-sm"

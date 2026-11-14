@@ -2,7 +2,6 @@ import type { SessionId, WorkingPath } from '@shared/types/brand'
 import type {
   GitActionProgressEvent,
   GitRunStackedActionOptions,
-  GitRunStackedActionResult,
   GitStackedAction,
 } from '@shared/types/git'
 import { useEffect, useRef, useState } from 'react'
@@ -59,7 +58,6 @@ export function useStackedGitActions({
   const showToast = useUIStore((state) => state.showToast)
 
   useEffect(() => {
-    if (typeof api.onGitStackedActionProgress !== 'function') return
     return api.onGitStackedActionProgress((payload) => {
       if (
         payload.operationId === activeOperationId.current &&
@@ -70,11 +68,8 @@ export function useStackedGitActions({
     })
   }, [workingPath])
 
-  async function run(
-    action: GitStackedAction,
-    options?: Partial<GitRunStackedActionOptions>,
-  ): Promise<GitRunStackedActionResult | undefined> {
-    if (!workingPath || runningRef.current || typeof api.runStackedGitAction !== 'function') return
+  async function run(action: GitStackedAction, options?: Partial<GitRunStackedActionOptions>) {
+    if (!workingPath || runningRef.current) return
     const operationId = crypto.randomUUID()
     runningRef.current = true
     activeOperationId.current = operationId
@@ -83,7 +78,7 @@ export function useStackedGitActions({
     try {
       const result = await api.runStackedGitAction(workingPath, {
         action,
-        sessionId,
+        ...(sessionId === undefined ? {} : { sessionId }),
         ...options,
         operationId,
       })
@@ -104,9 +99,14 @@ export function useStackedGitActions({
 
   async function cancel() {
     const operationId = activeOperationId.current
-    if (!operationId || typeof api.cancelStackedGitAction !== 'function') return false
+    if (!operationId) return false
     return api.cancelStackedGitAction(operationId)
   }
 
-  return { isRunning, progress, run, cancel }
+  /** Runs `action` for a caller with no promise to handle: `run` reports a failure in a toast. */
+  function start(action: GitStackedAction, options?: Partial<GitRunStackedActionOptions>) {
+    void run(action, options)
+  }
+
+  return { isRunning, progress, run, start, cancel }
 }

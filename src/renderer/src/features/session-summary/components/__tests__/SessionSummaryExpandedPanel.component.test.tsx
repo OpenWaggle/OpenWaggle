@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SessionSummaryExpandedPanel } from '../SessionSummaryExpandedPanel'
 
-function ExplodingSection(): ReactNode {
+// An arrow, so the inferred return type is `never` and it is a valid component.
+const ExplodingSection = () => {
   throw new Error('broken contribution')
 }
 

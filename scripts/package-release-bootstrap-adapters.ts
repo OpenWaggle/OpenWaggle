@@ -37,9 +37,7 @@ export interface BootstrapInterruptionCoordinator extends BootstrapInterruptions
   trackChild(child: BootstrapSignalChild): () => void
 }
 
-export function createBootstrapInterruptionCoordinator(
-  signalProcess: BootstrapSignalProcess,
-): BootstrapInterruptionCoordinator {
+export function createBootstrapInterruptionCoordinator(signalProcess: BootstrapSignalProcess) {
   const activeOperations = new Set<Promise<unknown>>()
   const activeChildren = new Set<BootstrapSignalChild>()
   let cancelFallback: (() => void) | undefined
@@ -74,11 +72,7 @@ export function createBootstrapInterruptionCoordinator(
   }
 
   function startRecoveryFallback() {
-    if (
-      handlingSignal === undefined ||
-      cancelFallback !== undefined ||
-      signalForwarded
-    ) {
+    if (handlingSignal === undefined || cancelFallback !== undefined || signalForwarded) {
       return
     }
     const signal = handlingSignal
@@ -121,7 +115,7 @@ export function createBootstrapInterruptionCoordinator(
         if (activeChildren.size === 0) startRecoveryFallback()
       }
     },
-  }
+  } satisfies BootstrapInterruptionCoordinator
 }
 
 function childEnvironment(source: NodeJS.ProcessEnv) {
@@ -146,14 +140,15 @@ function pseudoterminalEnvironment(source: NodeJS.ProcessEnv) {
 function executePseudoterminalCommand(
   request: BootstrapCommandRequest,
   interruptions: BootstrapInterruptionCoordinator,
-): Promise<BootstrapCommandResult> {
-  return new Promise((resolve) => {
+) {
+  return new Promise<BootstrapCommandResult>((resolve) => {
     const child = spawnPseudoterminal(request.command, [...request.args], {
-      cols: process.stdout.columns ?? DEFAULT_TERMINAL_COLUMNS,
-      cwd: request.cwd,
+      // Node types the size as always set; it is only set when stdout is a terminal.
+      cols: process.stdout.isTTY ? process.stdout.columns : DEFAULT_TERMINAL_COLUMNS,
+      ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
       env: pseudoterminalEnvironment(process.env),
       name: 'xterm-color',
-      rows: process.stdout.rows ?? DEFAULT_TERMINAL_ROWS,
+      rows: process.stdout.isTTY ? process.stdout.rows : DEFAULT_TERMINAL_ROWS,
     })
     const untrackChild = interruptions.trackChild({
       kill: (signal) => {
@@ -184,11 +179,11 @@ function executePseudoterminalCommand(
 function executeCommand(
   request: BootstrapCommandRequest,
   interruptions: BootstrapInterruptionCoordinator,
-): Promise<BootstrapCommandResult> {
+) {
   if (request.interactive === true && request.captureOutput === true) {
     return executePseudoterminalCommand(request, interruptions)
   }
-  return new Promise((resolve) => {
+  return new Promise<BootstrapCommandResult>((resolve) => {
     const child = spawn(request.command, request.args, {
       cwd: request.cwd,
       env: childEnvironment(process.env),
@@ -233,13 +228,13 @@ function executeCommand(
   })
 }
 
-function createCommandRunner(
-  interruptions: BootstrapInterruptionCoordinator,
-): BootstrapCommandRunner {
-  return { run: (request) => executeCommand(request, interruptions) }
+function createCommandRunner(interruptions: BootstrapInterruptionCoordinator) {
+  return {
+    run: (request) => executeCommand(request, interruptions),
+  } satisfies BootstrapCommandRunner
 }
 
-function processSignalAdapter(): BootstrapSignalProcess {
+function processSignalAdapter() {
   return {
     off: (signal, listener) => process.off(signal, listener),
     on: (signal, listener) => process.on(signal, listener),
@@ -249,10 +244,10 @@ function processSignalAdapter(): BootstrapSignalProcess {
       return () => clearTimeout(timeout)
     },
     sendSignal: (pid, signal) => process.kill(pid, signal),
-  }
+  } satisfies BootstrapSignalProcess
 }
 
-export function createDefaultBootstrapDependencies(): BootstrapDependencies {
+export function createDefaultBootstrapDependencies() {
   const interruptions = createBootstrapInterruptionCoordinator(processSignalAdapter())
   return {
     commands: createCommandRunner(interruptions),
@@ -265,5 +260,5 @@ export function createDefaultBootstrapDependencies(): BootstrapDependencies {
     },
     interruptions,
     writeLine: (line) => console.log(line),
-  }
+  } satisfies BootstrapDependencies
 }

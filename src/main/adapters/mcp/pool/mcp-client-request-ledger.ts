@@ -56,7 +56,7 @@ export class McpClientRequestLedger {
   }
 
   /** Records a client request and returns it renumbered for the server. */
-  trackLease(lease: McpConnectionLease, message: JsonRpcRequest): JsonRpcRequest {
+  trackLease(lease: McpConnectionLease, message: JsonRpcRequest) {
     const id = this.allocate()
     const token = progressTokenOf(message.params)
     if (token !== undefined) this.progress.set(id, { lease, token })

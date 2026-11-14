@@ -8,7 +8,6 @@ import type {
 import * as Effect from 'effect/Effect'
 import {
   type ScheduledTaskRecord,
-  type ScheduledTaskRecordChanges,
   ScheduledTaskRepository,
 } from '../ports/scheduled-task-repository'
 import {
@@ -205,7 +204,7 @@ function mergedRecord(current: ScheduledTaskRecord, patch: ScheduledTaskPatch, n
   return replan ? { ...merged, ...plannedFields(merged, now), waitingSince: null } : merged
 }
 
-function recordChanges(record: ScheduledTaskRecord): ScheduledTaskRecordChanges {
+function recordChanges(record: ScheduledTaskRecord) {
   return {
     creatorCallerId: record.creatorCallerId,
     authorityLimits: record.authorityLimits,

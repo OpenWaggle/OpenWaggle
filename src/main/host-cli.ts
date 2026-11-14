@@ -10,7 +10,6 @@ import {
   defaultCliHostUpdateStopDependencies,
   formatHostUpdateStopReport,
   type HostUpdateStopDependencies,
-  type HostUpdateStopReport,
   stopSessionHostForUpdate,
 } from './host-update-stop'
 import type { LocalSessionCliClientInput } from './local-session-cli-client'
@@ -58,8 +57,6 @@ Options:
 
 const STOP_OPTIONS = ['wait', 'timeout-ms', 'json', 'update'] as const
 const BOOLEAN_OPTIONS = new Set(['wait', 'json', 'update'])
-
-export { HOST_STOP_DEFAULT_TIMEOUT_MS } from './host-cli-stop-options'
 
 const HOST_STOP_POLL_INTERVAL_MS = 250
 
@@ -131,36 +128,40 @@ async function waitForExit(
   hostInstanceId: string,
   timeoutMs: number,
   dependencies: HostCliDependencies,
-): Promise<'stopped' | 'replaced' | 'timed-out'> {
+) {
   const deadline = dependencies.now() + timeoutMs
   while (dependencies.now() < deadline) {
     // While it shuts down the Host refuses even new connections; that is progress, not failure.
     const probe: HostProbe | null = await probeRunningHost(input, dependencies.status.probe).catch(
       () => null,
     )
-    if (probe?.state === 'not-running') return 'stopped'
-    if (probe?.state === 'running' && probe.hostInstanceId !== hostInstanceId) return 'replaced'
+    if (probe?.state === 'not-running') return 'stopped' as const
+    if (probe?.state === 'running' && probe.hostInstanceId !== hostInstanceId) {
+      return 'replaced' as const
+    }
     await dependencies.wait(HOST_STOP_POLL_INTERVAL_MS)
   }
-  return 'timed-out'
+  return 'timed-out' as const
 }
 
 export async function stopHost(
   parsed: ParsedArguments,
   dependencies: HostCliDependencies = defaultDependencies,
   profile: string | undefined = env.OPENWAGGLE_PROFILE,
-): Promise<HostStopReport> {
+) {
   const timeoutMs = waitTimeout(parsed)
   refuseAccessProfile(profile)
   const input = await dependencies.status.prepareClientInput(parsed)
   const probe = await probeRunningHost(input, dependencies.status.probe)
-  if (probe.state === 'not-running') return { state: 'not-running' }
+  if (probe.state === 'not-running') return { state: 'not-running' } satisfies HostStopReport
   if (probe.state === 'upgrade-pending') {
     // An older Host has no stop command, but it is already handing over once it is idle.
     const pending = { hostInstanceId: probe.hostInstanceId, blockingRuns: probe.blockingRuns }
-    if (timeoutMs === undefined) return { state: 'upgrade-pending', ...pending }
+    if (timeoutMs === undefined) {
+      return { state: 'upgrade-pending', ...pending } satisfies HostStopReport
+    }
     const state = await waitForExit(input, probe.hostInstanceId, timeoutMs, dependencies)
-    return { state, ...pending, blockingActions: 0 }
+    return { state, ...pending, blockingActions: 0 } satisfies HostStopReport
   }
   const response = await requestStop(input, dependencies)
   const stopping = {
@@ -168,9 +169,9 @@ export async function stopHost(
     blockingRuns: response.blockingRuns,
     blockingActions: response.blockingActions,
   }
-  if (timeoutMs === undefined) return { state: 'stopping', ...stopping }
+  if (timeoutMs === undefined) return { state: 'stopping', ...stopping } satisfies HostStopReport
   const outcome = await waitForExit(input, response.hostInstanceId, timeoutMs, dependencies)
-  return { state: outcome, ...stopping }
+  return { state: outcome, ...stopping } satisfies HostStopReport
 }
 
 /** What the Host still waits for, or `undefined` when nothing holds it. */
@@ -228,7 +229,7 @@ export async function stopHostForUpdate(
   parsed: ParsedArguments,
   dependencies: HostCliDependencies = defaultDependencies,
   profile: string | undefined = env.OPENWAGGLE_PROFILE,
-): Promise<HostUpdateStopReport> {
+) {
   if (parsed.options.has('wait') || parsed.options.has('timeout-ms')) {
     throw new CommandCliUsageError(
       '--update does not accept --wait or --timeout-ms; it always waits for the Host to exit.',

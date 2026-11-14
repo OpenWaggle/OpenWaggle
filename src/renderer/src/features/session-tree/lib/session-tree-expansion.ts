@@ -1,9 +1,7 @@
 import type { SessionNodeId } from '@shared/types/brand'
 import type { SessionTreeNode, SessionTreeUiState } from '@shared/types/session'
 
-export function getDefaultExpandedSessionTreeNodeIds(
-  nodes: readonly SessionTreeNode[],
-): readonly SessionNodeId[] {
+export function getDefaultExpandedSessionTreeNodeIds(nodes: readonly SessionTreeNode[]) {
   const parentIds = new Set(nodes.flatMap((node) => (node.parentId ? [String(node.parentId)] : [])))
   return nodes.flatMap((node) => (parentIds.has(String(node.id)) ? [node.id] : []))
 }
@@ -12,7 +10,7 @@ export function resolveExpandedSessionTreeNodeIds(input: {
   readonly nodes: readonly SessionTreeNode[]
   readonly uiState: SessionTreeUiState | null
   readonly overrideNodeIds: readonly SessionNodeId[] | null
-}): readonly SessionNodeId[] {
+}) {
   if (input.overrideNodeIds) {
     return input.overrideNodeIds
   }
@@ -30,7 +28,7 @@ export function resolveSessionTreeRowExpandedNodeIds(input: {
   readonly filteredNodes: readonly SessionTreeNode[]
   readonly expandedNodeIds: readonly SessionNodeId[]
   readonly searchActive: boolean
-}): readonly SessionNodeId[] {
+}) {
   if (input.searchActive) {
     /*
      * A match stays hidden while any ancestor is collapsed, including one the filter leaves out,

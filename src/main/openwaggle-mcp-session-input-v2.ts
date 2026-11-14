@@ -1,7 +1,7 @@
-import type { StandardSchemaWithJSON } from '@modelcontextprotocol/server'
 import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
 import type { SessionCapability } from '@shared/types/session-capability'
-import { z } from 'zod'
+import { Schema } from 'effect'
+import { standardSchemaWithJson, withAdvertisedJsonSchema } from './effect-standard-schema'
 import type { ParsedArguments } from './mcp-cli-arguments'
 import { buildMcpSessionExportPayloadV2 } from './openwaggle-mcp-session-export-payload-v2'
 import { mcpSessionControlOperationSchemasV2 } from './openwaggle-mcp-session-input-control-schema-v2'
@@ -23,12 +23,10 @@ const sessionInputOperationSchemasV2 = [
   ...mcpSessionControlOperationSchemasV2,
 ] as const
 
-const sessionInputDiscriminatedSchemaV2 = z.discriminatedUnion(
-  'operation',
-  sessionInputOperationSchemasV2,
-)
+/** Every operation's input, discriminated by `operation`. */
+export const sessionInputSchemaV2 = Schema.Union(...sessionInputOperationSchemasV2)
 
-export const sessionInputSchemaV2: z.ZodType<SessionToolInputV2> = sessionInputDiscriminatedSchemaV2
+const acceptedSessionInputV2 = standardSchemaWithJson(sessionInputSchemaV2)
 
 /**
  * The operations an `mcp serve` process advertises: only those its `--grant` values allow
@@ -36,11 +34,11 @@ export const sessionInputSchemaV2: z.ZodType<SessionToolInputV2> = sessionInputD
  * no grant and is always listed.
  */
 export function advertisedSessionInputSchemaV2(grants: ReadonlySet<SessionCapability>) {
-  const [first, ...rest] = sessionInputOperationSchemasV2.filter((schema) =>
-    mcpSessionOperationGrantedV2(schema.shape.operation.value, grants),
+  const advertised = sessionInputOperationSchemasV2.filter((schema) =>
+    mcpSessionOperationGrantedV2(schema.fields.operation.literals[0], grants),
   )
-  if (!first) throw new Error('The Hive MCP tool has no operation to advertise.')
-  return z.discriminatedUnion('operation', [first, ...rest])
+  if (advertised.length === 0) throw new Error('The Hive MCP tool has no operation to advertise.')
+  return Schema.Union(...advertised)
 }
 
 /**
@@ -49,20 +47,14 @@ export function advertisedSessionInputSchemaV2(grants: ReadonlySet<SessionCapabi
  * the grant check, whose error names the `--grant` to add, instead of an input-validation error
  * that reads like a typo.
  */
-export function sessionInputSchemaForGrantsV2(
-  grants: ReadonlySet<SessionCapability>,
-): StandardSchemaWithJSON<SessionToolInputV2> {
-  const advertised = advertisedSessionInputSchemaV2(grants)
-  const accepted: StandardSchemaWithJSON<SessionToolInputV2> = sessionInputDiscriminatedSchemaV2
-  return {
-    '~standard': { ...accepted['~standard'], jsonSchema: advertised['~standard'].jsonSchema },
-  }
+export function sessionInputSchemaForGrantsV2(grants: ReadonlySet<SessionCapability>) {
+  return withAdvertisedJsonSchema(
+    acceptedSessionInputV2,
+    standardSchemaWithJson(advertisedSessionInputSchemaV2(grants)),
+  )
 }
 
-function parsedInput(input: SessionToolInputV2): {
-  readonly command: string
-  readonly arguments: ParsedArguments
-} {
+function parsedInput(input: SessionToolInputV2) {
   const message = input.message ?? input.objective ?? input.title
   const { command, options } = mcpSessionCliOptionsV2(input, message)
   if (
@@ -76,10 +68,14 @@ function parsedInput(input: SessionToolInputV2): {
     // An MCP caller's current scope is its Host grants, not the server process's cwd.
     options.set('all', ['true'])
   }
-  return {
+  const result: {
+    readonly command: string
+    readonly arguments: ParsedArguments
+  } = {
     command,
     arguments: { positionals: mcpSessionPositionalsV2(input, message), passthrough: [], options },
   }
+  return result
 }
 
 function validateResourceFields(input: SessionToolInputV2) {
@@ -94,7 +90,7 @@ function validateResourceFields(input: SessionToolInputV2) {
 function validateExportBranchFields(input: SessionToolInputV2) {
   if (input.operation !== 'export' && input.operation !== 'export-create') return
   assertSessionExportBranchSelection({
-    branchScope: input.branchScope,
+    ...(input.branchScope === undefined ? {} : { branchScope: input.branchScope }),
     ...(input.branchId ? { branchId: input.branchId } : {}),
   })
 }

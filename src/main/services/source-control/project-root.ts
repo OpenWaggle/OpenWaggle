@@ -17,7 +17,7 @@ async function readCommonDir(workingPath: string) {
  * worktree, or path spelling they start from (ADR 0048). A worktree of a bare repository has no
  * main checkout, so its own work tree is the project.
  */
-export async function projectSettingsKey(projectPath: string): Promise<string> {
+export async function projectSettingsKey(projectPath: string) {
   const commonDir = await readCommonDir(projectPath)
   if (!commonDir) return path.resolve(projectPath)
   if (path.basename(commonDir) === '.git') return path.resolve(path.dirname(commonDir))
