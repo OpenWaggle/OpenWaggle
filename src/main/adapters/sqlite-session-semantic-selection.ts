@@ -21,8 +21,13 @@ function restrictedSemanticReadiness(
   // The model download is the same for every caller and names no Session, so a restricted caller
   // learns why search matches words, not that the index looks ready.
   if (readiness.model !== undefined) {
+    // A recorded failure is the index's, which a restricted caller does not see, so it reads as
+    // unavailable as it would with the model on disk.
     const modelPending: SemanticDiscoveryReadiness = {
-      status: readiness.status,
+      status:
+        readiness.status === 'failed' || readiness.status === 'unavailable'
+          ? 'unavailable'
+          : readiness.status,
       model: readiness.model,
       ...(readiness.reason === undefined ? {} : { reason: readiness.reason }),
     }
