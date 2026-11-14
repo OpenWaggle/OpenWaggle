@@ -3,7 +3,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { Schema } from '@shared/schema'
-import { objectFields } from '../support/object-fields'
+import { objectEntries, objectFields, unknownField } from '../support/object-fields'
 
 const WORKFLOWS = ['perf-gate.yml', 'perf-report.yml'] as const
 
@@ -18,15 +18,13 @@ const jobSchema = Schema.Struct({
   if: Schema.optional(Schema.String),
   steps: Schema.Array(Schema.Unknown),
 })
-const workflowSchema = Schema.Struct({
-  jobs: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-})
+const workflowSchema = Schema.Struct({ jobs: unknownField })
 
 function workflowJobs(file: string) {
   const text = fs.readFileSync(path.join(process.cwd(), '.github/workflows', file), 'utf8')
-  const workflow = objectFields(workflowSchema, parse(text))
-  if (workflow === undefined) throw new Error(`${file} has no jobs.`)
-  return Object.entries(workflow.jobs).map(([id, value]) => {
+  const jobs = objectEntries(objectFields(workflowSchema, parse(text))?.jobs)
+  if (jobs === undefined) throw new Error(`${file} has no jobs.`)
+  return jobs.map(([id, value]) => {
     const job = objectFields(jobSchema, value)
     if (job === undefined) throw new Error(`${file} job ${id} is malformed.`)
     const steps = job.steps.map((step) => {
