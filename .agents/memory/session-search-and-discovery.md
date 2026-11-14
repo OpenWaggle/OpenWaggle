@@ -24,7 +24,7 @@ or the archived-items query.
 
 ## The embedding model is fetched on first use (November 2026)
 
-The multilingual-e5 model is not packaged: the first embedding downloads the pinned revision from Hugging Face into `userData/models/session-embedding/<revision>/` (`session-embedding-model-files.ts`), checks every file against its pinned SHA-256, and until then search is lexical (readiness `preparing` or `unavailable` with `model` and `reason`, hybrid degrades with `semantic_not_ready`); a failed download retries after 15 s, doubling per failure up to 30 minutes.
+The multilingual-e5 model is not packaged: the first embedding downloads the pinned revision from Hugging Face into `userData/models/session-embedding/<revision>/` (`session-embedding-model-files.ts`), checks every file against its pinned SHA-256, and until then search is lexical (readiness `preparing` or `unavailable` with `model` and `reason`, hybrid degrades with `semantic_not_ready`); a failed download retries after 15 s, doubling per failure up to 30 minutes. A readiness read also starts the download, under the Host's `semantic-preparation` hold, because an index prepared before the model existed otherwise never fetched it; later launches trust the verified manifest plus each file's pinned size, and restricted callers see `unavailable` rather than `failed`.
 
 ## Filed under "Session Host authority and subscriptions are live boundaries"
 
