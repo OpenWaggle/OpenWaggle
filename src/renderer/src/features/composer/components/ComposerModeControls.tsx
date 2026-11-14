@@ -19,12 +19,18 @@ export function ComposerModeControls({
   submission,
 }: ComposerModeControlsProps) {
   if (voice.isActive) {
-    return <VoiceRecorder fileInputRef={fileInputRef} voice={voice} disabled={disabled} />
+    return (
+      <VoiceRecorder
+        fileInputRef={fileInputRef}
+        voice={voice}
+        {...(disabled === undefined ? {} : { disabled })}
+      />
+    )
   }
 
   return (
     <ComposerToolbar
-      disabled={disabled}
+      {...(disabled === undefined ? {} : { disabled })}
       accessControl={accessControl}
       submission={submission}
       onToggleVoice={voice.toggleVoice}

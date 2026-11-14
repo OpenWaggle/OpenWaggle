@@ -38,15 +38,15 @@ const RUN: ScheduledTaskRun = {
   status: 'started',
 }
 
-function answer(outcome: ScheduledTasksOutcome): LocalScheduledTasksCommandResult {
+function answer(outcome: ScheduledTasksOutcome) {
   return {
     contract: 'scheduled-tasks-v1',
     response: { contractVersion: 1, requestId: 'request', operation: 'runs', outcome },
-  }
+  } satisfies LocalScheduledTasksCommandResult
 }
 
 /** The Scheduled task operation a mocked Host call carried. */
-function operationOf(input: unknown): string | undefined {
+function operationOf(input: unknown) {
   if (typeof input !== 'object' || input === null || !('payload' in input)) return undefined
   const { payload } = input
   if (typeof payload !== 'object' || payload === null || !('request' in payload)) return undefined

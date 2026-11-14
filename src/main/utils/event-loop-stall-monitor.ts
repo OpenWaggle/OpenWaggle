@@ -26,7 +26,7 @@ export interface EventLoopStallMonitorInput {
   readonly now?: () => number
 }
 
-function describeContext(describe: (() => object) | undefined): object {
+function describeContext(describe: (() => object) | undefined) {
   try {
     return describe?.() ?? {}
   } catch (error) {
@@ -44,7 +44,7 @@ function describeContext(describe: (() => object) | undefined): object {
  * counted into the next report, or into a trailing summary once the interval passes without one.
  * The timer is unreferenced so it never keeps the process alive.
  */
-export function startEventLoopStallMonitor(input: EventLoopStallMonitorInput): () => void {
+export function startEventLoopStallMonitor(input: EventLoopStallMonitorInput) {
   const now = input.now ?? (() => performance.now())
   const intervalMs = input.sampleIntervalMs ?? DEFAULT_SAMPLE_INTERVAL_MS
   const thresholdMs = input.stallThresholdMs ?? DEFAULT_STALL_THRESHOLD_MS

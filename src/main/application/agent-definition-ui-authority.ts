@@ -2,7 +2,6 @@ import fs from 'node:fs/promises'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { agentDefinitionManagementCommandSchema } from '@shared/schemas/agent-definition-management'
 import type { AgentDefinitionScope } from '@shared/types/agent-definition'
-import type { AgentDefinitionManagementCommand } from '@shared/types/agent-definition-management'
 
 const selectedSourcesBySender = new Map<number, Set<string>>()
 
@@ -26,7 +25,7 @@ export function forgetAgentDefinitionImportSources(senderId: number) {
   selectedSourcesBySender.delete(senderId)
 }
 
-export function listAgentDefinitionImportSources(senderId: number): readonly string[] {
+export function listAgentDefinitionImportSources(senderId: number) {
   return [...(selectedSourcesBySender.get(senderId) ?? [])]
 }
 
@@ -72,9 +71,7 @@ async function assertKnownProject(
   }
 }
 
-export async function authorizeAgentDefinitionUiCommand(
-  input: AgentDefinitionUiCommandInput,
-): Promise<AgentDefinitionManagementCommand> {
+export async function authorizeAgentDefinitionUiCommand(input: AgentDefinitionUiCommandInput) {
   const command = decodeUnknownExactOrThrow(agentDefinitionManagementCommandSchema, input.command)
   const canonicalProjectPath = await canonicalExistingPath(command.projectPath, 'Agent project')
   const selectedSourcePaths = input.selectedSourcePaths

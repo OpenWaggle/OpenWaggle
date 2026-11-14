@@ -103,17 +103,23 @@ describe('Pi runtime patches', () => {
     expect(patches.length).toBeGreaterThan(0)
   })
 
-  it.each(patches)('%s leaves no statement unreachable after a return, throw, break, or continue', (name) => {
-    expect(unreachableAfterReturn(readFileSync(path.join(PATCHES_DIRECTORY, name), 'utf8'))).toEqual(
-      [],
-    )
-  })
+  it.each(patches)(
+    '%s leaves no statement unreachable after a return, throw, break, or continue',
+    (name) => {
+      expect(
+        unreachableAfterReturn(readFileSync(path.join(PATCHES_DIRECTORY, name), 'utf8')),
+      ).toEqual([])
+    },
+  )
 
-  it.each(patches)('%s leaves no code TypeScript finds unreachable in the files it patches', (name) => {
-    const files = patchedJavaScriptFiles(name)
-    expect(files.length).toBeGreaterThan(0)
-    expect(typeScriptUnreachableCode(files)).toEqual([])
-  })
+  it.each(patches)(
+    '%s leaves no code TypeScript finds unreachable in the files it patches',
+    (name) => {
+      const files = patchedJavaScriptFiles(name)
+      expect(files.length).toBeGreaterThan(0)
+      expect(typeScriptUnreachableCode(files)).toEqual([])
+    },
+  )
 
   it('finds a statement left after an exit that spans several lines', () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'pi-patch-reachability-'))
@@ -144,20 +150,16 @@ describe('Pi runtime patches', () => {
     expect(unreachableAfterReturn(patch)).toEqual(['b/dist/core/example.js: return { value };'])
   })
 
-  it.each(['throw error;', 'break;', 'continue;'])(
-    'reports a statement left after %s',
-    (exit) => {
-      const patch = [
-        '+++ b/dist/core/example.js',
-        '@@ -1,4 +1,5 @@',
-        ' for (const item of items) {',
-        `+    ${exit}`,
-        '     handle(item);',
-        ' }',
-      ].join('\n')
+  it.each(['throw error;', 'break;', 'continue;'])('reports a statement left after %s', (exit) => {
+    const patch = [
+      '+++ b/dist/core/example.js',
+      '@@ -1,4 +1,5 @@',
+      ' for (const item of items) {',
+      `+    ${exit}`,
+      '     handle(item);',
+      ' }',
+    ].join('\n')
 
-      expect(unreachableAfterReturn(patch)).toEqual(['b/dist/core/example.js: handle(item);'])
-    },
-  )
+    expect(unreachableAfterReturn(patch)).toEqual(['b/dist/core/example.js: handle(item);'])
+  })
 })
-

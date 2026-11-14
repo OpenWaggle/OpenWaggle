@@ -79,7 +79,7 @@ export class SessionHostEventHub {
     }
   }
 
-  cursor(): SessionHostEventCursor {
+  cursor() {
     return { hostInstanceId: this.hostInstanceId, sequence: this.sequence }
   }
 
@@ -98,11 +98,11 @@ export class SessionHostEventHub {
     return this.replayViews.rotate(view)
   }
 
-  subscriberCount(): number {
+  subscriberCount() {
     return this.subscribers.size
   }
 
-  publish(payload: SessionHostEventPayload): SessionHostEventEnvelope {
+  publish(payload: SessionHostEventPayload) {
     this.sequence += 1
     const event = {
       cursor: this.cursor(),
@@ -120,43 +120,57 @@ export class SessionHostEventHub {
     return event
   }
 
-  replayAfter(cursor: SessionHostEventCursor): SessionHostEventReplayResult {
+  replayAfter(cursor: SessionHostEventCursor) {
     const replay = this.#retainedReplayAfter(cursor)
-    return replay.status === 'ready'
-      ? {
-          status: 'ready',
-          events: replay.entries.map((entry) => entry.event),
-          cursor: replay.cursor,
-        }
-      : replay
+    return (
+      replay.status === 'ready'
+        ? {
+            status: 'ready',
+            events: replay.entries.map((entry) => entry.event),
+            cursor: replay.cursor,
+          }
+        : replay
+    ) satisfies SessionHostEventReplayResult
   }
 
-  #retainedReplayAfter(cursor: SessionHostEventCursor): RetainedReplayResult {
+  #retainedReplayAfter(cursor: SessionHostEventCursor) {
     const current = this.cursor()
     const restricted = this.replayViews.retainedReplayAfter(cursor, current)
     if (restricted) return restricted
     if (cursor.hostInstanceId !== this.hostInstanceId) {
-      return { status: 'resync-required', reason: 'host-restarted', cursor: current }
+      return {
+        status: 'resync-required',
+        reason: 'host-restarted',
+        cursor: current,
+      } satisfies RetainedReplayResult
     }
     if (cursor.sequence > this.sequence) {
-      return { status: 'resync-required', reason: 'cursor-ahead', cursor: current }
+      return {
+        status: 'resync-required',
+        reason: 'cursor-ahead',
+        cursor: current,
+      } satisfies RetainedReplayResult
     }
     const oldestSequence = this.replayWindow.first()?.event.cursor.sequence ?? this.sequence + 1
     if (cursor.sequence < oldestSequence - 1) {
-      return { status: 'resync-required', reason: 'cursor-expired', cursor: current }
+      return {
+        status: 'resync-required',
+        reason: 'cursor-expired',
+        cursor: current,
+      } satisfies RetainedReplayResult
     }
     return {
       status: 'ready' as const,
       entries: this.replayWindow.after(cursor.sequence),
       cursor: current,
-    }
+    } satisfies RetainedReplayResult
   }
 
   subscribeAfter(
     cursor: SessionHostEventCursor = this.cursor(),
     accepts: (event: SessionHostEventEnvelope) => boolean = () => true,
     options: { readonly advanceFilteredCursor?: boolean } = {},
-  ): SessionHostSubscriptionResult {
+  ) {
     const replay = this.#retainedReplayAfter(cursor)
     if (replay.status === 'resync-required') return replay
     const replayView = this.replayViews.viewFor(cursor)
@@ -174,7 +188,7 @@ export class SessionHostEventHub {
         status: 'resync-required',
         reason: 'slow-consumer',
         cursor: replay.cursor,
-      }
+      } satisfies SessionHostSubscriptionResult
     }
 
     const subscription = new SessionHostEventSubscription(
@@ -204,10 +218,10 @@ export class SessionHostEventHub {
     }
     this.subscribers.add(subscription)
     replayView?.attach(subscription)
-    return { status: 'ready', subscription }
+    return { status: 'ready', subscription } satisfies SessionHostSubscriptionResult
   }
 
-  close(): void {
+  close() {
     for (const subscription of [...this.subscribers]) subscription.close()
     this.replayViews.close()
   }

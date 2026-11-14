@@ -1,5 +1,5 @@
 import { Minus, Plus } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { Button } from './Button'
 import { TextInput } from './TextInput'
 
@@ -51,14 +51,13 @@ function StepperButton({
 
 function useNumberStepperDraft(value: number, disabled: boolean) {
   const [state, setState] = useState({ sourceValue: value, text: String(value) })
-  const resetOnEnableRef = useRef(false)
-  useEffect(() => {
-    if (disabled) resetOnEnableRef.current = true
-  }, [disabled])
-  const isCurrent = state.sourceValue === value && !(resetOnEnableRef.current && !disabled)
+  // Once disabled, the draft gives way to the value when the stepper is enabled again.
+  const [resetOnEnable, setResetOnEnable] = useState(disabled)
+  if (disabled && !resetOnEnable) setResetOnEnable(true)
+  const isCurrent = state.sourceValue === value && !(resetOnEnable && !disabled)
   const draft = isCurrent ? state.text : String(value)
   const setDraft = (text: string) => {
-    resetOnEnableRef.current = false
+    setResetOnEnable(false)
     setState({ sourceValue: value, text })
   }
   return [draft, setDraft] as const

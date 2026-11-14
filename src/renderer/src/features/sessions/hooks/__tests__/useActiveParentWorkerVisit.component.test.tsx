@@ -22,11 +22,15 @@ afterEach(() => {
 function queen(workersLastRunEndedAt: number | undefined) {
   return fromPartial<SessionSummary>({
     id: QUEEN,
-    lineage: { role: 'queen', directWorkerCount: 1, workersLastRunEndedAt },
+    lineage: {
+      role: 'queen',
+      directWorkerCount: 1,
+      ...(workersLastRunEndedAt === undefined ? {} : { workersLastRunEndedAt }),
+    },
   })
 }
 
-describe('useActiveParentWorkerVisit (ADR 0063)', () => {
+describe('useActiveParentWorkerVisit (ADR 0065)', () => {
   it('marks the open parent visited when a Worker Run below it ends', () => {
     const markVisited = vi.fn()
     useSessionStatusStore.setState({ markVisited })

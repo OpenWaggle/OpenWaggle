@@ -51,8 +51,8 @@ export function useSidebarRowStates(
         status: statuses.get(id) ?? 'idle',
         completedAt: completedAt.get(id),
         lastVisitedAt: lastVisitedAt.get(id),
-        // A parent reads Working while its Workers run and Done below after (ADR 0063).
-        lineage: session.lineage,
+        // A parent reads Working while its Workers run and Done below after (ADR 0065).
+        ...(session.lineage === undefined ? {} : { lineage: session.lineage }),
       })
 
       byId.set(

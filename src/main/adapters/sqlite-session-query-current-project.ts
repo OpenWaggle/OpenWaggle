@@ -45,15 +45,23 @@ function projectOfWorkingPath(sql: SqlClient.SqlClient, workingPath: string) {
  * caller's scope, so a Worker sees the Sessions of its Hive in its project. An explicit
  * `projectPath` wins over `workingPath`.
  */
-export function resolveCurrentProjectQuery(
-  sql: SqlClient.SqlClient,
-  request: SessionQueryRequest,
-): Effect.Effect<SessionQueryRequest, unknown> {
+export function resolveCurrentProjectQuery(sql: SqlClient.SqlClient, request: SessionQueryRequest) {
   const query = request.query
-  if (!isCatalogQuery(query) || query.workingPath === undefined) return Effect.succeed(request)
+  if (!isCatalogQuery(query) || query.workingPath === undefined) {
+    const effect: Effect.Effect<SessionQueryRequest, unknown> = Effect.succeed(request)
+    return effect
+  }
   const { workingPath, ...rest } = query
-  if (rest.projectPath !== undefined) return Effect.succeed({ ...request, query: rest })
-  return projectOfWorkingPath(sql, workingPath).pipe(
-    Effect.map((projectPath) => ({ ...request, query: { ...rest, projectPath } })),
-  )
+  if (rest.projectPath !== undefined) {
+    const effect: Effect.Effect<SessionQueryRequest, unknown> = Effect.succeed({
+      ...request,
+      query: rest,
+    })
+    return effect
+  }
+  const effect: Effect.Effect<SessionQueryRequest, unknown> = projectOfWorkingPath(
+    sql,
+    workingPath,
+  ).pipe(Effect.map((projectPath) => ({ ...request, query: { ...rest, projectPath } })))
+  return effect
 }

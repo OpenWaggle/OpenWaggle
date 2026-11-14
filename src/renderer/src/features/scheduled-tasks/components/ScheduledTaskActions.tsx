@@ -110,7 +110,7 @@ export function ScheduledTaskActions({
         >
           <Pencil className="size-3.5" />
         </Button>
-        <DeleteTaskControl task={task} onDeleted={onDeleted} />
+        <DeleteTaskControl task={task} {...(onDeleted === undefined ? {} : { onDeleted })} />
       </div>
       {error ? (
         <p

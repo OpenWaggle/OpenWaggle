@@ -33,12 +33,10 @@ function dispatch(payload: AgentEventPayload) {
   }
 }
 
-export function subscribeAgentEvents(listener: AgentEventListener): () => void {
+export function subscribeAgentEvents(listener: AgentEventListener) {
   listeners.add(listener)
-  // A stale or partial preload may lack the method; a later subscription tries again.
-  if (!unsubscribeBridge && typeof api.onAgentEvent === 'function') {
-    unsubscribeBridge = api.onAgentEvent(dispatch)
-  }
+  // The first listener opens the one bridge subscription; the last one to leave closes it.
+  unsubscribeBridge ??= api.onAgentEvent(dispatch)
   return () => {
     listeners.delete(listener)
     if (listeners.size > 0 || !unsubscribeBridge) return
@@ -55,10 +53,9 @@ export function agentEventBridgeSubscriptionCount() {
 
 /**
  * Tells the main process which Sessions this window shows: their streamed deltas arrive about 30
- * times a second, other Sessions' merged on a slower beat (D8). Best effort: a preload without
- * the method, or a failed call, leaves every Session at the faster beat.
+ * times a second, other Sessions' merged on a slower beat (D8). Best effort: a failed call
+ * leaves every Session at the faster beat.
  */
 export function declareShownSessions(sessionIds: readonly SessionId[]) {
-  if (typeof api.setShownSessions !== 'function') return
   void api.setShownSessions(sessionIds).catch(() => undefined)
 }

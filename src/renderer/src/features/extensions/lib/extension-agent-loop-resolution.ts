@@ -6,6 +6,7 @@ import type {
   ExtensionContributionRuntime,
   ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
+import { isBlockedExtensionEntry } from './extension-entry-eligibility'
 
 export type ExtensionAgentLoopSurfaceKind =
   | 'tool'
@@ -76,37 +77,6 @@ function includesDeclaredMatch(
   )
 }
 
-function disabledForRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const disabledProjectPaths = new Set(entry.eligibility.disabledProjectPaths)
-  return requestedProjectPaths.some((projectPath) => disabledProjectPaths.has(projectPath))
-}
-
-function missingRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const availableProjectPaths = new Set(entry.projectPaths)
-  return requestedProjectPaths.some((projectPath) => !availableProjectPaths.has(projectPath))
-}
-
-function isBlockedEntry(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  return (
-    !entry.eligibility.runtimeEnabled ||
-    !entry.eligibility.enabled ||
-    !entry.eligibility.trusted ||
-    entry.eligibility.sdkCompatible === false ||
-    entry.eligibility.updateAvailable ||
-    disabledForRequestedProject(entry, requestedProjectPaths) ||
-    missingRequestedProject(entry, requestedProjectPaths)
-  )
-}
-
 export function extensionAgentLoopEntryMatchesTarget(
   entry: ExtensionContributionRegistryEntry,
   target: ExtensionAgentLoopTarget,
@@ -155,9 +125,7 @@ function candidateEntries(
   )
 }
 
-function resolvedContributionFromEntry(
-  entry: ExtensionContributionRegistryEntry,
-): ResolvedExtensionAgentLoopContribution | null {
+function resolvedContributionFromEntry(entry: ExtensionContributionRegistryEntry) {
   if (!entry.runtime || !entry.execution || !entry.entryPath) {
     return null
   }
@@ -170,30 +138,30 @@ function resolvedContributionFromEntry(
   }
 }
 
-function notFoundResolution(): ExtensionAgentLoopResolution {
+function notFoundResolution() {
   return {
     status: 'not-found',
     title: 'Extension renderer not available',
     message: 'No registered extension renderer matches this agent-loop surface.',
-  }
+  } satisfies ExtensionAgentLoopResolution
 }
 
-function blockedResolution(): ExtensionAgentLoopResolution {
+function blockedResolution() {
   return {
     status: 'blocked',
     title: 'Extension renderer blocked',
     message:
       'This renderer is disabled, untrusted, SDK-incompatible, pending update approval, or outside the active project scope.',
-  }
+  } satisfies ExtensionAgentLoopResolution
 }
 
-function invalidResolution(): ExtensionAgentLoopResolution {
+function invalidResolution() {
   return {
     status: 'invalid',
     title: 'Extension renderer incomplete',
     message:
       'The renderer contribution is missing its runtime, execution placement, or entry path.',
-  }
+  } satisfies ExtensionAgentLoopResolution
 }
 
 export function resolveExtensionAgentLoopContribution({
@@ -204,13 +172,13 @@ export function resolveExtensionAgentLoopContribution({
   readonly registry: ExtensionContributionRegistryView
   readonly target: ExtensionAgentLoopTarget
   readonly requestedProjectPaths: readonly string[]
-}): ExtensionAgentLoopResolution {
+}) {
   const candidates = candidateEntries(registry, target)
   let firstBlocked: ExtensionAgentLoopResolution | null = null
   let firstInvalid: ExtensionAgentLoopResolution | null = null
 
   for (const entry of candidates) {
-    if (isBlockedEntry(entry, requestedProjectPaths)) {
+    if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
       firstBlocked ??= blockedResolution()
       continue
     }
@@ -224,10 +192,12 @@ export function resolveExtensionAgentLoopContribution({
     return {
       status: 'available',
       contribution,
-    }
+    } satisfies ExtensionAgentLoopResolution
   }
 
-  return firstInvalid ?? firstBlocked ?? notFoundResolution()
+  return (firstInvalid ??
+    firstBlocked ??
+    notFoundResolution()) satisfies ExtensionAgentLoopResolution
 }
 
 export function resolveExtensionAgentLoopContributionEntries({
@@ -240,7 +210,7 @@ export function resolveExtensionAgentLoopContributionEntries({
   readonly target: ExtensionAgentLoopTarget
   readonly requestedProjectPaths: readonly string[]
   readonly family: ExtensionContributionFamily
-}): readonly ResolvedExtensionAgentLoopContribution[] {
+}) {
   const contributions: ResolvedExtensionAgentLoopContribution[] = []
 
   for (const entry of registry.entries) {
@@ -248,7 +218,7 @@ export function resolveExtensionAgentLoopContributionEntries({
       continue
     }
 
-    if (isBlockedEntry(entry, requestedProjectPaths)) {
+    if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
       continue
     }
 

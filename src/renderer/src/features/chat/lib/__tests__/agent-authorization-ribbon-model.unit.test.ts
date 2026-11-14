@@ -30,19 +30,23 @@ const samplingKey: AgentAuthorizationScopeKey = {
  * `fromPartial` rather than a cast: these cases deliberately vary `kind` and `purpose`, which selects
  * a different member of the interaction union, and the repository forbids type assertions.
  */
-function interaction(overrides: Partial<AgentLoopInteraction> = {}): AgentLoopInteraction {
-  return fromPartial({
+function unscopedInteraction(overrides: Partial<AgentLoopInteraction> = {}) {
+  const interaction: AgentLoopInteraction = fromPartial({
     createdAt: 1,
     interactionId: 'i-1',
     kind: 'confirm',
     purpose: 'authorization',
     runId: 'run-1',
-    scopeKey: toolCallKey,
     sessionId: SESSION_ID,
     source: 'pi-ui',
     title: 'Allow?',
     ...overrides,
   })
+  return interaction
+}
+
+function interaction(overrides: Partial<AgentLoopInteraction> = {}) {
+  return unscopedInteraction({ scopeKey: toolCallKey, ...overrides })
 }
 
 describe('isAuthorizationRequest', () => {
@@ -58,7 +62,7 @@ describe('isAuthorizationRequest', () => {
   )
 
   it('rejects an authorization purpose with no key, since there is nothing to scope a grant to', () => {
-    expect(isAuthorizationRequest(interaction({ scopeKey: undefined }))).toBe(false)
+    expect(isAuthorizationRequest(unscopedInteraction())).toBe(false)
   })
 })
 

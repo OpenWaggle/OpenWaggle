@@ -84,8 +84,8 @@ export function parseSessionAgentCallerId(callerId: string) {
 export function rootSessionReachesEveryProject(input: {
   readonly isRoot: boolean
   readonly originCallerId: string
-  readonly liveProfileScope?: ReachScope | undefined
-  readonly snapshotScope?: ReachScope | undefined
+  readonly liveProfileScope?: ReachScope
+  readonly snapshotScope?: ReachScope
 }) {
   if (!input.isRoot) return false
   if (input.snapshotScope && input.snapshotScope.all !== true) return false

@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import { sessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
 import type { SessionControlRunLifecycleRepositoryShape } from '../ports/session-control-run-lifecycle-repository'
 import { markRunFailedAttention } from './sqlite-delegation-attention'
+import { revisionFollowUpOwedSql } from './sqlite-delegation-revision-owed'
 import { wakeMayReplaceResult } from './sqlite-delegation-wake-replacement'
 import {
   insertOrchestrationUpdate,
@@ -20,6 +21,8 @@ interface WorkerDelegationRow {
   readonly explicit_needs_attention: number
   /** Who stopped the settling Run, when a Session Control mutation did. */
   readonly interrupted_by_caller_id: string | null
+  /** 1 while a revision request newer than the settling Run is not queued yet. */
+  readonly revision_follow_up_owed: number
 }
 
 const SETTLING_STATES = ['working', 'waiting', 'revision_requested']
@@ -34,6 +37,9 @@ function settlesWithReply(
   contract: WorkerDelegationRow,
   settlement: { readonly sessionId: string; readonly runId: string },
 ) {
+  // The Run never saw the parent's feedback, so its reply is not the revision; the revision
+  // request about to be queued starts the Run that is (`revisionFollowUpOwedSql`).
+  if (contract.revision_follow_up_owed === 1) return Effect.succeed(false)
   if ([...SETTLING_STATES, 'needs_attention'].includes(contract.state)) return Effect.succeed(true)
   if (contract.state !== 'ready_for_review') return Effect.succeed(false)
   return wakeMayReplaceResult(sql, {
@@ -72,7 +78,8 @@ function loadWorkerDelegation(sql: SqlClient.SqlClient, sessionId: SessionId, ru
             )
       )) AS explicit_needs_attention,
       (SELECT runs.interrupted_by_caller_id FROM session_runs AS runs WHERE runs.id = ${runId})
-        AS interrupted_by_caller_id
+        AS interrupted_by_caller_id,
+      ${revisionFollowUpOwedSql(sql, runId)} AS revision_follow_up_owed
     FROM delegation_contracts AS contracts
     LEFT JOIN delegation_submissions AS submissions ON submissions.delegation_id = contracts.id
     WHERE contracts.child_session_id = ${sessionId}

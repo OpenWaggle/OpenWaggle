@@ -12,8 +12,14 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
 
-function summary(id: string, title = id): SessionSummary {
-  return { id: SessionId(id), title, projectPath: null, createdAt: 1, updatedAt: 2 }
+function summary(id: string, title = id) {
+  return {
+    id: SessionId(id),
+    title,
+    projectPath: null,
+    createdAt: 1,
+    updatedAt: 2,
+  } satisfies SessionSummary
 }
 
 function deferred<T>() {
@@ -196,6 +202,29 @@ describe('Session catalog targeted refresh', () => {
     await olderRefresh
 
     expect(useSessionStore.getState().sessions).toEqual([summary('raced-target', 'Newest title')])
+  })
+
+  it('requests the next page of ids only after the previous page answered', async () => {
+    const ids = Array.from({ length: 101 }, (_value, index) => SessionId(`many-${String(index)}`))
+    const firstPage = deferred<SessionSummary[]>()
+    apiMocks.listSessionsByIds
+      .mockReturnValueOnce(firstPage.promise)
+      .mockResolvedValueOnce([summary('many-100')])
+
+    const refresh = useSessionStore.getState().refreshCatalogSessions(ids)
+    await Promise.resolve()
+    // The Session Host reads these on one SQLite connection, so pages go one at a time.
+    expect(apiMocks.listSessionsByIds).toHaveBeenCalledTimes(1)
+    firstPage.resolve([summary('many-0')])
+    await refresh
+
+    expect(apiMocks.listSessionsByIds.mock.calls.map(([batch]) => batch.length)).toEqual([100, 1])
+    expect(
+      useSessionStore
+        .getState()
+        .sessions.map((session) => session.id)
+        .sort(),
+    ).toEqual(['many-0', 'many-100'])
   })
 
   it('settles a failed targeted refresh instead of floating its rejection', async () => {

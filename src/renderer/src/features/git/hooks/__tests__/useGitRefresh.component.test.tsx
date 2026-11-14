@@ -50,7 +50,9 @@ describe('useGitRefresh', () => {
         event: { type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 1 },
       }),
     )
-    act(() => vi.advanceTimersByTime(REFRESH_DELAY_MS))
+    act(() => {
+      vi.advanceTimersByTime(REFRESH_DELAY_MS)
+    })
 
     expect(refreshGitStatus).toHaveBeenCalledWith('/repo')
     expect(refreshGitBranches).toHaveBeenCalledWith('/repo')

@@ -28,8 +28,9 @@ describe('source-control CLI environment', () => {
   })
 
   it('authenticates one glab account through GITLAB_TOKEN', () => {
-    expect(
-      getSourceControlCliEnvForAccountToken('gitlab', 'git.acme.io', 'token').GITLAB_TOKEN,
-    ).toBe('token')
+    expect(getSourceControlCliEnvForAccountToken('gitlab', 'git.acme.io', 'token')).toHaveProperty(
+      'GITLAB_TOKEN',
+      'token',
+    )
   })
 })

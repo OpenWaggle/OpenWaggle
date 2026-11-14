@@ -9,14 +9,13 @@ vi.mock('../terminal-process-command', () => ({
   runTerminalProcessCommand: commands.run,
 }))
 
-const { installTerminalProcessKernelApi, resetTerminalProcessKernelApiForTests } = await import(
-  '../terminal-process-kernel-api'
-)
+const { installTerminalProcessKernelApi, resetTerminalProcessKernelApiForTests } =
+  await import('../terminal-process-kernel-api')
 const { readProcessMetadata } = await import('../terminal-process-probes')
 
 const PID = 42
 
-function kernelInfo(startedAt: string, ttyIdentity: string): TerminalKernelProcessInfo {
+function kernelInfo(startedAt: string, ttyIdentity: string) {
   return {
     pid: PID,
     startedAt,
@@ -26,7 +25,7 @@ function kernelInfo(startedAt: string, ttyIdentity: string): TerminalKernelProce
     ttyIdentity,
     zombie: false,
     name: 'zsh',
-  }
+  } satisfies TerminalKernelProcessInfo
 }
 
 function installObservations(...observations: readonly TerminalKernelProcessInfo[]) {
@@ -37,7 +36,7 @@ function installObservations(...observations: readonly TerminalKernelProcessInfo
     return observation === undefined ? [] : [observation]
   })
   const pty = fromPartial<typeof NodePtyModule>({})
-  Reflect.set(pty, 'native', { processInfos })
+  Object.assign(pty, { native: { processInfos } })
   installTerminalProcessKernelApi(pty)
   return processInfos
 }

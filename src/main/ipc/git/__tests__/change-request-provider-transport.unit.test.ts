@@ -14,9 +14,8 @@ vi.mock('../../../services/git/primary-remote', () => ({
   resolvePrimaryRemoteUrl: vi.fn(),
 }))
 
-const { resolveSourceControlProvider } = await import(
-  '../../../services/source-control/change-request-provider'
-)
+const { resolveSourceControlProvider } =
+  await import('../../../services/source-control/change-request-provider')
 
 describe('change-request provider transport safety', () => {
   beforeEach(() => {

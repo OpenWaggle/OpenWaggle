@@ -1,5 +1,5 @@
 import { homeDirectoryFromRendererArguments } from '@shared/home-directory-argument'
-import { invoke, on } from './ipc-bindings'
+import { invoke, on } from './electron-transport'
 
 const homeDirectory = homeDirectoryFromRendererArguments(process.argv)
 

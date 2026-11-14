@@ -20,7 +20,7 @@ export interface InlineVisualizationServiceShape {
     readonly workspaceRoots: readonly string[]
     /** Clients must not recover deletion tombstones owned by a different process. */
     readonly readOnly?: boolean
-  }) => EffectType<InlineVisualizationReadResult, never>
+  }) => EffectType<InlineVisualizationReadResult>
 }
 
 export class InlineVisualizationService extends Context.Tag(

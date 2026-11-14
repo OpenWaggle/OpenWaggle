@@ -9,7 +9,7 @@ export const ROOT_PID = 72_001
 export const CHILD_PID = 72_002
 export const CLOSED_TTY = 'openwaggle-definitely-closed-test-tty'
 
-export function row(pid: number, ppid: number, name: string): ProcessRow {
+export function row(pid: number, ppid: number, name: string) {
   return {
     pid,
     ppid,
@@ -21,7 +21,7 @@ export function row(pid: number, ppid: number, name: string): ProcessRow {
     zombie: false,
     startedAt: `start-${pid}`,
     name,
-  }
+  } satisfies ProcessRow
 }
 
 export function table(...rows: readonly ProcessRow[]) {
@@ -33,7 +33,7 @@ export function missingProcessError() {
 }
 
 export function makeSubject(processName: string) {
-  const exitListeners: Array<(event: { readonly exitCode: number }) => void> = []
+  const exitListeners: ((event: { readonly exitCode: number }) => void)[] = []
   let resolveTreeExit: () => void = () => undefined
   const kill = vi.fn<(signal?: string) => void>()
   const destroy = vi.fn<() => void>()
@@ -50,9 +50,9 @@ export function makeSubject(processName: string) {
       return { dispose: () => undefined }
     },
   })
-  Reflect.set(pty, '_socket', { destroy })
-  Reflect.set(pty, 'closeDescriptor', closeDescriptor)
-  Reflect.set(pty, 'destroy', publicDestroy)
+  Object.assign(pty, { _socket: { destroy } })
+  Object.assign(pty, { closeDescriptor: closeDescriptor })
+  Object.assign(pty, { destroy: publicDestroy })
   const exit = observeTerminalProcessExit(pty)
   const processTreeExit: LiveTerminalProcess['processTreeExit'] = {
     whenExited: new Promise<void>((resolve) => {

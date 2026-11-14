@@ -103,7 +103,7 @@ describe('transcript order when the Run start is lost', () => {
     const h = createScenarioHarness()
     await h.mount('other')
     h.loseNextStart()
-    await h.startRun('run-1', 'host prompt run-1')
+    h.startRun('run-1', 'host prompt run-1')
     await h.settle()
     h.dropHistory()
     for (const text of ['one', 'two', 'three']) {
@@ -126,7 +126,7 @@ describe('transcript order when the Run start is lost', () => {
   it('keeps the answers of a Run continuing with its start lost, opened before it streams again', async () => {
     const h = createScenarioHarness()
     await h.mount('other')
-    await h.startRun('run-1', 'host prompt run-1')
+    h.startRun('run-1', 'host prompt run-1')
     await h.settle()
     for (const text of ['one', 'two']) {
       await h.answer(text)
@@ -136,7 +136,7 @@ describe('transcript order when the Run start is lost', () => {
     await h.answer('three')
     await h.settle()
     h.loseNextStart()
-    await h.continueRun()
+    h.continueRun()
     await h.settle()
     await h.view('session')
     await h.settle()

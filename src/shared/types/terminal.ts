@@ -6,6 +6,13 @@
  * starts in that owner's Working path.
  */
 
+import type { SchemaType } from '@shared/schema'
+import type {
+  terminalInputIdentitySchema,
+  terminalInputIntentSchema,
+  terminalOpenInputSchema,
+} from '@shared/schemas/terminal-requests'
+
 /**
  * Owner of a terminal group: a durable session id, or a draft key
  * (`draft:<projectPath>`) while the session has not been created by first send.
@@ -20,42 +27,12 @@ export const TERMINAL_KEY_SEPARATOR = '::'
 /** Stable identity of one terminal across restarts: `<ownerKey>::<terminalId>`. */
 export type TerminalKey = string
 
-/** Input that (re)opens a terminal. Idempotent: same launch context reuses the live shell. */
-export interface TerminalOpenInput {
-  readonly ownerKey: TerminalOwnerKey
-  readonly terminalId: TerminalId
-  /** Absolute working path the shell starts in — the owner's Working path. */
-  readonly cwd: string
-  readonly cols: number
-  readonly rows: number
-  /**
-   * Explicit launch environment layered over a fresh inferred user shell
-   * environment. Omission preserves a terminal record's current overrides;
-   * an object, including `{}`, is a new launch context.
-   */
-  readonly env?: Readonly<Record<string, string>>
-  /**
-   * Renderer-runtime nonce for the ordered input stream. Re-attaches with a
-   * new nonce revoke late writes from an older renderer while restarts keep
-   * the same nonce and therefore preserve accepted startup input.
-   */
-  readonly inputGeneration?: string
-}
+/** Input that (re)opens a terminal; see `terminalOpenInputSchema`. */
+export type TerminalOpenInput = SchemaType<typeof terminalOpenInputSchema>
 
-/** Idempotency identity for one ordered renderer-to-terminal input chunk. */
-export interface TerminalInputIdentity {
-  readonly generation: string
-  readonly sequence: number
-  /** Native record identity from attach; prevents late writes reaching a recreated terminal. */
-  readonly incarnation?: string
-}
+export type TerminalInputIdentity = SchemaType<typeof terminalInputIdentitySchema>
 
-/** Semantic intent carried with an ordered input item when it needs main-process arbitration. */
-export type TerminalInputIntent = {
-  readonly kind: 'project-action'
-  /** Unique logical execution id; retries must retain this exact value. */
-  readonly executionId: string
-}
+export type TerminalInputIntent = SchemaType<typeof terminalInputIntentSchema>
 
 export type TerminalReadinessPhase = 'spawning' | 'awaiting-prompt' | 'ready'
 
@@ -215,7 +192,7 @@ export type TerminalCloseAssessment =
       readonly ports: readonly number[]
     }
 
-export function terminalKeyOf(ownerKey: TerminalOwnerKey, terminalId: TerminalId): TerminalKey {
+export function terminalKeyOf(ownerKey: TerminalOwnerKey, terminalId: TerminalId) {
   if (terminalId.includes(TERMINAL_KEY_SEPARATOR)) {
     throw new Error(`Terminal ids cannot contain "${TERMINAL_KEY_SEPARATOR}".`)
   }

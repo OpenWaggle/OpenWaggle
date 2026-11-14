@@ -135,11 +135,8 @@ function terminalPaneProcessName(
   return activity[runtimeKeyOf(runtimeOwnerKey, terminalId)]?.trim() || 'Shell'
 }
 
-function paneProvenance(
-  pane: TerminalPaneState,
-  model: TerminalPaneGridProps['model'],
-): TerminalContextProvenance {
-  return pane.cwd === model.defaultCwd ? model.defaultProvenance : 'original-checkout'
+function paneProvenance(pane: TerminalPaneState, model: TerminalPaneGridProps['model']) {
+  return pane.cwd === model.defaultCwd ? model.defaultProvenance : ('original-checkout' as const)
 }
 
 const PROVENANCE_LABELS: Readonly<Record<TerminalContextProvenance, string>> = {

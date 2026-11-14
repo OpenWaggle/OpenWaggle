@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
-import { Schema, safeDecodeUnknown } from '@shared/schema'
+import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
-import type { MessagePart, MessageScheduledTaskOrigin } from '@shared/types/agent'
+import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
 import { boundedAttachmentText } from '@shared/utils/attachment-text'
 import {
   buildPersistedUserMessageParts,
@@ -31,23 +31,25 @@ const userInputProjectionSchema = Schema.Struct({
       Schema.Struct({ type: Schema.Literal('attachment'), attachment: projectedAttachmentSchema }),
     ),
   ),
-  durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
+  durableTextSha256: Schema.optionalWith(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)), {
+    exact: true,
+  }),
   /** The Scheduled task whose run sent this message, recorded by the Host (ADR 0057). */
-  scheduledTask: Schema.optional(messageScheduledTaskOriginSchema),
+  scheduledTask: Schema.optionalWith(messageScheduledTaskOriginSchema, { exact: true }),
 })
 
-type ProjectionSession = {
+interface ProjectionSession {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'appendCustomEntry'>
   readonly subscribe: AgentSession['subscribe']
 }
 type SessionEvent = Parameters<Parameters<AgentSession['subscribe']>[0]>[0]
-type PendingProjection = {
+interface PendingProjection {
   readonly payload: PersistedUserMessagePartsPayload
   readonly scheduledTask?: MessageScheduledTaskOrigin
   readonly signal?: AbortSignal
   cancel: () => void
 }
-type ProjectionQueue = {
+interface ProjectionQueue {
   readonly pending: PendingProjection[]
   stop: () => void
 }
@@ -122,7 +124,7 @@ export function enqueueUserInputProjection(
   const pending: PendingProjection = {
     payload,
     ...(scheduledTask ? { scheduledTask } : {}),
-    signal,
+    ...(signal ? { signal } : {}),
     cancel: () => {
       const index = queue.pending.indexOf(pending)
       if (index < 0) return
@@ -137,16 +139,20 @@ export function enqueueUserInputProjection(
   return pending.cancel
 }
 
-function boundedPart(part: MessagePart): MessagePart {
-  return part.type === 'attachment'
-    ? {
-        ...part,
-        attachment: {
-          ...part.attachment,
-          extractedText: boundedAttachmentText(part.attachment.extractedText),
-        },
-      }
-    : part
+type ProjectedUserPart = SchemaType<typeof userInputProjectionSchema>['parts'][number]
+
+function boundedPart(part: ProjectedUserPart) {
+  const result: ProjectedUserPart =
+    part.type === 'attachment'
+      ? {
+          ...part,
+          attachment: {
+            ...part.attachment,
+            extractedText: boundedAttachmentText(part.attachment.extractedText),
+          },
+        }
+      : part
+  return result
 }
 
 function decodeProjection(value: unknown) {
@@ -154,8 +160,9 @@ function decodeProjection(value: unknown) {
   return decoded.success ? { ...decoded.data, parts: decoded.data.parts.map(boundedPart) } : null
 }
 
-export function decodeUserInputProjection(value: unknown): readonly MessagePart[] | null {
-  return decodeProjection(value)?.parts ?? null
+export function decodeUserInputProjection(value: unknown) {
+  const part: readonly ProjectedUserPart[] | null = decodeProjection(value)?.parts ?? null
+  return part
 }
 
 /**

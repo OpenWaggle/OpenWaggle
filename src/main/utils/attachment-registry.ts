@@ -39,8 +39,11 @@ function normalizeCapabilityPath(filePath: string) {
   return path.normalize(filePath)
 }
 
-function compactAttachment(attachment: PreparedAttachment): PreparedAttachment {
-  return { ...toPublicPreparedAttachment(attachment), extractedText: '' }
+function compactAttachment(attachment: PreparedAttachment) {
+  return {
+    ...toPublicPreparedAttachment(attachment),
+    extractedText: '',
+  } satisfies PreparedAttachment
 }
 
 function sameOptionalValue(left: string | undefined, right: string | undefined) {
@@ -133,7 +136,7 @@ function persistRegistry() {
   return writeQueue
 }
 
-export function configurePreparedAttachmentRegistry(userDataPath: string): void {
+export function configurePreparedAttachmentRegistry(userDataPath: string) {
   const nextFilePath = path.join(userDataPath, REGISTRY_FILE_NAME)
   if (registryFilePath === nextFilePath) return
   preparedAttachments.clear()
@@ -142,10 +145,7 @@ export function configurePreparedAttachmentRegistry(userDataPath: string): void 
   writeQueue = Promise.resolve()
 }
 
-export async function rememberPreparedAttachment(
-  attachment: PreparedAttachment,
-  realPath: string,
-): Promise<void> {
+export async function rememberPreparedAttachment(attachment: PreparedAttachment, realPath: string) {
   await ensureRegistryLoaded()
   const normalizedRealPath = normalizeCapabilityPath(await fs.realpath(realPath))
   const publicAttachment = toPublicPreparedAttachment(attachment)
@@ -157,7 +157,7 @@ export async function rememberPreparedAttachment(
   await persistRegistry()
 }
 
-export async function forgetPreparedAttachment(attachment: PreparedAttachment): Promise<boolean> {
+export async function forgetPreparedAttachment(attachment: PreparedAttachment) {
   await ensureRegistryLoaded()
   const capability = preparedAttachments.get(attachment.id)
   if (!capability) return false
@@ -178,16 +178,7 @@ export async function forgetPreparedAttachment(attachment: PreparedAttachment): 
   }
 }
 
-export async function findPreparedAttachmentCapability(id: string): Promise<PreparedAttachment> {
-  await ensureRegistryLoaded()
-  const capability = preparedAttachments.get(id)
-  if (!capability) throw new Error(`Attachment was not prepared by this app: ${id}`)
-  return capability.attachment
-}
-
-export async function resolvePreparedAttachmentCapability(
-  attachment: PreparedAttachment,
-): Promise<PreparedAttachment> {
+export async function resolvePreparedAttachmentCapability(attachment: PreparedAttachment) {
   await ensureRegistryLoaded()
   const capability = preparedAttachments.get(attachment.id)
   if (!capability) {
@@ -207,7 +198,7 @@ export async function resolvePreparedAttachmentCapability(
   return prepared
 }
 
-export function resetPreparedAttachmentRegistryForTests(): void {
+export function resetPreparedAttachmentRegistryForTests() {
   preparedAttachments.clear()
   registryFilePath = null
   loadPromise = null

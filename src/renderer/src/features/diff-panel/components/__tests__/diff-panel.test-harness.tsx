@@ -101,7 +101,7 @@ export function fileDiff(path = 'src/app.ts') {
   return { path, diff: SAMPLE_DIFF, additions: 1, deletions: 1 } satisfies GitFileDiff
 }
 
-export function gitStatus(changedFiles: GitStatusSummary['changedFiles']): GitStatusSummary {
+export function gitStatus(changedFiles: GitStatusSummary['changedFiles']) {
   return {
     branch: 'main',
     additions: 1,
@@ -111,5 +111,5 @@ export function gitStatus(changedFiles: GitStatusSummary['changedFiles']): GitSt
     clean: changedFiles.length === 0,
     ahead: 0,
     behind: 0,
-  }
+  } satisfies GitStatusSummary
 }

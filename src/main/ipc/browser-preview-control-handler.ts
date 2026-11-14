@@ -11,11 +11,10 @@ import {
 import { browserPreviewRecordingRequestResponseSchema } from '@shared/schemas/browser-preview-recording-request'
 import * as Effect from 'effect/Effect'
 import type { Schema as EffectSchema } from 'effect/Schema'
-import { browserPreviewManager } from '../browser-preview'
-import { browserPreviewRecordingRequestBroker } from '../browser-preview-recording-request-broker'
+import { browserPreviewViews } from '../desktop-shell/browser-preview-views'
 import { typedHandle } from './typed-ipc'
 
-function decode<T, I>(schema: EffectSchema<T, I, never>, value: unknown) {
+function decode<T, I>(schema: EffectSchema<T, I>, value: unknown) {
   const decoded = safeDecodeUnknown(schema, value)
   return decoded.success
     ? Effect.succeed(decoded.data)
@@ -26,7 +25,7 @@ function registerBrowserPreviewDisplayControlHandlers() {
   typedHandle('browser-preview:respond-recording-request', (event, response: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decode(browserPreviewRecordingRequestResponseSchema, response)
-      yield* Effect.sync(() => browserPreviewRecordingRequestBroker.respond(event.sender, decoded))
+      yield* Effect.sync(() => browserPreviewViews.respondToRecordingRequest(event.sender, decoded))
     }),
   )
 
@@ -37,7 +36,7 @@ function registerBrowserPreviewDisplayControlHandlers() {
         viewport,
       ])
       return yield* Effect.sync(() =>
-        browserPreviewManager.setViewport(event.sender, id, decodedViewport),
+        browserPreviewViews.setViewport(event.sender, id, decodedViewport),
       )
     }),
   )
@@ -45,7 +44,7 @@ function registerBrowserPreviewDisplayControlHandlers() {
   typedHandle('browser-preview:hard-reload', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.sync(() => browserPreviewManager.hardReload(event.sender, id))
+      return yield* Effect.sync(() => browserPreviewViews.hardReload(event.sender, id))
     }),
   )
 
@@ -56,7 +55,7 @@ function registerBrowserPreviewDisplayControlHandlers() {
         appearance,
       ])
       return yield* Effect.tryPromise(() =>
-        browserPreviewManager.setAppearance(event.sender, id, decodedAppearance),
+        browserPreviewViews.setAppearance(event.sender, id, decodedAppearance),
       )
     }),
   )
@@ -68,7 +67,7 @@ function registerBrowserPreviewDisplayControlHandlers() {
         audioMuted,
       ])
       return yield* Effect.sync(() =>
-        browserPreviewManager.setAudioMuted(event.sender, id, decodedAudioMuted),
+        browserPreviewViews.setAudioMuted(event.sender, id, decodedAudioMuted),
       )
     }),
   )
@@ -82,7 +81,7 @@ function registerBrowserPreviewDisplayControlHandlers() {
           [input, replacedPreviewId],
         )
         return yield* Effect.sync(() =>
-          browserPreviewManager.replaceForCapacity(
+          browserPreviewViews.replaceForCapacity(
             event.sender,
             decodedInput,
             decodedReplacedPreviewId,
@@ -94,21 +93,21 @@ function registerBrowserPreviewDisplayControlHandlers() {
   typedHandle('browser-preview:open-devtools', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      yield* Effect.tryPromise(() => browserPreviewManager.openDevTools(event.sender, id))
+      yield* Effect.tryPromise(() => browserPreviewViews.openDevTools(event.sender, id))
     }),
   )
 
   typedHandle('browser-preview:clear-cookies', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      yield* Effect.tryPromise(() => browserPreviewManager.clearCookies(event.sender, id))
+      yield* Effect.tryPromise(() => browserPreviewViews.clearCookies(event.sender, id))
     }),
   )
 
   typedHandle('browser-preview:clear-cache', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      yield* Effect.tryPromise(() => browserPreviewManager.clearCache(event.sender, id))
+      yield* Effect.tryPromise(() => browserPreviewViews.clearCache(event.sender, id))
     }),
   )
 }
@@ -117,34 +116,28 @@ function registerBrowserPreviewCaptureControlHandlers() {
   typedHandle('browser-preview:capture-screenshot', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.tryPromise(() =>
-        browserPreviewManager.captureScreenshot(event.sender, id),
-      )
+      return yield* Effect.tryPromise(() => browserPreviewViews.captureScreenshot(event.sender, id))
     }),
   )
 
   typedHandle('browser-preview:reveal-artifact', (event, artifactPath: unknown) =>
     Effect.gen(function* () {
       const decodedPath = yield* decode(browserPreviewArtifactPathSchema, artifactPath)
-      yield* Effect.tryPromise(() =>
-        browserPreviewManager.revealArtifact(event.sender, decodedPath),
-      )
+      yield* Effect.tryPromise(() => browserPreviewViews.revealArtifact(event.sender, decodedPath))
     }),
   )
 
   typedHandle('browser-preview:copy-screenshot', (event, artifactPath: unknown) =>
     Effect.gen(function* () {
       const decodedPath = yield* decode(browserPreviewArtifactPathSchema, artifactPath)
-      yield* Effect.tryPromise(() =>
-        browserPreviewManager.copyScreenshot(event.sender, decodedPath),
-      )
+      yield* Effect.tryPromise(() => browserPreviewViews.copyScreenshot(event.sender, decodedPath))
     }),
   )
 
   typedHandle('browser-preview:start-recording', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.tryPromise(() => browserPreviewManager.startRecording(event.sender, id))
+      return yield* Effect.tryPromise(() => browserPreviewViews.startRecording(event.sender, id))
     }),
   )
 
@@ -152,7 +145,7 @@ function registerBrowserPreviewCaptureControlHandlers() {
     Effect.gen(function* () {
       const decoded = yield* decode(browserPreviewRecordingInputSchema, input)
       return yield* Effect.tryPromise(() =>
-        browserPreviewManager.saveRecording(event.sender, decoded),
+        browserPreviewViews.saveRecording(event.sender, decoded),
       )
     }),
   )
@@ -160,21 +153,21 @@ function registerBrowserPreviewCaptureControlHandlers() {
   typedHandle('browser-preview:stop-recording', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      yield* Effect.sync(() => browserPreviewManager.stopRecording(event.sender, id))
+      yield* Effect.sync(() => browserPreviewViews.stopRecording(event.sender, id))
     }),
   )
 
   typedHandle('browser-preview:pick-element', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.tryPromise(() => browserPreviewManager.pickElement(event.sender, id))
+      return yield* Effect.tryPromise(() => browserPreviewViews.pickElement(event.sender, id))
     }),
   )
 
   typedHandle('browser-preview:cancel-pick-element', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      yield* Effect.tryPromise(() => browserPreviewManager.cancelPickElement(event.sender, id))
+      yield* Effect.tryPromise(() => browserPreviewViews.cancelPickElement(event.sender, id))
     }),
   )
 
@@ -182,7 +175,7 @@ function registerBrowserPreviewCaptureControlHandlers() {
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
       return yield* Effect.tryPromise(() =>
-        browserPreviewManager.openPictureInPicture(event.sender, id),
+        browserPreviewViews.openPictureInPicture(event.sender, id),
       )
     }),
   )
@@ -190,12 +183,12 @@ function registerBrowserPreviewCaptureControlHandlers() {
   typedHandle('browser-preview:close-picture-in-picture', (event, previewId: unknown) =>
     Effect.gen(function* () {
       const id = yield* decode(browserPreviewIdSchema, previewId)
-      return yield* Effect.sync(() => browserPreviewManager.closePictureInPicture(event.sender, id))
+      return yield* Effect.sync(() => browserPreviewViews.closePictureInPicture(event.sender, id))
     }),
   )
 }
 
-export function registerBrowserPreviewControlHandlers(): void {
+export function registerBrowserPreviewControlHandlers() {
   registerBrowserPreviewDisplayControlHandlers()
   registerBrowserPreviewCaptureControlHandlers()
 }

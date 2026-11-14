@@ -25,8 +25,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function sessionDetail(id: string, projectPath: string): SessionDetail {
-  return {
+function sessionDetail(id: string, projectPath: string) {
+  const detail: SessionDetail = {
     id: SessionId(id),
     title: `Session ${id}`,
     projectPath,
@@ -34,6 +34,7 @@ function sessionDetail(id: string, projectPath: string): SessionDetail {
     createdAt: 1,
     updatedAt: 2,
   }
+  return detail
 }
 
 describe('useChatRouteEffects', () => {

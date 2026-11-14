@@ -45,13 +45,13 @@ function isNodePtyModule(value: unknown): value is NodePtyModule {
   )
 }
 
-function moduleLoader(moduleRoot: string | undefined): NativeModuleLoader {
+function moduleLoader(moduleRoot: string | undefined) {
   if (!moduleRoot) return localRequire
   const rootRequire = createRequire(path.join(path.resolve(moduleRoot), 'package.json'))
-  return (moduleName) => {
+  return ((moduleName) => {
     const loaded: unknown = rootRequire(moduleName)
     return loaded
-  }
+  }) satisfies NativeModuleLoader
 }
 
 function assertUnixNativeContract(native: unknown) {
@@ -102,7 +102,9 @@ export async function assertNativeModulesLoad(
 async function main() {
   const mode = process.argv[MODE_ARG_INDEX]
   if (!isRebuildMode(mode)) {
-    throw new Error('Usage: native-load-probe.ts <node|electron> [module-root] [console-executable] [runtime|all-backends]')
+    throw new Error(
+      'Usage: native-load-probe.ts <node|electron> [module-root] [console-executable] [runtime|all-backends]',
+    )
   }
   await assertNativeModulesLoad(
     mode,

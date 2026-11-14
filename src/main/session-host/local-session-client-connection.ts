@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import net, { type Socket } from 'node:net'
+import { Schema } from '@shared/schema'
 import { decodeLocalSessionNegotiationResult } from '@shared/schemas/local-session-protocol'
 import type { LocalSessionProfileAuthority } from '@shared/types/local-session-profile'
 import {
@@ -34,9 +35,16 @@ export class LocalSessionHostConnectionClosedError extends Error {
   }
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/** A reader failure handed to the waiting `next`, which rejects with its error. */
+class ReaderFailure {
+  readonly error: Error
+
+  constructor(error: Error) {
+    this.error = error
+  }
 }
+
+const errorFrameKindSchema = Schema.Struct({ kind: Schema.Literal('error') })
 
 export class LocalSessionFrameReader {
   private readonly decoder = new LocalSessionFrameDecoder()
@@ -44,7 +52,10 @@ export class LocalSessionFrameReader {
   private waiter: ((value: unknown) => void) | null = null
   private failure: Error | null = null
 
-  constructor(private readonly socket: Socket) {
+  private readonly socket: Socket
+
+  constructor(socket: Socket) {
+    this.socket = socket
     socket.pause()
     socket.on('data', (chunk) => {
       try {
@@ -75,13 +86,13 @@ export class LocalSessionFrameReader {
     if (!this.waiter) return
     const waiter = this.waiter
     this.waiter = null
-    waiter({ kind: '__client-error', error })
+    waiter(new ReaderFailure(error))
   }
 
-  async next(timeoutMs?: number): Promise<unknown> {
+  async next(timeoutMs?: number) {
     if (this.pending.length > 0) return this.pending.shift()
     if (this.failure) throw this.failure
-    return new Promise((resolve, reject) => {
+    return new Promise<unknown>((resolve, reject) => {
       const timer =
         timeoutMs === undefined
           ? undefined
@@ -94,7 +105,7 @@ export class LocalSessionFrameReader {
             }, timeoutMs)
       this.waiter = (value) => {
         if (timer) clearTimeout(timer)
-        if (isRecord(value) && value.kind === '__client-error' && value.error instanceof Error) {
+        if (value instanceof ReaderFailure) {
           reject(value.error)
           return
         }
@@ -109,9 +120,11 @@ export class LocalSessionFrameReader {
   }
 }
 
+export type LocalSessionClientKind = 'gui' | 'cli' | 'mcp' | 'internal'
+
 export interface LocalSessionClientConnectionInput {
   readonly paths: LocalSessionHostPaths
-  readonly clientKind?: 'gui' | 'cli' | 'mcp' | 'internal'
+  readonly clientKind?: LocalSessionClientKind
   readonly clientVersion: string
   readonly workingDirectory?: string
   readonly profile?: string
@@ -134,11 +147,11 @@ export interface ResolvedLocalSessionClientAuthentication {
 export async function resolveLocalSessionClientAuthentication(
   input: Pick<LocalSessionClientConnectionInput, 'paths' | 'profile' | 'profileCredential'>,
   readLocalUserCredential: (path: string) => Promise<string> = (path) => readFile(path, 'utf8'),
-): Promise<ResolvedLocalSessionClientAuthentication> {
+) {
   if (input.profile !== undefined) {
     if (input.profile.length === 0) throw new Error('A Local Session profile name is required.')
     if (!input.profileCredential) throw new Error('A Local Session credential is required.')
-    return {
+    const authentication: ResolvedLocalSessionClientAuthentication = {
       credential: input.profileCredential,
       ...(isWindowsPipe(input.paths.endpoint)
         ? {
@@ -149,13 +162,15 @@ export async function resolveLocalSessionClientAuthentication(
           }
         : {}),
     }
+    return authentication
   }
   const credential = (await readLocalUserCredential(input.paths.credentialPath)).trim()
   if (!credential) throw new Error('A Local Session credential is required.')
-  return {
+  const authentication: ResolvedLocalSessionClientAuthentication = {
     credential,
     ...(isWindowsPipe(input.paths.endpoint) ? { serverAuthentication: { credential } } : {}),
   }
+  return authentication
 }
 
 export async function authenticateLocalSessionServer(input: {
@@ -215,7 +230,7 @@ export async function openLocalSessionConnection(input: LocalSessionClientConnec
       credential: authentication.credential,
     })
     const negotiationFrame = await reader.next(timeoutMs)
-    if (isRecord(negotiationFrame) && negotiationFrame.kind === 'error') {
+    if (Schema.is(errorFrameKindSchema)(negotiationFrame)) {
       throw localSessionClientProtocolError(
         negotiationFrame,
         'Local Session authentication failed.',

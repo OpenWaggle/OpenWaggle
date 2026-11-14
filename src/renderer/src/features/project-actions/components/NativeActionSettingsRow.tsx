@@ -21,7 +21,8 @@ export function NativeActionSettingsRow({
 }: {
   readonly entry: EffectiveDefinition<ActionDefinition>
   readonly busy: boolean
-  readonly unavailable?: string
+  /** Why the action cannot run here, or undefined when it can. */
+  readonly unavailable: string | undefined
   /** A same-named action exists; or this row was just saved from the action panel. */
   readonly status: { readonly duplicate: boolean; readonly highlighted: boolean }
   readonly onEdit: () => void

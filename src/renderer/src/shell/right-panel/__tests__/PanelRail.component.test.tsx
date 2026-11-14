@@ -9,7 +9,7 @@ function entry(
   id: RightPanelSurfaceId,
   icon: typeof LayoutGrid,
   overrides: Partial<RightPanelSurfaceEntry> = {},
-): RightPanelSurfaceEntry {
+) {
   return {
     id,
     title: id,
@@ -25,10 +25,10 @@ function entry(
     running: false,
     attention: false,
     ...overrides,
-  }
+  } satisfies RightPanelSurfaceEntry
 }
 
-function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
+function model(overrides: Partial<RightPanelModel> = {}) {
   const allPanels = entry('all-panels', LayoutGrid, { title: 'All panels', group: null })
   const changes = entry('changes', GitCompare, { title: 'Changes', shortcutLabel: '⌘D' })
   const actions = entry('project-actions', Play, { title: 'Project Actions', running: true })
@@ -36,7 +36,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     title: 'Browser',
     disabledReason: 'Open a project first',
   })
-  return {
+  const result: RightPanelModel = {
     ownerKey: 'session-1',
     sessionKey: 'session-1',
     projectPath: '/repo',
@@ -50,6 +50,7 @@ function model(overrides: Partial<RightPanelModel> = {}): RightPanelModel {
     extensionRegistrySettled: true,
     ...overrides,
   }
+  return result
 }
 
 function renderRail(input: Partial<RightPanelModel> = {}) {
@@ -156,7 +157,9 @@ describe('PanelRail', () => {
     actionsButton.setPointerCapture = vi.fn()
 
     fireEvent.pointerDown(actionsButton, { button: 0, clientY: 90, pointerId: 1 })
-    act(() => vi.advanceTimersByTime(400))
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
     fireEvent.pointerMove(actionsButton, { clientY: 45, pointerId: 1 })
     fireEvent.pointerUp(actionsButton, { clientY: 45, pointerId: 1 })
     fireEvent.click(actionsButton)
@@ -172,7 +175,9 @@ describe('PanelRail', () => {
     const actions = renderRail()
     const button = screen.getByRole('button', { name: 'Changes (⌘D)' })
     fireEvent.pointerDown(button, { button: 0, clientY: 50, pointerId: 1 })
-    act(() => vi.advanceTimersByTime(100))
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
     fireEvent.pointerUp(button, { clientY: 50, pointerId: 1 })
     fireEvent.click(button)
     expect(actions.move).not.toHaveBeenCalled()
@@ -255,7 +260,9 @@ describe('PanelRail', () => {
     button.setPointerCapture = vi.fn()
 
     fireEvent.pointerDown(button, { button: 0, clientY: 90, pointerId: 1 })
-    act(() => vi.advanceTimersByTime(400))
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
     fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.pointerUp(button, { clientY: 45, pointerId: 1 })
     // The press that Escape cancelled still ends in a click, which must not open the icon.
@@ -264,7 +271,9 @@ describe('PanelRail', () => {
     expect(actions.toggleSurface).not.toHaveBeenCalled()
 
     fireEvent.pointerDown(button, { button: 0, clientY: 90, pointerId: 2 })
-    act(() => vi.advanceTimersByTime(400))
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
     fireEvent.pointerCancel(button, { pointerId: 2 })
     fireEvent.click(button)
     expect(actions.toggleSurface).toHaveBeenCalledWith('project-actions')

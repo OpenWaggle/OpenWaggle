@@ -6,6 +6,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSessionManagerForSession, piSessionDirectoryFor } from '../session-manager'
+import { piSessionFileField } from '../pi-session-file-field'
 
 const USAGE = {
   input: 1,
@@ -53,12 +54,12 @@ afterEach(async () => {
  * The Session as preparation records it: Pi session id and the file of a manager created in the
  * opened checkout. Pi writes a file only on the first assistant message, so that file never exists.
  */
-function preparedSession(): SessionDetail {
+function preparedSession() {
   const prepared = SessionManager.create(projectPath)
   return fromPartial<SessionDetail>({
     messages: [],
     piSessionId: prepared.getSessionId(),
-    piSessionFile: prepared.getSessionFile(),
+    ...piSessionFileField(prepared.getSessionFile()),
   })
 }
 

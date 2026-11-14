@@ -53,10 +53,7 @@ interface RecordedEmbeddingProcess {
 }
 
 /** The real embedding child, with its process handle and how it ended recorded. */
-function recordedEmbeddingProcess(
-  transformersPath: string,
-  idleExitMs?: number,
-): RecordedEmbeddingProcess {
+function recordedEmbeddingProcess(transformersPath: string, idleExitMs?: number) {
   const children: ChildProcess[] = []
   const exits: RecordedEmbeddingProcess['exits'] = []
   const embedding = new SessionEmbeddingProcess(

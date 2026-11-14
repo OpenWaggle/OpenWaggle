@@ -3,6 +3,7 @@ import * as Fiber from 'effect/Fiber'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mocks, resetProfileAccessMocks } from './profile-access-handler.harness'
+import { required } from '../../test-support/required'
 
 const { registerProfileAccessHandlers } = await import('../profile-access-handler')
 
@@ -11,7 +12,7 @@ describe('profile access IPC', () => {
 
   it('routes profile management through the authoritative Session Host', async () => {
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     await Effect.runPromise(handler({}, { operation: 'list' }))
 
@@ -30,7 +31,7 @@ describe('profile access IPC', () => {
   it('preserves a staged create credential when the Host outcome is unknown', async () => {
     mocks.dispatch.mockReturnValue(Effect.fail(new Error(`Lost response: ${'A'.repeat(43)}`)))
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     const error = await Effect.runPromise(
       handler(
@@ -49,7 +50,7 @@ describe('profile access IPC', () => {
       code: 'profile_credential_outcome_unknown',
       operation: 'create',
       profileName: 'reviewer',
-      idempotencyKey: mocks.stage.mock.calls[0][0].stagingKey,
+      idempotencyKey: required(mocks.stage.mock.calls[0], 'stage call 0')[0].stagingKey,
       recoveryLocation: '/tmp/protected-create.pending',
       message: expect.stringContaining('unknown'),
     })
@@ -86,7 +87,7 @@ describe('profile access IPC', () => {
       }),
     )
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     const error = await Effect.runPromise(
       handler(
@@ -105,7 +106,7 @@ describe('profile access IPC', () => {
       code: 'profile_credential_recovery_required',
       outcome: 'rejected',
       recoveryLocation: '/tmp/earlier-operation.pending',
-      idempotencyKey: mocks.stage.mock.calls[0][0].stagingKey,
+      idempotencyKey: required(mocks.stage.mock.calls[0], 'stage call 0')[0].stagingKey,
       message: expect.stringContaining('earlier request'),
     })
     expect(mocks.discard).not.toHaveBeenCalled()
@@ -130,7 +131,7 @@ describe('profile access IPC', () => {
   ])('preserves rotation recovery after %s without claiming creation', async (_name, dispatch) => {
     mocks.dispatch.mockReturnValue(dispatch)
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     const error = await Effect.runPromise(
       handler(
@@ -146,7 +147,7 @@ describe('profile access IPC', () => {
       code: 'profile_credential_outcome_unknown',
       operation: 'rotate',
       recoveryLocation: '/tmp/protected-create.pending',
-      idempotencyKey: mocks.stage.mock.calls[0][0].stagingKey,
+      idempotencyKey: required(mocks.stage.mock.calls[0], 'stage call 0')[0].stagingKey,
     })
     expect(error).toHaveProperty('message', expect.not.stringContaining('A'.repeat(43)))
     expect(error).toHaveProperty('message', expect.not.stringContaining('was created'))
@@ -170,7 +171,7 @@ describe('profile access IPC', () => {
     }
     mocks.dispatch.mockReturnValue(Effect.succeed({ contract: 'local-access-v1', response }))
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     expect(
       await Effect.runPromise(handler({}, { operation: 'rotate', profileName: 'reviewer' })),
@@ -183,7 +184,7 @@ describe('profile access IPC', () => {
     const dispatched = vi.fn()
     mocks.dispatch.mockReturnValue(Effect.sync(dispatched).pipe(Effect.andThen(Effect.never)))
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
     const fiber = Effect.runFork(handler({}, { operation: 'rotate', profileName: 'reviewer' }))
 
     await vi.waitFor(() => expect(dispatched).toHaveBeenCalledOnce())
@@ -197,7 +198,7 @@ describe('profile access IPC', () => {
     const failure = new Error('Host unavailable')
     mocks.dispatch.mockReturnValue(Effect.fail(failure))
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     expect(await Effect.runPromise(handler({}, { operation: 'list' }).pipe(Effect.flip))).toBe(
       failure,
@@ -215,7 +216,7 @@ describe('profile access IPC', () => {
       }),
     )
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     const error = await Effect.runPromise(
       handler({}, { operation: 'rotate', profileName: 'reviewer' }).pipe(Effect.flip),
@@ -236,7 +237,7 @@ describe('profile access IPC', () => {
       }),
     )
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     const error = await Effect.runPromise(
       handler({}, { operation: 'revoke', profileName: 'reviewer' }).pipe(Effect.flip),
@@ -262,7 +263,7 @@ describe('profile access IPC', () => {
       }),
     )
     registerProfileAccessHandlers()
-    const handler = mocks.typedHandle.mock.calls[0][1]
+    const handler = required(mocks.typedHandle.mock.calls[0], 'typedHandle call 0')[1]
 
     const error = await Effect.runPromise(
       handler(

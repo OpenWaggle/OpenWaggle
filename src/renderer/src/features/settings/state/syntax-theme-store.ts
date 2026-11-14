@@ -72,7 +72,7 @@ function registerResources(
 ) {
   const nextResourceKey = [
     `themes:${catalog.themes
-      .map((resource) => `${String(resource.id)}@${resource.revision}`)
+      .map((resource) => `${resource.id}@${resource.revision}`)
       .sort()
       .join(',')}`,
     `languages:${languages
@@ -90,7 +90,7 @@ function registerResources(
   registerImportedSyntaxLanguageResources(languages)
 }
 
-function globalCatalog(state: SyntaxThemeCatalogState): SyntaxResourceCatalog {
+function globalCatalog(state: SyntaxThemeCatalogState) {
   return {
     themes: state.resources.filter((resource) => resource.scope !== 'project'),
     languages: state.languages.filter((resource) => resource.scope !== 'project'),

@@ -28,7 +28,7 @@ export async function readOldSignIns(wanted: ReadonlySet<string>) {
     (name) => name.startsWith(OLD_SIGN_IN_PREFIX) && wanted.has(name),
   )
   const reads = await Promise.all(
-    names.map(async (name): Promise<OldSignInRead> => {
+    names.map(async (name) => {
       try {
         return { value: await resolveMcpVaultSecret(name) }
       } catch (error) {

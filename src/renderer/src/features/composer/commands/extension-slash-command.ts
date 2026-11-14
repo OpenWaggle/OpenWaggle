@@ -98,14 +98,13 @@ export function parseExtensionSlashCommand(
   } satisfies ExtensionSlashCommand
 }
 
-export function extensionSlashCommandPayload(
-  command: ExtensionSlashCommand,
-): ExtensionSlashCommandPayload {
-  return {
+export function extensionSlashCommandPayload(command: ExtensionSlashCommand) {
+  const payload: ExtensionSlashCommandPayload = {
     command: command.command,
     args: command.args,
     rawText: command.rawText,
   }
+  return payload
 }
 
 function extensionContributionIsEligible(entry: ExtensionContributionRegistryEntry) {

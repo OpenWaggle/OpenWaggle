@@ -1,14 +1,15 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  recordSessionChangeRequestInputSchema,
+  sessionResourceCatalogPageRequestSchema,
+  sessionResourceCatalogViewSchema,
+  sessionResourceKindSchema,
+  sessionResourceNodePageRequestSchema,
+  sessionResourceRouteSelectionSchema,
+} from '@shared/schemas/session-resource'
 import type { SessionId } from './brand'
 
-export type SessionResourceKind =
-  | 'image'
-  | 'file'
-  | 'link'
-  | 'tool'
-  | 'web-search'
-  | 'site'
-  | 'commit'
-  | 'change-request'
+export type SessionResourceKind = SchemaType<typeof sessionResourceKindSchema>
 
 export type SessionResourceActivity = 'provided' | 'read' | 'created' | 'updated'
 
@@ -53,28 +54,16 @@ export interface SessionResourceList {
   readonly backfillComplete: boolean
 }
 
-export type SessionResourceCatalogView =
-  | 'all'
-  | 'sources'
-  | 'outputs'
-  | 'images'
-  | 'change-requests'
+export type SessionResourceCatalogView = SchemaType<typeof sessionResourceCatalogViewSchema>
 
 export const SESSION_RESOURCE_CATALOG_STALE_MESSAGE =
   'Session resource catalog changed; restart pagination.'
 
-/** The Session workspace path currently rendered in chat. */
-export interface SessionResourceRouteSelection {
-  readonly branchId: string | null
-  readonly pathNodeIds: readonly string[]
-}
+export type SessionResourceRouteSelection = SchemaType<typeof sessionResourceRouteSelectionSchema>
 
-export interface SessionResourceCatalogPageRequest {
-  readonly view: SessionResourceCatalogView
-  readonly cursor?: string | null
-  readonly limit: number
-  readonly selection?: SessionResourceRouteSelection | null
-}
+export type SessionResourceCatalogPageRequest = SchemaType<
+  typeof sessionResourceCatalogPageRequestSchema
+>
 
 export interface SessionResourceCatalogPage {
   readonly resources: readonly SessionResource[]
@@ -95,12 +84,7 @@ export interface SessionResourceImageLocation {
   readonly orderRevision: string
 }
 
-export interface SessionResourceNodePageRequest {
-  readonly nodeIds: readonly string[]
-  readonly kind: SessionResourceKind | null
-  readonly cursor?: string | null
-  readonly limit: number
-}
+export type SessionResourceNodePageRequest = SchemaType<typeof sessionResourceNodePageRequestSchema>
 
 export interface SessionResourceBackfillStatus {
   readonly backfillComplete: boolean
@@ -132,7 +116,6 @@ export interface SessionResourceThumbnailPreview {
   readonly dataBase64: string
 }
 
-export interface RecordSessionChangeRequestInput {
-  readonly title: string
-  readonly url: string
-}
+export type RecordSessionChangeRequestInput = SchemaType<
+  typeof recordSessionChangeRequestInputSchema
+>

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { PiSessionFiles, type PiSessionPromptOrigin } from '../../ports/pi-session-discovery'
 import { withPiSessionPromptOrigin } from '../pi-session-prompt-origin'
 
-function detail(overrides: Partial<SessionDetail> = {}): SessionDetail {
+function detail(overrides: Partial<SessionDetail> = {}) {
   return fromPartial<SessionDetail>({
     id: SessionId('session-1'),
     piSessionFile: '/sessions/one.jsonl',
@@ -41,7 +41,8 @@ describe('withPiSessionPromptOrigin', () => {
   })
 
   it('reads nothing for a Session without a Pi file, or one whose file was deleted', () => {
-    expect(decorate(detail({ piSessionFile: undefined }), 'outside').read).toEqual([])
+    const { piSessionFile: _piSessionFile, ...withoutPiFile } = detail()
+    expect(decorate(withoutPiFile, 'outside').read).toEqual([])
     expect(decorate(detail({ piSessionFileDeleted: 'gone' }), 'outside').read).toEqual([])
     expect(decorate(null, 'outside').result).toBeNull()
   })

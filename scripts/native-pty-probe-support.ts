@@ -22,8 +22,13 @@ const FINAL_SUFFIX = ':OPENWAGGLE_PTY_FINAL_END'
 const FINAL_CHARACTER = '~'
 const UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT = 128
 
-export type Disposable = { readonly dispose: () => void }
-export type ExitEvent = { readonly exitCode: number; readonly signal?: number }
+export interface Disposable {
+  readonly dispose: () => void
+}
+export interface ExitEvent {
+  readonly exitCode: number
+  readonly signal?: number
+}
 export type PtyEvent<T> = (listener: (event: T) => void) => Disposable
 
 export interface ProbedPty {
@@ -35,6 +40,10 @@ export interface ProbedPty {
   readonly waitForResourceDrain: () => Promise<void>
   readonly write: (data: string) => void
   readonly resize: (columns: number, rows: number) => void
+  /** The POSIX master descriptor and identities the patched node-pty exposes; absent on Windows. */
+  readonly fd?: unknown
+  readonly ttyIdentity?: unknown
+  readonly spawnProcessIdentity?: unknown
 }
 
 export interface PtySpawner {
@@ -49,13 +58,13 @@ export interface PtySpawner {
 export function signalOwnedPosixPty(nodePty: PtySpawner, pty: ProbedPty) {
   const native = nodePty.native
   if (native === null || typeof native !== 'object') throw new Error('Missing POSIX native API.')
-  const signal: unknown = Reflect.get(native, 'signalByTty')
+  const signal: unknown = 'signalByTty' in native ? native.signalByTty : undefined
   if (typeof signal !== 'function') throw new Error('Missing POSIX PTY membership signal.')
   const result: unknown = Reflect.apply(signal, native, [
-    Reflect.get(pty, 'fd'),
-    Reflect.get(pty, 'ttyIdentity'),
+    pty.fd,
+    pty.ttyIdentity,
     pty.pid,
-    Reflect.get(pty, 'spawnProcessIdentity'),
+    pty.spawnProcessIdentity,
     constants.signals.SIGHUP,
   ])
   if (typeof result !== 'number' || !Number.isSafeInteger(result) || result < 0) {
@@ -70,12 +79,6 @@ export interface Backend {
 
 export type PtyProbeProfile = 'runtime' | 'all-backends'
 
-export function parsePtyProbeProfile(value: string | undefined): PtyProbeProfile {
-  if (value === undefined) return 'runtime'
-  if (isMatching(P.union('runtime', 'all-backends'), value)) return value
-  throw new Error(`Unknown PTY probe profile: ${value}`)
-}
-
 export interface PtyIdentity {
   readonly pid: number
   readonly descendantPid: number
@@ -83,9 +86,19 @@ export interface PtyIdentity {
   readonly stdoutTty: boolean
 }
 
+export function parsePtyProbeProfile(value: string | undefined) {
+  if (value === undefined) return 'runtime' as const
+  if (isMatching(P.union('runtime', 'all-backends'), value)) {
+    const profile: PtyProbeProfile = value
+    return profile
+  }
+  throw new Error(`Unknown PTY probe profile: ${value}`)
+}
+
 function hasFunctionProperties(value: object, propertyNames: readonly string[]) {
   return propertyNames.every(
-    (propertyName) => propertyName in value && typeof Reflect.get(value, propertyName) === 'function',
+    (propertyName) =>
+      propertyName in value && typeof Reflect.get(value, propertyName) === 'function',
   )
 }
 
@@ -106,11 +119,8 @@ function isProbedPty(value: unknown): value is ProbedPty {
   )
 }
 
-export function backends(
-  platform: NodeJS.Platform,
-  profile: PtyProbeProfile = 'runtime',
-): readonly Backend[] {
-  if (platform !== 'win32') return [{ label: 'Unix PTY', options: {} }]
+export function backends(platform: NodeJS.Platform, profile: PtyProbeProfile = 'runtime') {
+  if (platform !== 'win32') return [{ label: 'Unix PTY', options: {} }] satisfies readonly Backend[]
   if (profile === 'runtime') {
     // Match the app (and T3 Code): let node-pty select the host's backend.
     // Also verify the bundled binary we package. Forced legacy WinPTY stress
@@ -118,20 +128,16 @@ export function backends(
     return [
       { label: 'Windows default PTY', options: {} },
       { label: 'bundled ConPTY', options: { useConpty: true, useConptyDll: true } },
-    ]
+    ] satisfies readonly Backend[]
   }
   return [
     { label: 'system ConPTY', options: { useConpty: true, useConptyDll: false } },
     { label: 'bundled ConPTY', options: { useConpty: true, useConptyDll: true } },
     { label: 'WinPTY', options: { useConpty: false } },
-  ]
+  ] satisfies readonly Backend[]
 }
 
-export function assertPatchedPty(
-  value: unknown,
-  backend: Backend,
-  platform: NodeJS.Platform,
-) {
+export function assertPatchedPty(value: unknown, backend: Backend, platform: NodeJS.Platform) {
   if (!isProbedPty(value)) {
     throw new Error(`${backend.label} did not expose the patched PTY lifecycle contract.`)
   }
@@ -145,7 +151,7 @@ export function assertPatchedPty(
         throw new Error(`${backend.label} did not expose ${property}.`)
       }
     }
-    const fd: unknown = Reflect.get(value, 'fd')
+    const { fd } = value
     if (typeof fd !== 'number' || !Number.isSafeInteger(fd) || fd < 0) {
       throw new Error(`${backend.label} did not expose an active PTY master descriptor.`)
     }
@@ -153,7 +159,7 @@ export function assertPatchedPty(
   return value
 }
 
-export function parseIdentity(output: string): PtyIdentity {
+export function parseIdentity(output: string) {
   const prefixIndex = output.indexOf(IDENTITY_PREFIX)
   const lineEnd = output.indexOf(IDENTITY_SUFFIX, prefixIndex)
   if (prefixIndex === -1 || lineEnd === -1) throw new Error('PTY identity record was incomplete.')
@@ -179,7 +185,8 @@ export function parseIdentity(output: string): PtyIdentity {
   ) {
     throw new Error(`PTY identity failed: ${serialized}`)
   }
-  return value
+  const identity: PtyIdentity = value
+  return identity
 }
 
 export function assertExitEvent(label: string, event: ExitEvent) {
@@ -201,7 +208,10 @@ export function createConsoleTerminal() {
   return new Terminal({
     cols: INITIAL_COLUMNS,
     rows: INITIAL_ROWS,
-    scrollback: Math.ceil((FINAL_PAYLOAD_BYTES + FINAL_PREFIX.length + FINAL_SUFFIX.length) / INITIAL_COLUMNS) + INITIAL_ROWS,
+    scrollback:
+      Math.ceil(
+        (FINAL_PAYLOAD_BYTES + FINAL_PREFIX.length + FINAL_SUFFIX.length) / INITIAL_COLUMNS,
+      ) + INITIAL_ROWS,
   })
 }
 
@@ -243,7 +253,9 @@ export async function assertFinalPayload(label: string, output: string, platform
   }
   const payload = text.slice(start + FINAL_PREFIX.length, end)
   if (payload.length !== FINAL_PAYLOAD_BYTES || payload.replaceAll(FINAL_CHARACTER, '') !== '') {
-    const unexpected = payload.replaceAll(FINAL_CHARACTER, '').slice(0, UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT)
+    const unexpected = payload
+      .replaceAll(FINAL_CHARACTER, '')
+      .slice(0, UNEXPECTED_OUTPUT_DIAGNOSTIC_LIMIT)
     throw new Error(
       `${label} corrupted final PTY output (${payload.length}/${FINAL_PAYLOAD_BYTES} payload characters; ` +
         `${output.length} raw characters; unexpected ${JSON.stringify(unexpected)}).`,

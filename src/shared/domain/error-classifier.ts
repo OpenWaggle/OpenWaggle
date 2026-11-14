@@ -1,4 +1,4 @@
-import type { AgentErrorCode, AgentErrorInfo } from '../types/errors'
+import type { AgentErrorCode } from '../types/errors'
 import { extractInnerErrorMessage } from './error-message-extraction'
 import { PI_SESSION_FILE_PROBLEM } from './pi-session-file-messages'
 import {
@@ -116,7 +116,7 @@ function shownMessage(meta: ErrorCodeMeta, message: string) {
 /**
  * Build an `AgentErrorInfo` from a known error code and raw message.
  */
-export function makeErrorInfo(code: AgentErrorCode, message: string): AgentErrorInfo {
+export function makeErrorInfo(code: AgentErrorCode, message: string) {
   const meta = ERROR_CODE_META[code]
   return {
     code,
@@ -299,7 +299,7 @@ function resolveErrorCode(lowerMessage: string) {
  * This is the single source of truth for string-based error classification,
  * shared across main process and renderer.
  */
-export function classifyErrorMessage(message: string): AgentErrorInfo {
+export function classifyErrorMessage(message: string) {
   const extracted = extractInnerErrorMessage(message)
   const displayMessage = extracted?.message ?? message
   const classifyTarget = extracted?.classifyTarget ?? message

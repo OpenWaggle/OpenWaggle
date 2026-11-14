@@ -7,14 +7,14 @@ type CompactionStatusRow = Extract<ChatRow, { type: 'compaction-status' }>
 export function createCompactionStatusRows(
   status: AgentCompactionStatus | null | undefined,
   durableSummaryIds: readonly string[],
-): CompactionStatusRow[] {
-  if (!status) return []
+) {
+  if (!status) return [] satisfies CompactionStatusRow[]
   const acknowledgedStatus = acknowledgeCompactionStatus(status, durableSummaryIds)
   const timelineStatus =
     acknowledgedStatus?.type === 'retrying'
       ? acknowledgedStatus.previousCompactionStatus
       : acknowledgedStatus
-  if (!timelineStatus) return []
+  if (!timelineStatus) return [] satisfies CompactionStatusRow[]
   return timelineStatus.timeline.map((item, index) => {
     const automatic = item.reason !== 'manual'
     return {
@@ -25,15 +25,17 @@ export function createCompactionStatusRows(
         !timelineStatus.suppressAnnouncement && index === timelineStatus.timeline.length - 1,
       state: `${automatic ? 'automatic' : 'manual'}-${item.phase === 'running' ? 'running' : 'complete'}`,
     }
-  })
+  }) satisfies CompactionStatusRow[]
 }
 
 export function createCompactionRowAppender(target: ChatRow[], rows: CompactionStatusRow[]) {
   let nextRow = 0
   return (messageCount: number) => {
-    while (nextRow < rows.length && rows[nextRow].anchorMessageCount <= messageCount) {
-      target.push(rows[nextRow])
+    let row = rows[nextRow]
+    while (row !== undefined && row.anchorMessageCount <= messageCount) {
+      target.push(row)
       nextRow += 1
+      row = rows[nextRow]
     }
   }
 }

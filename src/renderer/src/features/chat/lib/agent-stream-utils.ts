@@ -1,6 +1,6 @@
 import type { AgentTransportEvent } from '@shared/types/stream'
 
-export function isTerminalTransportEvent(event: AgentTransportEvent): boolean {
+export function isTerminalTransportEvent(event: AgentTransportEvent) {
   if (event.type !== 'agent_end') {
     return false
   }
@@ -16,7 +16,7 @@ export function isTerminalTransportEvent(event: AgentTransportEvent): boolean {
  * does a custom message shown as a user row (a Waggle request, a Hive wake), which Pi can flush
  * after it, or a tool's update, which Pi relays even after the tool returned.
  */
-export function isRunStreamingEvent(event: AgentTransportEvent): boolean {
+export function isRunStreamingEvent(event: AgentTransportEvent) {
   if (event.type === 'message_start') {
     const custom = event.userMessage?.hiveWake ?? event.userMessage?.waggleInvocation
     return event.role === 'assistant' || (event.role === 'user' && custom === undefined)

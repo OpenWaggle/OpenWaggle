@@ -7,7 +7,7 @@ const TITLE_WORD_SEPARATOR = ' '
 /**
  * Remove consecutive duplicate words/fragments from a title.
  */
-export function deduplicateConsecutiveWords(title: string): string {
+export function deduplicateConsecutiveWords(title: string) {
   let result = title.replace(/\b(\w+)\s+\1\b/gi, '$1')
   result = result.replace(/\b(\w{4,})\1\b/gi, '$1')
   return result
@@ -49,7 +49,7 @@ function normalizeTitleInput(text: string) {
     .replace(/\s+/g, TITLE_WORD_SEPARATOR)
 }
 
-export function buildDeterministicTitle(text: string): string {
+export function buildDeterministicTitle(text: string) {
   const normalized = deduplicateConsecutiveWords(normalizeTitleInput(text)).trim()
   if (!normalized) {
     return DEFAULT_SESSION_TITLE

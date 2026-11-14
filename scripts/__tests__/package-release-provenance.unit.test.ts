@@ -15,10 +15,7 @@ const PULL_REQUEST_SOURCE_IDENTITY = {
 describe('package release provenance', () => {
   it('binds verification to the CI signer workflow and selected run', () => {
     expect(
-      packageReleaseAttestationVerificationArgs(
-        '/artifacts/package.tgz',
-        'OpenWaggle/OpenWaggle',
-      ),
+      packageReleaseAttestationVerificationArgs('/artifacts/package.tgz', 'OpenWaggle/OpenWaggle'),
     ).toEqual([
       'attestation',
       'verify',
@@ -32,70 +29,86 @@ describe('package release provenance', () => {
       'json',
     ])
 
-    const verified = [{
-      verificationResult: {
-        signature: {
-          certificate: {
-            buildConfigURI: 'https://github.com/OpenWaggle/OpenWaggle/.github/workflows/ci.yml@refs/pull/135/merge',
-            runInvocationURI: 'https://github.com/OpenWaggle/OpenWaggle/actions/runs/123/attempts/2',
-            runnerEnvironment: 'github-hosted',
-            sourceRepositoryDigest: 'release-head',
+    const verified = [
+      {
+        verificationResult: {
+          signature: {
+            certificate: {
+              buildConfigURI:
+                'https://github.com/OpenWaggle/OpenWaggle/.github/workflows/ci.yml@refs/pull/135/merge',
+              runInvocationURI:
+                'https://github.com/OpenWaggle/OpenWaggle/actions/runs/123/attempts/2',
+              runnerEnvironment: 'github-hosted',
+              sourceRepositoryDigest: 'release-head',
+            },
           },
         },
       },
-    }]
+    ]
 
-    expect(assertPackageReleaseAttestationIdentity(verified, {
-      repository: 'OpenWaggle/OpenWaggle',
-      runId: '123',
-    })).toBe('release-head')
-    expect(() => assertPackageReleaseAttestationIdentity(verified, {
-      repository: 'OpenWaggle/OpenWaggle',
-      runId: '124',
-    })).toThrow('selected CI run')
+    expect(
+      assertPackageReleaseAttestationIdentity(verified, {
+        repository: 'OpenWaggle/OpenWaggle',
+        runId: '123',
+      }),
+    ).toBe('release-head')
+    expect(() =>
+      assertPackageReleaseAttestationIdentity(verified, {
+        repository: 'OpenWaggle/OpenWaggle',
+        runId: '124',
+      }),
+    ).toThrow('selected CI run')
   })
 
   it('accepts the exact pull-request merge commit and direct candidate commit', () => {
-    expect(() => assertPackageReleaseAttestationSourceCommit(
-      {
-        parents: [{ sha: 'base-sha' }, { sha: 'release-head' }],
-        sha: 'pull-request-merge-sha',
-        tree: { sha: 'source-tree' },
-      },
-      PULL_REQUEST_SOURCE_IDENTITY,
-    )).not.toThrow()
+    expect(() =>
+      assertPackageReleaseAttestationSourceCommit(
+        {
+          parents: [{ sha: 'base-sha' }, { sha: 'release-head' }],
+          sha: 'pull-request-merge-sha',
+          tree: { sha: 'source-tree' },
+        },
+        PULL_REQUEST_SOURCE_IDENTITY,
+      ),
+    ).not.toThrow()
 
-    expect(() => assertPackageReleaseAttestationSourceCommit(
-      {
-        parents: [{ sha: 'base-sha' }],
-        sha: 'release-head',
-        tree: { sha: 'source-tree' },
-      },
-      {
-        attestationSourceSha: 'release-head',
-        candidateSourceSha: 'release-head',
-        sourceTree: 'source-tree',
-      },
-    )).not.toThrow()
+    expect(() =>
+      assertPackageReleaseAttestationSourceCommit(
+        {
+          parents: [{ sha: 'base-sha' }],
+          sha: 'release-head',
+          tree: { sha: 'source-tree' },
+        },
+        {
+          attestationSourceSha: 'release-head',
+          candidateSourceSha: 'release-head',
+          sourceTree: 'source-tree',
+        },
+      ),
+    ).not.toThrow()
   })
 
   it('rejects a merge without the candidate parent or exact source tree', () => {
-    expect(() => assertPackageReleaseAttestationSourceCommit(
-      {
-        parents: [{ sha: 'base-sha' }, { sha: 'different-head' }],
-        sha: 'pull-request-merge-sha',
-        tree: { sha: 'source-tree' },
-      },
-      PULL_REQUEST_SOURCE_IDENTITY,
-    )).toThrow('candidate head and source tree')
+    expect(() =>
+      assertPackageReleaseAttestationSourceCommit(
+        {
+          parents: [{ sha: 'base-sha' }, { sha: 'different-head' }],
+          sha: 'pull-request-merge-sha',
+          tree: { sha: 'source-tree' },
+        },
+        PULL_REQUEST_SOURCE_IDENTITY,
+      ),
+    ).toThrow('candidate head and source tree')
 
-    expect(() => assertPackageReleaseAttestationSourceCommit(
-      {
-        parents: [{ sha: 'base-sha' }, { sha: 'release-head' }],
-        sha: 'pull-request-merge-sha',
-        tree: { sha: 'different-tree' },
-      },
-      PULL_REQUEST_SOURCE_IDENTITY,
-    )).toThrow('candidate head and source tree')
+    expect(() =>
+      assertPackageReleaseAttestationSourceCommit(
+        {
+          parents: [{ sha: 'base-sha' }, { sha: 'release-head' }],
+          sha: 'pull-request-merge-sha',
+          tree: { sha: 'different-tree' },
+        },
+        PULL_REQUEST_SOURCE_IDENTITY,
+      ),
+    ).toThrow('candidate head and source tree')
   })
 })

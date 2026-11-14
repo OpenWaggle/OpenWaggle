@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { applyTurnFolds } from '../turn-fold'
 import type { ChatRow } from '../types-chat-row'
 
-function row(id: string, role: UIMessage['role'], parts: UIMessage['parts']): ChatRow {
-  return {
+function row(id: string, role: UIMessage['role'], parts: UIMessage['parts']) {
+  const result: ChatRow = {
     type: 'message',
     message: { id, role, parts },
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-    turnDividerProps: undefined,
   }
+  return result
 }
 
 describe('applyTurnFolds with hidden calls', () => {

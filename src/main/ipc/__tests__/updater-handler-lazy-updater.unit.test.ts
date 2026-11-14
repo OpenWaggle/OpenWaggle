@@ -15,9 +15,8 @@ vi.mock('electron', () => ({
   },
 }))
 vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runAppEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 // The real updater imports electron-updater; its factory runs when the module is first loaded.
 vi.mock('../../updater', () => {
@@ -31,9 +30,8 @@ vi.mock('../../application/host-ui-agent-operation', () => ({
   listHostUiActiveActivities: () => Effect.succeed([]),
 }))
 vi.mock('../../gui-runtime', () => ({
-  runGuiEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 vi.mock('../../application/session-run-interruption-command', () => ({
   interruptSessionRunThrough: () => Promise.resolve(),

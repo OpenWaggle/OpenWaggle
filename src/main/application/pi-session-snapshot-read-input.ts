@@ -1,5 +1,5 @@
 import type { SessionId } from '@shared/types/brand'
-import type { PiSessionFilesShape, PiSessionProjectionState } from '../ports/pi-session-discovery'
+import type { PiSessionProjectionState } from '../ports/pi-session-discovery'
 
 /**
  * What a refresh reads a changed Pi file with: the projection's entries, so a file that holds
@@ -10,7 +10,7 @@ export function snapshotReadInput(
   state: PiSessionProjectionState,
   piSessionFile: string,
   cwd: string,
-): Parameters<PiSessionFilesShape['readSnapshot']>[0] {
+) {
   return {
     piSessionFile,
     cwd,

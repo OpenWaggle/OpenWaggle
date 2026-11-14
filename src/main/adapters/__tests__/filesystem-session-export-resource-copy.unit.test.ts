@@ -33,16 +33,24 @@ describe('filesystem Session export resource copy', () => {
       Effect.gen(function* () {
         const writer = yield* SessionExportArtifactWriter
         const sink = yield* writer.open(operation)
-        yield* sink.writeManifest(exportManifest)
-        yield* sink.writeRecords(exportRecords)
-        yield* sink.writeResource({
-          path: input.resolved.path,
-          sourceHandle: input.resolved.sourceHandle,
-          expectedSize: input.resolved.size,
-          expectedIdentity: input.resolved.identity,
-        })
-        yield* sink.finalize()
-      }).pipe(Effect.provide(FilesystemSessionExportArtifactWriterLive)),
+        yield* Effect.gen(function* () {
+          yield* sink.writeManifest(exportManifest)
+          yield* sink.writeRecords(exportRecords)
+          yield* sink.writeResource({
+            path: input.resolved.path,
+            sourceHandle: input.resolved.sourceHandle,
+            expectedSize: input.resolved.size,
+            expectedIdentity: input.resolved.identity,
+          })
+          yield* sink.finalize()
+          // A failed export discards its artifact, as the export service does.
+        }).pipe(Effect.tapError(() => sink.discard().pipe(Effect.ignore)))
+      }).pipe(
+        Effect.provide(FilesystemSessionExportArtifactWriterLive),
+        Effect.ensuring(
+          Effect.promise(() => input.resolved.sourceHandle.close().catch(() => undefined)),
+        ),
+      ),
     )
     return operation.destinationPath
   }

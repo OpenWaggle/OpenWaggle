@@ -301,7 +301,11 @@ describe('Pi session discovery scanner', () => {
       isKnownFile: () => false,
     })
 
-    expect(found.map((session) => [session.piSessionId, session.projectPath]).sort()).toEqual([
+    expect(
+      found
+        .map((session) => [session.piSessionId, session.projectPath])
+        .sort(([left = ''], [right = '']) => left.localeCompare(right)),
+    ).toEqual([
       ['app-session', appProject],
       ['docs-session', docsProject],
     ])

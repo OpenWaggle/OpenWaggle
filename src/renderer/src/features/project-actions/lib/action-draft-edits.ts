@@ -24,18 +24,21 @@ type DraftInvocation = DraftActionDefinition['invocation']
  * is replaced only while it is still empty or still the previous suggestion, and a saved action's
  * behaviour is never changed by picking a script.
  */
-export function applyScriptPick(draft: ActionDraft, reference: ProjectTaskReference): ActionDraft {
+export function applyScriptPick(draft: ActionDraft, reference: ProjectTaskReference) {
   const definition = draft.definition
   const suggestion = suggestActionName(reference)
   const untouched = !definition.name.trim() || definition.name === draft.suggestedName
   const invocation = { type: 'task' as const, task: reference }
-  if (!untouched) return { ...draft, definition: { ...definition, invocation } }
-  if (draft.base !== null)
+  if (!untouched) {
+    return { ...draft, definition: { ...definition, invocation } } satisfies ActionDraft
+  }
+  if (draft.base !== null) {
     return {
       ...draft,
       suggestedName: suggestion,
       definition: { ...definition, invocation, name: suggestion },
-    }
+    } satisfies ActionDraft
+  }
   const kind = suggestActionKind(reference.task)
   return {
     ...draft,
@@ -49,7 +52,7 @@ export function applyScriptPick(draft: ActionDraft, reference: ProjectTaskRefere
       allowConcurrent: false,
       autoOpenPreview: kind === 'service',
     },
-  }
+  } satisfies ActionDraft
 }
 
 /**
@@ -60,39 +63,44 @@ function sourceInvocation(
   invocation: DraftInvocation,
   source: ActionPanelSource,
   command: DraftInvocation | undefined,
-): DraftInvocation {
+) {
   if (command) return command
-  return source === 'command' && invocation.type === 'task'
-    ? { type: 'command', command: '', directory: '.' }
-    : invocation
+  const result: DraftInvocation =
+    source === 'command' && invocation.type === 'task'
+      ? { type: 'command', command: '', directory: '.' }
+      : invocation
+  return result
 }
 
 export function applyActionSource(
   draft: ActionDraft,
   source: ActionPanelSource,
   command?: DraftInvocation,
-): ActionDraft {
+) {
   const invocation = sourceInvocation(draft.definition.invocation, source, command)
-  return { ...draft, source, definition: { ...draft.definition, invocation } }
+  const result: ActionDraft = { ...draft, source, definition: { ...draft.definition, invocation } }
+  return result
 }
 
 export function applyPreparationSource(
   draft: PreparationDraft,
   source: ActionPanelSource,
   command?: DraftInvocation,
-): PreparationDraft {
+) {
   const invocation = sourceInvocation(draft.definition.invocation, source, command)
-  return { ...draft, source, definition: { ...draft.definition, invocation } }
+  const result: PreparationDraft = {
+    ...draft,
+    source,
+    definition: { ...draft.definition, invocation },
+  }
+  return result
 }
 
-export function applyPreparationPick(
-  draft: PreparationDraft,
-  task: DiscoveredProjectTask,
-): PreparationDraft {
+export function applyPreparationPick(draft: PreparationDraft, task: DiscoveredProjectTask) {
   return {
     ...draft,
     definition: { ...draft.definition, invocation: { type: 'task', task: task.reference } },
-  }
+  } satisfies PreparationDraft
 }
 
 /** What the summary shows as the command; a script falls back to its name until discovery loads. */

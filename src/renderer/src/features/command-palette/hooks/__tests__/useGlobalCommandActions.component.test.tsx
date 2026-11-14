@@ -1,91 +1,107 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SessionDetail } from '@shared/types/session'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '@/features/chat/state'
+import { useProviderStore } from '@/features/providers/state'
 import { isSessionSummaryPanelVisible, useSessionSummaryUIStore } from '@/features/session-summary'
+import { useSessionStore } from '@/features/sessions/state'
+import { usePreferencesStore } from '@/features/settings/state'
+import { useUIStore } from '@/shell/ui-store'
 
-const mocks = vi.hoisted(() => ({
-  close: vi.fn(),
+/*
+ * Only the preload and the router are replaced: the chat, session, preference, UI and Session
+ * Summary stores and the project, session and terminal hooks are the real ones, so each case
+ * asserts what the app ends up showing or holding.
+ */
+const SESSION_ID = SessionId('session-1')
+const MODEL = SupportedModelId('openai/gpt-5')
+
+const ipc = vi.hoisted(() => ({
   compactSession: vi.fn(),
+  getSessionDetail: vi.fn(),
+  getSessionWorkspace: vi.fn(),
+  selectProjectFolder: vi.fn(),
+  updateSettings: vi.fn(),
   navigate: vi.fn(),
-  refreshSession: vi.fn(),
-  refreshSessionWorkspace: vi.fn(),
-  selectFolder: vi.fn(),
-  setProjectPath: vi.fn(),
-  showToast: vi.fn(),
 }))
 
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
-vi.mock('@/features/chat/hooks', () => ({
-  useChat: () => ({
-    sessions: [],
-    activeSessionId: SessionId('session-1'),
-    activeSession: { executionModel: SupportedModelId('openai/gpt-5') },
-    setActiveSession: vi.fn(),
-    startDraftSession: vi.fn(),
-    refreshSession: mocks.refreshSession,
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    compactSession: ipc.compactSession,
+    getSessionDetail: ipc.getSessionDetail,
+    getSessionWorkspace: ipc.getSessionWorkspace,
+    selectProjectFolder: ipc.selectProjectFolder,
+    updateSettings: ipc.updateSettings,
   }),
 }))
-vi.mock('@/features/sessions/hooks', () => ({
-  useProject: () => ({
-    projectPath: '/repo',
-    selectFolder: mocks.selectFolder,
-    setProjectPath: mocks.setProjectPath,
-  }),
-  useSessions: () => ({ refreshSessionWorkspace: mocks.refreshSessionWorkspace }),
-  useViewedSessionId: () => null,
+// The palette navigates the app route tree, which a hook test does not build.
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => ipc.navigate,
+  useRouterState: ({ select }: { select: (state: unknown) => unknown }) =>
+    select({ location: { pathname: '/' } }),
 }))
-vi.mock('@/features/settings/state', () => ({
-  usePreferencesStore: (
-    selector: (state: {
-      settings: { selectedModel: ReturnType<typeof SupportedModelId> }
-    }) => unknown,
-  ) => selector({ settings: { selectedModel: SupportedModelId('openai/gpt-5') } }),
-}))
-vi.mock('@/shared/lib/ipc', () => ({ api: { compactSession: mocks.compactSession } }))
-vi.mock('@/shell/ui-store', () => {
-  const state = {
-    closeCommandSurface: mocks.close,
-    openCommandSurface: vi.fn(),
-    requestChatCommand: vi.fn(),
-    setLastRightSidebarPanel: vi.fn(),
-    openFeedbackModal: vi.fn(),
-    toggleSidebar: vi.fn(),
-    toggleTerminal: vi.fn(),
-    showToast: mocks.showToast,
-  }
-  return {
-    useUIStore: (selector: (value: typeof state) => unknown) => selector(state),
-  }
-})
 
 import { useGlobalCommandActions } from '../useGlobalCommandActions'
 
-describe('useGlobalCommandActions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    localStorage.clear()
-    useSessionSummaryUIStore.setState({ panels: {}, toggleFocusTargetSessionId: null })
-    mocks.compactSession.mockResolvedValue({ compacted: true })
-    mocks.refreshSession.mockResolvedValue(undefined)
-    mocks.refreshSessionWorkspace.mockResolvedValue(undefined)
+function session(title: string) {
+  return fromPartial<SessionDetail>({
+    id: SESSION_ID,
+    title,
+    projectPath: '/repo',
+    executionModel: MODEL,
+    messages: [],
   })
+}
 
-  it('refreshes session detail and workspace after compacting', async () => {
+const initialChat = useChatStore.getInitialState()
+const initialSessions = useSessionStore.getInitialState()
+const initialPreferences = usePreferencesStore.getInitialState()
+const initialProviders = useProviderStore.getInitialState()
+const initialUI = useUIStore.getInitialState()
+const initialSummary = useSessionSummaryUIStore.getInitialState()
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  localStorage.clear()
+  ipc.compactSession.mockResolvedValue({ compacted: true })
+  ipc.getSessionDetail.mockResolvedValue(session('Compacted session'))
+  ipc.getSessionWorkspace.mockResolvedValue(null)
+  ipc.updateSettings.mockResolvedValue({ ok: true })
+  usePreferencesStore.setState({
+    settings: { ...DEFAULT_SETTINGS, projectPath: '/repo', selectedModel: MODEL },
+  })
+  useChatStore.setState({ activeSessionId: SESSION_ID, activeSession: session('Before') })
+  useUIStore.setState({ commandSurface: 'commands' })
+})
+
+afterEach(() => {
+  useChatStore.setState(initialChat, true)
+  useSessionStore.setState(initialSessions, true)
+  usePreferencesStore.setState(initialPreferences, true)
+  useProviderStore.setState(initialProviders, true)
+  useUIStore.setState(initialUI, true)
+  useSessionSummaryUIStore.setState(initialSummary, true)
+})
+
+const toast = () => useUIStore.getState().toastData
+
+describe('useGlobalCommandActions', () => {
+  it('re-reads the Session detail and workspace after compacting', async () => {
     const { result } = renderHook(() => useGlobalCommandActions())
 
     await act(() => result.current.actions.compactSession())
 
-    expect(mocks.compactSession).toHaveBeenCalledWith(
-      SessionId('session-1'),
-      SupportedModelId('openai/gpt-5'),
-    )
-    expect(mocks.refreshSession).toHaveBeenCalledWith(SessionId('session-1'))
-    expect(mocks.refreshSessionWorkspace).toHaveBeenCalledWith(SessionId('session-1'))
-    expect(mocks.showToast).toHaveBeenCalledWith('Session compacted.', 'success')
+    expect(ipc.compactSession).toHaveBeenCalledWith(SESSION_ID, MODEL)
+    expect(useChatStore.getState().activeSession?.title).toBe('Compacted session')
+    expect(ipc.getSessionWorkspace).toHaveBeenCalledWith(SESSION_ID, undefined, expect.anything())
+    expect(toast()).toMatchObject({ message: 'Session compacted.', variant: 'success' })
   })
 
   it('shows the Host reason without Electron transport context when compaction is refused', async () => {
-    mocks.compactSession.mockRejectedValue(
+    ipc.compactSession.mockRejectedValue(
       new Error(
         "Error invoking remote method 'agent:compact-session': Error: Nothing to compact (session too small)",
       ),
@@ -94,8 +110,11 @@ describe('useGlobalCommandActions', () => {
 
     await act(() => result.current.actions.compactSession())
 
-    expect(mocks.showToast).toHaveBeenCalledWith('Nothing to compact (session too small)', 'error')
-    expect(mocks.refreshSession).not.toHaveBeenCalled()
+    expect(toast()).toMatchObject({
+      message: 'Nothing to compact (session too small)',
+      variant: 'error',
+    })
+    expect(useChatStore.getState().activeSession?.title).toBe('Before')
   })
 
   it('toggles the available active Session Summary from the command surface', () => {
@@ -111,7 +130,8 @@ describe('useGlobalCommandActions', () => {
     expect(
       isSessionSummaryPanelVisible(useSessionSummaryUIStore.getState().panels['session-1']),
     ).toBe(false)
-    expect(mocks.close).not.toHaveBeenCalled()
+    // The toggle leaves the command surface to the caller.
+    expect(useUIStore.getState().commandSurface).toBe('commands')
   })
 
   it('explains why a draft session cannot open Session Summary', () => {
@@ -119,37 +139,46 @@ describe('useGlobalCommandActions', () => {
 
     act(() => result.current.actions.toggleSessionSummary())
 
-    expect(mocks.showToast).toHaveBeenCalledWith(
-      'Send the first message before opening Session Summary.',
-      'error',
+    expect(toast()).toMatchObject({
+      message: 'Send the first message before opening Session Summary.',
+      variant: 'error',
+    })
+  })
+
+  // The palette fires selectProject with `void`, so a transient IPC failure in the folder pick
+  // or the project-path write used to float as an unhandled renderer rejection (Sentry issue
+  // OPENWAGGLE-6). The Session is not started, so nothing else runs.
+  it.each([
+    {
+      step: 'project-path write',
+      mode: 'new' as const,
+      arrange: () => {
+        ipc.selectProjectFolder.mockResolvedValue('/chosen-project')
+        ipc.updateSettings.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443'))
+      },
+    },
+    {
+      step: 'folder pick',
+      mode: 'open' as const,
+      arrange: () => {
+        ipc.selectProjectFolder.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443'))
+      },
+    },
+  ])('settles a failed $step instead of floating its rejection', async ({ mode, arrange }) => {
+    arrange()
+    const { result } = renderHook(() => useGlobalCommandActions())
+
+    await act(() => result.current.actions.selectProject(mode))
+
+    await waitFor(() =>
+      expect(toast()).toMatchObject({
+        message: 'connect ECONNREFUSED 127.0.0.1:443',
+        variant: 'error',
+      }),
     )
-  })
-
-  it('settles a failed project-path write instead of floating its rejection', async () => {
-    // The palette fires selectProject with `void`, so a transient Settings IPC failure used
-    // to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
-    mocks.selectFolder.mockResolvedValue('/chosen-project')
-    mocks.setProjectPath.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443'))
-    const { result } = renderHook(() => useGlobalCommandActions())
-
-    await act(() => result.current.actions.selectProject('new'))
-
-    expect(mocks.showToast).toHaveBeenCalledWith('connect ECONNREFUSED 127.0.0.1:443', 'error')
-    // The Session is not started, so nothing else runs.
-    expect(mocks.navigate).not.toHaveBeenCalled()
-  })
-
-  it('settles a failed folder pick instead of floating its rejection', async () => {
-    // The palette fires selectProject with `void`, so the folder pick's own IPC failure used
-    // to surface as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6).
-    mocks.selectFolder.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:443'))
-    const { result } = renderHook(() => useGlobalCommandActions())
-
-    await act(() => result.current.actions.selectProject('open'))
-
-    expect(mocks.showToast).toHaveBeenCalledWith('connect ECONNREFUSED 127.0.0.1:443', 'error')
-    // The dialog never produced a path, so nothing else runs.
-    expect(mocks.setProjectPath).not.toHaveBeenCalled()
-    expect(mocks.navigate).not.toHaveBeenCalled()
+    expect(useUIStore.getState().commandSurface).toBeNull()
+    expect(usePreferencesStore.getState().settings.projectPath).toBe('/repo')
+    expect(useChatStore.getState().draftSession).toBeNull()
+    expect(ipc.navigate).not.toHaveBeenCalled()
   })
 })

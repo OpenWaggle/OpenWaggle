@@ -21,7 +21,7 @@ function decodeResolveTopicInput(value: unknown) {
   return Effect.succeed(decoded.data)
 }
 
-export function registerDocsHandlers(dependencies: RegisterDocsHandlersDependencies = {}): void {
+export function registerDocsHandlers(dependencies: RegisterDocsHandlersDependencies = {}) {
   const resolveTopic = dependencies.resolveTopic ?? resolveDocsTopic
 
   hostHandle('docs:discover')

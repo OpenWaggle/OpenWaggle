@@ -10,7 +10,7 @@ import { useDiffScopeStore } from '@/features/diff-panel/state/diff-scope-store'
 export function useReconcileTurnSelection(
   scopeKey: string,
   turns: readonly TurnCheckpointSummary[],
-): void {
+) {
   const reconcileTurnSelection = useDiffScopeStore((s) => s.reconcileTurnSelection)
   useEffect(() => {
     if (!scopeKey) return

@@ -25,6 +25,12 @@ const packageDocumentation = packageDocumentationDefinitions.map((definition) =>
   versionPackageDocumentation(definition, ['0.1']),
 )
 
+function documentedPackage(index: number) {
+  const definition = packageDocumentation[index]
+  if (!definition) throw new Error(`Expected package documentation ${String(index)}`)
+  return definition
+}
+
 describe('package documentation rendering', () => {
   it('opens a new major.minor line while preserving earlier documentation versions', () => {
     expect(documentationVersionFromPackageVersion('0.1.9')).toBe('0.1')
@@ -39,7 +45,7 @@ describe('package documentation rendering', () => {
     const projectRoot = await lifecycleFs.mkdtemp(
       lifecyclePath.join(lifecycleOs.tmpdir(), 'ow-package-doc-line-'),
     )
-    const definition = packageDocumentation[1]
+    const definition = documentedPackage(1)
     const historicalRoot = lifecyclePath.join(
       projectRoot,
       'website/src/content/docs/packages/extension-react/0.1',
@@ -63,26 +69,18 @@ describe('package documentation rendering', () => {
         lifecycleFs.mkdir(historicalRoot, { recursive: true }),
         lifecycleFs.mkdir(pendingRoot, { recursive: true }),
       ])
-      await Promise.all(
-        [
-          ...Object.entries(historicalFiles).map(([fileName, contents]) =>
-            lifecycleFs.writeFile(lifecyclePath.join(historicalRoot, fileName), contents),
-          ),
-          ...Object.entries(pendingFiles).map(([fileName, contents]) =>
-            lifecycleFs.writeFile(lifecyclePath.join(pendingRoot, fileName), contents),
-          ),
-        ],
-      )
+      await Promise.all([
+        ...Object.entries(historicalFiles).map(([fileName, contents]) =>
+          lifecycleFs.writeFile(lifecyclePath.join(historicalRoot, fileName), contents),
+        ),
+        ...Object.entries(pendingFiles).map(([fileName, contents]) =>
+          lifecycleFs.writeFile(lifecyclePath.join(pendingRoot, fileName), contents),
+        ),
+      ])
 
-      await expect(
-        hasPendingPackageDocumentation(projectRoot, definition),
-      ).resolves.toBe(true)
+      await expect(hasPendingPackageDocumentation(projectRoot, definition)).resolves.toBe(true)
 
-      const result = await preparePackageDocumentationLine(
-        projectRoot,
-        definition,
-        '0.2.0',
-      )
+      const result = await preparePackageDocumentationLine(projectRoot, definition, '0.2.0')
 
       expect(result).toEqual({
         createdFiles: [
@@ -94,7 +92,10 @@ describe('package documentation rendering', () => {
       })
       await expect(
         lifecycleFs.readFile(
-          lifecyclePath.join(projectRoot, 'website/src/content/docs/packages/extension-react/0.2/index.md'),
+          lifecyclePath.join(
+            projectRoot,
+            'website/src/content/docs/packages/extension-react/0.2/index.md',
+          ),
           'utf8',
         ),
       ).resolves.toBe(pendingFiles['index.md'])
@@ -133,7 +134,7 @@ describe('package documentation rendering', () => {
     const projectRoot = await lifecycleFs.mkdtemp(
       lifecyclePath.join(lifecycleOs.tmpdir(), 'ow-package-doc-pending-'),
     )
-    const definition = packageDocumentation[1]
+    const definition = documentedPackage(1)
     try {
       await lifecycleFs.mkdir(
         lifecyclePath.join(projectRoot, 'website/src/content/docs/packages/extension-react/0.1'),
@@ -148,7 +149,7 @@ describe('package documentation rendering', () => {
   })
 
   it('synchronizes package metadata from the canonical package registry', () => {
-    const definition = packageDocumentation[0]
+    const definition = documentedPackage(0)
     const manifest = withPackageDocumentationMetadata(
       { version: '0.1.0', exports: { '.': './dist/index.js' }, privateField: true },
       definition,
@@ -166,7 +167,7 @@ describe('package documentation rendering', () => {
 
   it('requires every historical guide and API page declared by the version selector', () => {
     const definition = {
-      ...packageDocumentation[0],
+      ...documentedPackage(0),
       versions: ['0.1', '0.2'],
       currentVersion: '0.2',
     } as const
@@ -235,9 +236,13 @@ describe('package documentation rendering', () => {
       packageName: '@openwaggle/example',
     })
 
-    expect(readme).toContain('<!-- Generated from the canonical OpenWaggle package documentation. -->')
+    expect(readme).toContain(
+      '<!-- Generated from the canonical OpenWaggle package documentation. -->',
+    )
     expect(readme).toContain('# @openwaggle/example')
-    expect(readme).toContain('[Full documentation](https://openwaggle.ai/docs/packages/example/0.1/)')
+    expect(readme).toContain(
+      '[Full documentation](https://openwaggle.ai/docs/packages/example/0.1/)',
+    )
     expect(readme).toContain('npm install @openwaggle/example')
     expect(readme).toContain(
       '[API](https://openwaggle.ai/docs/packages/example/0.1/api-reference/)',
@@ -289,6 +294,7 @@ describe('package documentation rendering', () => {
       apiDescription: 'Synthetic public API.',
       exports: { '.': { types: './dist/index.d.ts' } },
       packageName: '@openwaggle/example',
+      packageVersion: '0.2.0',
       snapshot,
       version: '0.2',
     })

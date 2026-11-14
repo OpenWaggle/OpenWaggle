@@ -26,14 +26,10 @@ export async function deliverVisualizationFollowUp(input: {
   readonly isIdle: boolean
   readonly payload: AgentSendPayload
   readonly send: (payload: AgentSendPayload) => Promise<void>
-  readonly enqueue: (payload: AgentSendPayload) => void
+  readonly enqueue: (payload: AgentSendPayload) => Promise<void>
 }) {
-  if (!input.isIdle) {
-    input.enqueue(input.payload)
-    return true
-  }
   try {
-    await input.send(input.payload)
+    await (input.isIdle ? input.send(input.payload) : input.enqueue(input.payload))
     return true
   } catch {
     return false
@@ -97,7 +93,7 @@ export function hostVisualizationTheme() {
     }
   }
   const colorScheme: 'light' | 'dark' = styles.colorScheme === 'light' ? 'light' : 'dark'
-  const reducedMotion = document.documentElement.dataset.motion === 'reduced'
+  const reducedMotion = document.documentElement.getAttribute('data-motion') === 'reduced'
   return { colorScheme, reducedMotion, variables }
 }
 

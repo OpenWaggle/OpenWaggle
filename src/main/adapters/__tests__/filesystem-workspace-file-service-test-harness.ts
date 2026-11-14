@@ -13,7 +13,7 @@ export interface WorkspaceFileFixture {
   readonly projectPath: string
 }
 
-export async function createWorkspaceFileFixture(): Promise<WorkspaceFileFixture> {
+export async function createWorkspaceFileFixture() {
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-workspace-files-'))
   const projectPath = path.join(temporaryRoot, 'project')
   await fs.mkdir(path.join(projectPath, 'src'), { recursive: true })
@@ -25,10 +25,11 @@ export async function createWorkspaceFileFixture(): Promise<WorkspaceFileFixture
     fs.writeFile(path.join(projectPath, '.agents', 'guide.md'), '# Guide\n'),
     fs.writeFile(path.join(projectPath, 'node_modules', 'ignored', 'package.js'), 'ignored\n'),
   ])
-  return { temporaryRoot, projectPath }
+  const fixture: WorkspaceFileFixture = { temporaryRoot, projectPath }
+  return fixture
 }
 
-export async function removeWorkspaceFileFixture(temporaryRoot: string): Promise<void> {
+export async function removeWorkspaceFileFixture(temporaryRoot: string) {
   await fs.rm(temporaryRoot, { recursive: true, force: true })
 }
 

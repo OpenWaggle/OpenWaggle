@@ -1,13 +1,14 @@
 import * as Effect from 'effect/Effect'
-import { vi } from 'vitest'
-import type * as GitHandlers from '../git'
+import { type Mock, vi } from 'vitest'
+import type { DesktopDialogsShape } from '../../ports/desktop-shell/dialogs'
 
 type TestMock = ReturnType<typeof vi.fn>
+type ShowMessageBoxMock = Mock<DesktopDialogsShape['showMessageBox']>
 
 interface GitHandlerMocks {
   readonly fromWebContentsMock: TestMock
   readonly execFileMock: TestMock
-  readonly showMessageBoxMock: TestMock
+  readonly showMessageBoxMock: ShowMessageBoxMock
   readonly typedHandleMock: TestMock
 }
 
@@ -20,12 +21,16 @@ const mocks: GitHandlerMocks = vi.hoisted(() => ({
 
 export const fromWebContentsMock: TestMock = mocks.fromWebContentsMock
 export const execFileMock: TestMock = mocks.execFileMock
-export const showMessageBoxMock: TestMock = mocks.showMessageBoxMock
+export const showMessageBoxMock: ShowMessageBoxMock = mocks.showMessageBoxMock
 export const typedHandleMock: TestMock = mocks.typedHandleMock
 
 vi.mock('../typed-ipc', () => ({
   RelayedHostResult: class {
-    constructor(readonly value: unknown) {}
+    readonly value: unknown
+
+    constructor(value: unknown) {
+      this.value = value
+    }
   },
   hostHandle: typedHandleMock,
   relayingHandle: typedHandleMock,
@@ -36,13 +41,11 @@ vi.mock('node:child_process', () => ({
   execFile: execFileMock,
 }))
 
-vi.mock('electron', () => ({
-  BrowserWindow: {
-    fromWebContents: fromWebContentsMock,
-  },
-  dialog: {
-    showMessageBox: showMessageBoxMock,
-  },
+vi.mock('../../desktop-shell/desktop-windows', () => ({
+  desktopWindows: { fromSurface: fromWebContentsMock },
+}))
+vi.mock('../../desktop-shell/dialogs', () => ({
+  desktopDialogs: { showMessageBox: showMessageBoxMock },
 }))
 
 export function registeredHandler(name: string) {
@@ -63,6 +66,6 @@ export function resetGitHandlerMocks() {
   showMessageBoxMock.mockResolvedValue({ response: 0 })
 }
 
-export function loadGitHandlers(): Promise<typeof GitHandlers> {
+export function loadGitHandlers() {
   return import('../git')
 }

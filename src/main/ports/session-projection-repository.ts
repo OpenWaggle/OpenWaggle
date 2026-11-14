@@ -52,7 +52,7 @@ export interface SessionProjectionRepositoryShape {
     options?: SessionDeletionOptions,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   /** Resume crash-interrupted Session deletions before the Host starts accepting clients. */
-  readonly recoverPendingDeletions?: () => Effect.Effect<void, never>
+  readonly recoverPendingDeletions?: () => Effect.Effect<void>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listArchived: () => Effect.Effect<

@@ -1,6 +1,8 @@
 import type { ActionOutputSnapshot, ActionRun } from '@shared/types/action-runs'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderInMemoryRouter } from '@/test-utils/memory-router'
 import { useActionOutputViewStore } from '../../state/action-output-view-store'
 import { useTerminalStore } from '../../state/terminal-store'
 
@@ -10,13 +12,13 @@ const mocks = vi.hoisted(() => {
   return { manage: vi.fn(), copy: vi.fn(), writes, onData: vi.fn(), options }
 })
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: { manageProjectActions: mocks.manage, copyToClipboard: mocks.copy },
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    manageProjectActions: mocks.manage,
+    copyToClipboard: mocks.copy,
+  }),
 }))
-vi.mock('@/features/workspace-files', () => ({
-  useOpenWorkspaceFile: () => vi.fn(),
-  openAbsoluteFileInPreferredWorkspaceEditor: vi.fn(),
-}))
+// xterm renders to a canvas jsdom cannot draw; the fake records what the view writes and sets.
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     cols = 80
@@ -43,12 +45,14 @@ vi.mock('@xterm/xterm', () => ({
     attachCustomKeyEventHandler() {}
   },
 }))
+// The xterm addons measure and search the canvas renderer the fake terminal does not have.
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
     fit = vi.fn()
     dispose() {}
   },
 }))
+// See the fit addon above.
 vi.mock('@xterm/addon-search', () => ({
   SearchAddon: class {
     findNext = vi.fn()
@@ -62,7 +66,7 @@ import { TerminalPanel } from '../TerminalPanel'
 
 const OWNER = 'session-1'
 
-function runSnapshot(status: ActionRun['status']): ActionRun {
+function runSnapshot(status: ActionRun['status']) {
   return {
     id: 'run-1',
     requestId: 'request',
@@ -87,10 +91,10 @@ function runSnapshot(status: ActionRun['status']): ActionRun {
     previewUrl: null,
     ready: false,
     outputBytes: 20,
-  }
+  } satisfies ActionRun
 }
 
-function outputPage(status: ActionRun['status']): ActionOutputSnapshot {
+function outputPage(status: ActionRun['status']) {
   return {
     run: runSnapshot(status),
     output: 'VITE ready in 120 ms\r\n',
@@ -98,7 +102,7 @@ function outputPage(status: ActionRun['status']): ActionOutputSnapshot {
     endOffset: 20,
     truncated: false,
     hasMore: false,
-  }
+  } satisfies ActionOutputSnapshot
 }
 
 describe('Action output terminal view', () => {
@@ -119,7 +123,10 @@ describe('Action output terminal view', () => {
         { ownerKey: OWNER, projectPath: '/repo', actionId: 'dev', runId: 'run-1', label: 'dev' },
         null,
       )
-    render(<TerminalPanel ownerKey={OWNER} defaultCwd="/repo" onClose={() => undefined} />)
+    // A real memory router, for the file links the output view can open.
+    await renderInMemoryRouter(
+      <TerminalPanel ownerKey={OWNER} defaultCwd="/repo" onClose={() => undefined} />,
+    )
 
     const tab = screen.getByRole('tab', { name: 'dev · action output, read-only' })
     expect(tab).toHaveAttribute('aria-selected', 'true')
@@ -134,11 +141,10 @@ describe('Action output terminal view', () => {
       operation: { type: 'output', runId: 'run-1', afterOffset: 0 },
     })
 
-    act(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'Close dev · action output' }))
-    })
+    await userEvent.click(screen.getByRole('button', { name: 'Close dev · action output' }))
     expect(screen.queryByRole('tab', { name: /action output/ })).not.toBeInTheDocument()
-    for (const [request] of mocks.manage.mock.calls)
+    for (const [request] of mocks.manage.mock.calls) {
       expect(request).toMatchObject({ operation: { type: 'output' } })
+    }
   })
 })

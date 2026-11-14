@@ -59,17 +59,21 @@ function settingsUpdateSettingPayloadKeys(payload: unknown) {
   return SETTINGS_UPDATE_SETTING_PAYLOAD_KEYS
 }
 
-function validateProjectDisplayNamePath(
-  projectPath: string,
-): ProjectDisplayNamePathValidationResult {
+function validateProjectDisplayNamePath(projectPath: string) {
   const normalized = projectPath.trim()
   if (normalized.length === 0) {
-    return { _tag: 'invalid', message: 'Project path is required.' }
+    return {
+      _tag: 'invalid',
+      message: 'Project path is required.',
+    } satisfies ProjectDisplayNamePathValidationResult
   }
   if (!isAbsolute(normalized)) {
-    return { _tag: 'invalid', message: 'Project path must be absolute.' }
+    return {
+      _tag: 'invalid',
+      message: 'Project path must be absolute.',
+    } satisfies ProjectDisplayNamePathValidationResult
   }
-  return { _tag: 'valid', projectPath: normalized }
+  return { _tag: 'valid', projectPath: normalized } satisfies ProjectDisplayNamePathValidationResult
 }
 
 export function settingsGetPayloadIssues(payload: unknown) {
@@ -84,11 +88,9 @@ export function settingsUpdateSettingPayloadIssues(payload: unknown) {
   return unsupportedPayloadIssues(payload, settingsUpdateSettingPayloadKeys(payload))
 }
 
-export function validateSettingsUpdateProjectDisplayNames(
-  payload: ExtensionSettingsUpdatePayload,
-): SettingsUpdateValidationResult {
+export function validateSettingsUpdateProjectDisplayNames(payload: ExtensionSettingsUpdatePayload) {
   if (payload.projectDisplayNames === undefined) {
-    return { _tag: 'valid', payload }
+    return { _tag: 'valid', payload } satisfies SettingsUpdateValidationResult
   }
 
   const projectDisplayNames: Record<string, string> = {}
@@ -98,7 +100,7 @@ export function validateSettingsUpdateProjectDisplayNames(
       return {
         _tag: 'invalid',
         message: validation.message,
-      }
+      } satisfies SettingsUpdateValidationResult
     }
     projectDisplayNames[validation.projectPath] = displayName
   }
@@ -106,5 +108,5 @@ export function validateSettingsUpdateProjectDisplayNames(
   return {
     _tag: 'valid',
     payload: { ...payload, projectDisplayNames },
-  }
+  } satisfies SettingsUpdateValidationResult
 }

@@ -19,7 +19,7 @@ const execFileMock = vi.hoisted(() => vi.fn())
 
 vi.mock('node:child_process', () => ({ execFile: execFileMock }))
 
-function kernelInfo(pid: number): TerminalKernelProcessInfo {
+function kernelInfo(pid: number) {
   return {
     pid,
     startedAt: `start-${pid}`,
@@ -29,12 +29,12 @@ function kernelInfo(pid: number): TerminalKernelProcessInfo {
     ttyIdentity: 'darwin:16:1',
     zombie: false,
     name: `process-${pid}`,
-  }
+  } satisfies TerminalKernelProcessInfo
 }
 
 function install(readMany: (pids: readonly number[]) => unknown) {
   const pty = fromPartial<typeof NodePtyModule>({})
-  Reflect.set(pty, 'native', { processInfos: readMany })
+  Object.assign(pty, { native: { processInfos: readMany } })
   installTerminalProcessKernelApi(pty)
 }
 

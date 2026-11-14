@@ -1,13 +1,10 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import { parseJsonUnknown } from '@shared/schema'
+import { Schema } from '@shared/schema'
 import { isLocalUserCallerId } from '@shared/utils/local-user-caller'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
-import {
-  type StoredSessionGrant,
-  type StoredSessionGrantSource,
-  sessionsHoldingOnlyADefaultGrant,
-} from '../domain/session-control/default-grant-restore'
+import * as Option from 'effect/Option'
+import { sessionsHoldingOnlyADefaultGrant } from '../domain/session-control/default-grant-restore'
 import { createLogger } from '../logger'
 import { SCHEDULED_TASK_MIGRATION_ID } from '../services/session-host-schema-identity'
 
@@ -29,12 +26,10 @@ interface StoredGrantRow {
   readonly definition_chose: number
 }
 
-function stringList(json: string | null): readonly string[] | undefined {
-  if (json === null) return undefined
-  const value = parseJsonUnknown(json)
-  if (!Array.isArray(value)) return undefined
-  const strings = value.filter((entry): entry is string => typeof entry === 'string')
-  return strings.length === value.length ? strings : undefined
+const decodeStringList = Schema.decodeUnknownOption(Schema.parseJson(Schema.Array(Schema.String)))
+
+function stringList(json: string | null) {
+  return json === null ? undefined : Option.getOrUndefined(decodeStringList(json))
 }
 
 function loadStoredGrants(sql: SqlClient.SqlClient) {
@@ -54,15 +49,13 @@ function loadStoredGrants(sql: SqlClient.SqlClient) {
     FROM session_execution_profiles
   `.pipe(
     Effect.map((rows) =>
-      rows.map(
-        (row): StoredSessionGrant => ({
-          sessionId: row.session_id,
-          createdAt: row.created_at,
-          localUserOrigin: isLocalUserCallerId(row.authority_origin_caller_id),
-          capabilities: stringList(row.capabilities_json),
-          definitionChoseCapabilities: row.definition_chose === 1,
-        }),
-      ),
+      rows.map((row) => ({
+        sessionId: row.session_id,
+        createdAt: row.created_at,
+        localUserOrigin: isLocalUserCallerId(row.authority_origin_caller_id),
+        capabilities: stringList(row.capabilities_json),
+        definitionChoseCapabilities: row.definition_chose === 1,
+      })),
     ),
   )
 }
@@ -83,7 +76,7 @@ function loadGrantSources(sql: SqlClient.SqlClient) {
     SELECT child_session_id, parent_session_id FROM session_spawn_lineage
   `.pipe(
     Effect.map((rows) =>
-      rows.flatMap((row): StoredSessionGrantSource[] =>
+      rows.flatMap((row) =>
         typeof row.session_id === 'string' && typeof row.source_session_id === 'string'
           ? [{ sessionId: row.session_id, sourceSessionId: row.source_session_id }]
           : [],

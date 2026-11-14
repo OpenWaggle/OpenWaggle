@@ -4,6 +4,6 @@
  * platform, whether or not `pwsh` is installed), so a macOS or Linux model is never handed a tool,
  * and a "bash or PowerShell" rule, that fails on every call.
  */
-export function offersPowerShellTool(platform: NodeJS.Platform): boolean {
+export function offersPowerShellTool(platform: NodeJS.Platform) {
   return platform === 'win32'
 }

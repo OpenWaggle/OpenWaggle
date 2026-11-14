@@ -19,24 +19,29 @@ const RETIRED_INTENT_FIELDS = new Set(['thinkingLevel', 'runAuthorizationOverrid
 export function followUpDeliveryView(row: {
   readonly delivery_state: 'pending' | 'needs_attention'
   readonly attention_reason: StoredFollowUpAttentionReason | null
-}):
-  | { readonly deliveryState: 'pending' }
-  | {
-      readonly deliveryState: 'needs_attention'
-      readonly attentionReason: 'profile_revoked' | 'authority_changed'
-    } {
+}) {
   if (
     row.delivery_state === 'pending' ||
     row.attention_reason === null ||
     row.attention_reason === RETIRED_ATTENTION_REASON
   ) {
-    return { deliveryState: 'pending' }
+    return { deliveryState: 'pending' } satisfies
+      | { readonly deliveryState: 'pending' }
+      | {
+          readonly deliveryState: 'needs_attention'
+          readonly attentionReason: 'profile_revoked' | 'authority_changed'
+        }
   }
-  return { deliveryState: 'needs_attention', attentionReason: row.attention_reason }
+  return { deliveryState: 'needs_attention', attentionReason: row.attention_reason } satisfies
+    | { readonly deliveryState: 'pending' }
+    | {
+        readonly deliveryState: 'needs_attention'
+        readonly attentionReason: 'profile_revoked' | 'authority_changed'
+      }
 }
 
 /** A stored Follow-up intent body without the fields a Follow-up no longer carries. */
-export function followUpIntentView(intentJson: string): unknown {
+export function followUpIntentView(intentJson: string) {
   const intent = parseSessionJson(intentJson)
   if (typeof intent !== 'object' || intent === null || Array.isArray(intent)) return intent
   return Object.fromEntries(

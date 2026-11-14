@@ -33,11 +33,11 @@ const HISTORY_TURNS = 60
 const STREAMED_COMMITS = 20
 const LIVE_END_SCROLL_PX = 1_000_000
 
-function history(): UIMessage[] {
+function history() {
   return Array.from({ length: HISTORY_TURNS }, (_, index) => [
     userMessage(`u${String(index)}`),
     assistantMessage(`a${String(index)}`, false),
-  ]).flat()
+  ]).flat() satisfies UIMessage[]
 }
 
 /**

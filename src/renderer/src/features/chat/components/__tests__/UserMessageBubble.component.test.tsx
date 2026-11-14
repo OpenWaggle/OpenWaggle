@@ -24,8 +24,8 @@ vi.mock('@/features/session-summary', () => ({
 
 import { UserMessageBubble } from '../UserMessageBubble'
 
-function createUserMessage(id: string, parts: UIMessage['parts']): UIMessage {
-  return { id, role: 'user', parts }
+function createUserMessage(id: string, parts: UIMessage['parts']) {
+  return { id, role: 'user', parts } satisfies UIMessage
 }
 
 describe('UserMessageBubble', () => {
@@ -120,7 +120,7 @@ describe('UserMessageBubble', () => {
     expect(ol).toBeInTheDocument()
     const items = container.querySelectorAll('li')
     expect(items).toHaveLength(3)
-    expect(items[0].textContent).toBe('First item')
+    expect(items[0]?.textContent).toBe('First item')
   })
 
   it('renders a fenced code block via markdown', () => {

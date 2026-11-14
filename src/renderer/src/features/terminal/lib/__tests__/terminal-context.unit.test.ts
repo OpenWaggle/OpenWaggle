@@ -6,7 +6,7 @@ import {
   type TerminalContextSelection,
 } from '../terminal-context'
 
-function selection(overrides: Partial<TerminalContextSelection> = {}): TerminalContextSelection {
+function selection(overrides: Partial<TerminalContextSelection> = {}) {
   return {
     terminalId: 'terminal-1',
     terminalLabel: 'API server',
@@ -16,10 +16,10 @@ function selection(overrides: Partial<TerminalContextSelection> = {}): TerminalC
     range: { startLine: 12, endLine: 13, startColumn: 1, endColumn: 18 },
     selectedText: 'FAIL src/main.test.ts\nExpected 2, received 3',
     ...overrides,
-  }
+  } satisfies TerminalContextSelection
 }
 
-function limits(overrides: Partial<TerminalContextLimits>): TerminalContextLimits {
+function limits(overrides: Partial<TerminalContextLimits>) {
   return { ...TERMINAL_CONTEXT_LIMITS, ...overrides }
 }
 

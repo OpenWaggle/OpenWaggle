@@ -15,7 +15,7 @@ function row(id: string, role: UIMessage['role'], content: string, at: number, o
   return message
 }
 
-function preview(id: string, at: number): OptimisticSteerPreview {
+function preview(id: string, at: number) {
   return {
     id,
     content: 'continue',
@@ -25,7 +25,7 @@ function preview(id: string, at: number): OptimisticSteerPreview {
     baselineUserMessageIds: new Set(['u1']),
     baselineMaxCreatedOrder: 2,
     message: row(`optimistic-steer-${id}`, 'user', 'continue', at),
-  }
+  } satisfies OptimisticSteerPreview
 }
 
 describe('withIncorporatedPreview', () => {

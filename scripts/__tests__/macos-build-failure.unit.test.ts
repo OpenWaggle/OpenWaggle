@@ -93,10 +93,14 @@ describe('macOS build failure classification', () => {
 
   it('fails fast on disk-image errors that a rebuild would not fix', () => {
     expect(
-      transientMacosBuildFailure(dmgbuildFailureLog('hdiutil: create failed - No space left on device')),
+      transientMacosBuildFailure(
+        dmgbuildFailureLog('hdiutil: create failed - No space left on device'),
+      ),
     ).toBeNull()
     expect(
-      transientMacosBuildFailure(dmgbuildFailureLog('hdiutil: create failed - Operation not permitted')),
+      transientMacosBuildFailure(
+        dmgbuildFailureLog('hdiutil: create failed - Operation not permitted'),
+      ),
     ).toBeNull()
   })
 
@@ -125,15 +129,18 @@ describe('macOS build failure classification', () => {
 
 describe('dmg-builder transient hdiutil retry patch registration', () => {
   it('registers the patch and retries the same errors the release classifier accepts', () => {
-    const workspace = fs.readFileSync(path.join(process.cwd(), 'pnpm-workspace.yaml'), 'utf8')
-    const registration = /^ {2}dmg-builder@([\d.]+): patches\/dmg-builder@\1\.patch$/mu.exec(
-      workspace,
+    const manifest: unknown = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
     )
-    expect(registration).not.toBeNull()
-    const patch = fs.readFileSync(
-      path.join(process.cwd(), `patches/dmg-builder@${registration?.[1]}.patch`),
-      'utf8',
-    )
+    const patched =
+      typeof manifest === 'object' && manifest !== null && 'patchedDependencies' in manifest
+        ? manifest.patchedDependencies
+        : undefined
+    const [registration] = Object.entries(
+      typeof patched === 'object' && patched !== null ? patched : {},
+    ).filter(([dependency]) => dependency.startsWith('dmg-builder@'))
+    expect(registration?.[1]).toBe(`patches/${registration?.[0]}.patch`)
+    const patch = fs.readFileSync(path.join(process.cwd(), String(registration?.[1])), 'utf8')
     expect(patch).toContain(`/${TRANSIENT_HDIUTIL_ERROR.source}/;`)
     expect(patch).toContain('+    await execDmgbuildWithRetry(dmgbuild,')
   })

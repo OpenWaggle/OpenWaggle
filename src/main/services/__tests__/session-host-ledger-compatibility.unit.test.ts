@@ -110,8 +110,9 @@ describe('Session Host migration identity compatibility', () => {
         yield* sql`INSERT INTO sessions (id, pi_session_id, title, created_at, updated_at) VALUES ('kept', 'pi-kept', 'Retained hive 🐝', 1, 2)`
         yield* sql`DELETE FROM _migrations WHERE id >= 26`
         yield* sql.unsafe('DROP TABLE session_worktree_setup')
-        for (const row of oldHiveRows)
+        for (const row of oldHiveRows) {
           yield* sql`INSERT INTO _migrations VALUES (${row.id}, ${row.name}, ${'original-time'})`
+        }
         yield* runAppDatabaseMigrations
         const updated = yield* sql<{
           readonly id: number
@@ -198,8 +199,9 @@ describe('Session Host migration identity compatibility', () => {
         yield* sql.unsafe(
           'CREATE TABLE _migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)',
         )
-        for (const row of oldHiveRows)
+        for (const row of oldHiveRows) {
           yield* sql`INSERT INTO _migrations VALUES (${row.id}, ${row.name}, 'original-time')`
+        }
         yield* sql.unsafe(
           "CREATE TRIGGER reject_move BEFORE UPDATE ON _migrations WHEN old.id = 28 BEGIN SELECT RAISE(ABORT, 'injected failure'); END",
         )

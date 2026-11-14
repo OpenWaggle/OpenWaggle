@@ -23,18 +23,13 @@ const IMAGE_VIEWER_ZOOM_STEPS: readonly Exclude<ImageViewerZoom, 'fit'>[] = [
   '200',
 ]
 
-export function stepImageViewerZoom(
-  zoom: ImageViewerZoom,
-  direction: 'in' | 'out',
-): ImageViewerZoom {
-  if (zoom === 'fit') return direction === 'in' ? '100' : 'fit'
+export function stepImageViewerZoom(zoom: ImageViewerZoom, direction: 'in' | 'out') {
+  if (zoom === 'fit') return direction === 'in' ? ('100' as const) : ('fit' as const)
   const index = IMAGE_VIEWER_ZOOM_STEPS.indexOf(zoom)
   const offset = direction === 'in' ? 1 : -1
-  return (
-    IMAGE_VIEWER_ZOOM_STEPS[
-      Math.max(0, Math.min(IMAGE_VIEWER_ZOOM_STEPS.length - 1, index + offset))
-    ] ?? zoom
-  )
+  return (IMAGE_VIEWER_ZOOM_STEPS[
+    Math.max(0, Math.min(IMAGE_VIEWER_ZOOM_STEPS.length - 1, index + offset))
+  ] ?? zoom) satisfies ImageViewerZoom
 }
 
 function imageStyle(

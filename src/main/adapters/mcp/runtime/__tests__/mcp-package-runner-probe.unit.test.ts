@@ -75,7 +75,7 @@ function readCharacter(state: ArgumentsState, commandLine: string, index: number
 /** The arguments a C runtime reads from a command line. */
 function cRuntimeArguments(commandLine: string) {
   const state: ArgumentsState = { args: [], current: undefined, inQuotes: false }
-  for (let index = 0; index < commandLine.length; ) {
+  for (let index = 0; index < commandLine.length;) {
     index += readCharacter(state, commandLine, index)
   }
   if (state.current !== undefined) state.args.push(state.current)

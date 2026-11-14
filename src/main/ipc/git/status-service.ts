@@ -19,15 +19,6 @@ const FAILED_TO_LOAD_DIFF_MESSAGE = 'Failed to load Git diff.'
 const DIFF_TOO_LARGE_MESSAGE =
   'This diff is too large to display. Commit or stage part of the change, or exclude generated files.'
 
-interface GitStatusCommandResults {
-  readonly branchResult: Awaited<ReturnType<typeof runGit>>
-  readonly porcelainResult: Awaited<ReturnType<typeof runGit>>
-  readonly numstatHeadResult: Awaited<ReturnType<typeof runGit>>
-  readonly stagedNumstatResult: Awaited<ReturnType<typeof runGit>>
-  readonly unstagedNumstatResult: Awaited<ReturnType<typeof runGit>>
-  readonly upstreamResult: Awaited<ReturnType<typeof runGit>>
-}
-
 export async function getGitStatus(projectPath: string) {
   await assertGitRepository(projectPath)
   const results = await loadGitStatusCommandResults(projectPath)
@@ -79,9 +70,14 @@ function gitStatusReadFailureMessage(stderr: string) {
     : STATUS_READ_FAILED_MESSAGE
 }
 
-export async function getGitDiff(projectPath: string): Promise<GitDiffResult> {
+export async function getGitDiff(projectPath: string) {
   if (!(await isGitRepository(projectPath))) {
-    return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
+    const result: GitDiffResult = {
+      ok: false,
+      code: 'not-git-repo',
+      message: NOT_A_REPOSITORY_MESSAGE,
+    }
+    return result
   }
   const hasHead = await runGit(projectPath, ['rev-parse', '--verify', 'HEAD'])
   return hasHead.code === 0
@@ -97,15 +93,21 @@ export async function getGitDiff(projectPath: string): Promise<GitDiffResult> {
  * enough to trigger it: git's output exceeding the buffer normalises to `code: 1` with empty
  * stderr, so the message would not even have said what went wrong.
  */
-function diffCommandFailure(result: GitExecResult, fallback: string): GitDiffFailure {
+function diffCommandFailure(result: GitExecResult, fallback: string) {
   if (result.maxBufferExceeded === true) {
-    return {
+    const failure: GitDiffFailure = {
       ok: false,
       code: 'diff-too-large',
       message: DIFF_TOO_LARGE_MESSAGE,
     }
+    return failure
   }
-  return { ok: false, code: 'unknown', message: result.stderr.trim() || fallback }
+  const failure: GitDiffFailure = {
+    ok: false,
+    code: 'unknown',
+    message: result.stderr.trim() || fallback,
+  }
+  return failure
 }
 
 /**
@@ -117,12 +119,14 @@ function diffCommandFailure(result: GitExecResult, fallback: string): GitDiffFai
  * When no default branch can be resolved - a fresh repository with no remote and no created
  * default branch - the working-tree diff remains the only honest answer.
  */
-export async function getGitBranchDiff(
-  projectPath: string,
-  baseRef: string,
-): Promise<GitDiffResult> {
+export async function getGitBranchDiff(projectPath: string, baseRef: string) {
   if (!(await isGitRepository(projectPath))) {
-    return { ok: false, code: 'not-git-repo', message: NOT_A_REPOSITORY_MESSAGE }
+    const value: GitDiffResult = {
+      ok: false,
+      code: 'not-git-repo',
+      message: NOT_A_REPOSITORY_MESSAGE,
+    }
+    return value
   }
   const requested = baseRef.trim()
   const automatic = requested === ''
@@ -130,18 +134,19 @@ export async function getGitBranchDiff(
   if (trimmed === null || trimmed === '') {
     // Say so rather than passing off a working-tree diff as a branch diff.
     const fallback = await getGitDiff(projectPath)
-    return fallback.ok && automatic
-      ? { ...fallback, automaticFellBackToWorkingTree: true }
-      : fallback
+    const returned: GitDiffResult =
+      fallback.ok && automatic ? { ...fallback, automaticFellBackToWorkingTree: true } : fallback
+    return returned
   }
 
   const verify = await runGit(projectPath, ['rev-parse', '--verify', `${trimmed}^{commit}`])
   if (verify.code !== 0) {
-    return {
+    const value: GitDiffResult = {
       ok: false,
       code: 'bad-revision',
       message: `Base ref "${trimmed}" could not be resolved.`,
     }
+    return value
   }
   const result = await runGit(
     projectPath,
@@ -151,12 +156,13 @@ export async function getGitBranchDiff(
   if (result.code !== 0) {
     return diffCommandFailure(result, 'Failed to load branch diff.')
   }
-  return {
+  const value: GitDiffResult = {
     ok: true,
     files: result.stdout.trim() ? parseUnifiedDiff(result.stdout) : [],
     // Only report a ref the caller did not choose: Automatic has to be auditable.
     ...(automatic ? { resolvedBaseRef: trimmed } : {}),
   }
+  return value
 }
 
 async function assertGitRepository(projectPath: string) {
@@ -165,7 +171,7 @@ async function assertGitRepository(projectPath: string) {
   }
 }
 
-async function loadGitStatusCommandResults(projectPath: string): Promise<GitStatusCommandResults> {
+async function loadGitStatusCommandResults(projectPath: string) {
   const [
     branchResult,
     porcelainResult,
@@ -212,9 +218,7 @@ function parseAheadBehind(upstreamResult: Awaited<ReturnType<typeof runGit>>) {
   }
 }
 
-function successfulNumstat(
-  result: Awaited<ReturnType<typeof runGit>>,
-): ReturnType<typeof parseNumstat> {
+function successfulNumstat(result: Awaited<ReturnType<typeof runGit>>) {
   return result.code === 0 ? parseNumstat(result.stdout) : new Map<string, LineStats>()
 }
 
@@ -264,7 +268,7 @@ function sumChangedFiles(
   return changedFiles.reduce((sum, file) => sum + file[key], 0)
 }
 
-async function getHeadDiff(projectPath: string): Promise<GitDiffResult> {
+async function getHeadDiff(projectPath: string) {
   const headResult = await runGit(
     projectPath,
     [...GIT_RAW_PATHS, 'diff', '--patch', '--find-renames', '--no-ext-diff', 'HEAD'],
@@ -273,10 +277,14 @@ async function getHeadDiff(projectPath: string): Promise<GitDiffResult> {
   if (headResult.code !== 0) {
     return diffCommandFailure(headResult, FAILED_TO_LOAD_DIFF_MESSAGE)
   }
-  return { ok: true, files: headResult.stdout.trim() ? parseUnifiedDiff(headResult.stdout) : [] }
+  const result: GitDiffResult = {
+    ok: true,
+    files: headResult.stdout.trim() ? parseUnifiedDiff(headResult.stdout) : [],
+  }
+  return result
 }
 
-async function getInitialCommitDiff(projectPath: string): Promise<GitDiffResult> {
+async function getInitialCommitDiff(projectPath: string) {
   const [worktreeResult, cachedResult] = await Promise.all([
     runGit(projectPath, [...GIT_RAW_PATHS, 'diff', '--patch', '--no-ext-diff'], {
       maxBuffer: DIFF_GIT_MAX_BUFFER,
@@ -302,5 +310,9 @@ async function getInitialCommitDiff(projectPath: string): Promise<GitDiffResult>
     ...parseUnifiedDiff(worktreeResult.stdout),
     ...parseUnifiedDiff(cachedResult.stdout),
   ]
-  return { ok: true, files: parsed.length === 0 ? [] : mergeDiffsByPath(parsed) }
+  const value: GitDiffResult = {
+    ok: true,
+    files: parsed.length === 0 ? [] : mergeDiffsByPath(parsed),
+  }
+  return value
 }

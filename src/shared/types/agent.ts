@@ -1,86 +1,40 @@
-import type { MessageId, SessionId } from './brand'
+import type { SchemaType } from '@shared/schema'
+import type {
+  messageMetadataSchema,
+  messagePartSchema,
+  messageRoleSchema,
+  messageSchema,
+  textPartSchema,
+  toolCallPartSchema,
+} from '@shared/schemas/message'
+import type { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
+import type {
+  attachmentKindSchema,
+  attachmentOriginSchema,
+  browserPreviewAttachmentSchema,
+  preparedAttachmentSchema,
+} from '@shared/schemas/validation'
 import type { JsonValue } from './json'
-import type { SupportedModelId } from './llm'
-import type { ScheduledTaskKind } from './scheduled-task'
-import type { ToolCallRequest, ToolCallResult } from './tools'
-import type { WaggleInvocation, WaggleInvocationMetadata, WaggleMessageMetadata } from './waggle'
+import type { WaggleInvocation } from './waggle'
 
-export type MessageRole = 'user' | 'assistant' | 'system'
+export type MessageRole = SchemaType<typeof messageRoleSchema>
 
 /**
  * Message parts — discriminated union.
  * Use `part.type` to narrow in switch/if statements.
  */
-export interface TextPart {
-  readonly type: 'text'
-  readonly text: string
-  /**
-   * The content block it streamed from, kept by the Host stream buffer only (absent from older
-   * Hosts and persisted messages): the renderer matches buffered and shown parts by it.
-   */
-  readonly contentIndex?: number
-}
+export type TextPart = SchemaType<typeof textPartSchema>
 
-export type AttachmentKind = 'text' | 'image' | 'pdf'
-export type AttachmentOrigin =
-  | 'user-file'
-  | 'auto-paste-text'
-  | 'browser-preview'
-  | 'session-resource'
+export type AttachmentKind = SchemaType<typeof attachmentKindSchema>
+export type AttachmentOrigin = SchemaType<typeof attachmentOriginSchema>
 
-export interface BrowserPreviewAttachmentMetadata {
-  readonly pageUrl: string
-  readonly pageTitle: string
-  readonly selector: string
-  readonly tagName: string
-  readonly role: string | null
-  readonly elementText: string
-  readonly comment: string
-  readonly elementCount?: number
-  readonly regionCount?: number
-  readonly drawingCount?: number
-  readonly styleChangeCount?: number
-  readonly componentName?: string | null
-  readonly sourceFile?: string | null
-  readonly sourceLine?: number | null
-}
+/** The browser preview a picked element or annotation came from, as the attachment schema bounds it. */
+export type BrowserPreviewAttachmentMetadata = SchemaType<typeof browserPreviewAttachmentSchema>
 
-export interface AttachmentRecord {
-  readonly id: string
-  readonly kind: AttachmentKind
-  readonly origin?: AttachmentOrigin
-  readonly name: string
-  readonly path: string
-  readonly mimeType: string
-  readonly sizeBytes: number
-  readonly contentSha256?: string
-  readonly extractedText: string
-  readonly browserPreview?: BrowserPreviewAttachmentMetadata
-}
+export type AttachmentRecord = SchemaType<typeof preparedAttachmentSchema>
 
-export interface AttachmentPart {
-  readonly type: 'attachment'
-  readonly attachment: AttachmentRecord
-}
-
-export interface ToolCallPart {
-  readonly type: 'tool-call'
-  readonly toolCall: ToolCallRequest
-}
-
-export interface ToolResultPart {
-  readonly type: 'tool-result'
-  readonly toolResult: ToolCallResult
-}
-
-export interface ReasoningPart {
-  readonly type: 'reasoning'
-  readonly text: string
-  /** The content block it streamed from, as `TextPart.contentIndex`. */
-  readonly contentIndex?: number
-}
-
-export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ReasoningPart
+export type ToolCallPart = SchemaType<typeof toolCallPartSchema>
+export type MessagePart = SchemaType<typeof messagePartSchema>
 
 export interface AttachmentSource {
   readonly source: {
@@ -136,63 +90,15 @@ export interface InlineVisualizationContext {
   readonly state: JsonValue
 }
 
-export interface CompactionSummaryMetadata {
-  readonly summary: string
-  readonly tokensBefore: number
-  readonly reason?: 'manual' | 'threshold' | 'overflow'
-}
-
-export interface BranchSummaryMetadata {
-  readonly summary: string
-}
-
 /**
  * The Scheduled task whose run delivered a user message (ADR 0057). The Host records it with the
  * message when the Run starts, from its own Scheduled task run record, never from the prompt text,
  * so a message cannot claim to be scheduled. It survives the task's later rename or deletion.
  */
-export interface MessageScheduledTaskOrigin {
-  readonly taskId: string
-  /** The task's name when it fired. */
-  readonly name: string
-  /** Absent when the task was deleted before its Run started. */
-  readonly kind?: ScheduledTaskKind
-}
+export type MessageScheduledTaskOrigin = SchemaType<typeof messageScheduledTaskOriginSchema>
 
-export interface MessageMetadata {
-  /** Authoritative append order in the native Session log, not its visible transcript index. */
-  readonly sessionNodeCreatedOrder?: number
-  /** Hash of Pi's transformed user text, used to reconcile steering delivery receipts. */
-  readonly durableTextSha256?: string
-  readonly visualizationSessionId?: SessionId
-  readonly waggle?: WaggleMessageMetadata
-  readonly waggleInvocation?: WaggleInvocationMetadata
-  readonly branchSummary?: BranchSummaryMetadata
-  readonly compactionSummary?: CompactionSummaryMetadata
-  /**
-   * The model the Session selected when this response was made. Under a virtual model it differs
-   * from `Message.model`, the physical model the router sent the request to.
-   */
-  readonly selectedModel?: SupportedModelId
-  /** The provider error this response ended with (Pi's `errorMessage` of a failed response). */
-  readonly error?: string
-  /** A user message a Scheduled task run delivered, not one a person typed. */
-  readonly scheduledTask?: MessageScheduledTaskOrigin
-  /**
-   * The notice of a Hive wake: the Host started this Run because Worker updates reached an idle
-   * parent. Its row holds the Host's notice text, never anything the user wrote.
-   */
-  readonly hiveWake?: true
-}
-
-export interface Message {
-  readonly id: MessageId
-  readonly role: MessageRole
-  readonly parts: readonly MessagePart[]
-  readonly model?: SupportedModelId
-  readonly metadata?: MessageMetadata
-  readonly createdAt: number
-}
+export type MessageMetadata = SchemaType<typeof messageMetadataSchema>
+export type Message = SchemaType<typeof messageSchema>
 
 /** Type-safe extraction helper used by getMessageText and IPC handlers. */
 export function isTextPart(part: MessagePart): part is TextPart {
@@ -204,7 +110,7 @@ export function isToolCallPart(part: MessagePart): part is ToolCallPart {
   return part.type === 'tool-call'
 }
 
-export function getMessageText(message: Message): string {
+export function getMessageText(message: Message) {
   return message.parts.reduce((text, part) => (isTextPart(part) ? text + part.text : text), '')
 }
 

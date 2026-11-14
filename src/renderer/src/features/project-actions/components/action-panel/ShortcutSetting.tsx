@@ -18,8 +18,9 @@ import { useProjectActions } from '../../hooks/useProjectActions'
 
 export function shortcutAnswer(rules: readonly ProjectActionShortcutRule[] | undefined) {
   if (!rules || rules.length === 0) return 'None'
-  if (rules.length > 1 || rules[0]?.when)
+  if (rules.length > 1 || rules[0]?.when) {
     return `${String(rules.length)} shortcuts, managed in Settings`
+  }
   return formatShortcutBinding(rules[0]?.shortcut ?? null)
 }
 
@@ -43,7 +44,7 @@ export function ShortcutSetting(props: {
   const rules = props.rules ?? []
   const advanced = rules.length > 1 || Boolean(rules[0]?.when)
   const openSettings = () => void navigate({ to: '/settings/$tab', params: { tab: 'shortcuts' } })
-  if (advanced)
+  if (advanced) {
     return (
       <div className="grid gap-2 text-sm leading-6 text-text-tertiary">
         <p>This action has shortcuts with conditions, so they’re managed in Settings.</p>
@@ -52,6 +53,7 @@ export function ShortcutSetting(props: {
         </Button>
       </div>
     )
+  }
   const others = actions.filter((action) => action.id !== props.actionId)
   const rows = buildShortcutBrowserRows(builtIn, others)
   const conflicts = shortcutBrowserConflictLabels(rows, {
@@ -72,8 +74,9 @@ export function ShortcutSetting(props: {
     if (event.key === 'Escape') return setRecording(false)
     const next = shortcutBindingFromEvent(event)
     if (next === null) {
-      if (!isShortcutModifierKey(event.key))
+      if (!isShortcutModifierKey(event.key)) {
         setHint('Hold Command, Control, Alt or Shift with the key.')
+      }
       return
     }
     setRecording(false)

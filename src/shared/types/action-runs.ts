@@ -37,6 +37,6 @@ export interface ActionOutputSnapshot {
   readonly hasMore: boolean
 }
 
-export function isActiveActionRun(run: Pick<ActionRun, 'status'>): boolean {
+export function isActiveActionRun(run: Pick<ActionRun, 'status'>) {
   return run.status === 'starting' || run.status === 'running' || run.status === 'stopping'
 }

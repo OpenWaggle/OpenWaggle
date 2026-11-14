@@ -5,14 +5,13 @@ import type {
 } from '@shared/types/extensions'
 import { describe, expect, it } from 'vitest'
 import { resolveExtensionRouteContribution } from '../extension-route-resolution'
+import { omitKey } from '@/test-utils/omit-key'
 
 const PROJECT_PATH = '/tmp/project'
 const OTHER_PROJECT_PATH = '/tmp/other-project'
 
-function routeEntry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function routeEntry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'sample-extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -44,15 +43,14 @@ function routeEntry(
     diagnostics: [],
     ...overrides,
   }
+  return entry
 }
 
-function registry(
-  entries: readonly ExtensionContributionRegistryEntry[],
-): ExtensionContributionRegistryView {
+function registry(entries: readonly ExtensionContributionRegistryEntry[]) {
   return {
     projectPaths: [PROJECT_PATH],
     entries,
-  }
+  } satisfies ExtensionContributionRegistryView
 }
 
 describe('resolveExtensionRouteContribution', () => {
@@ -130,7 +128,7 @@ describe('resolveExtensionRouteContribution', () => {
 
   it('rejects route entries missing host metadata before mounting a module', () => {
     const resolution = resolveExtensionRouteContribution({
-      registry: registry([routeEntry({ entryPath: undefined })]),
+      registry: registry([omitKey(routeEntry(), 'entryPath')]),
       extensionId: 'sample-extension',
       routeId: 'sample.route',
       requestedProjectPaths: [PROJECT_PATH],

@@ -25,12 +25,7 @@ function shown() {
   return shownActionOutputView(useActionOutputViewStore.getState(), OWNER, activeTabId)
 }
 
-function run(
-  id: string,
-  status: ActionRun['status'],
-  startedAt: number,
-  actionId = 'dev',
-): Pick<ActionRun, 'id' | 'action' | 'startedAt' | 'status'> {
+function run(id: string, status: ActionRun['status'], startedAt: number, actionId = 'dev') {
   return {
     id,
     status,
@@ -44,7 +39,7 @@ function run(
       allowConcurrent: false,
       autoOpenPreview: false,
     },
-  }
+  } satisfies Pick<ActionRun, 'id' | 'action' | 'startedAt' | 'status'>
 }
 
 function open(runId: string, actionId = 'dev') {
@@ -167,8 +162,9 @@ describe('Action output terminal views', () => {
   })
 
   it('bounds the views an owner keeps', () => {
-    for (let index = 0; index <= MAX_ACTION_OUTPUT_VIEWS_PER_OWNER; index += 1)
+    for (let index = 0; index <= MAX_ACTION_OUTPUT_VIEWS_PER_OWNER; index += 1) {
       open(`run-${String(index)}`, `action-${String(index)}`)
+    }
     expect(views()).toHaveLength(MAX_ACTION_OUTPUT_VIEWS_PER_OWNER)
     expect(views()[0]?.actionId).toBe('action-1')
   })

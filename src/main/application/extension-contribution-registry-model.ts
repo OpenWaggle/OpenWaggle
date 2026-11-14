@@ -1,8 +1,5 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type {
-  ExtensionContributionRegistryEntry,
-  ExtensionDiagnosticView,
-} from '@shared/types/extensions'
+import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import {
   isExtensionCurrentTrustPin,
   isExtensionRuntimeEnabled,
@@ -14,10 +11,9 @@ import type {
   ExtensionLifecycleState,
 } from '../extensions/types'
 import { isEntryContribution } from './extension-contribution-family-model'
-import {
-  type ContributionRegistrationEntry,
-  type ContributionRegistrationResult,
-  packageContributionRegistrations,
+import type {
+  ContributionRegistrationEntry,
+  ContributionRegistrationResult,
 } from './extension-contribution-registration-model'
 import { contributionToEntry } from './extension-contribution-registry-entry-model'
 import type {
@@ -30,9 +26,7 @@ import { validateSessionSummaryActionEntries } from './extension-session-summary
 
 export type { ExtensionContributionProjectOverrideLookup } from './extension-contribution-registry-types'
 
-function diagnosticsToView(
-  diagnostics: readonly ExtensionDiagnostic[],
-): readonly ExtensionDiagnosticView[] {
+function diagnosticsToView(diagnostics: readonly ExtensionDiagnostic[]) {
   return diagnostics.map((diagnostic) => ({
     severity: diagnostic.severity,
     code: diagnostic.code,
@@ -81,7 +75,7 @@ function buildPackageEligibility(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly lifecycle: ExtensionLifecycleState | null
   readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
-}): ContributionPackageEligibility | null {
+}) {
   const { enabled, enabledProjectPaths, disabledProjectPaths } = getEnabledProjectPaths(input)
   if (!enabled || input.extensionPackage.contentHash === null) {
     return null
@@ -94,7 +88,7 @@ function buildPackageEligibility(input: {
       })
     : false
 
-  return {
+  const result: ContributionPackageEligibility = {
     contentHash: input.extensionPackage.contentHash,
     projectPaths: enabledProjectPaths,
     diagnostics: diagnosticsToView([
@@ -114,6 +108,7 @@ function buildPackageEligibility(input: {
       disabledProjectPaths,
     },
   }
+  return result
 }
 
 function declaredPanelIcon(registration: ContributionRegistrationEntry) {
@@ -196,21 +191,4 @@ export function packageToContributionEntriesWithRegistrationResolver(input: {
       validatedEntries.has(declaration.entry),
     ),
   } satisfies ContributionRegistryBuildResult
-}
-
-export function packageToContributionEntries(input: {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly lifecycle: ExtensionLifecycleState | null
-  readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
-  readonly requestedProjectPaths: readonly string[]
-  readonly requestedSessionId: string | undefined
-}) {
-  return packageToContributionEntriesWithRegistrationResolver({
-    extensionPackage: input.extensionPackage,
-    lifecycle: input.lifecycle,
-    projectOverrides: input.projectOverrides,
-    requestedProjectPaths: input.requestedProjectPaths,
-    requestedSessionId: input.requestedSessionId,
-    getRegistrationResult: packageContributionRegistrations,
-  })
 }

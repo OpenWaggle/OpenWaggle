@@ -1,5 +1,4 @@
 import { safeDecodeUnknown } from '@shared/schema'
-import type { RunMode } from '@shared/types/background-run'
 import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionInterruptedRun } from '@shared/types/session'
 import type { RecoverableSessionActiveRun } from '../../ports/session-repository'
@@ -31,7 +30,7 @@ export function interruptedRunsByBranchId(rows: readonly SessionActiveRunRow[]) 
   return interruptedRuns
 }
 
-function parseActiveRunMode(row: SessionActiveRunRow): RunMode | null {
+function parseActiveRunMode(row: SessionActiveRunRow) {
   if (row.run_mode === 'classic' || row.run_mode === 'waggle') return row.run_mode
   sessionsLogger.warn('Ignoring session run with invalid mode', {
     runId: row.run_id,

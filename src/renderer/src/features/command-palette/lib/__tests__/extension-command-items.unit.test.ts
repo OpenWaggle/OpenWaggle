@@ -10,11 +10,10 @@ import {
   type InvokeExtensionCommand,
   resolveExtensionCommandInvocationScope,
 } from '../extension-command-items'
+import { omitKey } from '@/test-utils/omit-key'
 
-function commandEntry(
-  overrides: Partial<ExtensionContributionRegistryEntry> = {},
-): ExtensionContributionRegistryEntry {
-  return {
+function commandEntry(overrides: Partial<ExtensionContributionRegistryEntry> = {}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'sample.extension',
     extensionName: 'Sample Extension',
     extensionVersion: '1.0.0',
@@ -45,6 +44,7 @@ function commandEntry(
     diagnostics: [],
     ...overrides,
   }
+  return entry
 }
 
 describe('resolveExtensionCommandInvocationScope', () => {
@@ -120,8 +120,8 @@ describe('createExtensionCommandItems', () => {
       registry: {
         projectPaths: ['/tmp/project'],
         entries: [
-          commandEntry({ capability: undefined }),
-          commandEntry({ method: undefined }),
+          omitKey(commandEntry(), 'capability'),
+          omitKey(commandEntry(), 'method'),
           commandEntry({
             eligibility: {
               runtimeEnabled: false,
@@ -195,10 +195,10 @@ describe('createExtensionSlashCommandItems', () => {
         projectPaths: ['/tmp/project'],
         entries: [
           commandEntry(),
-          commandEntry({
-            family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
-            capability: undefined,
-          }),
+          omitKey(
+            commandEntry({ family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS }),
+            'capability',
+          ),
           commandEntry({
             family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
             contributionId: 'compact',

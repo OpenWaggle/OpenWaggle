@@ -15,7 +15,7 @@ interface VersionRange {
   readonly maxInclusive?: boolean
 }
 
-function parseSemanticVersion(value: string): SemanticVersion | null {
+function parseSemanticVersion(value: string) {
   const match = OPENWAGGLE_EXTENSION.PATTERNS.SEMVER_CORE.exec(value.trim())
   const major = match?.[OPENWAGGLE_EXTENSION.SEMVER_MATCH.MAJOR]
   const minor = match?.[OPENWAGGLE_EXTENSION.SEMVER_MATCH.MINOR]
@@ -41,23 +41,23 @@ function compareSemanticVersions(left: SemanticVersion, right: SemanticVersion) 
   return left.patch - right.patch
 }
 
-function incrementMajor(version: SemanticVersion): SemanticVersion {
+function incrementMajor(version: SemanticVersion) {
   return {
     major: version.major + 1,
     minor: 0,
     patch: 0,
-  }
+  } satisfies SemanticVersion
 }
 
-function incrementMinor(version: SemanticVersion): SemanticVersion {
+function incrementMinor(version: SemanticVersion) {
   return {
     major: version.major,
     minor: version.minor + 1,
     patch: 0,
-  }
+  } satisfies SemanticVersion
 }
 
-function incrementPatch(version: SemanticVersion): SemanticVersion {
+function incrementPatch(version: SemanticVersion) {
   return {
     major: version.major,
     minor: version.minor,
@@ -65,7 +65,7 @@ function incrementPatch(version: SemanticVersion): SemanticVersion {
   }
 }
 
-function caretUpperBound(version: SemanticVersion): SemanticVersion {
+function caretUpperBound(version: SemanticVersion) {
   if (version.major > 0) {
     return incrementMajor(version)
   }
@@ -91,29 +91,35 @@ function versionSatisfiesRange(version: SemanticVersion, range: VersionRange) {
   return true
 }
 
-function parseExactRange(value: string): VersionRange | null {
+function parseExactRange(value: string) {
   const version = parseSemanticVersion(value)
-  return version ? { min: version, minInclusive: true, max: version, maxInclusive: true } : null
+  return (
+    version ? { min: version, minInclusive: true, max: version, maxInclusive: true } : null
+  ) satisfies VersionRange | null
 }
 
-function parseCaretRange(value: string): VersionRange | null {
+function parseCaretRange(value: string) {
   if (!value.startsWith('^')) {
     return null
   }
   const version = parseSemanticVersion(value.slice(1))
-  return version
-    ? { min: version, minInclusive: true, max: caretUpperBound(version), maxInclusive: false }
-    : null
+  return (
+    version
+      ? { min: version, minInclusive: true, max: caretUpperBound(version), maxInclusive: false }
+      : null
+  ) satisfies VersionRange | null
 }
 
-function parseTildeRange(value: string): VersionRange | null {
+function parseTildeRange(value: string) {
   if (!value.startsWith('~')) {
     return null
   }
   const version = parseSemanticVersion(value.slice(1))
-  return version
-    ? { min: version, minInclusive: true, max: incrementMinor(version), maxInclusive: false }
-    : null
+  return (
+    version
+      ? { min: version, minInclusive: true, max: incrementMinor(version), maxInclusive: false }
+      : null
+  ) satisfies VersionRange | null
 }
 
 function mergeComparator(range: VersionRange, operator: string, version: SemanticVersion) {
@@ -158,7 +164,7 @@ function mergeComparator(range: VersionRange, operator: string, version: Semanti
   return mergeComparator(mergeComparator(range, '>=', version), '<=', version)
 }
 
-function parseComparatorRange(value: string): VersionRange | null {
+function parseComparatorRange(value: string) {
   const parts = value.split(/\s+/).filter((part) => part.length > 0)
   if (parts.length === 0) {
     return null
@@ -184,18 +190,16 @@ function parseComparatorRange(value: string): VersionRange | null {
   return range
 }
 
-function parseSdkRange(value: string): VersionRange | 'any' | null {
+function parseSdkRange(value: string) {
   const trimmed = value.trim()
   if (trimmed === '*') {
-    return 'any'
+    return 'any' as const
   }
 
-  return (
-    parseCaretRange(trimmed) ??
+  return (parseCaretRange(trimmed) ??
     parseTildeRange(trimmed) ??
     parseComparatorRange(trimmed) ??
-    parseExactRange(trimmed)
-  )
+    parseExactRange(trimmed)) satisfies VersionRange | 'any' | null
 }
 
 function hasInvalidBounds(range: VersionRange) {
@@ -209,10 +213,7 @@ function hasInvalidBounds(range: VersionRange) {
   return compared === 0 && (range.minInclusive === false || range.maxInclusive === false)
 }
 
-export function checkExtensionSdkCompatibility(
-  requiredRange: string,
-  hostVersion: string,
-): ExtensionSdkCompatibility {
+export function checkExtensionSdkCompatibility(requiredRange: string, hostVersion: string) {
   const parsedHostVersion = parseSemanticVersion(hostVersion)
   if (!parsedHostVersion) {
     return {
@@ -220,7 +221,7 @@ export function checkExtensionSdkCompatibility(
       requiredRange,
       compatible: false,
       reason: `Host SDK version "${hostVersion}" is not valid semver.`,
-    }
+    } satisfies ExtensionSdkCompatibility
   }
 
   const range = parseSdkRange(requiredRange)
@@ -230,10 +231,10 @@ export function checkExtensionSdkCompatibility(
       requiredRange,
       compatible: false,
       reason: `SDK range "${requiredRange}" is not supported.`,
-    }
+    } satisfies ExtensionSdkCompatibility
   }
   if (range === 'any') {
-    return { hostVersion, requiredRange, compatible: true }
+    return { hostVersion, requiredRange, compatible: true } satisfies ExtensionSdkCompatibility
   }
   if (hasInvalidBounds(range)) {
     return {
@@ -241,16 +242,18 @@ export function checkExtensionSdkCompatibility(
       requiredRange,
       compatible: false,
       reason: `SDK range "${requiredRange}" has incompatible bounds.`,
-    }
+    } satisfies ExtensionSdkCompatibility
   }
 
   const compatible = versionSatisfiesRange(parsedHostVersion, range)
-  return compatible
-    ? { hostVersion, requiredRange, compatible: true }
-    : {
-        hostVersion,
-        requiredRange,
-        compatible: false,
-        reason: `Host SDK ${hostVersion} does not satisfy ${requiredRange}.`,
-      }
+  return (
+    compatible
+      ? { hostVersion, requiredRange, compatible: true }
+      : {
+          hostVersion,
+          requiredRange,
+          compatible: false,
+          reason: `Host SDK ${hostVersion} does not satisfy ${requiredRange}.`,
+        }
+  ) satisfies ExtensionSdkCompatibility
 }

@@ -57,14 +57,24 @@ export class SessionTranscriptSemanticIndexCache {
   #accessSequence = 0
   #fullRebuilds = 0
 
-  constructor(
-    private readonly sql: SqlClient.SqlClient,
-    private readonly model: SessionEmbeddingModel,
-  ) {}
+  private readonly sql: SqlClient.SqlClient
+  private readonly model: SessionEmbeddingModel
 
-  load(sessionIds: readonly string[]): Effect.Effect<SessionFlatVectorIndex, SqlError> {
-    if (sessionIds.length === 0) return Effect.succeed(new SessionFlatVectorIndex())
-    return this.#refreshLock.withPermits(1)(
+  constructor(sql: SqlClient.SqlClient, model: SessionEmbeddingModel) {
+    this.sql = sql
+    this.model = model
+  }
+
+  load(sessionIds: readonly string[]) {
+    if (sessionIds.length === 0) {
+      const effect: Effect.Effect<SessionFlatVectorIndex, SqlError> = Effect.succeed(
+        new SessionFlatVectorIndex(),
+      )
+      return effect
+    }
+    const effect: Effect.Effect<SessionFlatVectorIndex, SqlError> = this.#refreshLock.withPermits(
+      1,
+    )(
       Effect.gen(this, function* () {
         const key = scopeCacheKey(this.model, sessionIds)
         const revision = yield* this.#readScopeRevision(sessionIds)
@@ -85,6 +95,7 @@ export class SessionTranscriptSemanticIndexCache {
         return refreshed.index
       }),
     )
+    return effect
   }
 
   diagnostics() {

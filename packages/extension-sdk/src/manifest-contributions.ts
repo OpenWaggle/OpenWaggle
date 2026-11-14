@@ -17,23 +17,27 @@ import type { SchemaType } from './schema.js'
 
 export const extensionCapabilityDeclarationSchema = Schema.Struct({
   id: extensionContributionIdSchema,
-  methods: Schema.optional(Schema.Array(extensionContributionIdSchema)),
-  scopes: Schema.optional(Schema.Array(extensionCapabilityScopeSchema)),
+  methods: Schema.optionalWith(Schema.Array(extensionContributionIdSchema), { exact: true }),
+  scopes: Schema.optionalWith(Schema.Array(extensionCapabilityScopeSchema), { exact: true }),
 }).pipe(Schema.filter(validateBrokerCapabilityDeclaration))
 
 const brokerBindingSchema = {
-  capability: Schema.optional(extensionContributionIdSchema),
-  method: Schema.optional(extensionContributionIdSchema),
-  methods: Schema.optional(Schema.Array(extensionContributionIdSchema)),
+  capability: Schema.optionalWith(extensionContributionIdSchema, { exact: true }),
+  method: Schema.optionalWith(extensionContributionIdSchema, { exact: true }),
+  methods: Schema.optionalWith(Schema.Array(extensionContributionIdSchema), { exact: true }),
 }
 const targetSchema = Schema.Struct({
-  projectPaths: Schema.optional(Schema.Array(extensionNonEmptyStringSchema)),
-  sessionIds: Schema.optional(Schema.Array(extensionNonEmptyStringSchema)),
+  projectPaths: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), { exact: true }),
+  sessionIds: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), { exact: true }),
 })
 const matchSchema = Schema.Struct({
-  toolNames: Schema.optional(Schema.Array(extensionNonEmptyStringSchema)),
-  customMessageNames: Schema.optional(Schema.Array(extensionNonEmptyStringSchema)),
-  interactionKinds: Schema.optional(Schema.Array(extensionNonEmptyStringSchema)),
+  toolNames: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), { exact: true }),
+  customMessageNames: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), {
+    exact: true,
+  }),
+  interactionKinds: Schema.optionalWith(Schema.Array(extensionNonEmptyStringSchema), {
+    exact: true,
+  }),
 })
 
 function validateEntryRuntime(input: {
@@ -52,12 +56,13 @@ export const extensionCommandContributionSchema = Schema.Struct({
   title: extensionNonEmptyStringSchema.pipe(
     Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
   ),
-  category: Schema.optional(
+  category: Schema.optionalWith(
     extensionNonEmptyStringSchema.pipe(
       Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
     ),
+    { exact: true },
   ),
-  target: Schema.optional(targetSchema),
+  target: Schema.optionalWith(targetSchema, { exact: true }),
   ...brokerBindingSchema,
 })
 
@@ -69,8 +74,8 @@ const entryContributionFields = {
   runtime: extensionContributionRuntimeSchema,
   execution: extensionExecutionPlacementSchema,
   entry: extensionContributionEntryPathSchema,
-  target: Schema.optional(targetSchema),
-  matches: Schema.optional(matchSchema),
+  target: Schema.optionalWith(targetSchema, { exact: true }),
+  matches: Schema.optionalWith(matchSchema, { exact: true }),
   ...brokerBindingSchema,
 }
 
@@ -93,7 +98,7 @@ export const extensionSidePanelIconSchema = Schema.Union(
 
 export const extensionSidePanelContributionSchema = Schema.Struct({
   ...entryContributionFields,
-  icon: Schema.optional(extensionSidePanelIconSchema),
+  icon: Schema.optionalWith(extensionSidePanelIconSchema, { exact: true }),
 }).pipe(Schema.filter(validateEntryRuntime))
 
 export const extensionSessionSummaryActionSchema = Schema.Struct({
@@ -106,19 +111,23 @@ export const extensionSessionSummaryRowSchema = Schema.Struct({
   label: extensionNonEmptyStringSchema.pipe(
     Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
   ),
-  value: Schema.optional(
+  value: Schema.optionalWith(
     extensionNonEmptyStringSchema.pipe(
       Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.DESCRIPTION_MAX_LENGTH),
     ),
+    { exact: true },
   ),
-  badge: Schema.optional(
+  badge: Schema.optionalWith(
     extensionNonEmptyStringSchema.pipe(
       Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
     ),
+    { exact: true },
   ),
-  count: Schema.optional(Schema.Number.pipe(Schema.int(), Schema.nonNegative())),
-  resourceId: Schema.optional(extensionContributionIdSchema),
-  action: Schema.optional(extensionSessionSummaryActionSchema),
+  count: Schema.optionalWith(Schema.Number.pipe(Schema.int(), Schema.nonNegative()), {
+    exact: true,
+  }),
+  resourceId: Schema.optionalWith(extensionContributionIdSchema, { exact: true }),
+  action: Schema.optionalWith(extensionSessionSummaryActionSchema, { exact: true }),
 }).pipe(
   Schema.filter(
     (row) =>
@@ -132,14 +141,15 @@ const SESSION_SUMMARY_AUTO_COLLAPSE_MIN_MS = 1_000
 const SESSION_SUMMARY_AUTO_COLLAPSE_MAX_MS = 300_000
 
 export const extensionSessionSummaryDisclosureSchema = Schema.Struct({
-  defaultExpanded: Schema.optional(Schema.Boolean),
-  collapsible: Schema.optional(Schema.Boolean),
-  autoCollapseAfterMs: Schema.optional(
+  defaultExpanded: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  collapsible: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  autoCollapseAfterMs: Schema.optionalWith(
     Schema.Number.pipe(
       Schema.int(),
       Schema.greaterThanOrEqualTo(SESSION_SUMMARY_AUTO_COLLAPSE_MIN_MS),
       Schema.lessThanOrEqualTo(SESSION_SUMMARY_AUTO_COLLAPSE_MAX_MS),
     ),
+    { exact: true },
   ),
 })
 
@@ -151,7 +161,7 @@ export const extensionSessionSummaryStateSchema = Schema.Union(
   Schema.Struct({ status: Schema.Literal('ready') }),
   Schema.Struct({
     status: Schema.Literal('loading', 'live'),
-    message: Schema.optional(extensionSessionSummaryStateMessageSchema),
+    message: Schema.optionalWith(extensionSessionSummaryStateMessageSchema, { exact: true }),
   }),
   Schema.Struct({
     status: Schema.Literal('failure'),
@@ -164,26 +174,47 @@ export const extensionSessionSummaryContributionSchema = Schema.Struct({
   title: extensionNonEmptyStringSchema.pipe(
     Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH),
   ),
-  placement: Schema.optional(Schema.Literal('context', 'coordination', 'details')),
-  target: Schema.optional(targetSchema),
-  disclosure: Schema.optional(extensionSessionSummaryDisclosureSchema),
-  state: Schema.optional(extensionSessionSummaryStateSchema),
+  placement: Schema.optionalWith(Schema.Literal('context', 'coordination', 'details'), {
+    exact: true,
+  }),
+  target: Schema.optionalWith(targetSchema, { exact: true }),
+  disclosure: Schema.optionalWith(extensionSessionSummaryDisclosureSchema, { exact: true }),
+  state: Schema.optionalWith(extensionSessionSummaryStateSchema, { exact: true }),
   rows: Schema.Array(extensionSessionSummaryRowSchema),
 })
 
 export const extensionContributionsSchema = Schema.Struct({
-  commands: Schema.optional(Schema.Array(extensionCommandContributionSchema)),
-  slashCommands: Schema.optional(Schema.Array(extensionCommandContributionSchema)),
-  routes: Schema.optional(Schema.Array(extensionRouteContributionSchema)),
-  settingsSections: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
-  sidePanels: Schema.optional(Schema.Array(extensionSidePanelContributionSchema)),
-  dialogs: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
-  transcriptRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
-  toolRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
-  customMessageRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
-  interactionRenderers: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
-  statusWidgets: Schema.optional(Schema.Array(extensionSlotContributionSchema)),
-  sessionSummarySections: Schema.optional(Schema.Array(extensionSessionSummaryContributionSchema)),
+  commands: Schema.optionalWith(Schema.Array(extensionCommandContributionSchema), { exact: true }),
+  slashCommands: Schema.optionalWith(Schema.Array(extensionCommandContributionSchema), {
+    exact: true,
+  }),
+  routes: Schema.optionalWith(Schema.Array(extensionRouteContributionSchema), { exact: true }),
+  settingsSections: Schema.optionalWith(Schema.Array(extensionSlotContributionSchema), {
+    exact: true,
+  }),
+  sidePanels: Schema.optionalWith(Schema.Array(extensionSidePanelContributionSchema), {
+    exact: true,
+  }),
+  dialogs: Schema.optionalWith(Schema.Array(extensionSlotContributionSchema), { exact: true }),
+  transcriptRenderers: Schema.optionalWith(Schema.Array(extensionSlotContributionSchema), {
+    exact: true,
+  }),
+  toolRenderers: Schema.optionalWith(Schema.Array(extensionSlotContributionSchema), {
+    exact: true,
+  }),
+  customMessageRenderers: Schema.optionalWith(Schema.Array(extensionSlotContributionSchema), {
+    exact: true,
+  }),
+  interactionRenderers: Schema.optionalWith(Schema.Array(extensionSlotContributionSchema), {
+    exact: true,
+  }),
+  statusWidgets: Schema.optionalWith(Schema.Array(extensionSlotContributionSchema), {
+    exact: true,
+  }),
+  sessionSummarySections: Schema.optionalWith(
+    Schema.Array(extensionSessionSummaryContributionSchema),
+    { exact: true },
+  ),
 })
 
 export const extensionCommandContributionRegistrationSchema = Schema.Struct({
@@ -246,7 +277,6 @@ export type ExtensionSidePanelIcon = SchemaType<typeof extensionSidePanelIconSch
 export type ExtensionSidePanelContribution = SchemaType<typeof extensionSidePanelContributionSchema>
 export type ExtensionEntryContribution =
   | SchemaType<typeof extensionRouteContributionSchema>
-  | SchemaType<typeof extensionSlotContributionSchema>
   | ExtensionSidePanelContribution
 export type ExtensionSessionSummaryContribution = SchemaType<
   typeof extensionSessionSummaryContributionSchema

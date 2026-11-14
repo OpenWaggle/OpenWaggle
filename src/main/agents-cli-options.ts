@@ -23,15 +23,16 @@ export function agentDefinitionsProjectPath(arguments_: ParsedArguments, cwd: st
   return path.resolve(option(arguments_, 'project') ?? cwd)
 }
 
-export function parseAgentDefinitionScope(value: string | undefined): AgentDefinitionScope {
-  if (value === 'project' || value === 'portable-project' || value === 'user') return value
+export function parseAgentDefinitionScope(value: string | undefined) {
+  if (value === 'project' || value === 'portable-project' || value === 'user') {
+    const scope: AgentDefinitionScope = value
+    return scope
+  }
   throw new CommandCliUsageError('--scope must be project, portable-project, or user.')
 }
 
-export function parseAgentDefinitionImportSource(
-  value: string | undefined,
-): AgentDefinitionImportSource | 'auto' {
-  if (!value || value === 'auto') return 'auto'
+export function parseAgentDefinitionImportSource(value: string | undefined) {
+  if (!value || value === 'auto') return 'auto' as const
   const sources: readonly AgentDefinitionImportSource[] = [
     'openwaggle',
     'codex',

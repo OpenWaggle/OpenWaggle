@@ -18,7 +18,10 @@ describe('one SQLite library per process (#371)', () => {
       `new Worker(\`const { DatabaseSync } = require('${NODE_SQLITE}')\`, { eval: true })`,
     ]) {
       expect(
-        collectSqliteLibraryViolations('src/main/session-host/session-host-upgrade-blockers.ts', source),
+        collectSqliteLibraryViolations(
+          'src/main/session-host/session-host-upgrade-blockers.ts',
+          source,
+        ),
         source,
       ).toMatchObject([{ detail: NODE_SQLITE }])
     }
@@ -37,7 +40,10 @@ describe('one SQLite library per process (#371)', () => {
 
   it('rejects the other SQLite libraries too', () => {
     expect(
-      collectSqliteLibraryViolations('src/main/store/settings.ts', `import sqlite3 from '${SQLITE3}'`),
+      collectSqliteLibraryViolations(
+        'src/main/store/settings.ts',
+        `import sqlite3 from '${SQLITE3}'`,
+      ),
     ).toMatchObject([{ detail: SQLITE3 }])
   })
 
@@ -60,7 +66,10 @@ describe('one SQLite library per process (#371)', () => {
   it('lets browser import read browser databases, but never next to better-sqlite3', () => {
     const browserSource = `import { DatabaseSync } from '${NODE_SQLITE}'`
     expect(
-      collectSqliteLibraryViolations('src/main/browser-import/browser-cookie-database.ts', browserSource),
+      collectSqliteLibraryViolations(
+        'src/main/browser-import/browser-cookie-database.ts',
+        browserSource,
+      ),
     ).toEqual([])
     expect(
       collectSqliteLibraryViolations(

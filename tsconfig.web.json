@@ -1,4 +1,5 @@
 {
+  "extends": "./tsconfig.strict.json",
   "compilerOptions": {
     "composite": true,
     "target": "ES2022",
@@ -12,7 +13,6 @@
     "outDir": "./.typecheck/web",
     "rootDir": ".",
     "paths": {
-      "*": ["./*"],
       "@/*": ["./src/renderer/src/*"],
       "@shared/*": ["./src/shared/*"],
       "@openwaggle/extension-sdk": ["./packages/extension-sdk/src/index.ts"],

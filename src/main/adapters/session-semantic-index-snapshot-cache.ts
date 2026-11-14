@@ -8,7 +8,7 @@ function cancellableCooperativeScan<A>(scan: (signal: AbortSignal) => Promise<A>
     const promise = scan(controller.signal)
     void promise.then(
       (value) => resume(Effect.succeed(value)),
-      (cause) => resume(Effect.die(cause)),
+      (cause: unknown) => resume(Effect.die(cause)),
     )
     return Effect.promise(async () => {
       controller.abort()
@@ -43,11 +43,7 @@ export class SessionSemanticIndexSnapshotCache {
     readonly limit: number
     readonly allowedSessionIds?: ReadonlySet<string>
     readonly excludedSessionIds?: ReadonlySet<string>
-  }): Effect.Effect<
-    { readonly revision: number; readonly matches: ReturnType<SessionFlatVectorIndex['search']> },
-    Error,
-    Requirements
-  > {
+  }) {
     return this.#refreshLock.withPermits(1)(
       Effect.gen(this, function* () {
         if (input.minimumRevision > this.#loadedRevision) {

@@ -133,37 +133,42 @@ async function handlePresetManagementSelection(input: {
   readonly layers: Awaited<ReturnType<typeof loadPiWagglePresetLayers>>
   readonly hiddenPresets: readonly PiWaggleHiddenBuiltInPreset[]
   readonly editPreset: () => Promise<void>
-}): Promise<PresetManagementResult> {
+}) {
   if (input.selected === BACK_LABEL) {
-    return { action: 'return', navigation: BACK_TO_PARENT }
+    const result: PresetManagementResult = { action: 'return', navigation: BACK_TO_PARENT }
+    return result
   }
 
   if (!input.selected) {
-    return { action: 'return', navigation: CLOSE_MENU }
+    const result: PresetManagementResult = { action: 'return', navigation: CLOSE_MENU }
+    return result
   }
 
   if (input.selected === MANAGE_EDIT_LABEL) {
     await input.editPreset()
-    return { action: 'continue' }
+    const result: PresetManagementResult = { action: 'continue' }
+    return result
   }
 
   if (input.selected === MANAGE_DELETE_LABEL) {
     const preset = await selectPresetToDelete(input.ctx, resolvedPresetsForUi(input.layers))
     if (preset) await deletePreset({ ctx: input.ctx, preset })
-    return { action: 'continue' }
+    const result: PresetManagementResult = { action: 'continue' }
+    return result
   }
 
   if (input.selected === MANAGE_RESTORE_LABEL) {
     await restoreHiddenPreset({ ctx: input.ctx, hiddenPresets: input.hiddenPresets })
   }
 
-  return { action: 'continue' }
+  const result: PresetManagementResult = { action: 'continue' }
+  return result
 }
 
 export async function managePresets(input: {
   readonly ctx: ExtensionCommandContext
   readonly editPreset: () => Promise<void>
-}): Promise<PresetManagementNavigation> {
+}) {
   if (!input.ctx.hasUI) return CLOSE_MENU
 
   while (true) {

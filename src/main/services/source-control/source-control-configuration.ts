@@ -73,19 +73,35 @@ export const LIVE_SOURCE_CONTROL_CONFIGURATION_DEPS: SourceControlConfigurationD
 export async function resolveChangeRequestOpenDestination(
   projectPath: string | null,
   access: SourceControlSettingsAccess,
-): Promise<ChangeRequestOpenDestinationResolution> {
+) {
   const settings = await access.read()
   const key = projectPath ? await projectSettingsKey(projectPath) : null
   const local = key ? settings.changeRequestOpenDestinationByProject[key] : undefined
-  if (local) return { destination: local, source: 'project-local' }
+  if (local) {
+    return {
+      destination: local,
+      source: 'project-local',
+    } satisfies ChangeRequestOpenDestinationResolution
+  }
   if (settings.changeRequestOpenDestination) {
-    return { destination: settings.changeRequestOpenDestination, source: 'user' }
+    return {
+      destination: settings.changeRequestOpenDestination,
+      source: 'user',
+    } satisfies ChangeRequestOpenDestinationResolution
   }
   const shared = projectPath
     ? (await readProjectSourceControlConfig(key ?? projectPath)).changeRequestOpenDestination
     : undefined
-  if (shared) return { destination: shared, source: 'project-shared' }
-  return { destination: DEFAULT_CHANGE_REQUEST_OPEN_DESTINATION, source: 'default' }
+  if (shared) {
+    return {
+      destination: shared,
+      source: 'project-shared',
+    } satisfies ChangeRequestOpenDestinationResolution
+  }
+  return {
+    destination: DEFAULT_CHANGE_REQUEST_OPEN_DESTINATION,
+    source: 'default',
+  } satisfies ChangeRequestOpenDestinationResolution
 }
 
 function canonicalHost(host: string) {
@@ -93,15 +109,15 @@ function canonicalHost(host: string) {
   return isSourceControlHostName(key) ? key : null
 }
 
-function failure(message: string): SourceControlConfigureResult {
-  return { ok: false, message }
+function failure(message: string) {
+  return { ok: false, message } satisfies SourceControlConfigureResult
 }
 
 async function setHostProvider(
   host: string,
   provider: SourceControlHostChoice | null,
   access: SourceControlSettingsAccess,
-): Promise<SourceControlConfigureResult> {
+) {
   const key = canonicalHost(host)
   if (!key) return failure(`"${host}" is not a hostname.`)
   await access.patch(
@@ -112,7 +128,7 @@ async function setHostProvider(
           sourceControlDetectedHostProviders: { [key]: null },
         },
   )
-  return { ok: true }
+  return { ok: true } satisfies SourceControlConfigureResult
 }
 
 function canonicalDeclarations(hosts: SourceControlHostDeclarations) {
@@ -155,7 +171,7 @@ async function recordDeclarationDecision(
 async function declareProjectHost(
   request: Extract<SourceControlConfigureRequest, { kind: 'declare-project-host' }>,
   access: SourceControlSettingsAccess,
-): Promise<SourceControlConfigureResult> {
+) {
   const { projectPath, host, provider } = request
   const key = canonicalHost(host)
   if (!key) return failure(`"${host}" is not a hostname.`)
@@ -171,34 +187,32 @@ async function declareProjectHost(
     access,
     provider ? null : key,
   )
-  return { ok: true }
+  return { ok: true } satisfies SourceControlConfigureResult
 }
 
 async function setOpenDestination(
   request: Extract<SourceControlConfigureRequest, { kind: 'set-open-destination' }>,
   access: SourceControlSettingsAccess,
-): Promise<SourceControlConfigureResult> {
+) {
   if (request.scope === 'user') {
     await access.patch({ changeRequestOpenDestination: request.destination })
-    return { ok: true }
+    return { ok: true } satisfies SourceControlConfigureResult
   }
   if (!request.projectPath) return failure('A project is required for a project destination.')
   if (request.scope === 'project-shared') {
     const root = await sharedFileRoot(request.workingPath ?? request.projectPath)
-    if (!root) {
-      return failure('The project settings file can only be written at a repository root.')
-    }
+    if (!root) return failure('The project settings file can only be written at a repository root.')
     await updateProjectSourceControlConfig(root, {
       changeRequestOpenDestination: request.destination,
     })
-    return { ok: true }
+    return { ok: true } satisfies SourceControlConfigureResult
   }
   await access.patch({
     changeRequestOpenDestinationByProject: {
       [await projectSettingsKey(request.projectPath)]: request.destination,
     },
   })
-  return { ok: true }
+  return { ok: true } satisfies SourceControlConfigureResult
 }
 
 function cliAccounts(host: string, cliHosts: SourceControlCliHosts) {
@@ -213,7 +227,7 @@ async function setRepositoryAccount(
   login: string | null,
   access: SourceControlSettingsAccess,
   deps: SourceControlConfigurationDeps,
-): Promise<SourceControlConfigureResult> {
+) {
   const key = repository.trim().toLowerCase()
   const host = canonicalHost(key.split('/')[0] ?? '')
   if (!host || key.split('/').length < MIN_REPOSITORY_KEY_SEGMENTS) {
@@ -221,14 +235,14 @@ async function setRepositoryAccount(
   }
   if (login === null) {
     await access.patch({ sourceControlRepositoryAccounts: { [key]: null } })
-    return { ok: true }
+    return { ok: true } satisfies SourceControlConfigureResult
   }
   const accounts = cliAccounts(host, await deps.readCliHosts())
   if (!accounts.some((account) => account.login === login)) {
     return failure(`No signed-in account "${login}" for ${host}.`)
   }
   await access.patch({ sourceControlRepositoryAccounts: { [key]: login } })
-  return { ok: true }
+  return { ok: true } satisfies SourceControlConfigureResult
 }
 
 /** Apply one source-control change the same way for Settings, the Session Summary, and agents. */
@@ -236,7 +250,7 @@ export async function configureSourceControl(
   request: SourceControlConfigureRequest,
   access: SourceControlSettingsAccess,
   deps: Partial<SourceControlConfigurationDeps> = {},
-): Promise<SourceControlConfigureResult> {
+) {
   const resolvedDeps = { ...LIVE_SOURCE_CONTROL_CONFIGURATION_DEPS, ...deps }
   try {
     return await match(request)

@@ -41,11 +41,13 @@ function sourceFiles(directory: string) {
   return files.sort()
 }
 
-function recordField(value: unknown, key: string): unknown {
-  return typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+function recordField(value: unknown, key: string) {
+  const result: unknown =
+    typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+  return result
 }
 
-function eventLine(event: unknown): number | null {
+function eventLine(event: unknown) {
   const start = recordField(recordField(event, 'fnLoc'), 'start')
   const line = recordField(start, 'line')
   return typeof line === 'number' ? line : null
@@ -72,11 +74,7 @@ export interface ReactCompilerOutput {
  * Compiles one source text the way the app build does: the same compiler package, under the same
  * Babel major (`@rolldown/plugin-babel` resolves the root `@babel/core`), parsing TypeScript + JSX.
  */
-export function compileWithReactCompiler(
-  code: string,
-  filename: string,
-  displayName = filename,
-): ReactCompilerOutput {
+export function compileWithReactCompiler(code: string, filename: string, displayName = filename) {
   const bailouts: ReactCompilerBailout[] = []
   const result = transformSync(code, {
     filename,
@@ -104,7 +102,7 @@ export function compileWithReactCompiler(
       ],
     ],
   })
-  return { code: result?.code ?? '', bailouts }
+  return { code: result?.code ?? '', bailouts } satisfies ReactCompilerOutput
 }
 
 /** Compiles one source text and returns the functions the compiler left uncompiled. */
@@ -112,16 +110,20 @@ export function reactCompilerBailoutsForSource(
   code: string,
   filename: string,
   displayName = filename,
-): readonly ReactCompilerBailout[] {
-  if (!COMPILER_CODE_FILTER.test(code)) return []
+) {
+  if (!COMPILER_CODE_FILTER.test(code)) return [] satisfies readonly ReactCompilerBailout[]
   return compileWithReactCompiler(code, filename, displayName).bailouts
 }
 
+export interface ReactCompilerGateResult {
+  /** Bailouts in files that may not have any. */
+  readonly unexpected: readonly ReactCompilerBailout[]
+  /** Allowlisted files that now compile; the allowlist must shrink with them. */
+  readonly stale: readonly string[]
+}
+
 /** Every bailout under the given roots, with paths relative to `repositoryRoot`. */
-export function reactCompilerBailouts(
-  repositoryRoot: string,
-  roots: readonly string[],
-): readonly ReactCompilerBailout[] {
+export function reactCompilerBailouts(repositoryRoot: string, roots: readonly string[]) {
   return roots.flatMap((root) =>
     sourceFiles(path.join(repositoryRoot, root)).flatMap((file) =>
       reactCompilerBailoutsForSource(
@@ -133,13 +135,6 @@ export function reactCompilerBailouts(
   )
 }
 
-export interface ReactCompilerGateResult {
-  /** Bailouts in files that may not have any. */
-  readonly unexpected: readonly ReactCompilerBailout[]
-  /** Allowlisted files that now compile; the allowlist must shrink with them. */
-  readonly stale: readonly string[]
-}
-
 /**
  * Compares bailouts with an allowlist of file → bailout count. A file over its count fails, and so
  * does an allowlisted file that now has fewer bailouts than listed, so the list can only shrink.
@@ -147,7 +142,7 @@ export interface ReactCompilerGateResult {
 export function evaluateReactCompilerGate(
   bailouts: readonly ReactCompilerBailout[],
   allowlist: Readonly<Record<string, number>>,
-): ReactCompilerGateResult {
+) {
   const counts = new Map<string, number>()
   for (const bailout of bailouts) counts.set(bailout.file, (counts.get(bailout.file) ?? 0) + 1)
   const unexpected = bailouts.filter(
@@ -156,5 +151,6 @@ export function evaluateReactCompilerGate(
   const stale = Object.entries(allowlist)
     .filter(([file, allowed]) => (counts.get(file) ?? 0) < allowed)
     .map(([file]) => file)
-  return { unexpected, stale }
+  const result: ReactCompilerGateResult = { unexpected, stale }
+  return result
 }

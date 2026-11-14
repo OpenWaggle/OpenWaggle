@@ -8,9 +8,7 @@ import {
 import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
 import { positiveInteger, requiredSessionId } from './sessions-cli-arguments'
 
-export function buildSessionsCliExportPayload(
-  arguments_: ParsedArguments,
-): LocalSessionCommandPayload {
+export function buildSessionsCliExportPayload(arguments_: ParsedArguments) {
   const branchScope = option(arguments_, 'scope') ?? 'active-branch'
   if (branchScope !== 'active-branch' && branchScope !== 'tree') {
     throw new Error('Unsupported export scope. Expected active-branch or tree.')
@@ -33,5 +31,5 @@ export function buildSessionsCliExportPayload(
         ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
       },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }

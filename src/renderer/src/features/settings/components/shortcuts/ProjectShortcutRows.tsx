@@ -1,29 +1,18 @@
 import type { ProjectActionShortcutRule } from '@shared/types/project-actions'
-import { type ShortcutBinding, shortcutBindingKey } from '@shared/types/shortcuts'
-import {
-  parseProjectActionWhenExpression,
-  projectActionShortcutRules,
-} from '@shared/utils/project-action-shortcuts'
+import { projectActionShortcutRules } from '@shared/utils/project-action-shortcuts'
 import { AlertTriangle, Trash2, X } from 'lucide-react'
-import { type KeyboardEvent, useState } from 'react'
 import { projectActionUnknownWhenVariables } from '@/features/project-actions'
 import { ProjectActionConditionBuilder } from '@/features/project-actions/components'
 import { Button } from '@/shared/ui/Button'
-import {
-  isShortcutModifierKey,
-  ShortcutBindingButton,
-  ShortcutConflictNotice,
-  shortcutBindingFromEvent,
-} from '@/shared/ui/ShortcutRecorder'
-import {
-  type ProjectShortcutBrowserRow,
-  type ShortcutConflictSource,
-  shortcutBrowserConflictLabels,
+import { ShortcutBindingButton, ShortcutConflictNotice } from '@/shared/ui/ShortcutRecorder'
+import { useShortcutRowDraft } from '../../hooks/useShortcutRowDraft'
+import type {
+  ProjectShortcutBrowserRow,
+  ShortcutConflictSource,
 } from '../../lib/shortcut-browser-model'
 import type { UpdateProjectShortcutRules } from './AddShortcutBinding'
 import { ShortcutSourceBadge } from './ShortcutRowParts'
 
-export type { UpdateProjectShortcutRules } from './AddShortcutBinding'
 export { AddShortcutBinding } from './AddShortcutBinding'
 
 interface ProjectShortcutRowProps {
@@ -95,41 +84,20 @@ export function ProjectShortcutRow({
   onError,
   onUpdate,
 }: ProjectShortcutRowProps) {
-  const [binding, setBinding] = useState<ShortcutBinding>(row.binding)
-  const [when, setWhen] = useState(row.when)
-  const [recording, setRecording] = useState(false)
-  const persistedKey = shortcutBindingKey(row.binding)
-  const normalizedWhen = when.trim()
-  const whenIsValid =
-    normalizedWhen.length === 0 || parseProjectActionWhenExpression(normalizedWhen) !== null
-  const dirty = shortcutBindingKey(binding) !== persistedKey || normalizedWhen !== row.when
-  const conflicts = shortcutBrowserConflictLabels(rows, {
-    rowId: row.id,
+  const {
     binding,
-    when: normalizedWhen,
-  })
+    when,
+    setWhen,
+    recording,
+    normalizedWhen,
+    whenIsValid,
+    dirty,
+    conflicts,
+    handleKeyDown,
+    discard,
+    startRecording,
+  } = useShortcutRowDraft(row, rows, onError)
   const unknownVariables = projectActionUnknownWhenVariables(normalizedWhen)
-
-  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (!recording) return
-    event.preventDefault()
-    event.stopPropagation()
-    if (event.key === 'Escape') {
-      setBinding(row.binding)
-      setRecording(false)
-      return
-    }
-    const next = shortcutBindingFromEvent(event)
-    if (next === null) {
-      if (!isShortcutModifierKey(event.key)) {
-        onError('Use Command, Control, Alt, or Shift with the key.')
-      }
-      return
-    }
-    setBinding(next)
-    setRecording(false)
-    onError(null)
-  }
 
   async function save() {
     const nextRule: ProjectActionShortcutRule = {
@@ -161,10 +129,7 @@ export function ProjectShortcutRow({
                 size="icon-sm"
                 title="Discard changes"
                 aria-label={`Discard changes to ${row.label}`}
-                onClick={() => {
-                  setBinding(row.binding)
-                  setWhen(row.when)
-                }}
+                onClick={discard}
               >
                 <X className="size-3" />
               </Button>
@@ -193,10 +158,7 @@ export function ProjectShortcutRow({
             binding={binding}
             recording={recording}
             disabled={saving}
-            onClick={() => {
-              setRecording(true)
-              onError(null)
-            }}
+            onClick={startRecording}
             onKeyDown={handleKeyDown}
           />
         </div>

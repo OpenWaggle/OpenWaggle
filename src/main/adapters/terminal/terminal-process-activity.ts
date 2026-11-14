@@ -85,14 +85,14 @@ export function makeActivitySnapshot(
   rows: Map<number, ProcessRow>,
   portsByPid: PortProbe,
   previous: TerminalProcessActivitySnapshot | undefined,
-): TerminalProcessActivitySnapshot {
+) {
   const { names, pids } = collectActivityProcesses(pid, targetTtyIdentity, rows, previous)
   const ports =
     portsByPid === null || portsByPid === undefined
       ? (previous?.ports ?? [])
       : collectPorts(pids, portsByPid)
   const reliable = portsByPid === undefined ? (previous?.reliable ?? false) : portsByPid !== null
-  return {
+  const snapshot: TerminalProcessActivitySnapshot = {
     // The root shell is not child work. Keep the default "Terminal N" label
     // while idle instead of replacing it with zsh/bash/fish.
     processName: names.length === 0 ? null : resolveForegroundName(pid, rows),
@@ -107,12 +107,11 @@ export function makeActivitySnapshot(
     processReliable: true,
     reliable,
   }
+  return snapshot
 }
 
-export function makeUnreliableSnapshot(
-  previous: TerminalProcessActivitySnapshot | undefined,
-): TerminalProcessActivitySnapshot {
-  return {
+export function makeUnreliableSnapshot(previous: TerminalProcessActivitySnapshot | undefined) {
+  const snapshot: TerminalProcessActivitySnapshot = {
     processName: previous?.processName ?? null,
     processNames: previous?.processNames ?? [],
     processPids: previous?.processPids ?? [],
@@ -122,6 +121,7 @@ export function makeUnreliableSnapshot(
     processReliable: false,
     reliable: false,
   }
+  return snapshot
 }
 
 export function sameActivitySnapshot(

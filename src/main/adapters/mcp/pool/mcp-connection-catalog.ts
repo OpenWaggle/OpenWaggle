@@ -16,11 +16,10 @@ import {
 export {
   fileBackedMcpToolCatalogStore,
   MCP_TOOL_CATALOG_MAX_AGE_MS,
-  type McpToolCatalog,
   type McpToolCatalogStore,
   memoryMcpToolCatalogStore,
-  pruneMcpToolCatalogs,
 } from './mcp-tool-catalog-store'
+import { mcpMessageFields, stringField } from './mcp-message-fields'
 
 /** Hex characters of a catalog key: its file name. */
 const CATALOG_KEY_LENGTH = 32
@@ -41,13 +40,12 @@ export function mcpToolCatalogKey(input: {
 }
 
 function cursorOf(params: unknown) {
-  return isRecord(params) && typeof params.cursor === 'string' ? params.cursor : ''
+  return stringField(mcpMessageFields(params)?.cursor) ?? ''
 }
 
 export function hasToolsCapability(initialize: unknown) {
-  return (
-    isRecord(initialize) && isRecord(initialize.capabilities) && 'tools' in initialize.capabilities
-  )
+  const capabilities = mcpMessageFields(initialize)?.capabilities
+  return isRecord(capabilities) && 'tools' in capabilities
 }
 
 /** The catalog side of one pooled connection: what it records, and what it answers while lazy. */
@@ -58,11 +56,14 @@ export class McpConnectionCatalog {
   /** Set on the connection that fills a missing catalog for others (`McpCatalogFills`). */
   filled: (() => void) | undefined
 
-  constructor(
-    private readonly store: McpToolCatalogStore,
-    private readonly key: string,
-    private readonly now: () => number = Date.now,
-  ) {
+  private readonly store: McpToolCatalogStore
+  private readonly key: string
+  private readonly now: () => number
+
+  constructor(store: McpToolCatalogStore, key: string, now: () => number = Date.now) {
+    this.store = store
+    this.key = key
+    this.now = now
     this.reload()
   }
 
@@ -89,12 +90,12 @@ export class McpConnectionCatalog {
   }
 
   /** Every cached `tools/list` page. */
-  servedToolPages(): readonly unknown[] {
+  servedToolPages() {
     return Object.values(this.served?.toolsPages ?? {})
   }
 
   /** The cached `tools/list` page for the request's cursor. */
-  servedToolsPage(params: unknown): { readonly result: unknown } | undefined {
+  servedToolsPage(params: unknown) {
     const page = this.served?.toolsPages[cursorOf(params)]
     return page === undefined ? undefined : { result: page }
   }
@@ -109,7 +110,7 @@ export class McpConnectionCatalog {
   /** Records a listed page; the last page (no `nextCursor`) completes and saves the catalog. */
   recordToolsPage(params: unknown, result: unknown) {
     this.pages[cursorOf(params)] = result
-    if (!(isRecord(result) && typeof result.nextCursor === 'string')) this.save()
+    if (stringField(mcpMessageFields(result)?.nextCursor) === undefined) this.save()
   }
 
   /** Whether the tools now recorded differ from those that were served. */
@@ -164,12 +165,13 @@ export class McpCatalogFills {
   private readonly fills = new Map<string, Promise<void>>()
 
   /** The fill to wait for, or none when this caller fills it: `done` ends its fill. */
-  join(
-    key: string,
-    waitMs: number = MCP_CATALOG_FILL_WAIT_MS,
-  ): { readonly fill: Promise<void> } | { readonly done: () => void } {
+  join(key: string, waitMs: number = MCP_CATALOG_FILL_WAIT_MS) {
     const fill = this.fills.get(key)
-    if (fill) return { fill: waitAtMost(fill, waitMs) }
+    if (fill) {
+      return { fill: waitAtMost(fill, waitMs) } satisfies
+        | { readonly fill: Promise<void> }
+        | { readonly done: () => void }
+    }
     const { promise, resolve } = Promise.withResolvers<void>()
     const timer = setTimeout(resolve, MCP_CATALOG_FILL_WAIT_MS)
     timer.unref()
@@ -178,7 +180,9 @@ export class McpCatalogFills {
       if (this.fills.get(key) === ended) this.fills.delete(key)
     })
     this.fills.set(key, ended)
-    return { done: resolve }
+    return { done: resolve } satisfies
+      | { readonly fill: Promise<void> }
+      | { readonly done: () => void }
   }
 }
 

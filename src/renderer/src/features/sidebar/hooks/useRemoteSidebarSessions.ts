@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import { codePointLength } from '@shared/utils/code-point-length'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SidebarRowState } from '../lib/sidebar-row-state'
 import { useRemoteSidebarRowStates } from './remote-sidebar-row-states'
@@ -18,7 +19,12 @@ import {
   mergeVisibleSidebarSessions,
   sidebarSessionMatchesText,
 } from './remote-sidebar-session-results'
-import { isTerminalState, sidebarRemoteStatusIds } from './remote-sidebar-terminal-status'
+import {
+  emptyHydratedTerminalIds,
+  isTerminalState,
+  sidebarRemoteStatusIds,
+  withHydratedTerminalIds,
+} from './remote-sidebar-terminal-status'
 import { useRemovedRemoteSessions } from './useRemovedRemoteSessions'
 import { useSidebarTerminalCounts } from './useSidebarTerminalCounts'
 
@@ -35,7 +41,7 @@ export function useRemoteSidebarSessions(input: {
 }) {
   // Host pages teach the renderer about persisted terminal rows. Exclude only those newly
   // discovered rows from the request key, so their hydration cannot rewind the cursor.
-  const hydratedTerminalIds = useRef({ completed: new Set<string>(), error: new Set<string>() })
+  const [storedTerminalIds, setHydratedTerminalIds] = useState(emptyHydratedTerminalIds)
   const requestTerminalIds = useRef(new Set<string>())
   const normalizedQuery = input.query.trim().toLowerCase()
   const matchingProjectPaths = [...new Set(input.projectPaths)].filter((projectPath) => {
@@ -48,17 +54,14 @@ export function useRemoteSidebarSessions(input: {
     [matchingProjectPathsKey],
   )
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([])
-  const stateBySessionId = useRemoteSidebarRowStates({
-    hydratedTerminalIds: hydratedTerminalIds.current,
+  const { stateBySessionId, hydratedTerminalIds } = useRemoteSidebarRowStates({
+    hydratedTerminalIds: storedTerminalIds,
+    setHydratedTerminalIds,
     stateBySessionId: input.stateBySessionId,
     loadedSessions: input.loadedSessions,
     remoteSessions: sessions,
   })
-  const statusIds = sidebarRemoteStatusIds(
-    input.filterState,
-    stateBySessionId,
-    hydratedTerminalIds.current,
-  )
+  const statusIds = sidebarRemoteStatusIds(input.filterState, stateBySessionId, hydratedTerminalIds)
   const statusIdsKey = statusIds.join('\u0000')
   const stableStatusIds = useMemo(
     () => (statusIdsKey === '' ? [] : statusIdsKey.split('\u0000').map(SessionId)),
@@ -146,12 +149,11 @@ export function useRemoteSidebarSessions(input: {
       const hydrated = (
         await hydrateSidebarSessions(page.ids, (fetched) => {
           if (generation.current !== requestGeneration) return
-          for (const session of fetched) {
-            const id = String(session.id)
-            if (session.archived === true) continue
-            hydratedTerminalIds.current[state].add(id)
-            requestTerminalIds.current.delete(id)
-          }
+          const ids = fetched
+            .filter((session) => session.archived !== true)
+            .map((session) => String(session.id))
+          for (const id of ids) requestTerminalIds.current.delete(id)
+          setHydratedTerminalIds((current) => withHydratedTerminalIds(current, state, ids))
           // A fetched ID may already have been in the key before this Host page. Advance
           // the active key alongside its removal so only genuinely new live IDs restart it.
           activeRequestKey.current = `${state}\u0001${normalizedQuery}\u0001${[...requestTerminalIds.current].sort().join('\u0000')}\u0001${matchingProjectPathsKey}\u0001${String(removal.resyncToken)}`
@@ -219,7 +221,7 @@ export function useRemoteSidebarSessions(input: {
       return
     }
     if (normalizedQuery !== '') {
-      if ([...normalizedQuery].length < REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH) {
+      if (codePointLength(normalizedQuery) < REMOTE_SIDEBAR_SEARCH_MINIMUM_LENGTH) {
         mode.current = { kind: 'none' }
         return
       }
@@ -281,24 +283,15 @@ export function useRemoteSidebarSessions(input: {
     }
   }, [publishInterruptedPage, publishSearchPage, publishStatusPage, publishTerminalPage, runPage])
 
-  const visibleSessions = useMemo(() => {
-    return mergeVisibleSidebarSessions({
-      loadedSessions: input.loadedSessions,
-      remoteSessions: sessions.filter((session) => !removal.removed.has(String(session.id))),
-      filterState: input.filterState,
-      stateBySessionId,
-      normalizedQuery,
-      projectDisplayNames: input.projectDisplayNames,
-    })
-  }, [
-    input.filterState,
-    input.loadedSessions,
-    input.projectDisplayNames,
+  // The compiler memoizes this merge; it is not an identity any caller depends on.
+  const visibleSessions = mergeVisibleSidebarSessions({
+    loadedSessions: input.loadedSessions,
+    remoteSessions: sessions.filter((session) => !removal.removed.has(String(session.id))),
+    filterState: input.filterState,
     stateBySessionId,
     normalizedQuery,
-    removal.removed,
-    sessions,
-  ])
+    projectDisplayNames: input.projectDisplayNames,
+  })
 
   return {
     active: input.filterState !== null || normalizedQuery !== '',

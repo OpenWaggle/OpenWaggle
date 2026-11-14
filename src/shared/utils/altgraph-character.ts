@@ -1,3 +1,5 @@
+import { codePointLength } from './code-point-length'
+
 /** A letter from a non-Latin script is what a Cyrillic, Greek, or Hebrew layout types anyway. */
 const NON_LATIN_LETTER = /^(?=\p{L})(?!\p{Script=Latin})/u
 /** Every Latin layout's base keys type ASCII letters and digits, wherever it puts them. */
@@ -33,7 +35,7 @@ export function typesAltGraphCharacter(input: {
   readonly applePlatform: boolean
   readonly layoutKey?: string | null
 }) {
-  if (input.applePlatform || [...input.key].length !== 1) return false
+  if (input.applePlatform || codePointLength(input.key) !== 1) return false
   const altGraph = input.altGraph ?? (input.ctrl && input.alt && !input.meta)
   if (!altGraph || NON_LATIN_LETTER.test(input.key)) return false
   // Shift alone changes what a digit or punctuation key types (`1` → `!`, `/` → `?`).

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { link, lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ActionManifest } from '@shared/types/action-definitions'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { isEnoent, isNodeError } from '@shared/utils/node-error'
 import type { ActionPublicationIdentity } from '../../domain/project-action-catalog'
 import { isSameDurableDirectoryIdentity } from '../../domain/workspace-generation'
@@ -60,7 +61,7 @@ async function writeExclusive(path: string, content: string) {
 export async function createActionPublication(
   workspace: string,
   requireWorkspace: () => Promise<void>,
-): Promise<ActionPublicationIdentity> {
+) {
   for (const directory of ['.openwaggle', RECOVERY_DIRECTORY]) {
     await requireWorkspace()
     const path = join(workspace, directory)
@@ -68,8 +69,9 @@ export async function createActionPublication(
     await mkdir(path).catch((error: unknown) => {
       if (!isNodeError(error, 'EEXIST')) throw error
     })
-    if (!(await readActionWorkspaceIdentity(path)))
+    if (!(await readActionWorkspaceIdentity(path))) {
       throw new Error('Project Actions recovery must use a regular Workspace directory.')
+    }
   }
   const recovery = join(workspace, RECOVERY_DIRECTORY)
   const identity = await readActionWorkspaceIdentity(recovery)
@@ -77,15 +79,17 @@ export async function createActionPublication(
   const requireRecovery = async () => {
     await requireWorkspace()
     const current = await readActionWorkspaceIdentity(recovery)
-    if (JSON.stringify(current) !== JSON.stringify(identity))
+    if (JSON.stringify(current) !== JSON.stringify(identity)) {
       throw new Error('The Project Actions recovery directory changed.')
+    }
   }
   await requireRecovery()
   await writeExclusive(join(recovery, '.gitignore'), '*\n')
-  if ((await readActionConfigSource(workspace, `${RECOVERY_DIRECTORY}/.gitignore`)) !== '*\n')
+  if ((await readActionConfigSource(workspace, `${RECOVERY_DIRECTORY}/.gitignore`)) !== '*\n') {
     throw new Error(
       'The Project Actions recovery .gitignore was edited. It has been left unchanged.',
     )
+  }
   await requireRecovery()
   await writeExclusive(join(recovery, 'README.md'), RECOVERY_README)
   const id = randomUUID()
@@ -104,12 +108,13 @@ export async function writeActionManifest(
   manifest: ActionManifest,
   publication: ActionPublicationIdentity,
   requireWorkspace: () => Promise<void>,
-): Promise<boolean> {
+) {
   const directory = actionPublicationPath(workspace, publication.id)
   const requirePublication = async () => {
     await requireWorkspace()
-    if (!(await actionPublicationCurrent(workspace, publication)))
+    if (!(await actionPublicationCurrent(workspace, publication))) {
       throw new Error('The Project Actions recovery directory changed. Your drafts have been kept.')
+    }
   }
   const target = join(workspace, '.openwaggle/actions.json')
   const previous = join(directory, 'previous.json')
@@ -120,11 +125,13 @@ export async function writeActionManifest(
   const read = (source: string) => readActionConfigSource(workspace, source)
   const content = serializeActionManifest(manifest)
   const installed = async () => {
-    const targetFile = await lstat(target).catch((error: unknown) => {
-      if (isEnoent(error)) return null
-      throw error
-    })
-    const prepared = await lstat(next)
+    const [targetFile, prepared] = await allInOrder([
+      lstat(target).catch((error: unknown) => {
+        if (isEnoent(error)) return null
+        throw error
+      }),
+      lstat(next),
+    ])
     return (
       targetFile?.isFile() &&
       targetFile.dev === prepared.dev &&
@@ -135,8 +142,9 @@ export async function writeActionManifest(
   await requirePublication()
   if ((await read(nextSource)) === null) {
     const staging = join(directory, `${randomUUID()}.staging`)
-    if (!(await writeExclusive(staging, content)))
+    if (!(await writeExclusive(staging, content))) {
       throw new Error('The Project Actions publication staging file already exists.')
+    }
     try {
       await requirePublication()
       // This also proves hard links work before moving the current manifest aside.
@@ -148,8 +156,9 @@ export async function writeActionManifest(
     }
   }
   if ((await read(nextSource)) !== content) return false
-  if (await installed())
+  if (await installed()) {
     return actionContentRevision(await read(previousSource)) === expectedRevision
+  }
 
   // Moving the target captures the latest inode atomically, including an editor's atomic save.
   if ((await read(previousSource)) === null) {

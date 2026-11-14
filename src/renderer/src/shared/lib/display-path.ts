@@ -110,7 +110,7 @@ function collapseDotSegments(path: string) {
  * root, one that climbs out of it, a `~` path (the home directory is not known here),
  * a URL, or any path when the Session has no working root has none.
  */
-export function workspaceRelativePath(path: string, workingRoot: string | null): string | null {
+export function workspaceRelativePath(path: string, workingRoot: string | null) {
   const root = workingRoot ? collapseDotSegments(normalizePath(workingRoot)) : null
   if (!root) return null
   const argument = path.trim().replace(/^@/u, '')
@@ -126,10 +126,7 @@ export function workspaceRelativePath(path: string, workingRoot: string | null):
  * Format a filesystem path for UI without changing the path used for file operations.
  * Paths inside an active project or Session worktree are shown from that root.
  */
-export function formatDisplayPath(
-  path: string,
-  roots: readonly (string | null | undefined)[],
-): string {
+export function formatDisplayPath(path: string, roots: readonly (string | null | undefined)[]) {
   for (const root of displayRoots(roots)) {
     const relative = pathRelativeToRoot(path, root)
     if (relative !== null) return relative
@@ -197,7 +194,7 @@ function replaceRootInText(text: string, root: string) {
 export function formatDisplayPathsInText(
   text: string,
   roots: readonly (string | null | undefined)[],
-): string {
+) {
   let result = text
   for (const root of displayRoots(roots)) {
     result = replaceRootInText(result, root)
@@ -269,12 +266,16 @@ interface MarkdownCodeState {
   previousLineBlank: boolean
 }
 
-function markdownFence(line: string): MarkdownFence | null {
+function markdownFence(line: string) {
   const match = /^(?: {0,3})(`{3,}|~{3,})/.exec(line)
   const markerRun = match?.[1]
   const marker = markerRun?.[0]
   if (!match || !markerRun || (marker !== '`' && marker !== '~')) return null
-  return { marker, length: markerRun.length, prefixLength: match[0].length }
+  return {
+    marker,
+    length: markerRun.length,
+    prefixLength: match[0].length,
+  } satisfies MarkdownFence
 }
 
 function closesMarkdownFence(line: string, candidate: MarkdownFence | null, open: MarkdownFence) {
@@ -320,7 +321,7 @@ function formatMarkdownBlockLine(
 export function formatDisplayPathsInMarkdown(
   markdown: string,
   roots: readonly (string | null | undefined)[],
-): string {
+) {
   const state: MarkdownCodeState = {
     fence: null,
     indentedCode: false,

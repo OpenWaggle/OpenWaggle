@@ -17,7 +17,7 @@ import { ScheduledTasksViewBody } from './ScheduledTasksViewBody'
 function panelGroups(
   tasks: readonly ScheduledTask[],
   scope: { readonly sessionId: string | null; readonly projectPath: string },
-): readonly ScheduledTaskRowGroup[] {
+) {
   const inProject = tasks.filter((task) => task.projectPath === scope.projectPath)
   const intoSession = (task: ScheduledTask) =>
     task.target.kind === 'heartbeat' && task.target.sessionId === scope.sessionId

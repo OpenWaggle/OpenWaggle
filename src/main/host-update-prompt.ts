@@ -26,7 +26,7 @@ function runsPhrase(activeRuns: number) {
 }
 
 /** The controlling terminal as TTY streams, which close cleanly unlike a file read of /dev/tty. */
-function openControllingTerminal(): PromptTerminal | null {
+function openControllingTerminal() {
   if (process.platform === 'win32') return null
   let inputDescriptor: number | undefined
   let outputDescriptor: number
@@ -54,7 +54,7 @@ function openControllingTerminal(): PromptTerminal | null {
  * The terminal to ask on. Not stdin when it is redirected: `curl … | bash` gives the installer the
  * script as its stdin, and with stderr redirected the question would not be seen.
  */
-export function openPromptTerminal(): PromptTerminal | null {
+export function openPromptTerminal() {
   if (process.stdin.isTTY && process.stderr.isTTY) {
     return { input: process.stdin, output: process.stderr, close: () => undefined }
   }
@@ -70,10 +70,10 @@ export async function askRunHandling(
   activeRuns: number,
   terminal: PromptTerminal | null,
   notice: (text: string) => void,
-): Promise<UpdateRunChoice> {
+) {
   if (!terminal) {
     notice(`${runsPhrase(activeRuns)} still working; waiting for them to finish.`)
-    return 'when-idle'
+    return 'when-idle' as const
   }
   const question = `${runsPhrase(activeRuns)} still working. Wait until they finish [W], stop them now [n], or cancel [c]? `
   const prompt = createInterface({ input: terminal.input, output: terminal.output })

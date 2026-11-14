@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { safeDecodeUnknown } from '@shared/schema'
+import { decodeUnknownOrThrow, safeDecodeUnknown, Schema } from '@shared/schema'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
 import JsonSchema from 'typebox/schema'
 import { readPiWagglePresetsFileData } from '../../packages/pi-waggle/src/preset-storage'
@@ -18,6 +18,7 @@ import {
   resolveActionCatalog,
 } from '../../src/main/domain/project-action-catalog'
 import { PUBLISHED_SCHEMA_DIRECTORY } from '../published-json-schemas'
+import type { WagglePreset } from '@openwaggle/waggle-core'
 
 export const REPOSITORY_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 
@@ -113,6 +114,12 @@ function rawPresetCount(value: unknown) {
  * reads the file and skips presets it cannot parse, then the app skips any its own schema
  * rejects. `skipped` counts both.
  */
+export interface RuntimeWagglePresetsFile {
+  readonly presets: readonly WagglePreset[]
+  readonly hiddenBuiltInPresetIds: readonly string[]
+  readonly skipped: number
+}
+
 export async function readWagglePresetsFileAtRuntime(value: unknown) {
   const project = scratchDirectory('ow-waggle-schema-')
   const filePath = path.join(project, '.pi', 'waggle-presets.json')
@@ -121,11 +128,12 @@ export async function readWagglePresetsFileAtRuntime(value: unknown) {
   const kept = data.wagglePresets.filter(
     (preset) => safeDecodeUnknown(wagglePresetSchema, preset).success,
   )
-  return {
+  const file: RuntimeWagglePresetsFile = {
     presets: kept,
     hiddenBuiltInPresetIds: data.hiddenBuiltInPresetIds,
     skipped: rawPresetCount(value) - kept.length,
   }
+  return file
 }
 
 export interface FencedBlock {
@@ -136,7 +144,7 @@ export interface FencedBlock {
 
 const FENCE = /^```(\w*)[^\n]*\n([\s\S]*?)^```[ \t]*$/gmu
 
-export async function fencedBlocks(docsPage: string): Promise<readonly FencedBlock[]> {
+export async function fencedBlocks(docsPage: string) {
   const markdown = await readFile(
     path.join(REPOSITORY_ROOT, 'website/src/content/docs', docsPage),
     'utf8',
@@ -152,7 +160,7 @@ export async function fencedBlocks(docsPage: string): Promise<readonly FencedBlo
  * Why the runtime reader rejected a file, or `null` when it read the file. Tests match the
  * reason, so a case cannot pass because the reader rejected it for an unrelated mistake.
  */
-export async function runtimeRejection(read: () => Promise<unknown>): Promise<string | null> {
+export async function runtimeRejection(read: () => Promise<unknown>) {
   try {
     await read()
     return null
@@ -161,17 +169,29 @@ export async function runtimeRejection(read: () => Promise<unknown>): Promise<st
   }
 }
 
-export function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value))
+export function record(value: unknown) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Expected a JSON object.')
-  return Object.fromEntries(Object.entries(value))
+  }
+  const fields: Record<string, unknown> = Object.fromEntries(Object.entries(value))
+  return fields
 }
 
 export async function patternOf(fileName: string, pointer: readonly string[]) {
   let node: unknown = await readPublishedSchema(fileName)
-  for (const segment of pointer)
+  for (const segment of pointer) {
     node = Array.isArray(node) ? node[Number(segment)] : record(node)[segment]
-  const pattern = record(node).pattern
-  if (typeof pattern !== 'string') throw new Error(`No pattern at ${pointer.join('/')}.`)
-  return new RegExp(pattern, 'u')
+  }
+  if (!Schema.is(patternNodeSchema)(node)) throw new Error(`No pattern at ${pointer.join('/')}.`)
+  return new RegExp(node.pattern, 'u')
+}
+
+const patternNodeSchema = Schema.Struct({ pattern: Schema.String })
+/** A published object schema: its `properties`, keyed by setting name. */
+const objectSchemaDocument = Schema.Struct({ properties: Schema.Object })
+
+/** The property names a published object schema declares. */
+export async function publishedPropertyNames(fileName: string) {
+  const document = decodeUnknownOrThrow(objectSchemaDocument, await readPublishedSchema(fileName))
+  return Object.keys(document.properties)
 }

@@ -1,5 +1,4 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import type { ArchivedItemSnippet } from '@shared/types/archived-items'
 import * as Effect from 'effect/Effect'
 import { shownInRow } from './archived-items-metadata'
 import { type ArchivedSearchTerm, prefixRange } from './archived-items-sql'
@@ -23,7 +22,7 @@ interface MatchedTermRow {
 }
 
 /** Strips FTS5's highlight markers, keeping where each highlighted run starts and ends. */
-export function parseSnippet(raw: string): ArchivedItemSnippet {
+export function parseSnippet(raw: string) {
   let text = ''
   const highlights: [number, number][] = []
   let open: number | null = null

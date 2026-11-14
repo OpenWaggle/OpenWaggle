@@ -16,7 +16,7 @@ const MAX_PENDING_READ_AGE_MS = 30_000
 let globalGeneration = 0
 
 /** Related Git read caches can follow status invalidation without importing IPC into services. */
-export function subscribeGitStatusInvalidation(listener: () => void): () => void {
+export function subscribeGitStatusInvalidation(listener: () => void) {
   invalidationListeners.add(listener)
   return () => invalidationListeners.delete(listener)
 }
@@ -26,11 +26,11 @@ export interface GitStatusCacheToken {
   readonly projectGeneration: number
 }
 
-export function getGitStatusCacheToken(projectPath: string): GitStatusCacheToken {
+export function getGitStatusCacheToken(projectPath: string) {
   return {
     globalGeneration,
     projectGeneration: projectGenerations.get(projectPath) ?? 0,
-  }
+  } satisfies GitStatusCacheToken
 }
 
 export function getCachedGitStatus(projectPath: string, ttlMs: number) {
@@ -50,7 +50,7 @@ export function getOrLoadCachedGitStatus(
   projectPath: string,
   ttlMs: number,
   load: () => Promise<GitStatusSummary>,
-): Promise<GitStatusSummary> {
+) {
   const cached = getCachedGitStatus(projectPath, ttlMs)
   if (cached !== null) return Promise.resolve(cached)
   const token = getGitStatusCacheToken(projectPath)
@@ -91,7 +91,7 @@ export function setCachedGitStatus(
   statusCache.set(projectPath, { result, timestamp: Date.now() })
 }
 
-export function isSameWorkingTree(a: string, b: string): boolean {
+export function isSameWorkingTree(a: string, b: string) {
   const left = normalizeTreePath(a)
   const right = normalizeTreePath(b)
   if (left === right) return true

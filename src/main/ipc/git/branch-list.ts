@@ -1,4 +1,4 @@
-import type { GitBranchInfo, GitBranchListResult } from '@shared/types/git'
+import type { GitBranchInfo } from '@shared/types/git'
 import { parseConfiguredRemoteNames, resolveRemoteBranchLocalName } from './remote-branch-name'
 import { isGitRepository, runGit } from './shared'
 
@@ -20,7 +20,7 @@ function parseTrackCounts(track: string) {
   }
 }
 
-function parseBranchRefLine(line: string, remoteNames: readonly string[]): ParsedBranchRef {
+function parseBranchRefLine(line: string, remoteNames: readonly string[]) {
   const [fullName = '', shortName = '', upstream = '', headMark = '', track = '', timestamp = ''] =
     line.split('\t')
   const { ahead, behind } = parseTrackCounts(track)
@@ -86,7 +86,7 @@ function sortBranchRefs(left: ParsedBranchRef, right: ParsedBranchRef) {
   return left.branch.name.localeCompare(right.branch.name)
 }
 
-export async function listGitBranches(projectPath: string): Promise<GitBranchListResult> {
+export async function listGitBranches(projectPath: string) {
   if (!(await isGitRepository(projectPath))) {
     throw new Error('Selected folder is not a Git repository.')
   }
@@ -135,7 +135,7 @@ export async function listGitBranches(projectPath: string): Promise<GitBranchLis
 }
 
 /** Branch names as consumed by collision-free feature-ref planning. */
-export async function listGitBranchNames(projectPath: string): Promise<readonly string[]> {
+export async function listGitBranchNames(projectPath: string) {
   const list = await listGitBranches(projectPath)
   return list.branches.map((branch) => branch.localName)
 }

@@ -30,11 +30,14 @@ export function relaySessionResourceHostRequest(channel: string, args: readonly 
 
 export function emulateSessionResourceHost(layer: Layer.Layer<SessionResourceHostServices>) {
   relay = async (channel, args) => {
-    if (channel !== 'sessions:resources:host-content' && channel !== 'sessions:resources:thumbnail')
+    if (
+      channel !== 'sessions:resources:host-content' &&
+      channel !== 'sessions:resources:thumbnail'
+    ) {
       return { handled: false }
-    const { dispatchHostUiSessionResourceOperation: dispatch } = await import(
-      '../../application/host-ui-session-resource-operation-dispatcher'
-    )
+    }
+    const { dispatchHostUiSessionResourceOperation: dispatch } =
+      await import('../../application/host-ui-session-resource-operation-dispatcher')
     const operation = fromAny<
       Effect.Effect<unknown, unknown, SessionResourceHostServices>,
       unknown

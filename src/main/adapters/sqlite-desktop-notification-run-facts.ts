@@ -2,10 +2,6 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { SCHEDULED_TASK_NOTIFICATION_POLICIES } from '@shared/types/scheduled-task'
 import * as Effect from 'effect/Effect'
 import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
-import type {
-  DesktopNotificationLatestRun,
-  DesktopNotificationRunFacts,
-} from '../ports/desktop-notification-facts'
 
 interface RunRow {
   readonly caller_id: string | null
@@ -20,15 +16,11 @@ function decodePolicy(value: string | null) {
 }
 
 /**
- * Who a Run acts for (ADR 0062, 0063): its caller and Scheduled task. A Hive wake acts for the
+ * Who a Run acts for (ADR 0062, 0065): its caller and Scheduled task. A Hive wake acts for the
  * Session's latest Run before it, so it reads that Run's origin; who stopped it and when it was
  * created are the wake's own.
  */
-export function selectRunFacts(
-  sql: SqlClient.SqlClient,
-  sessionId: string,
-  runId: string,
-): Effect.Effect<DesktopNotificationRunFacts | null, unknown> {
+export function selectRunFacts(sql: SqlClient.SqlClient, sessionId: string, runId: string) {
   return sql<RunRow>`
     WITH target AS (
       SELECT id, session_id, created_at, intent_json, interrupted_by_caller_id
@@ -81,10 +73,7 @@ export function selectRunFacts(
 }
 
 /** The Session's latest Run by creation, or null when it has none. */
-export function selectLatestRun(
-  sql: SqlClient.SqlClient,
-  sessionId: string,
-): Effect.Effect<DesktopNotificationLatestRun | null, unknown> {
+export function selectLatestRun(sql: SqlClient.SqlClient, sessionId: string) {
   return sql<{ readonly id: string; readonly status: string; readonly hive_wake: number | null }>`
     SELECT id, status, json_extract(intent_json, '$.hiveWake') AS hive_wake
     FROM session_runs

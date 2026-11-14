@@ -3,13 +3,7 @@ import type {
   PreparationOperation,
   WorkspacePreparation,
 } from '@shared/types/workspace-preparation'
-import {
-  queryOptions,
-  type UseMutationResult,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { actionQueryKey, useScopeAgentWorking } from './useNativeActions'
 
@@ -21,18 +15,13 @@ const AGENT_WORKING_REFRESH_MS = 3_000
 export function preparationRefetchInterval(
   preparation: WorkspacePreparation | null | undefined,
   agentWorking: boolean,
-): number | false {
+) {
   if (preparation?.setup.status === 'running' || preparation?.cleanup.status === 'running') {
     return REFRESH_MS
   }
-  return agentWorking ? AGENT_WORKING_REFRESH_MS : false
+  return (agentWorking ? AGENT_WORKING_REFRESH_MS : false) satisfies number | false
 }
-type PreparationMutation = Exclude<PreparationOperation, { type: 'preparation' }>
-export function useWorkspacePreparation(scope: ActionManagementScope | null): {
-  readonly data: WorkspacePreparation | null | undefined
-  readonly error: Error | null
-  readonly mutation: UseMutationResult<WorkspacePreparation | null, Error, PreparationMutation>
-} {
+export function useWorkspacePreparation(scope: ActionManagementScope | null) {
   const client = useQueryClient()
   const queryKey = [...actionQueryKey(scope), 'preparation']
   const agentWorking = useScopeAgentWorking(scope)

@@ -15,7 +15,7 @@ interface MergeCandidate {
 const PUBLISHABLE_PREFIX = 'packages/'
 
 /** Paths a commit changed relative to its first parent, read raw so quoting cannot hide a prefix. */
-async function blobAt(cwd: string, commitish: string, filePath: string): Promise<string | null> {
+async function blobAt(cwd: string, commitish: string, filePath: string) {
   try {
     const { stdout } = await execFile('git', ['rev-parse', `${commitish}:${filePath}`], { cwd })
     return stdout.trim()
@@ -50,7 +50,7 @@ async function publishedChangesMatchBase(
   cwd: string,
   commit: MergeCandidate,
   bases: readonly string[],
-): Promise<boolean> {
+) {
   const publishedPaths = commit.changedPaths.filter((path) => path.startsWith(PUBLISHABLE_PREFIX))
   if (publishedPaths.length === 0) return true
 

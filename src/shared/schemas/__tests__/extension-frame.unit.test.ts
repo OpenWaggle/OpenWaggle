@@ -1,5 +1,9 @@
+import { createOpenWaggleExtensionTheme } from '@openwaggle/extension-sdk'
 import { safeDecodeUnknown } from '@shared/schema'
-import { extensionFrameRegisterInputSchema } from '@shared/schemas/extension-frame'
+import {
+  extensionFrameMountContextSchema,
+  extensionFrameRegisterInputSchema,
+} from '@shared/schemas/extension-frame'
 import { describe, expect, it } from 'vitest'
 
 describe('extension frame schemas', () => {
@@ -28,4 +32,39 @@ describe('extension frame schemas', () => {
       }
     },
   )
+
+  it('refuses network origins set to undefined instead of omitted, naming the field', () => {
+    const base = {
+      frameId: 'frame-1',
+      bootstrapUrl: 'openwaggle://app/assets/extension-frame-bootstrap.js',
+    }
+
+    expect(safeDecodeUnknown(extensionFrameRegisterInputSchema, base)).toEqual({
+      success: true,
+      data: base,
+    })
+    const result = safeDecodeUnknown(extensionFrameRegisterInputSchema, {
+      ...base,
+      networkOrigins: undefined,
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.issues.join('\n')).toContain('networkOrigins: ')
+  })
+
+  it('accepts a surface payload or no payload key, but not an undefined payload', () => {
+    const context = {
+      extension: { id: 'example', name: 'Example', version: '1.0.0' },
+      contribution: { id: 'panel', title: 'Panel', family: 'sidePanels' },
+      packagePath: '/extensions/example',
+      projectPaths: [],
+      theme: createOpenWaggleExtensionTheme(),
+    }
+    const surface = { family: 'sidePanels', execution: 'frame' }
+    const decode = (value: object) =>
+      safeDecodeUnknown(extensionFrameMountContextSchema, { ...context, surface: value }).success
+
+    expect(decode(surface)).toBe(true)
+    expect(decode({ ...surface, payload: { tab: 'files' } })).toBe(true)
+    expect(decode({ ...surface, payload: undefined })).toBe(false)
+  })
 })

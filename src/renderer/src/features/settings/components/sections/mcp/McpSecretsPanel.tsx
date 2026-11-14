@@ -11,7 +11,7 @@ export function McpSecretsPanel({
   onSaved,
 }: {
   /** A secret a server needs, from its "Add in Secrets": filled in, with its value to type. */
-  readonly requestedName?: string | undefined
+  readonly requestedName?: string
   readonly onSaved?: () => void
 } = {}) {
   const vault = useMcpSecrets()
@@ -20,6 +20,15 @@ export function McpSecretsPanel({
     vault.pendingOperation?.kind === 'remove' && vault.pendingOperation.name === name
   const [name, setName] = useState(requestedName ?? '')
   const [value, setValue] = useState('')
+
+  async function addSecret() {
+    // save resolves false on a failure, which the vault reports itself.
+    if (!(await vault.save(name.trim(), value))) return
+    onSaved?.()
+    setName('')
+    setValue('')
+  }
+
   return (
     <section aria-labelledby="mcp-secrets-heading" className="space-y-3">
       <div>
@@ -56,13 +65,9 @@ export function McpSecretsPanel({
       <form
         aria-label="Add secret"
         className="flex items-center gap-2"
-        onSubmit={async (event) => {
+        onSubmit={(event) => {
           event.preventDefault()
-          if (await vault.save(name.trim(), value)) {
-            onSaved?.()
-            setName('')
-            setValue('')
-          }
+          void addSecret()
         }}
       >
         <TextInput

@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
+import { Option } from 'effect'
 import { extractMcpbArchive } from './registry-mcpb-archive'
 import { loadMcpbLauncher, type McpbCachedLauncher } from './registry-mcpb-manifest'
 import {
@@ -26,8 +27,14 @@ export interface InstalledMcpbLauncher extends McpbCachedLauncher {
   readonly cwd: string
 }
 
+const nodeErrorSchema = Schema.Struct({ code: Schema.String })
+const integrityMarkerSchema = Schema.Struct({
+  sha256: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  schemaVersion: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
 function nodeErrorCode(value: unknown) {
-  return isRecord(value) && typeof value.code === 'string' ? value.code : undefined
+  return Schema.is(nodeErrorSchema)(value) ? value.code : undefined
 }
 
 function validateArtifactUrl(identifier: string) {
@@ -62,7 +69,12 @@ async function validateCachedPackage(input: {
     throw new Error('Verified MCPB cache entry is not a regular directory.')
   }
   const marker: unknown = JSON.parse(await readFile(path.join(input.root, INTEGRITY_FILE), 'utf8'))
-  if (!isRecord(marker) || marker.sha256 !== input.expectedSha256 || marker.schemaVersion !== 1) {
+  const integrity = Schema.decodeUnknownOption(integrityMarkerSchema)(marker)
+  if (
+    Option.isNone(integrity) ||
+    integrity.value.sha256 !== input.expectedSha256 ||
+    integrity.value.schemaVersion !== 1
+  ) {
     throw new Error('Verified MCPB cache entry failed its integrity marker check.')
   }
   return loadMcpbLauncher({
@@ -77,9 +89,10 @@ async function cachedLauncher(input: {
   readonly expectedSha256: string
   readonly homeDir: string
   readonly platform: NodeJS.Platform
-}): Promise<InstalledMcpbLauncher> {
+}) {
   const launcher = await validateCachedPackage(input)
-  return { ...launcher, cwd: input.root }
+  const result: InstalledMcpbLauncher = { ...launcher, cwd: input.root }
+  return result
 }
 
 /**
@@ -93,7 +106,7 @@ export async function installVerifiedMcpb(input: {
   readonly homeDir: string
   readonly platform?: NodeJS.Platform
   readonly fetchResource?: RegistryResourceFetcher
-}): Promise<InstalledMcpbLauncher> {
+}) {
   if (!SHA256_PATTERN.test(input.expectedSha256)) {
     throw new Error('MCPB registry entry requires a lowercase SHA-256 file hash.')
   }

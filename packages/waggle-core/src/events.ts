@@ -20,8 +20,8 @@ export function metadataForWaggleTurn(input: {
   readonly turn: WaggleTurn
   readonly collaborationMode: WaggleCollaborationMode
   readonly sessionId?: string
-}): WaggleTurnMetadata {
-  return {
+}) {
+  const metadata: WaggleTurnMetadata = {
     turnNumber: input.turn.turnNumber,
     agentIndex: input.turn.agentIndex,
     agentLabel: input.turn.agent.label,
@@ -30,4 +30,5 @@ export function metadataForWaggleTurn(input: {
     collaborationMode: input.collaborationMode,
     ...(input.sessionId ? { sessionId: input.sessionId } : {}),
   }
+  return metadata
 }

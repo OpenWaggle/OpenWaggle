@@ -83,9 +83,9 @@ function updateStatusState(
   return Object.keys(next).length === 0 ? state : { ...state, ...next }
 }
 
-function statusForPersistedSession(session: SessionSummary): SessionStatus {
-  if (session.pendingInteractionAt !== undefined) return 'awaiting-input'
-  if (!session.latestRun) return 'idle'
+function statusForPersistedSession(session: SessionSummary) {
+  if (session.pendingInteractionAt !== undefined) return 'awaiting-input' as const
+  if (!session.latestRun) return 'idle' as const
   return match(session.latestRun.status)
     .with('starting', () => 'connecting' as const)
     .with('active', 'stopping', () => 'working' as const)
@@ -97,7 +97,7 @@ function statusForPersistedSession(session: SessionSummary): SessionStatus {
       'interrupted-by-interaction-timeout',
       () => 'idle' as const,
     )
-    .exhaustive()
+    .exhaustive() satisfies SessionStatus
 }
 
 interface HydrationMaps {

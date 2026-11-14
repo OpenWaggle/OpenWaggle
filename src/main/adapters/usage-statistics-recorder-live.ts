@@ -48,7 +48,9 @@ function recordStart(start: UsageStatisticsRunStart, facts: UsageStatisticsSessi
     attachments: start.attachments,
     access: {
       ceiling: facts?.authorizationCeiling ?? null,
-      runOverride: start.runAuthorizationOverride,
+      ...(start.runAuthorizationOverride === undefined
+        ? {}
+        : { runOverride: start.runAuthorizationOverride }),
       sessionMode: facts?.sessionAuthorizationMode ?? null,
       globalDefault: globalDefaultAuthorizationMode(),
     },
@@ -57,9 +59,7 @@ function recordStart(start: UsageStatisticsRunStart, facts: UsageStatisticsSessi
   })
 }
 
-export function makeUsageStatisticsRecorder(
-  sql: SqlClient.SqlClient,
-): UsageStatisticsRecorderShape {
+export function makeUsageStatisticsRecorder(sql: SqlClient.SqlClient) {
   return {
     record: (observation) => Effect.sync(() => recordUsageStatistics(observation)),
     runStarted: (start) =>
@@ -76,7 +76,7 @@ export function makeUsageStatisticsRecorder(
       Effect.sync(() => recordUsageStatisticsRunFinished(finish)).pipe(
         Effect.catchAllCause(() => Effect.void),
       ),
-  }
+  } satisfies UsageStatisticsRecorderShape
 }
 
 export const UsageStatisticsRecorderLive = Layer.effect(

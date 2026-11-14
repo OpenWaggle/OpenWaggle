@@ -3,25 +3,26 @@ import { describe, expect, it } from 'vitest'
 import { applyTurnFolds } from '../turn-fold'
 import type { ChatRow } from '../types-chat-row'
 
-function row(id: string, role: UIMessage['role'], parts: UIMessage['parts']): ChatRow {
-  return {
+function row(id: string, role: UIMessage['role'], parts: UIMessage['parts']) {
+  const result: ChatRow = {
     type: 'message',
     message: { id, role, parts },
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-    turnDividerProps: undefined,
   }
+  return result
 }
 
-function turn(index: number): ChatRow[] {
-  return [
+function turn(index: number) {
+  const result: ChatRow[] = [
     row(`u${index}`, 'user', [{ type: 'text', content: 'Keep going' }]),
     row(`a${index}-work`, 'assistant', [
       { type: 'tool-call', id: `t${index}`, name: 'edit', arguments: '{}', state: 'done' },
     ]),
     row(`a${index}`, 'assistant', [{ type: 'text', content: 'Done.' }]),
   ]
+  return result
 }
 
 describe('applyTurnFolds duration labels', () => {

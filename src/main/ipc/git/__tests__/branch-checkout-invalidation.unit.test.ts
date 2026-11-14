@@ -24,11 +24,7 @@ vi.mock('../branch-mutations', () => ({
   createGitBranch: vi.fn(async () => ({ ok: true, message: 'Created branch.' })),
 }))
 
-type BranchHandler = (
-  event: unknown,
-  path: unknown,
-  payload: unknown,
-) => Effect<unknown, never, never>
+type BranchHandler = (event: unknown, path: unknown, payload: unknown) => Effect<unknown>
 
 const handlers = new Map<string, BranchHandler>()
 vi.mock('../../typed-ipc', () => ({

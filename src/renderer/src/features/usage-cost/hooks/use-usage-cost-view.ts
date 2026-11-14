@@ -35,10 +35,10 @@ export function useUsageCostView() {
     () => ({
       preset: query.preset,
       origin: query.origin,
-      day: drillDown.day,
-      provider: drillDown.provider,
-      modelId: drillDown.modelId,
-      projectPath: drillDown.projectPath,
+      ...(drillDown.day === undefined ? {} : { day: drillDown.day }),
+      ...(drillDown.provider === undefined ? {} : { provider: drillDown.provider }),
+      ...(drillDown.modelId === undefined ? {} : { modelId: drillDown.modelId }),
+      ...(drillDown.projectPath === undefined ? {} : { projectPath: drillDown.projectPath }),
     }),
     [query, drillDown],
   )
@@ -58,30 +58,24 @@ export function useUsageCostView() {
   }, [])
 
   const toggleDay = useCallback((day: string) => {
-    setDrillDown((current) => ({ ...current, day: current.day === day ? undefined : day }))
+    setDrillDown(({ day: shownDay, ...rest }) => (shownDay === day ? rest : { ...rest, day }))
   }, [])
 
   const toggleModel = useCallback((model: Pick<UsageCostModelRow, 'provider' | 'modelId'>) => {
-    setDrillDown((current) => {
-      const active = current.provider === model.provider && current.modelId === model.modelId
-      return {
-        ...current,
-        provider: active ? undefined : model.provider,
-        modelId: active ? undefined : model.modelId,
-      }
-    })
+    setDrillDown(({ provider, modelId, ...rest }) =>
+      provider === model.provider && modelId === model.modelId
+        ? rest
+        : { ...rest, provider: model.provider, modelId: model.modelId },
+    )
   }, [])
 
   const toggleProject = useCallback(
     (project: Pick<UsageCostProjectRow, 'projectPath' | 'label'>) => {
-      setDrillDown((current) => {
-        const active = current.projectPath === project.projectPath
-        return {
-          ...current,
-          projectPath: active ? undefined : project.projectPath,
-          projectLabel: active ? undefined : project.label,
-        }
-      })
+      setDrillDown(({ projectPath, projectLabel: _label, ...rest }) =>
+        projectPath === project.projectPath
+          ? rest
+          : { ...rest, projectPath: project.projectPath, projectLabel: project.label },
+      )
     },
     [],
   )

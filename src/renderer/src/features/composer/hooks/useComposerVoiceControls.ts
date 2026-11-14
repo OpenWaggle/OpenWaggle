@@ -23,7 +23,7 @@ export function useComposerVoiceControls({
 }: UseComposerVoiceControlsInput) {
   const setInput = useComposerStore((s) => s.setInput)
   const voice = useVoiceCapture({
-    disabled,
+    ...(disabled === undefined ? {} : { disabled }),
     insertText: (text) => insertTextAtEditorOrStore(editorRef.current, text, setInput),
     sendComposed,
     sendAfterInsert,

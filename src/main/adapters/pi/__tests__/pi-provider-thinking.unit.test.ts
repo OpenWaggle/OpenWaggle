@@ -2,9 +2,7 @@ import type { Model } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 import { getPiModelAvailableThinkingLevels } from '../pi-provider-thinking'
 
-function thinkingModel(
-  overrides: Partial<Model<'openai-responses'>> = {},
-): Model<'openai-responses'> {
+function thinkingModel(overrides: Partial<Model<'openai-responses'>> = {}) {
   return {
     id: 'reasoning-model',
     name: 'Reasoning model',
@@ -17,7 +15,7 @@ function thinkingModel(
     contextWindow: 128_000,
     maxTokens: 32_000,
     ...overrides,
-  }
+  } satisfies Model<'openai-responses'>
 }
 
 describe('getPiModelAvailableThinkingLevels', () => {

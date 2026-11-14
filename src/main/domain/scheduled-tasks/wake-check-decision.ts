@@ -49,11 +49,7 @@ function failureOf(execution: WakeCheckExecution, timeoutMs: number) {
  * on standard output; wake otherwise. It failed, and is never read as nothing to do, when it could
  * not start, timed out, was killed by a signal, or the shell could not run its command (126/127).
  */
-export function decideWakeCheck(
-  command: string,
-  execution: WakeCheckExecution,
-  timeoutMs: number,
-): WakeCheckDecision {
+export function decideWakeCheck(command: string, execution: WakeCheckExecution, timeoutMs: number) {
   const failure = failureOf(execution, timeoutMs)
   const base = {
     command,
@@ -69,14 +65,16 @@ export function decideWakeCheck(
       kind: 'failed',
       report: { ...base, result: 'failed', failure },
       message: bounded(`The Wake check ${failure}${detail ? `: ${detail}` : '.'}`),
-    }
+    } satisfies WakeCheckDecision
   }
-  if (execution.exitCode === 0 && execution.stdout.trim() === '') return { kind: 'idle' }
+  if (execution.exitCode === 0 && execution.stdout.trim() === '') {
+    return { kind: 'idle' } satisfies WakeCheckDecision
+  }
   const printed = execution.stdout.trim()
   const exited = execution.exitCode === 0 ? '' : ` exited ${String(execution.exitCode)}`
   return {
     kind: 'woke',
     report: { ...base, result: 'woke' },
     message: bounded(`The Wake check${exited}${printed ? `: ${printed}` : '.'}`),
-  }
+  } satisfies WakeCheckDecision
 }

@@ -2,7 +2,6 @@ import type { AgentExtensionCommand } from '@shared/types/extension-command'
 import { SquareTerminal } from 'lucide-react'
 import { BUILT_IN_COMPOSER_SLASH_COMMANDS } from '@/features/composer/commands'
 import { COMMAND_PALETTE } from '../constants/command-palette'
-import type { CommandPaletteItem } from '../model'
 import { truncateCommandDescription } from './command-palette-text'
 
 const NO_DESCRIPTION = 'Pi extension command'
@@ -20,7 +19,7 @@ export function createPiExtensionCommandItems({
   readonly commands: readonly AgentExtensionCommand[]
   readonly lowerQuery: string
   readonly insertCommand: (command: string) => void
-}): CommandPaletteItem[] {
+}) {
   return commands
     .filter(
       (command) =>

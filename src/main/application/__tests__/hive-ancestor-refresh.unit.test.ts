@@ -25,7 +25,7 @@ async function refresh(payload: SessionHostEventPayload) {
   return { published, looked }
 }
 
-describe('Hive ancestor refresh (ADR 0063)', () => {
+describe('Hive ancestor refresh (ADR 0065)', () => {
   it("republishes every ancestor's catalog entry when a Worker's Run settles", async () => {
     const { published } = await refresh({
       kind: 'session-state-changed',

@@ -51,11 +51,7 @@ function compactsPortably(
  * and keeping the session (a whole context of 200k tokens or more) until then would be waste,
  * as with a one-hour cache retention.
  */
-export function planIdleCompaction(
-  session: AgentSession,
-  now: number,
-  maxKeepMs: number,
-): IdleCompactionPlan | undefined {
+export function planIdleCompaction(session: AgentSession, now: number, maxKeepMs: number) {
   const candidate = session.idleCompactionCandidate
   if (!candidate || candidate.promptTokens < IDLE_COMPACTION_MIN_CONTEXT_TOKENS) return undefined
   const dueAt = candidate.sentAt + candidate.ttlMs - IDLE_COMPACTION_LEAD_MS
@@ -72,9 +68,6 @@ export interface PendingIdleCompaction {
 }
 
 /** The handoff to install for a Run starting at `now`, if the cache it replaces has expired. */
-export function idleCompactionToInstall(
-  pending: PendingIdleCompaction | undefined,
-  now: number,
-): PrecomputedCompaction | undefined {
+export function idleCompactionToInstall(pending: PendingIdleCompaction | undefined, now: number) {
   return pending && now >= pending.cacheExpiresAt ? pending.compaction : undefined
 }

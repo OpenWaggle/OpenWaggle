@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 function inertOutsideBranch(section: HTMLElement | null) {
-  const inerted: Array<{ element: HTMLElement; previous: boolean }> = []
+  const inerted: { element: HTMLElement; previous: boolean }[] = []
   let branch = section
   while (branch?.parentElement) {
     const parent = branch.parentElement

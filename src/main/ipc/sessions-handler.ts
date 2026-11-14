@@ -1,7 +1,7 @@
 import { registerSessionCatalogHandlers } from './session-catalog-handler'
 import { hostHandle } from './typed-ipc'
 
-export function registerSessionsHandlers(): void {
+export function registerSessionsHandlers() {
   registerSessionCatalogHandlers()
   hostHandle('sessions:list-archived-branches')
   hostHandle('sessions:query-archived-items')

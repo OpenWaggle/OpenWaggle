@@ -54,9 +54,7 @@ function clonedFromSessionDescription(session: SessionSummary) {
  * Order is fixed rather than data-dependent so a row's second line does not reshuffle as
  * state arrives: branch, worktree, origin, Scheduled task, conversation branches, terminals.
  */
-export function buildSessionProvenance(
-  input: SessionProvenanceInput,
-): readonly SessionProvenanceIndicator[] {
+export function buildSessionProvenance(input: SessionProvenanceInput) {
   const indicators: SessionProvenanceIndicator[] = []
   const { session, gitBranch, terminalCount } = input
 
@@ -124,7 +122,7 @@ export function describeSessionRow(input: {
   readonly stateLabel: string | null
   readonly gitDivergence: string | null
   readonly hasInterruptedRun: boolean
-}): string | undefined {
+}) {
   const parts = [
     input.projectLabel,
     input.stateLabel,

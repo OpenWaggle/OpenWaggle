@@ -3,13 +3,9 @@ import type { InlineVisualizationContext } from '@shared/types/agent'
 import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import type { WaggleInvocation } from '@shared/types/waggle'
-import {
-  type FollowUpQueue,
-  type FollowUpQueueItem,
-  mutateFollowUpQueue,
-  queuedFollowUpQueueState,
-} from './follow-up-queue'
-import { planMessageSubmission, type SessionRunAvailability } from './message-submission'
+import { appendPendingFollowUp } from './follow-up-append'
+import type { FollowUpQueue, FollowUpQueueItem } from './follow-up-queue'
+import { planMessageSubmission } from './message-submission'
 import {
   type RunStartSettings,
   type RunStartSettingsRejection,
@@ -53,7 +49,7 @@ export interface SessionControlIntentSnapshot {
  */
 export function followUpAttachmentOwner(
   intent: Pick<SessionControlIntentSnapshot, 'callerId' | 'authorCallerId'>,
-): string {
+) {
   return intent.authorCallerId ?? intent.callerId
 }
 
@@ -161,7 +157,7 @@ export interface ApplyAdaptiveMessageInput {
   readonly runSettings?: RunStartSettings
 }
 
-function toRunAvailability(run: SessionControlRunState): SessionRunAvailability {
+function toRunAvailability(run: SessionControlRunState) {
   return matchBy(run, 'state')
     .with('idle', () => ({ state: 'idle' }))
     .with('starting', ({ runId }) => ({ state: 'starting', runId }))
@@ -170,7 +166,7 @@ function toRunAvailability(run: SessionControlRunState): SessionRunAvailability 
     .exhaustive()
 }
 
-export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAdaptiveMessageResult {
+export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput) {
   const plan = planMessageSubmission({
     run: toRunAvailability(input.state.run),
     followUpQueue: {
@@ -181,7 +177,7 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
     },
   })
 
-  return matchBy(plan, 'action')
+  const result: ApplyAdaptiveMessageResult = matchBy(plan, 'action')
     .with('start-run', () => {
       const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
       return {
@@ -204,51 +200,41 @@ export function applyAdaptiveMessage(input: ApplyAdaptiveMessageInput): ApplyAda
         },
       }
     })
-    .with('append-follow-up', (): ApplyAdaptiveMessageResult => {
+    .with('append-follow-up', () => {
       const refused = refuseRunStartSettings(input.runSettings)
-      if (refused) return { accepted: false, code: refused, state: input.state }
-      const followUp: SessionControlFollowUp = {
-        id: input.identities.followUpId,
-        intent: input.intent,
-        deliveryState: 'pending',
-      }
-      const queueResult = mutateFollowUpQueue(input.state.followUpQueue, {
-        type: 'append',
-        item: followUp,
-      })
-      if (!queueResult.accepted) {
-        if (
-          queueResult.code !== 'follow_up_already_exists' &&
-          queueResult.code !== 'queue_capacity_reached' &&
-          queueResult.code !== 'queue_byte_capacity_reached'
-        ) {
-          throw new Error(`Unexpected Follow-up append rejection: ${queueResult.code}`)
-        }
-        return {
+      if (refused) {
+        const result: ApplyAdaptiveMessageResult = {
           accepted: false,
-          code: queueResult.code,
+          code: refused,
           state: input.state,
         }
+        return result
       }
-
-      const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
-      return {
+      const appended = appendPendingFollowUp({
+        state: input.state,
+        followUpId: input.identities.followUpId,
+        intent: input.intent,
+      })
+      if (!appended.accepted) {
+        const result: ApplyAdaptiveMessageResult = {
+          accepted: false,
+          code: appended.code,
+          state: input.state,
+        }
+        return result
+      }
+      const result: ApplyAdaptiveMessageResult = {
         accepted: true,
-        state: {
-          ...input.state,
-          revision: nextRevision,
-          followUpQueue: queueResult.queue,
-        },
+        state: appended.state,
         outcome: {
           operation: 'message',
           effect: 'queued-follow-up',
           sessionId: input.state.sessionId,
-          followUpId: input.identities.followUpId,
-          ...queuedFollowUpQueueState(queueResult.queue),
-          queueRevision: queueResult.queue.revision,
-          stateRevision: nextRevision,
+          ...appended.queued,
         },
       }
+      return result
     })
     .exhaustive()
+  return result
 }

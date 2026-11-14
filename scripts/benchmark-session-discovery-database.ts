@@ -71,7 +71,10 @@ function populateSkewedMessages(
     )
 }
 
-function populate(database: HostSqliteDatabase, input: ReturnType<typeof sessionDiscoveryBenchmarkMode>) {
+function populate(
+  database: HostSqliteDatabase,
+  input: ReturnType<typeof sessionDiscoveryBenchmarkMode>,
+) {
   database.exec('BEGIN IMMEDIATE')
   database
     .prepare(`
@@ -204,11 +207,16 @@ async function main() {
     )
     const cutoverMs = performance.now() - cutoverStartedAt
     reportSessionDiscoveryBenchmarkPhase('cutover', cutoverMs)
-    if (cutover.status !== 'migrated') throw new Error('Benchmark cutover did not migrate the source.')
+    if (cutover.status !== 'migrated') {
+      throw new Error('Benchmark cutover did not migrate the source.')
+    }
 
     const commonTermIncremental = await benchmarkCommonTermIncrementalProjection(targetDatabasePath)
     reportSessionDiscoveryBenchmarkPhase('common-term projection', commonTermIncremental.elapsedMs)
-    const backfills = await benchmarkSessionDiscoveryBackfills(targetDatabasePath, benchmarkSessionDiscoveryModel)
+    const backfills = await benchmarkSessionDiscoveryBackfills(
+      targetDatabasePath,
+      benchmarkSessionDiscoveryModel,
+    )
     reportSessionDiscoveryBenchmarkPhase('discovery backfill', backfills.discovery.elapsedMs)
     reportSessionDiscoveryBenchmarkPhase('transcript backfill', backfills.transcript.elapsedMs)
     const target = openHostSqliteDatabase(targetDatabasePath, { readonly: true })

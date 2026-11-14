@@ -2,8 +2,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { lstat, open, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { safeStorage } from 'electron'
 import { CliError } from '../cli-error'
+import { secureStorage } from '../desktop-shell/secure-storage'
 import type {
   ProfileCredentialDestination,
   ProfileCredentialDestinationMetadata,
@@ -28,22 +28,23 @@ export function destinationMetadata(
   destination: ProfileCredentialDestination,
   profileName: string,
   targetPath: string,
-): ProfileCredentialDestinationMetadata {
-  return {
+) {
+  const metadata: ProfileCredentialDestinationMetadata = {
     kind: destination.kind,
     location:
       destination.kind === 'credential-store'
         ? `OpenWaggle credential store (${profileName})`
         : targetPath,
   }
+  return metadata
 }
 
 export function credentialContent(destination: ProfileCredentialDestination, credential: string) {
   if (destination.kind === 'file') return Buffer.from(`${credential}\n`, 'utf8')
-  if (!safeStorage.isEncryptionAvailable()) {
+  if (!secureStorage.isEncryptionAvailable()) {
     throw new Error('The platform credential store is unavailable on this machine.')
   }
-  return safeStorage.encryptString(credential)
+  return secureStorage.encryptString(credential)
 }
 
 export function decodeCredentialContent(
@@ -51,10 +52,10 @@ export function decodeCredentialContent(
   content: Buffer,
 ) {
   if (destination.kind === 'file') return content.toString('utf8').trim()
-  if (!safeStorage.isEncryptionAvailable()) {
+  if (!secureStorage.isEncryptionAvailable()) {
     throw new Error('The platform credential store is unavailable on this machine.')
   }
-  return safeStorage.decryptString(content)
+  return secureStorage.decryptString(content)
 }
 
 export function credentialFingerprint(credential: string) {
@@ -63,8 +64,9 @@ export function credentialFingerprint(credential: string) {
 
 export function ownerStateRoot(destination: ProfileCredentialDestination, stateRoot?: string) {
   if (destination.kind === 'credential-store') return destination.stateRoot
-  if (!stateRoot)
+  if (!stateRoot) {
     throw new Error('A trusted OpenWaggle state root is required for file credentials.')
+  }
   return stateRoot
 }
 
@@ -136,7 +138,7 @@ export async function assertReplaceable(targetPath: string, replace: boolean) {
         'Credential destination already exists. Use --replace to update it.',
       )
     }
-    return credentialDestinationIdentity(targetPath)
+    return await credentialDestinationIdentity(targetPath)
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
     throw error

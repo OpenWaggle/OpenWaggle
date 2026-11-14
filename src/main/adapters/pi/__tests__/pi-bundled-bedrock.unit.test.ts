@@ -1,10 +1,8 @@
-import { bedrockProviderModule } from '@earendil-works/pi-ai/bedrock-provider'
 import { describe, expect, it, vi } from 'vitest'
 import { registerPiBundledBedrockProvider } from '../pi-bundled-bedrock'
 
-// Only the setter is mocked, so we can count invocations. `bedrock-provider` is
-// intentionally left REAL: the test then fails if pi-ai changes the shape of
-// bedrockProviderModule, which the previous fully-mocked test could not detect.
+// Only the setter is mocked, so we can count invocations. `bedrock-provider` stays real, so the
+// type checker reports a change to the shape of bedrockProviderModule.
 const piBedrockMocks = vi.hoisted(() => ({
   setBedrockProviderModule: vi.fn(),
 }))
@@ -24,12 +22,5 @@ describe('Pi bundled Bedrock registration', () => {
       stream: expect.any(Function),
       streamSimple: expect.any(Function),
     })
-  })
-
-  it('registers a module satisfying the ProviderStreams shape the lazy loader expects', () => {
-    // Real (unmocked) export — guards against pi-ai drift in the module that
-    // backs the override, the semantic contract the fix depends on.
-    expect(typeof bedrockProviderModule.stream).toBe('function')
-    expect(typeof bedrockProviderModule.streamSimple).toBe('function')
   })
 })

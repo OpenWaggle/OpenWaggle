@@ -89,9 +89,9 @@ export function emptyActiveStreamBuffer(input: {
   readonly model: SupportedModelId
   readonly mode: RunMode
   readonly startedAt: number
-  readonly runId?: string | undefined
-}): ActiveStreamBuffer {
-  return {
+  readonly runId: string | undefined
+}) {
+  const buffer: ActiveStreamBuffer = {
     ...(input.runId ? { runId: input.runId } : {}),
     model: input.model,
     mode: input.mode,
@@ -102,15 +102,13 @@ export function emptyActiveStreamBuffer(input: {
     degradedToolCallIds: new Set(),
     degradedToolCallIdsBytes: 0,
   }
+  return buffer
 }
 
 /** The buffer for the next message, which started at `startedAt`, without the last one's parts. */
-export function withoutRetainedStreamContent(
-  buffer: ActiveStreamBuffer,
-  startedAt?: number,
-): ActiveStreamBuffer {
+export function withoutRetainedStreamContent(buffer: ActiveStreamBuffer, startedAt?: number) {
   const { messageCutShort: _cutShort, ...next } = buffer
-  return {
+  const result: ActiveStreamBuffer = {
     ...next,
     ...(startedAt === undefined ? {} : { messageStartedAt: startedAt }),
     messageOmittedBytes: buffer.omittedBytes,
@@ -119,6 +117,7 @@ export function withoutRetainedStreamContent(
     degradedToolCallIds: new Set(),
     degradedToolCallIdsBytes: 0,
   }
+  return result
 }
 
 export function exceedsStreamBufferLimit(
@@ -169,9 +168,9 @@ export function isMessageCutShort(buffer: ActiveStreamBuffer) {
 export function toStreamBufferSnapshot(
   sessionId: SessionId,
   buffer: ActiveStreamBuffer | undefined,
-): BackgroundRunSnapshot | null {
+) {
   if (!buffer) return null
-  return {
+  const snapshot: BackgroundRunSnapshot | null = {
     activity: 'agent-run',
     sessionId,
     ...(buffer.runId ? { runId: buffer.runId } : {}),
@@ -202,6 +201,7 @@ export function toStreamBufferSnapshot(
       : {}),
     ...(buffer.worktreeLaunch ? { worktreeLaunch: buffer.worktreeLaunch } : {}),
   }
+  return snapshot
 }
 
 export function withWorktreeLaunchSnapshot(

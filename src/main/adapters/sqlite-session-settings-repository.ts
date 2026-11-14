@@ -2,7 +2,6 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { RunId, type SessionId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import type { SessionRunAvailability } from '../domain/session-control/message-submission'
 import { canChangeSessionSettings } from '../domain/session-control/run-start-settings'
 import { SessionControlRepositoryError } from '../errors'
 import {
@@ -12,9 +11,9 @@ import {
 } from '../ports/session-settings-repository'
 
 /** The Session's Run state; any Run the Session Control state points at holds the Session. */
-function runState(status: string | null): SessionRunAvailability['state'] {
-  if (status === null) return 'idle'
-  return status === 'starting' || status === 'stopping' ? status : 'active'
+function runState(status: string | null) {
+  if (status === null) return 'idle' as const
+  return status === 'starting' || status === 'stopping' ? status : ('active' as const)
 }
 
 /**

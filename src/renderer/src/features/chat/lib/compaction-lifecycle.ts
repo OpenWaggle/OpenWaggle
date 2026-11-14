@@ -30,9 +30,7 @@ export type AgentCompactionStatus =
 
 type TimelineCompactionStatus = Exclude<AgentCompactionStatus, { readonly type: 'retrying' }>
 
-export function getTimelineCompactionStatus(
-  status: AgentCompactionStatus | null,
-): TimelineCompactionStatus | null {
+export function getTimelineCompactionStatus(status: AgentCompactionStatus | null) {
   return status?.type === 'retrying' ? status.previousCompactionStatus : status
 }
 
@@ -43,7 +41,7 @@ export function isCompactionRunning(status: AgentCompactionStatus | null) {
 function statusFromTimeline(
   timeline: readonly AgentCompactionTimelineItem[],
   suppressAnnouncement = false,
-): TimelineCompactionStatus | null {
+) {
   const latest = timeline.at(-1)
   if (!latest) return null
   return {
@@ -52,25 +50,23 @@ function statusFromTimeline(
     summaryCountAtStart: latest.summaryCountAtStart,
     timeline,
     ...(suppressAnnouncement ? { suppressAnnouncement: true } : {}),
-  }
+  } satisfies TimelineCompactionStatus
 }
 
-export function withoutLatestRunningCompaction(
-  status: AgentCompactionStatus | null,
-): TimelineCompactionStatus | null {
+export function withoutLatestRunningCompaction(status: AgentCompactionStatus | null) {
   const timelineStatus = getTimelineCompactionStatus(status)
   if (!timelineStatus) return null
   const timeline =
     timelineStatus.timeline.at(-1)?.phase === 'running'
       ? timelineStatus.timeline.slice(0, -1)
       : timelineStatus.timeline
-  return statusFromTimeline(timeline, true)
+  return statusFromTimeline(timeline, true) satisfies TimelineCompactionStatus | null
 }
 
 export function acknowledgeCompactionStatus(
   status: AgentCompactionStatus | null,
   durableSummaryIds: readonly string[],
-): AgentCompactionStatus | null {
+) {
   if (!status) return null
   const timelineStatus = getTimelineCompactionStatus(status)
   if (!timelineStatus) return status
@@ -87,9 +83,11 @@ export function acknowledgeCompactionStatus(
     return durableSummaryIds.length < (item.expectedSummaryCount ?? item.summaryCountAtStart + 1)
   })
   const acknowledged = statusFromTimeline(timeline, timelineStatus.suppressAnnouncement)
-  return status.type === 'retrying'
-    ? { ...status, previousCompactionStatus: acknowledged }
-    : acknowledged
+  return (
+    status.type === 'retrying'
+      ? { ...status, previousCompactionStatus: acknowledged }
+      : acknowledged
+  ) satisfies AgentCompactionStatus | null
 }
 
 export function compactionResultEntryId(result: unknown) {

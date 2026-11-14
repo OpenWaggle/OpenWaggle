@@ -11,9 +11,8 @@ vi.mock('../../../application/gui-session-command-router', () => ({
   invokeConfiguredHostUi: mocks.invokeConfiguredHostUi,
 }))
 
-const { recordStackedActionOutputsWhereOwned, verifySessionGitContext } = await import(
-  '../session-git-host'
-)
+const { recordStackedActionOutputsWhereOwned, verifySessionGitContext } =
+  await import('../session-git-host')
 
 function run<A, E>(effect: Effect.Effect<A, E>) {
   return Effect.runPromise(effect)

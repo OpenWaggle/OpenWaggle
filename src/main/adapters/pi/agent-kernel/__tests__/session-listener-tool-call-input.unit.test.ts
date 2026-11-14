@@ -44,7 +44,7 @@ function recordTransportEvents() {
   return { onPiEvent, deltas, end }
 }
 
-function piMessage(toolCall: ToolCall): AssistantMessage {
+function piMessage(toolCall: ToolCall) {
   return {
     role: 'assistant',
     content: [toolCall],
@@ -61,7 +61,7 @@ function piMessage(toolCall: ToolCall): AssistantMessage {
     },
     stopReason: 'pending',
     timestamp: 0,
-  }
+  } satisfies AssistantMessage
 }
 
 describe('session listener streaming tool-call input', () => {

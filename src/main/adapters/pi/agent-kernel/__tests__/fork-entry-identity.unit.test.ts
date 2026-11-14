@@ -6,6 +6,7 @@ import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rekeyForkedSessionLines } from '../fork-entry-identity'
 import { forkPiSession } from '../session-operations'
+import { piSessionFileField } from '../pi-session-file-field'
 
 const runtimeMocks = vi.hoisted(() => ({
   createPiSessionRuntime: vi.fn(),
@@ -100,7 +101,7 @@ function forkInput(source: SessionManager, targetNodeId: string, position: 'at' 
       title: 'Source',
       projectPath: directory,
       piSessionId: source.getSessionId(),
-      piSessionFile: source.getSessionFile(),
+      ...piSessionFileField(source.getSessionFile()),
       messages: [],
       createdAt: 0,
       updatedAt: 0,

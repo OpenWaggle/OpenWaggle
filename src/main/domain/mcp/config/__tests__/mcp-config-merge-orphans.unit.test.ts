@@ -11,12 +11,12 @@ const OW_GLOBAL = '/home/u/.openwaggle/mcp.json'
 const PROJECT_MCP_JSON = '/p/.mcp.json'
 const PROJECT_OW = '/p/.openwaggle/mcp.json'
 
-function parsed(fileId: McpConfigLayer['fileId'], path: string, value: unknown): McpConfigLayer {
-  return { fileId, path, content: { kind: 'parsed', value } }
+function parsed(fileId: McpConfigLayer['fileId'], path: string, value: unknown) {
+  return { fileId, path, content: { kind: 'parsed', value } } satisfies McpConfigLayer
 }
 
-function missing(fileId: McpConfigLayer['fileId'], path: string): McpConfigLayer {
-  return { fileId, path, content: { kind: 'missing' } }
+function missing(fileId: McpConfigLayer['fileId'], path: string) {
+  return { fileId, path, content: { kind: 'missing' } } satisfies McpConfigLayer
 }
 
 const PI_GLOBAL_MISSING = missing('pi-global', '/home/u/.pi/agent/mcp.json')

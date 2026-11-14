@@ -7,8 +7,6 @@ const POST_RUN_SETTLE_MAX_MS = 15_000
 const POST_RUN_IDLE_WAIT_SETTLED = 'settled'
 const POST_RUN_IDLE_WAIT_TIMED_OUT = 'timed-out'
 
-type PostRunIdleWaitResult = typeof POST_RUN_IDLE_WAIT_SETTLED | typeof POST_RUN_IDLE_WAIT_TIMED_OUT
-
 function wait(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms)
@@ -23,20 +21,13 @@ function getPostRunSettleRemainingMs(startedAt: number) {
   return Math.max(0, POST_RUN_SETTLE_MAX_MS - (Date.now() - startedAt))
 }
 
-async function waitForIdleWithin(
-  session: AgentSession,
-  timeoutMs: number,
-): Promise<PostRunIdleWaitResult> {
+async function waitForIdleWithin(session: AgentSession, timeoutMs: number) {
   if (timeoutMs <= 0) {
     return POST_RUN_IDLE_WAIT_TIMED_OUT
   }
 
-  const idleSettled = session.agent
-    .waitForIdle()
-    .then((): PostRunIdleWaitResult => POST_RUN_IDLE_WAIT_SETTLED)
-  const idleTimedOut = wait(timeoutMs).then(
-    (): PostRunIdleWaitResult => POST_RUN_IDLE_WAIT_TIMED_OUT,
-  )
+  const idleSettled = session.agent.waitForIdle().then(() => POST_RUN_IDLE_WAIT_SETTLED)
+  const idleTimedOut = wait(timeoutMs).then(() => POST_RUN_IDLE_WAIT_TIMED_OUT)
   return Promise.race([idleSettled, idleTimedOut])
 }
 

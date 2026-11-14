@@ -22,8 +22,14 @@ vi.mock('@/shell/workspace-panel-cleanup', () => ({
   archiveWorkspaceOwner: vi.fn(async () => undefined),
 }))
 
-function session(id: string): SessionSummary {
-  return { id: SessionId(id), title: id, projectPath: '/project', createdAt: 1, updatedAt: 1 }
+function session(id: string) {
+  return {
+    id: SessionId(id),
+    title: id,
+    projectPath: '/project',
+    createdAt: 1,
+    updatedAt: 1,
+  } satisfies SessionSummary
 }
 
 function setup() {

@@ -2,6 +2,7 @@ import {
   createPlainExtensionSyntaxResult,
   OPENWAGGLE_EXTENSION_UI_ATTRIBUTES,
   OPENWAGGLE_EXTENSION_UI_CLASS_NAMES,
+  type OpenWaggleExtensionSyntaxHighlightResult,
   type OpenWaggleExtensionSyntaxSdk,
   type OpenWaggleExtensionUiButtonVariant,
   type OpenWaggleExtensionUiTone,
@@ -12,6 +13,7 @@ import type {
   CSSProperties,
   HTMLAttributes,
   InputHTMLAttributes,
+  JSX,
   ReactNode,
   Ref,
   SelectHTMLAttributes,
@@ -59,36 +61,66 @@ function useExtensionSyntaxResult({
 }: Pick<SyntaxBlockProps, 'syntax' | 'source' | 'language' | 'path'> & {
   readonly enabled?: boolean
 }) {
-  const [result, setResult] = useState(() =>
-    enabled ? createPlainExtensionSyntaxResult({ source, language }) : undefined,
+  // Not built when disabled: large sources stay plain without a tokenized copy.
+  const plain = useMemo(
+    () =>
+      enabled
+        ? createPlainExtensionSyntaxResult({
+            source,
+            ...(language === undefined ? {} : { language }),
+          })
+        : undefined,
+    [enabled, source, language],
   )
+  // Keyed by its inputs, so a changed input shows plain text until its own highlight lands.
+  const [highlighted, setHighlighted] = useState<
+    | {
+        readonly syntax: OpenWaggleExtensionSyntaxSdk
+        readonly source: string
+        readonly language: string | undefined
+        readonly path: string | undefined
+        readonly result: OpenWaggleExtensionSyntaxHighlightResult
+      }
+    | undefined
+  >(undefined)
 
   useEffect(() => {
+    if (!enabled) return undefined
     let active = true
     const controller = new AbortController()
-    if (!enabled) {
-      return () => {
-        active = false
-        controller.abort()
-      }
+    const settle = (result: OpenWaggleExtensionSyntaxHighlightResult) => {
+      if (active) setHighlighted({ syntax, source, language, path, result })
     }
-    setResult(createPlainExtensionSyntaxResult({ source, language }))
     void syntax
-      .highlight({ source, language, path, priority: 'visible' }, { signal: controller.signal })
-      .then(
-        (next) => {
-          if (active) setResult(next)
+      .highlight(
+        {
+          source,
+          ...(language === undefined ? {} : { language }),
+          ...(path === undefined ? {} : { path }),
+          priority: 'visible',
         },
-        () => {
-          if (active) setResult(createPlainExtensionSyntaxResult({ source, language }))
-        },
+        { signal: controller.signal },
       )
+      .then(settle, () => {
+        settle(
+          createPlainExtensionSyntaxResult({
+            source,
+            ...(language === undefined ? {} : { language }),
+          }),
+        )
+      })
     return () => {
       active = false
       controller.abort()
     }
   }, [enabled, language, path, source, syntax])
-  return enabled ? result : undefined
+  if (!plain) return undefined
+  const current =
+    highlighted?.syntax === syntax &&
+    highlighted.source === source &&
+    highlighted.language === language &&
+    highlighted.path === path
+  return current ? highlighted.result : plain
 }
 
 export function SyntaxBlock({
@@ -102,10 +134,15 @@ export function SyntaxBlock({
   ariaLabel,
 }: SyntaxBlockProps) {
   const result =
-    useExtensionSyntaxResult({ syntax, source, language, path }) ??
-    createPlainExtensionSyntaxResult({ source, language })
+    useExtensionSyntaxResult({
+      syntax,
+      source,
+      ...(language === undefined ? {} : { language }),
+      ...(path === undefined ? {} : { path }),
+    }) ??
+    createPlainExtensionSyntaxResult({ source, ...(language === undefined ? {} : { language }) })
 
-  return (
+  const value: JSX.Element = (
     <section aria-label={ariaLabel}>
       <pre
         className={openWaggleExtensionClassName(
@@ -147,6 +184,7 @@ export function SyntaxBlock({
       </pre>
     </section>
   )
+  return value
 }
 
 export type SourceViewProps = SyntaxBlockProps
@@ -199,8 +237,8 @@ export function SourceView({
   const result = useExtensionSyntaxResult({
     syntax,
     source,
-    language,
-    path,
+    ...(language === undefined ? {} : { language }),
+    ...(path === undefined ? {} : { path }),
     enabled: highlightEnabled,
   })
   const [scrollTop, setScrollTop] = useState(0)
@@ -218,7 +256,7 @@ export function SourceView({
       materializePlainSourceLines(source, sourceLineStarts, start, end),
     [end, result, source, sourceLineStarts, start],
   )
-  return (
+  const value: JSX.Element = (
     <section aria-label={ariaLabel}>
       <pre
         className={openWaggleExtensionClassName(
@@ -280,6 +318,7 @@ export function SourceView({
       </pre>
     </section>
   )
+  return value
 }
 
 export interface StackProps {
@@ -291,7 +330,7 @@ export interface StackProps {
 }
 
 export function Stack({ children, className, gap, ref, style }: StackProps) {
-  return (
+  const result: JSX.Element = (
     <div
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.stack, className)}
@@ -300,6 +339,7 @@ export function Stack({ children, className, gap, ref, style }: StackProps) {
       {children}
     </div>
   )
+  return result
 }
 
 export interface PanelProps {
@@ -310,7 +350,7 @@ export interface PanelProps {
 }
 
 export function Panel({ children, className, ref, style }: PanelProps) {
-  return (
+  const result: JSX.Element = (
     <section
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.panel, className)}
@@ -319,6 +359,7 @@ export function Panel({ children, className, ref, style }: PanelProps) {
       {children}
     </section>
   )
+  return result
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -327,7 +368,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ children, className, ref, variant = 'secondary', ...props }: ButtonProps) {
-  return (
+  const result: JSX.Element = (
     <button
       {...props}
       ref={ref}
@@ -340,6 +381,7 @@ export function Button({ children, className, ref, variant = 'secondary', ...pro
       {children}
     </button>
   )
+  return result
 }
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -347,13 +389,14 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export function Input({ className, ref, ...props }: InputProps) {
-  return (
+  const result: JSX.Element = (
     <input
       {...props}
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.input, className)}
     />
   )
+  return result
 }
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -361,7 +404,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 }
 
 export function Textarea({ className, ref, ...props }: TextareaProps) {
-  return (
+  const result: JSX.Element = (
     <textarea
       {...props}
       ref={ref}
@@ -371,6 +414,7 @@ export function Textarea({ className, ref, ...props }: TextareaProps) {
       )}
     />
   )
+  return result
 }
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -378,7 +422,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export function Select({ children, className, ref, ...props }: SelectProps) {
-  return (
+  const result: JSX.Element = (
     <select
       {...props}
       ref={ref}
@@ -390,6 +434,7 @@ export function Select({ children, className, ref, ...props }: SelectProps) {
       {children}
     </select>
   )
+  return result
 }
 
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -397,7 +442,7 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
 }
 
 export function Checkbox({ className, ref, ...props }: CheckboxProps) {
-  return (
+  const result: JSX.Element = (
     <input
       {...props}
       ref={ref}
@@ -408,6 +453,7 @@ export function Checkbox({ className, ref, ...props }: CheckboxProps) {
       )}
     />
   )
+  return result
 }
 
 export interface BadgeProps {
@@ -418,7 +464,7 @@ export interface BadgeProps {
 }
 
 export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps) {
-  return (
+  const result: JSX.Element = (
     <span
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.badge, className)}
@@ -427,6 +473,7 @@ export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps
       {children}
     </span>
   )
+  return result
 }
 
 export interface AlertProps {
@@ -438,7 +485,7 @@ export interface AlertProps {
 }
 
 export function Alert({ children, className, ref, role = 'status', tone = 'neutral' }: AlertProps) {
-  return (
+  const result: JSX.Element = (
     <div
       ref={ref}
       role={role}
@@ -448,6 +495,7 @@ export function Alert({ children, className, ref, role = 'status', tone = 'neutr
       {children}
     </div>
   )
+  return result
 }
 
 export interface FieldProps extends HTMLAttributes<HTMLDivElement> {
@@ -468,7 +516,7 @@ export function Field({
   ref,
   ...props
 }: FieldProps) {
-  return (
+  const result: JSX.Element = (
     <div
       {...props}
       ref={ref}
@@ -488,6 +536,7 @@ export function Field({
       {error ? <span data-ow-tone="danger">{error}</span> : null}
     </div>
   )
+  return result
 }
 
 export type { OpenWaggleExtensionUiButtonVariant, OpenWaggleExtensionUiTone }

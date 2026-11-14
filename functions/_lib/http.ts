@@ -29,17 +29,14 @@ export function jsonResponse(
   status: number,
   body: unknown,
   headers: Readonly<Record<string, string>> = {},
-): Response {
+) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...API_HEADERS, 'Content-Type': JSON_CONTENT_TYPE, ...headers },
   })
 }
 
-export function emptyResponse(
-  status: number,
-  headers: Readonly<Record<string, string>> = {},
-): Response {
+export function emptyResponse(status: number, headers: Readonly<Record<string, string>> = {}) {
   return new Response(null, { status, headers: { ...API_HEADERS, ...headers } })
 }
 
@@ -47,7 +44,7 @@ export type BodyReadResult =
   | { readonly ok: true; readonly bytes: Uint8Array }
   | { readonly ok: false; readonly reason: 'too large' | 'unreadable' }
 
-export function concatBytes(chunks: readonly Uint8Array[]): Uint8Array {
+export function concatBytes(chunks: readonly Uint8Array[]) {
   const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0)
   const bytes = new Uint8Array(total)
   let offset = 0
@@ -71,11 +68,8 @@ async function cancelQuietly(reader: ReadableStreamDefaultReader<Uint8Array>) {
  * Reads a body stream, stopping as soon as it exceeds `maxBytes`, so an oversized or endless
  * body costs at most `maxBytes` of memory. Content-Length is never trusted.
  */
-export async function readLimitedBody(
-  stream: ReadableStream<Uint8Array> | null,
-  maxBytes: number,
-): Promise<BodyReadResult> {
-  if (stream === null) return { ok: true, bytes: new Uint8Array() }
+export async function readLimitedBody(stream: ReadableStream<Uint8Array> | null, maxBytes: number) {
+  if (stream === null) return { ok: true, bytes: new Uint8Array() } satisfies BodyReadResult
   const reader = stream.getReader()
   const chunks: Uint8Array[] = []
   let total = 0
@@ -86,21 +80,21 @@ export async function readLimitedBody(
       total += value.byteLength
       if (total > maxBytes) {
         await cancelQuietly(reader)
-        return { ok: false, reason: 'too large' }
+        return { ok: false, reason: 'too large' } satisfies BodyReadResult
       }
       chunks.push(value)
     }
   } catch {
-    return { ok: false, reason: 'unreadable' }
+    return { ok: false, reason: 'unreadable' } satisfies BodyReadResult
   }
-  return { ok: true, bytes: concatBytes(chunks) }
+  return { ok: true, bytes: concatBytes(chunks) } satisfies BodyReadResult
 }
 
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
 const UTF8_ENCODER = new TextEncoder()
 
 /** Decodes strict UTF-8, or returns `undefined` for invalid byte sequences. */
-export function decodeUtf8(bytes: Uint8Array): string | undefined {
+export function decodeUtf8(bytes: Uint8Array) {
   try {
     return UTF8_DECODER.decode(bytes)
   } catch {
@@ -117,17 +111,17 @@ export type JsonParseResult =
   | { readonly ok: false }
 
 /** Parses a UTF-8 JSON document without ever echoing its content in an error. */
-export function parseJsonText(text: string | undefined): JsonParseResult {
-  if (text === undefined) return { ok: false }
+export function parseJsonText(text: string | undefined) {
+  if (text === undefined) return { ok: false } satisfies JsonParseResult
   try {
     const value: unknown = JSON.parse(text)
-    return { ok: true, value }
+    return { ok: true, value } satisfies JsonParseResult
   } catch {
-    return { ok: false }
+    return { ok: false } satisfies JsonParseResult
   }
 }
 
-export function parseJsonBytes(bytes: Uint8Array): JsonParseResult {
+export function parseJsonBytes(bytes: Uint8Array) {
   return parseJsonText(decodeUtf8(bytes))
 }
 
@@ -139,7 +133,7 @@ export function isRecord(value: unknown): value is Readonly<Record<string, unkno
 export function firstUnexpectedKey(
   record: Readonly<Record<string, unknown>>,
   allowed: ReadonlySet<string>,
-): string | undefined {
+) {
   return Object.keys(record).find((key) => !allowed.has(key))
 }
 

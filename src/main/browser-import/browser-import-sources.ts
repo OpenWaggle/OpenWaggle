@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { access, readdir, readFile, readlink, stat } from 'node:fs/promises'
 import { homedir, hostname } from 'node:os'
 import path from 'node:path'
@@ -14,13 +15,21 @@ import {
   BROWSER_IMPORT_SOURCES,
   type BrowserImportPathContext,
   type BrowserImportSourceDefinition,
-  browserImportSourceDefinition,
   cookieDatabaseCandidates,
   isSafeBrowserProfileDirectory,
   parseFirefoxProfiles,
   resolveCookieDatabase,
 } from './browser-import-source-definitions'
 import { listSafariProfiles } from './safari-profile-discovery'
+
+/** The profile list Chromium keeps in `Local State`: one entry per profile directory. */
+const localStateProfilesSchema = Schema.Struct({
+  profile: Schema.Struct({ info_cache: Schema.Unknown }),
+})
+const profileInfoSchema = Schema.Struct({ name: Schema.String })
+const cookieCountRowSchema = Schema.Struct({
+  count: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+})
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -38,18 +47,13 @@ async function listChromiumProfiles(
     const localStateStat = await stat(localStatePath)
     if (localStateStat.size > BROWSER_IMPORT_LIMITS.LOCAL_STATE_BYTES) return []
     const state: unknown = JSON.parse(await readFile(localStatePath, 'utf8'))
-    if (isRecord(state)) {
-      const profile = state.profile
-      if (isRecord(profile)) {
-        const cache = profile.info_cache
-        if (isRecord(cache)) {
-          declared = Object.entries(cache).flatMap(([directory, info]) => {
-            if (!isSafeBrowserProfileDirectory(directory)) return []
-            const name = isRecord(info) && typeof info.name === 'string' ? info.name.trim() : ''
-            return [{ directory, name: name || directory }]
-          })
-        }
-      }
+    const cache = Schema.is(localStateProfilesSchema)(state) ? state.profile.info_cache : undefined
+    if (isRecord(cache)) {
+      declared = Object.entries(cache).flatMap(([directory, info]) => {
+        if (!isSafeBrowserProfileDirectory(directory)) return []
+        const name = Schema.is(profileInfoSchema)(info) ? info.name.trim() : ''
+        return [{ directory, name: name || directory }]
+      })
     }
   } catch {
     declared = []
@@ -57,13 +61,9 @@ async function listChromiumProfiles(
   if (declared.length === 0 && definition.directProfileName) {
     const directDatabase = await resolveCookieDatabase(definition, context, '.')
     if (directDatabase) {
-      return [
-        {
-          directory: '.',
-          name: definition.directProfileName,
-          cookieCount: countProfileCookies(definition, directDatabase),
-        },
-      ]
+      const profile = { directory: '.', name: definition.directProfileName }
+      const cookieCount = countProfileCookies(definition, directDatabase)
+      return [cookieCount === undefined ? profile : { ...profile, cookieCount }]
     }
   }
   const candidates = declared.length > 0 ? declared : await scanDirectories(root)
@@ -107,10 +107,8 @@ function countProfileCookies(definition: BrowserImportSourceDefinition, database
       definition.engine === 'firefox'
         ? "SELECT count(*) AS count FROM moz_cookies WHERE originAttributes = ''"
         : 'SELECT count(*) AS count FROM cookies'
-    const value = database.prepare(query).get()?.count
-    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
-      ? value
-      : undefined
+    const row: unknown = database.prepare(query).get()
+    return Schema.is(cookieCountRowSchema)(row) ? row.count : undefined
   } catch {
     return undefined
   } finally {
@@ -207,17 +205,16 @@ async function sourcePermissionDenied(
   root: string,
 ) {
   const candidates = [root, ...cookieDatabaseCandidates(definition, context, 'Default')]
-  for (const candidate of candidates) {
-    try {
-      await access(candidate)
-    } catch (error) {
-      const reason = browserImportFilePermissionReason(
-        definition.id,
-        context.platform,
-        fileErrorCode(error),
-      )
-      if (reason) return reason
-    }
+  // Checked at once; the first candidate in order with a permission reason decides.
+  const checks = await Promise.allSettled(candidates.map((candidate) => access(candidate)))
+  for (const check of checks) {
+    if (check.status === 'fulfilled') continue
+    const reason = browserImportFilePermissionReason(
+      definition.id,
+      context.platform,
+      fileErrorCode(check.reason),
+    )
+    if (reason) return reason
   }
   return undefined
 }
@@ -226,18 +223,24 @@ function unavailableSource(
   definition: BrowserImportSourceDefinition,
   unavailable: BrowserImportUnavailableReason,
   profiles: readonly BrowserImportSourceProfile[] = [],
-): BrowserImportSource {
-  return { id: definition.id, name: definition.name, profiles, unavailable }
+) {
+  const source: BrowserImportSource = {
+    id: definition.id,
+    name: definition.name,
+    profiles,
+    unavailable,
+  }
+  return source
 }
 
 async function listSourceProfiles(
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-): Promise<readonly BrowserImportSourceProfile[]> {
+) {
   if (definition.engine === 'chromium') return listChromiumProfiles(definition, context)
   if (definition.engine === 'firefox') return listFirefoxProfiles(definition, context)
   const root = definition.userDataDirectory(context)
-  if (root === undefined) return []
+  if (root === undefined) return [] satisfies readonly BrowserImportSourceProfile[]
   return filterProfilesWithCookieDatabase(definition, context, await listSafariProfiles(root))
 }
 
@@ -258,7 +261,7 @@ async function profileDatabasePermissionDenied(
 async function inspectBrowserImportSource(
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
-): Promise<BrowserImportSource> {
+) {
   if (!definition.platforms.includes(context.platform)) {
     return unavailableSource(definition, 'unsupported-platform')
   }
@@ -280,12 +283,13 @@ async function inspectBrowserImportSource(
   if (profilePermissionFailure) {
     return unavailableSource(definition, profilePermissionFailure, profiles)
   }
-  return { id: definition.id, name: definition.name, profiles }
+  const source: BrowserImportSource = { id: definition.id, name: definition.name, profiles }
+  return source
 }
 
 export async function listBrowserImportSources(
   context: BrowserImportPathContext = defaultBrowserImportPathContext(),
-): Promise<readonly BrowserImportSource[]> {
+) {
   return Promise.all(
     BROWSER_IMPORT_SOURCES.filter((definition) =>
       definition.platforms.includes(context.platform),
@@ -293,8 +297,6 @@ export async function listBrowserImportSources(
   )
 }
 
-export function defaultBrowserImportPathContext(): BrowserImportPathContext {
+export function defaultBrowserImportPathContext() {
   return { home: homedir(), platform: process.platform, ...getBrowserImportPathEnv() }
 }
-
-export { browserImportSourceDefinition }

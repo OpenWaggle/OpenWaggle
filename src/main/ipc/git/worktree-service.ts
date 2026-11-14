@@ -1,6 +1,1 @@
-export {
-  createGitWorktree,
-  listGitWorktrees,
-  parseWorktreeList,
-  removeGitWorktree,
-} from '../../adapters/git/worktree'
+export { listGitWorktrees } from '../../adapters/git/worktree'

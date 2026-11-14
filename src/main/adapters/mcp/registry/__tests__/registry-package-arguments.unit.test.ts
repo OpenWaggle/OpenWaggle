@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { RegistryServerRecord } from '../registry-client'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import { createRegistryEntry } from '../registry-entry'
+import { registryServerSchema } from '../registry-server-schema'
 
 const DIGEST = `sha256:${'b'.repeat(64)}`
 const options = {
@@ -24,7 +25,7 @@ const PACKAGE_ARGUMENTS = [
 ]
 const EXPECTED_ARGUMENTS = ['--port=8080', 'serve', '--read-only', '-m=fast mode']
 
-function server(registryType: string, identifier: string, extra: object): RegistryServerRecord {
+function server(registryType: string, identifier: string, extra: object) {
   const pkg = {
     registryType,
     identifier,
@@ -36,7 +37,11 @@ function server(registryType: string, identifier: string, extra: object): Regist
     name: 'io.github.example/weather',
     version: '2.0.0',
     description: 'Weather forecasts.',
-    raw: { name: 'io.github.example/weather', version: '2.0.0', packages: [pkg] },
+    source: decodeUnknownOrThrow(registryServerSchema, {
+      name: 'io.github.example/weather',
+      version: '2.0.0',
+      packages: [pkg],
+    }),
   }
 }
 

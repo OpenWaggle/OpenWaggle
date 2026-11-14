@@ -1,5 +1,4 @@
 import type { TerminalPortPreview } from '@shared/types/terminal'
-import type { RenderResult } from '@testing-library/react'
 import { useTerminalStore } from '../../state/terminal-store'
 import {
   getTerminalPaneMocks,
@@ -40,7 +39,7 @@ export function seedGroup(
   }))
 }
 
-export function renderPanel(defaultCwd: string | null = '/tmp/project-x'): RenderResult {
+export function renderPanel(defaultCwd: string | null = '/tmp/project-x') {
   return renderTerminalPanel(defaultCwd)
 }
 
@@ -49,6 +48,6 @@ export function resetTerminalPanelHarness() {
   mocks.closeTerminal.mockResolvedValue(undefined)
 }
 
-export function getTerminalPanelMocks(): ReturnType<typeof getTerminalPaneMocks> {
+export function getTerminalPanelMocks() {
   return mocks
 }

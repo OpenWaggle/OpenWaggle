@@ -16,16 +16,19 @@ const apiMocks = vi.hoisted(() => ({
   retry: vi.fn(),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     listSessionResources: apiMocks.list,
+    ...(
+      await import('@/features/session-summary/hooks/__tests__/session-resource-catalog.fake')
+    ).sessionResourceCatalogOver(apiMocks.list),
     openExternal: apiMocks.openExternal,
     openPath: apiMocks.openPath,
     revealPath: apiMocks.revealPath,
     readSessionResource: apiMocks.read,
     readSessionResourceThumbnail: apiMocks.readThumbnail,
     retrySessionResource: apiMocks.retry,
-  },
+  }),
 }))
 
 function imageResource(
@@ -35,8 +38,8 @@ function imageResource(
   available = true,
   managed = locator.startsWith('session-resource://'),
   canonicalKey = `resource:${id}`,
-): SessionResource {
-  return {
+) {
+  const resource: SessionResource = {
     id,
     sessionId: SessionId('session-one'),
     canonicalKey,
@@ -52,6 +55,7 @@ function imageResource(
     createdAt: 1,
     updatedAt: 1,
   }
+  return resource
 }
 
 describe('SessionResourcesPanel source actions', () => {

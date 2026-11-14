@@ -2,7 +2,6 @@ import type {
   OpenWaggleExtensionSyntaxHighlightInput,
   OpenWaggleExtensionSyntaxHighlightOptions,
   OpenWaggleExtensionSyntaxHighlightResult,
-  OpenWaggleExtensionSyntaxSdk,
 } from '@shared/extension-sdk'
 import { bundledShikiTheme } from '@shared/types/syntax'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -27,14 +26,14 @@ function inputLanguage(input: OpenWaggleExtensionSyntaxHighlightInput) {
 export async function highlightExtensionSyntax(
   input: OpenWaggleExtensionSyntaxHighlightInput,
   options?: OpenWaggleExtensionSyntaxHighlightOptions,
-): Promise<OpenWaggleExtensionSyntaxHighlightResult> {
+) {
   const language = inputLanguage(input)
   const result = await syntaxService.highlight({
     source: input.source,
     language,
     theme: currentSyntaxTheme(),
     priority: input.priority ?? 'visible',
-    signal: options?.signal,
+    ...(options?.signal === undefined ? {} : { signal: options.signal }),
   })
   return {
     status: result.status,
@@ -43,9 +42,5 @@ export async function highlightExtensionSyntax(
     ...(result.foreground ? { foreground: result.foreground } : {}),
     ...(result.background ? { background: result.background } : {}),
     ...(result.diagnostic ? { diagnostic: result.diagnostic } : {}),
-  }
-}
-
-export function createRendererExtensionSyntaxSdk(): OpenWaggleExtensionSyntaxSdk {
-  return { highlight: highlightExtensionSyntax }
+  } satisfies OpenWaggleExtensionSyntaxHighlightResult
 }

@@ -311,8 +311,9 @@ describe('Session worktree Setup dispatch migration', () => {
       Effect.gen(function* () {
         yield* applyMigrations(sql, 24)
         for (const migration of APP_MIGRATIONS) {
-          if (migration.id <= 24 || migration.id >= TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID)
+          if (migration.id <= 24 || migration.id >= TURN_CHECKPOINT_STARTED_AT_MIGRATION_ID) {
             continue
+          }
           yield* sql`
             INSERT INTO _migrations (id, name, applied_at)
             VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})

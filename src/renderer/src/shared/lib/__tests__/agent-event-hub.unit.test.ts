@@ -30,11 +30,11 @@ function deliver(payload: AgentEventPayload) {
   for (const callback of bridge.callbacks) callback(payload)
 }
 
-function payload(sessionId: string): AgentEventPayload {
+function payload(sessionId: string) {
   return {
     sessionId: SessionId(sessionId),
     event: { type: 'agent_start', runId: 'run-1', timestamp: 1 },
-  }
+  } satisfies AgentEventPayload
 }
 
 describe('agent event hub', () => {

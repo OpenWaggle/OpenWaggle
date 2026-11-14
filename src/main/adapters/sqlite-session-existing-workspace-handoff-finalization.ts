@@ -100,8 +100,7 @@ function completionStateMatches(
     session !== undefined &&
     !session.active_run_id &&
     session.workspace_id === input.handoff.previousWorkspaceId &&
-    target !== undefined &&
-    target.lifecycle_state === 'materializing' &&
+    target?.lifecycle_state === 'materializing' &&
     target.handoff_seed_ref === input.preparedHandoff.snapshotRef &&
     target.handoff_seed_base_ref === input.preparedHandoff.sourceHead
   )

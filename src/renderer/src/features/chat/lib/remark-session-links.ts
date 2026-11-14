@@ -22,7 +22,7 @@ const SESSION_LINK_TEXT =
 /** Nodes whose text is already a link or a link label. Code is a separate node type. */
 const LINKED_PARENTS = new Set(['link', 'linkReference', 'definition'])
 
-function splitText(value: string): MarkdownNode[] {
+function splitText(value: string) {
   const nodes: MarkdownNode[] = []
   let start = 0
   for (const match of value.matchAll(SESSION_LINK_TEXT)) {
@@ -35,16 +35,16 @@ function splitText(value: string): MarkdownNode[] {
     nodes.push({ type: 'link', url, children: [{ type: 'text', value: written }] })
     start = match.index + written.length
   }
-  if (start === 0) return [{ type: 'text', value }]
+  if (start === 0) return [{ type: 'text', value }] satisfies MarkdownNode[]
   if (start < value.length) nodes.push({ type: 'text', value: value.slice(start) })
   return nodes
 }
 
 /** Agents often write a link as inline code; code that is exactly a Session link links too. */
-function linkedInlineCode(node: MarkdownNode): MarkdownNode {
+function linkedInlineCode(node: MarkdownNode) {
   const sessionId = typeof node.value === 'string' ? parseSessionLink(node.value) : null
   const url = sessionId === null ? null : sessionLink(sessionId)
-  return url === null ? node : { type: 'link', url, children: [node] }
+  return (url === null ? node : { type: 'link', url, children: [node] }) satisfies MarkdownNode
 }
 
 /**

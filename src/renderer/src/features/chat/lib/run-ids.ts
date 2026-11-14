@@ -48,17 +48,19 @@ export function createStartedRuns() {
   const unannounced = new Map<SessionId, Set<string>>()
   const named = (sessionId: SessionId, started: readonly string[], settling: string) => {
     const another = nameUnannounced(bySession, sessionId, started, settling)
-    if (another) unannounced.set(sessionId, new Set(unannounced.get(sessionId)).add(settling))
+    if (another) unannounced.set(sessionId, (unannounced.get(sessionId) ?? new Set()).add(settling))
     return another
   }
+  // `restoredRunId`: the Run in progress when the renderer started, whose start it never saw.
+  const listed = (sessionId: SessionId, restoredRunId: string | undefined) =>
+    bySession.get(sessionId) ?? (restoredRunId === undefined ? [] : [settlingRunId(restoredRunId)])
   return {
     /**
      * A Run started; `true` when it is another Run than the one started last (not a retry).
      * `restoredRunId`: the Run in progress when the renderer started, whose start it never saw.
      */
     start(sessionId: SessionId, runId: string, restoredRunId?: string) {
-      const restored = restoredRunId === undefined ? [] : [settlingRunId(restoredRunId)]
-      const started = bySession.get(sessionId) ?? restored
+      const started = listed(sessionId, restoredRunId)
       const settling = settlingRunId(runId)
       const last = started.at(-1)
       // The start of the Run already streaming, late (the bridge announcing it after a resync).
@@ -92,8 +94,7 @@ export function createStartedRuns() {
      * a late start or `name` names it. `restoredRunId`: as for `start`.
      */
     noteUnannounced(sessionId: SessionId, restoredRunId?: string) {
-      const restored = restoredRunId === undefined ? [] : [settlingRunId(restoredRunId)]
-      const started = bySession.get(sessionId) ?? restored
+      const started = listed(sessionId, restoredRunId)
       if (isUnannouncedRun(started.at(-1))) return
       bySession.set(sessionId, [...started, UNANNOUNCED_RUN])
     },
@@ -125,8 +126,7 @@ export function createStartedRuns() {
      * is an earlier one than the Run started last. Forgets it and the Runs started before it.
      */
     settle(sessionId: SessionId, runId: string | undefined, restoredRunId?: string) {
-      const restored = restoredRunId === undefined ? [] : [settlingRunId(restoredRunId)]
-      const started = bySession.get(sessionId) ?? restored
+      const started = listed(sessionId, restoredRunId)
       if (runId === undefined) {
         bySession.delete(sessionId)
         return false
@@ -141,10 +141,8 @@ export function createStartedRuns() {
       const later = started.slice(index + 1)
       if (later.length === 0) bySession.delete(sessionId)
       else bySession.set(sessionId, later)
-      const stillListed = new Set(later)
-      const kept = [...(unannounced.get(sessionId) ?? [])].filter((id) => stillListed.has(id))
-      if (kept.length > 0) unannounced.set(sessionId, new Set(kept))
-      else unannounced.delete(sessionId)
+      const settled = unannounced.get(sessionId)
+      for (const settledRunId of started.slice(0, index + 1)) settled?.delete(settledRunId)
       return later.some((laterRunId) => !isUnnamedRunStart(laterRunId))
     },
   }

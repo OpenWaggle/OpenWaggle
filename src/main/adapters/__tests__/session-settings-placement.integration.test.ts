@@ -90,7 +90,7 @@ function storedRows() {
     const profiles = yield* sql<{ readonly profile_json: string }>`
       SELECT profile_json FROM session_execution_profiles WHERE session_id = ${TARGET}
     `
-    const parse = (json: string): unknown => JSON.parse(json)
+    const parse = (json: string) => JSON.parse(json)
     return {
       runIntents: runs.map((row) => parse(row.intent_json)),
       followUpIntents: followUps.map((row) => parse(row.intent_json)),

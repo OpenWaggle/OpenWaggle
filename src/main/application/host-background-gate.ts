@@ -70,7 +70,7 @@ export class HostBackgroundGate {
   private lastSlimAt = Number.NEGATIVE_INFINITY
   private open = false
   private timer: { readonly cancel: () => void } | undefined
-  private waiters: Array<() => void> = []
+  private waiters: (() => void)[] = []
   private readonly slimHooks = new Set<SlimHook>()
   private slimmed = false
   private readonly foregroundCommands = new Set<{ readonly startedAt: number }>()
@@ -78,10 +78,16 @@ export class HostBackgroundGate {
   private quietTimer: { readonly cancel: () => void } | undefined
   private quietWaiters = new Set<QuietWaiter>()
 
+  private readonly clock: HostBackgroundGateClock
+  private readonly onSlimFailed: (error: unknown) => void
+
   constructor(
-    private readonly clock: HostBackgroundGateClock = systemClock,
-    private readonly onSlimFailed: (error: unknown) => void = () => undefined,
-  ) {}
+    clock: HostBackgroundGateClock = systemClock,
+    onSlimFailed: (error: unknown) => void = () => undefined,
+  ) {
+    this.clock = clock
+    this.onSlimFailed = onSlimFailed
+  }
 
   /** The Session Host gates its background work from now on; nothing runs until a client. */
   enable() {
@@ -96,9 +102,9 @@ export class HostBackgroundGate {
   }
 
   /** Resolves once background work may run. */
-  whenOpen(): Promise<void> {
+  whenOpen() {
     if (this.isOpen) return Promise.resolve()
-    return new Promise((resolve) => this.waiters.push(resolve))
+    return new Promise<void>((resolve) => this.waiters.push(resolve))
   }
 
   /** An authenticated client attached; the returned function detaches it. */
@@ -167,9 +173,9 @@ export class HostBackgroundGate {
    * Resolves when background work may take its next slice: at once while the gate is not enabled
    * or the clients are quiet, otherwise once they are, or after `HOST_BACKGROUND_MAX_DEFERRAL_MS`.
    */
-  whenForegroundQuiet(): Promise<void> {
+  whenForegroundQuiet() {
     if (!this.enabled || this.quietForMs() >= HOST_FOREGROUND_QUIET_MS) return Promise.resolve()
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       const waiter: QuietWaiter = {
         resolve,
         deadline: this.clock.setTimeout(() => {

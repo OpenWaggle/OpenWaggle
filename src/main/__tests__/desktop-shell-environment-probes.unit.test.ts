@@ -20,8 +20,8 @@ const PROBE_TIMEOUT_MS = 50
 
 function fakeChild(pid: number) {
   const stdout = new PassThrough()
-  const child = Object.assign(new EventEmitter(), {
-    exitCode: null,
+  const exitState: { exitCode: number | null } = { exitCode: null }
+  const child = Object.assign(new EventEmitter(), exitState, {
     kill: vi.fn<(signal?: NodeJS.Signals | number) => boolean>(() => true),
     pid,
     signalCode: null,
@@ -32,6 +32,10 @@ function fakeChild(pid: number) {
   })
   return {
     child: fromPartial<ProbeChild>(child),
+    exitWithoutClose: (code: number) => {
+      child.exitCode = code
+      child.emit('exit', code, null)
+    },
     destroy: vi.spyOn(stdout, 'destroy'),
   }
 }
@@ -66,8 +70,7 @@ describe('bounded desktop shell environment probes', () => {
 
     // A background descendant retains stdout, so the parent emits exit but the
     // child-process close event never arrives.
-    Reflect.set(probe.child, 'exitCode', 0)
-    probe.child.emit('exit', 0, null)
+    probe.exitWithoutClose(0)
     await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS)
 
     try {

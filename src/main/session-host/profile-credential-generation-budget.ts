@@ -114,7 +114,7 @@ export class ProfileCredentialGenerationBudget {
     readonly callerId: string
     readonly operationKey: string
     readonly task: () => Promise<string>
-  }): Promise<string> {
+  }) {
     const key = `${input.callerId}\0${input.operationKey}`
     const existing = this.inFlight.get(key)
     if (existing) return existing
@@ -123,12 +123,12 @@ export class ProfileCredentialGenerationBudget {
         new ProfileCredentialGenerationRateLimitError(
           'Profile credential generation capacity is temporarily full.',
         ),
-      )
+      ) satisfies Promise<string>
     }
     try {
       this.admitNamedProfile(input.callerId)
     } catch (cause) {
-      return Promise.reject(cause)
+      return Promise.reject(cause) satisfies Promise<string>
     }
     const operation = this.schedule(input.task)
     this.inFlight.set(key, operation)

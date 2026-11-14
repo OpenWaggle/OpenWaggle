@@ -13,7 +13,7 @@ const writeText = vi.fn()
 
 vi.mock('@/shared/lib/ipc', () => ({ api: { openPath } }))
 
-function branch(name: string, overrides: Partial<GitBranchInfo> = {}): GitBranchInfo {
+function branch(name: string, overrides: Partial<GitBranchInfo> = {}) {
   return {
     name,
     localName: name,
@@ -24,7 +24,7 @@ function branch(name: string, overrides: Partial<GitBranchInfo> = {}): GitBranch
     ahead: 0,
     behind: 0,
     ...overrides,
-  }
+  } satisfies GitBranchInfo
 }
 
 describe('Session Summary environment rows', () => {

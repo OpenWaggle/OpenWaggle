@@ -10,6 +10,7 @@ import { PiSessionContinuationPrompt } from '../../components/PiSessionContinuat
 import { PiSessionContinuationHeld } from '../../lib/pi-session-continuation'
 import { composerSendFailureDisposition } from '../composer-send-failure'
 import { usePiSessionContinuationGate } from '../usePiSessionContinuationGate'
+import * as Struct from 'effect/Struct'
 
 const mocks = vi.hoisted(() => ({
   getSessionDetail: vi.fn(),
@@ -27,7 +28,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 vi.mock('@/features/terminal', () => ({
   runSessionTerminalCommand: mocks.runSessionTerminalCommand,
   terminalOwnerContext: (session: { readonly id: string }) => ({
-    ownerKey: String(session.id),
+    ownerKey: session.id,
     defaultCwd: '/projects/gosafe',
     defaultProvenance: 'opened-checkout',
   }),
@@ -37,7 +38,7 @@ const SESSION_ID = SessionId('session-1')
 const PROJECT = '/projects/gosafe'
 const PI_FILE = '/home/me/.pi/agent/sessions/--projects-gosafe--/s.jsonl'
 
-function session(overrides: Partial<SessionDetail> = {}): SessionDetail {
+function session(overrides: Partial<SessionDetail> = {}) {
   return fromPartial<SessionDetail>({
     id: SESSION_ID,
     title: 'Hooks QA',
@@ -155,9 +156,8 @@ describe('usePiSessionContinuationGate', () => {
     const { send, result } = renderGate(session())
 
     await screen.findByRole('button', { name: 'Continue in OpenWaggle' })
-    const { usePiSessionContinuationStore } = await import(
-      '../../state/pi-session-continuation-store'
-    )
+    const { usePiSessionContinuationStore } =
+      await import('../../state/pi-session-continuation-store')
     act(() => usePiSessionContinuationStore.getState().answer(null))
 
     await expect(result).rejects.toMatchObject({ outcome: 'dismissed' })
@@ -165,7 +165,7 @@ describe('usePiSessionContinuationGate', () => {
   })
 
   it('never asks in a Session OpenWaggle created and wrote last', async () => {
-    const created = session({ piEntryNodeIdPrefix: undefined })
+    const created = Struct.omit(session(), 'piEntryNodeIdPrefix')
     const { send } = renderGate(created)
 
     await waitFor(() => expect(send).toHaveBeenCalledWith(PAYLOAD))

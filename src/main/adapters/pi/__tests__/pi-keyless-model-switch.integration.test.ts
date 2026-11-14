@@ -11,7 +11,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const cleanups: Array<() => void> = []
+const cleanups: (() => void)[] = []
 
 afterEach(() => {
   vi.unstubAllEnvs()

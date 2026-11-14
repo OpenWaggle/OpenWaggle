@@ -1,4 +1,4 @@
-import type { SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { SessionWorkspace } from '@shared/types/session'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -29,7 +29,7 @@ export async function currentConversationWorkspace(
   sessionId: SessionId,
   workspace: SessionWorkspace | null,
   options: { readonly keepEarlierNode?: boolean } = {},
-): Promise<SessionWorkspace | null> {
+) {
   const ownWorkspace = workspace?.tree.session.id === sessionId ? workspace : null
   if (ownWorkspace && options.keepEarlierNode !== false && selectsEarlierNode(ownWorkspace)) {
     return ownWorkspace
@@ -53,6 +53,6 @@ export async function currentConversationWorkspace(
 export async function resolveCurrentConversationNode(
   sessionId: SessionId,
   workspace: SessionWorkspace | null,
-): Promise<SessionNodeId | null> {
+) {
   return (await currentConversationWorkspace(sessionId, workspace))?.activeNodeId ?? null
 }

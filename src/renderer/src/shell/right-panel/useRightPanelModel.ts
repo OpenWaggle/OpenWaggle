@@ -1,6 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionIconView } from '@shared/types/extensions'
-import type { SessionLineageSummary } from '@shared/types/session'
+import type { SessionSummary } from '@shared/types/session'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import { useChat } from '@/features/chat/hooks'
@@ -33,7 +33,7 @@ const NEEDS_A_HIVE = 'Only for Sessions in a Hive'
 
 /** The active Session's lineage, read from the chat store's summary list. */
 function activeSessionLineage(
-  sessions: readonly { readonly id: unknown; readonly lineage?: SessionLineageSummary | null }[],
+  sessions: readonly Pick<SessionSummary, 'id' | 'lineage'>[],
   activeSessionId: unknown,
 ) {
   return sessions.find((session) => String(session.id) === String(activeSessionId))?.lineage
@@ -133,7 +133,7 @@ function builtInDisabledReason(
 }
 
 /** The Right panel's surfaces, rail and current state for the active chat context (ADR 0043). */
-export function useRightPanelModel(enabled = true): RightPanelModel {
+export function useRightPanelModel(enabled = true) {
   const { activeSession, activeSessionId: chatActiveSessionId, sessions: chatSessions } = useChat()
   const { projectPath } = useProject()
   const { activeSessionTree } = useSessions()
@@ -158,7 +158,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const activeLineage = activeSessionLineage(chatSessions, chatActiveSessionId)
   const sessionInHive = lineageInHive(activeLineage)
   const hiveAttention = useHiveAttention(sessionId, sessionInHive)
-  // Workers below the open Session still run (ADR 0063); the header line says the same.
+  // Workers below the open Session still run (ADR 0065); the header line says the same.
   const runningWorkers = useActiveSessionRunningWorkerCount()
   const hiveRunning = sessionInHive && runningWorkers > 0
   const scheduledAttention = useProjectScheduledTasksNeedAttention(sessionProjectPath)
@@ -234,7 +234,7 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
   const order = visibleRailOrder(railOrder, knownRailIds, hidden)
   const railSurfaces = order.flatMap((id) => surfaces.find((surface) => surface.id === id) ?? [])
 
-  return {
+  const model: RightPanelModel = {
     ownerKey: owner.ownerKey,
     sessionKey: owner.ownerKey.length > 0 ? owner.ownerKey : null,
     projectPath: projectPath ?? null,
@@ -247,4 +247,5 @@ export function useRightPanelModel(enabled = true): RightPanelModel {
     extensionRegistryLoaded: sidePanels.registry !== null,
     extensionRegistrySettled: sidePanels.registry !== null || !sidePanels.loading,
   }
+  return model
 }

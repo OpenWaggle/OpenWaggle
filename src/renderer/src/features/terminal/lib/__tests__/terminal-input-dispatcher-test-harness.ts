@@ -20,7 +20,7 @@ export function accepted(
   data: string,
   identity: TerminalInputIdentity,
   status: 'written' | 'queued' = 'written',
-): TerminalWriteResult {
+) {
   return { status, acceptedBytes: new TextEncoder().encode(data).byteLength, identity }
 }
 

@@ -37,8 +37,8 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/shell/useFullscreen', () => ({ useFullscreen: () => false }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     archiveSession: vi.fn(),
     cancelAgent: vi.fn(),
     deleteSession: vi.fn(),
@@ -60,7 +60,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     showConfirm: vi.fn(),
     unpinSession: unpinSessionMock,
     updateSettings: vi.fn(),
-  },
+  }),
 }))
 
 const PROJECT_PATH = '/repo/openwaggle'
@@ -69,7 +69,7 @@ const PINNED_ID = SessionId('session-pinned')
 const PLAIN_ID = SessionId('session-plain')
 const SOLO_ID = SessionId('session-solo')
 
-function makeSessions(): SessionSummary[] {
+function makeSessions() {
   return [
     {
       id: PINNED_ID,
@@ -92,11 +92,11 @@ function makeSessions(): SessionSummary[] {
       createdAt: 5,
       updatedAt: 10,
     },
-  ]
+  ] satisfies SessionSummary[]
 }
 
-function pin(sessionId: SessionId, sortKey: string): PinnedSession {
-  return { sessionId, pinnedAt: 1, sortKey }
+function pin(sessionId: SessionId, sortKey: string) {
+  return { sessionId, pinnedAt: 1, sortKey } satisfies PinnedSession
 }
 
 function resetStores(pins: readonly PinnedSession[]) {
@@ -265,7 +265,7 @@ describe('Pinned Manual order drag', () => {
     fireEvent.dragStart(dragged, { dataTransfer })
 
     // Feedback is on the node itself, so no render was needed to show it.
-    expect(dragged.dataset.dragging).toBe('true')
+    expect(dragged.getAttribute('data-dragging')).toBe('true')
     expect(pinnedRowFor('Pinned session')).toBe(dragged)
 
     // Force a React re-render of the list while the drag is in flight, and flush it.
@@ -276,7 +276,7 @@ describe('Pinned Manual order drag', () => {
     // Same node instance: React reused it, so a real browser drag would still be alive.
     expect(pinnedRowFor('Pinned session')).toBe(dragged)
     expect(dragged.isConnected).toBe(true)
-    expect(dragged.dataset.dragging).toBe('true')
+    expect(dragged.getAttribute('data-dragging')).toBe('true')
 
     fireEvent.drop(pinnedRowFor('Plain session'), { dataTransfer })
 

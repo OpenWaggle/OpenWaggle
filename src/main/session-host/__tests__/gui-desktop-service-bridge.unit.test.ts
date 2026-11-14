@@ -52,8 +52,9 @@ describe('GUI desktop bridge lifecycle', () => {
       (error: unknown) => error,
     )
     expect(error).toBeInstanceOf(DesktopServiceAttachmentError)
-    if (!(error instanceof DesktopServiceAttachmentError))
+    if (!(error instanceof DesktopServiceAttachmentError)) {
       throw new Error('Missing attachment cleanup handle')
+    }
     await stopBridge(error.lifecycle)
     await error.lifecycle.markClosed()
     expect(instance.calls.at(-1)).toEqual({
@@ -84,8 +85,9 @@ describe('GUI desktop bridge lifecycle', () => {
       recoverPreviousOwner: true,
     }).catch((error: unknown) => error)
     expect(error).toBeInstanceOf(DesktopServiceAttachmentError)
-    if (!(error instanceof DesktopServiceAttachmentError))
+    if (!(error instanceof DesktopServiceAttachmentError)) {
       throw new Error('Missing attachment cleanup handle')
+    }
     expect(error.lifecycle.attachment()).toBe('reconnecting')
     // The Host accepted it; the pump reattaches with a plain registration.
     await vi.advanceTimersByTimeAsync(1500)

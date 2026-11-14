@@ -47,7 +47,7 @@ const READ_ONLY_TERMINAL_OPERATIONS = {
   closeAll: false,
 } as const satisfies Record<keyof DesktopTerminalInputs, boolean>
 
-export function isReadOnlyDesktopCommand(command: DesktopServiceCommand): boolean {
+export function isReadOnlyDesktopCommand(command: DesktopServiceCommand) {
   return matchBy(command, 'service')
     .with('browser', ({ operation }) => READ_ONLY_BROWSER_OPERATIONS[operation])
     .with('terminal', ({ operation }) => READ_ONLY_TERMINAL_OPERATIONS[operation])

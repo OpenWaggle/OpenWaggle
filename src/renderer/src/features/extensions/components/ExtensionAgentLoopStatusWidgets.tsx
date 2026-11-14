@@ -34,7 +34,7 @@ function ExtensionAgentLoopStatusWidget({
           entry={entry}
           maxAutoHeight={STATUS_WIDGET_MAX_HEIGHT}
           minAutoHeight={STATUS_WIDGET_MIN_HEIGHT}
-          onSurfaceAction={onSurfaceAction}
+          {...(onSurfaceAction === undefined ? {} : { onSurfaceAction })}
           surfacePayload={auxiliary.surfacePayload}
         />
       </section>
@@ -70,7 +70,7 @@ export function ExtensionAgentLoopStatusWidgets({
         <ExtensionAgentLoopStatusWidget
           auxiliary={auxiliary}
           key={`${auxiliary.contribution.entry.packagePath}:${auxiliary.contribution.entry.contentHash}:${auxiliary.contribution.entry.contributionId}`}
-          onSurfaceAction={onSurfaceAction}
+          {...(onSurfaceAction === undefined ? {} : { onSurfaceAction })}
         />
       ))}
     </section>

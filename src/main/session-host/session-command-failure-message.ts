@@ -32,7 +32,8 @@ function isAuthenticationFailure(failure: unknown) {
     failure instanceof LocalSessionAuthenticationError ||
     (typeof failure === 'object' &&
       failure !== null &&
-      Reflect.get(failure, '_tag') === 'LocalSessionAuthenticationError')
+      '_tag' in failure &&
+      failure._tag === 'LocalSessionAuthenticationError')
   )
 }
 
@@ -53,7 +54,7 @@ function describeAuthorizationFailure(failure: LocalSessionCommandAuthorizationE
  * except the fixed messages is redacted and bounded, because Hive tool results go into
  * provider transcripts. The Hive tool and the Host's command error frames both use it.
  */
-export function sessionCommandFailureMessage(error: unknown): string {
+export function sessionCommandFailureMessage(error: unknown) {
   if (isInterruptedOnly(error)) return CANCELLED_MESSAGE
   const failure = unwrapFiberFailure(error)
   if (isAuthenticationFailure(failure)) return LOCAL_SESSION_AUTHENTICATION_FAILED_MESSAGE

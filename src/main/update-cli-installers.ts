@@ -4,8 +4,9 @@ import { rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { app } from 'electron'
 import { CliError } from './cli-error'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
 import { launchExternalApplication } from './desktop-ui'
 import { getEnvWithOverrides } from './env'
 
@@ -27,20 +28,20 @@ export async function releaseForTag(tag: string) {
     throw new CliError('not_found', `OpenWaggle release ${tag} was not found.`)
   }
   // A rate limit or server error is not a missing release.
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(`Looking up OpenWaggle release ${tag} failed with HTTP ${response.status}.`)
+  }
   return decodeUnknownOrThrow(releaseSchema, await response.json())
 }
 
 /** Installs an exact release through the bundled shell installer without opening the app. */
 export async function runBundledInstaller(tag: string) {
-  const installerPath = app.isPackaged
+  const installerPath = appLifecycle.isPackaged()
     ? path.join(process.resourcesPath, 'openwaggle-install.sh')
-    : path.join(app.getAppPath(), 'scripts', 'install.sh')
+    : path.join(appPaths.appRoot(), 'scripts', 'install.sh')
   // Ctrl-C reaches the installer too, which cancels and restores the app; this process must not
   // quit first with status 0, so the installer's own status is the result.
-  const holdQuit = (event: Electron.Event) => event.preventDefault()
-  app.on('before-quit', holdQuit)
+  const stopHoldingQuit = appLifecycle.onBeforeQuit((event) => event.preventDefault())
   try {
     return await new Promise<number>((resolve, reject) => {
       // A terminal update runs with the desktop app closed and must not open a window.
@@ -52,7 +53,7 @@ export async function runBundledInstaller(tag: string) {
       child.once('exit', (code) => resolve(code ?? INSTALLER_FAILURE_EXIT_CODE))
     })
   } finally {
-    app.off('before-quit', holdQuit)
+    stopHoldingQuit()
   }
 }
 
@@ -65,10 +66,11 @@ async function download(url: string) {
 /** Downloads and verifies the NSIS installer; returns a launcher, so nothing stops until it is ready. */
 export async function prepareWindowsInstaller(tag: string) {
   const release = await releaseForTag(tag)
-  const installer = release.assets.find((asset) => /-x64\.exe$/u.test(asset.name))
+  const installer = release.assets.find((asset) => asset.name.endsWith('-x64.exe'))
   const checksums = release.assets.find((asset) => asset.name === 'SHA256SUMS.txt')
-  if (!installer || !checksums)
+  if (!installer || !checksums) {
     throw new Error(`Release ${tag} is missing Windows verification assets.`)
+  }
   const [contents, checksumContents] = await Promise.all([
     download(installer.browser_download_url),
     download(checksums.browser_download_url),
@@ -80,8 +82,9 @@ export async function prepareWindowsInstaller(tag: string) {
     ?.trim()
     .split(/\s+/u)[0]
   const actual = createHash('sha256').update(contents).digest('hex')
-  if (!expected || expected !== actual)
+  if (!expected || expected !== actual) {
     throw new Error(`Release ${tag} failed checksum verification.`)
+  }
   const destination = path.join(tmpdir(), `openwaggle-update-${randomUUID()}.exe`)
   await writeFile(destination, contents, { mode: WINDOWS_INSTALLER_MODE })
   return {

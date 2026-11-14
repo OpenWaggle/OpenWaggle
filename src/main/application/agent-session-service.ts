@@ -101,8 +101,10 @@ function persistKernelSnapshot(sessionId: SessionId, result: KernelSnapshotResul
       nodes: result.sessionSnapshot.nodes,
       activeNodeId: result.sessionSnapshot.activeNodeId,
       piSessionId: result.piSessionId,
-      piSessionFile: result.piSessionFile,
-      piProjection: result.sessionSnapshot.piProjection,
+      ...(result.piSessionFile === undefined ? {} : { piSessionFile: result.piSessionFile }),
+      ...(result.sessionSnapshot.piProjection === undefined
+        ? {}
+        : { piProjection: result.sessionSnapshot.piProjection }),
     })
   })
 }
@@ -189,10 +191,12 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
       const createdProjection = yield* sessionProjectionRepo.create({
         projectPath: session.projectPath,
         piSessionId: result.piSessionId,
-        piSessionFile: result.piSessionFile,
+        ...(result.piSessionFile === undefined ? {} : { piSessionFile: result.piSessionFile }),
         // A fork inherits both: this branch's environment mode, and main's authorization mode.
         ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
-        authorizationMode: session.authorizationMode,
+        ...(session.authorizationMode === undefined
+          ? {}
+          : { authorizationMode: session.authorizationMode }),
         // And the source Session's MCP switch: a copy of a Session with MCP off stays off.
         copyMcpSwitchFrom: session.id,
       })
@@ -238,7 +242,9 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
       session,
       model: input.model,
       compactionThresholdPercent,
-      customInstructions: input.customInstructions,
+      ...(input.customInstructions === undefined
+        ? {}
+        : { customInstructions: input.customInstructions }),
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onEvent ? { onEvent: input.onEvent } : {}),
       ...(skillToggles ? { skillToggles } : {}),
@@ -272,8 +278,10 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
           model: input.model,
           compactionThresholdPercent,
           targetNodeId: String(input.targetNodeId),
-          summarize: input.summarize,
-          customInstructions: input.customInstructions,
+          ...(input.summarize === undefined ? {} : { summarize: input.summarize }),
+          ...(input.customInstructions === undefined
+            ? {}
+            : { customInstructions: input.customInstructions }),
           ...(skillToggles ? { skillToggles } : {}),
           ...(enabledOpenWaggleExtensionPackagePaths
             ? { enabledOpenWaggleExtensionPackagePaths }
@@ -281,10 +289,11 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
         })
         .pipe(
           Effect.map(
-            (result): NavigateTreeOutcome => ({
-              type: 'success',
-              result,
-            }),
+            (result) =>
+              ({
+                type: 'success',
+                result,
+              }) satisfies NavigateTreeOutcome,
           ),
           Effect.catchAll((error) => {
             if (isAgentKernelMissingEntryError(error)) {
@@ -307,7 +316,7 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
       yield* persistKernelSnapshot(input.sessionId, result)
 
       return {
-        editorText: result.editorText,
+        ...(result.editorText === undefined ? {} : { editorText: result.editorText }),
         cancelled: result.cancelled,
       }
     }).pipe(Effect.ensuring(Effect.sync(writer.release)))

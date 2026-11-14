@@ -64,7 +64,7 @@ function guessedHomePath(displayPath: string) {
  * it does this guess the common macOS/Linux/Windows home roots. A non-home path is never
  * changed.
  */
-export function tildifyPath(path: string, homeDirectory = windowHomeDirectory()): string {
+export function tildifyPath(path: string, homeDirectory = windowHomeDirectory()) {
   const displayPath = formatDisplayPath(path, [])
   const homeRoot = usableHomeRoot(homeDirectory)
   if (homeRoot === null) return guessedHomePath(displayPath)

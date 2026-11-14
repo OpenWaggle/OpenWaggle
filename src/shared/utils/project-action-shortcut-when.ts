@@ -35,7 +35,7 @@ export interface ProjectActionShortcutContext {
 const BOOLEAN_OPERATOR_CHARACTER_COUNT = 2
 const whenExpressionCache = new Map<string, ProjectActionWhenNode | null>()
 
-function tokenizeWhenExpression(expression: string): WhenToken[] | null {
+function tokenizeWhenExpression(expression: string) {
   const tokens: WhenToken[] = []
   let index = 0
 
@@ -84,7 +84,7 @@ function tokenizeWhenExpression(expression: string): WhenToken[] | null {
 }
 
 /** Parses T3-compatible boolean `when` expressions. */
-export function parseProjectActionWhenExpression(expression: string): ProjectActionWhenNode | null {
+export function parseProjectActionWhenExpression(expression: string) {
   const tokens = tokenizeWhenExpression(expression)
   if (tokens === null || tokens.length === 0) return null
   let index = 0
@@ -238,7 +238,7 @@ export function projectActionWhenMatches(
 }
 
 /** Returns the distinct identifiers in a valid condition, or null for malformed input. */
-export function projectActionWhenIdentifiers(expression: string): readonly string[] | null {
+export function projectActionWhenIdentifiers(expression: string) {
   const parsed = parseProjectActionWhenExpression(expression)
   if (parsed === null) return null
   const identifiers = new Set<string>()

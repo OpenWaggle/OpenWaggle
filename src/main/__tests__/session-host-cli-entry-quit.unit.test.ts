@@ -30,9 +30,7 @@ const mocks = vi.hoisted(() => {
       return {
         liveness: { ownerCount: () => 1, hasAcceptedClient: () => true },
         stop: vi.fn(async () => undefined),
-        waitUntilStopped: vi.fn(async () => {
-          order.push('host-stopped')
-        }),
+        waitUntilStopped: vi.fn(async () => void order.push('host-stopped')),
       }
     }),
   }
@@ -59,9 +57,11 @@ vi.mock('node:fs', () => ({ existsSync: mocks.endpointExists }))
 
 vi.mock('../env', () => ({
   env: {},
-  installDesktopShellEnvironment: async () => undefined,
   installLinuxSessionBusEnvironment: () => undefined,
   takeShellEnvironmentRefreshedSince: () => undefined,
+}))
+vi.mock('../desktop-shell-environment-process', () => ({
+  installDesktopShellEnvironment: async () => undefined,
 }))
 vi.mock('../installer-update-channel-intent', () => ({
   applyInstallerUpdateChannelIntent: mocks.applyInstallerIntent,

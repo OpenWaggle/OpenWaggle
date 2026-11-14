@@ -25,7 +25,7 @@ function isLegacyRevision(version: string) {
   return MCP_LEGACY_PROTOCOL_VERSIONS.some((candidate) => candidate === version)
 }
 
-export function getMcpProtocolOptions(server: McpProtocolSelection): ProtocolOptions {
+export function getMcpProtocolOptions(server: McpProtocolSelection) {
   const profile =
     server.definition.compatibility ??
     (server.definition.transport === 'sse'
@@ -39,14 +39,14 @@ export function getMcpProtocolOptions(server: McpProtocolSelection): ProtocolOpt
     return {
       supportedProtocolVersions: pin ? [pin] : [...MCP_LEGACY_PROTOCOL_VERSIONS],
       versionNegotiation: { mode: 'legacy' },
-    }
+    } satisfies ProtocolOptions
   }
 
   if (profile === 'modern-only' || pin === MCP_LATEST_PROTOCOL_VERSION) {
     return {
       supportedProtocolVersions: [pin ?? MCP_LATEST_PROTOCOL_VERSION],
       versionNegotiation: { mode: { pin: pin ?? MCP_LATEST_PROTOCOL_VERSION } },
-    }
+    } satisfies ProtocolOptions
   }
 
   return {
@@ -55,5 +55,5 @@ export function getMcpProtocolOptions(server: McpProtocolSelection): ProtocolOpt
       mode: 'auto',
       probe: { timeoutMs: MCP_CONFIG.PROBE_TIMEOUT_MS, maxRetries: 0 },
     },
-  }
+  } satisfies ProtocolOptions
 }

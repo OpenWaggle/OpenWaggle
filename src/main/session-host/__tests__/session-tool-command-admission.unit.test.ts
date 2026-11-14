@@ -14,8 +14,8 @@ const PROJECT = '/projects/gosafe'
 const KNOWN_PROJECT = '/projects/openwaggle'
 const PROFILE_JSON = '{"modelId":"provider/model","thinkingLevel":"medium"}'
 
-function launch(projectPath: string): LocalSessionCommandPayload {
-  return {
+function launch(projectPath: string) {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-lifecycle-v2',
     request: {
       contractVersion: 2,
@@ -30,9 +30,10 @@ function launch(projectPath: string): LocalSessionCommandPayload {
       },
     },
   }
+  return payload
 }
 
-function create(projectPath: string): LocalSessionCommandPayload {
+function create(projectPath: string) {
   return {
     contract: 'session-lifecycle-v2',
     request: {
@@ -41,7 +42,7 @@ function create(projectPath: string): LocalSessionCommandPayload {
       idempotencyKey: 'create-once',
       command: { operation: 'create', projectPath, title: 'Idle', workspace: { mode: 'local' } },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 describe('Hive tool command admission', () => {

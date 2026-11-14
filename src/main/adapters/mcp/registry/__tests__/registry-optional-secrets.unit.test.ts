@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { RegistryServerRecord } from '../registry-client'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import { createRegistryEntry } from '../registry-entry'
+import { registryServerSchema } from '../registry-server-schema'
 
 const DIGEST = `sha256:${'a'.repeat(64)}`
 
 /** R3's Registry probe: an OCI image with a required and an optional env secret, and a flag. */
-function weatherImage(): RegistryServerRecord {
+function weatherImage() {
   const pkg = {
     registryType: 'oci',
     identifier: 'ghcr.io/acme/weather:1.0.0',
@@ -19,7 +20,11 @@ function weatherImage(): RegistryServerRecord {
   return {
     name: 'io.github.acme/weather',
     version: '1.0.0',
-    raw: { name: 'io.github.acme/weather', version: '1.0.0', packages: [pkg] },
+    source: decodeUnknownOrThrow(registryServerSchema, {
+      name: 'io.github.acme/weather',
+      version: '1.0.0',
+      packages: [pkg],
+    }),
   }
 }
 

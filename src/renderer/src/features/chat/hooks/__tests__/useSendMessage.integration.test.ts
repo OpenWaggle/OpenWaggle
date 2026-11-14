@@ -17,7 +17,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 type SendDeps = Parameters<typeof createSendHandlers>[0]
 
-function makeDeps(overrides: Partial<SendDeps> = {}): SendDeps {
+function makeDeps(overrides: Partial<SendDeps> = {}) {
   return {
     activeSessionId: null,
     projectPath: '/test/project',
@@ -30,7 +30,7 @@ function makeDeps(overrides: Partial<SendDeps> = {}): SendDeps {
       .mockResolvedValue(undefined),
     startWaggleCollaboration: vi.fn<SendDeps['startWaggleCollaboration']>(),
     ...overrides,
-  }
+  } satisfies SendDeps
 }
 
 describe('createSendHandlers', () => {

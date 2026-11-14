@@ -25,6 +25,7 @@ import { publishRunFailure, publishRunStartFailure } from './session-control-run
 import {
   narrowRunAuthorization,
   type ResolvedSessionRunExecution,
+  resolvedRunSpecialization,
 } from './session-run-execution-profile'
 
 interface RegisteredRunInput {
@@ -66,17 +67,15 @@ function loadRegisteredRunContext(input: RegisteredRunInput) {
   })
 }
 
-function executionContext(
-  input: RegisteredRunInput,
-  context: RegisteredRunContext,
-): WaggleExecutionContext {
-  return {
-    runAuthorizationOverride: narrowRunAuthorization(
-      input.request.intent.runAuthorizationOverride,
-      input.execution.authorizationCeiling,
-    ),
+function executionContext(input: RegisteredRunInput, context: RegisteredRunContext) {
+  const runAuthorizationOverride = narrowRunAuthorization(
+    input.request.intent.runAuthorizationOverride,
+    input.execution.authorizationCeiling,
+  )
+  const result: WaggleExecutionContext = {
+    ...(runAuthorizationOverride === undefined ? {} : { runAuthorizationOverride }),
     authorityCallerId: input.request.intent.callerId,
-    agentInstructions: input.execution.agentInstructions,
+    ...resolvedRunSpecialization(input.execution),
     sessionIdentityContext: input.execution.identityContext,
     runIdentityContext: input.execution.runIdentityContext,
     peerAgentReports: context.pendingReports,
@@ -91,12 +90,10 @@ function executionContext(
     onDelegationSpecificationUpdatesDelivered: (updateIds) => {
       markSpecificationUpdatesDelivered(context.orchestration, input.request, updateIds)
     },
-    toolAllowlist: input.execution.toolAllowlist,
-    skillAllowlist: input.execution.skillAllowlist,
-    mcpServerAllowlist: input.execution.mcpServerAllowlist,
     sessionCapabilities: input.execution.sessionCapabilities,
     modelMultiAgentEnabled: input.allowModelMultiAgent,
   }
+  return result
 }
 
 /**
@@ -139,19 +136,22 @@ function endFailedRun(
     : { terminalEventAt: ended.at, failure: { code: result.code } }
 }
 
+/** What the Run sends the model: the request's text, its attachments and visualization. */
+function runPayload(input: RegisteredRunInput, context: RegisteredRunContext) {
+  const { text, visualizationContext } = input.request.intent
+  return {
+    text,
+    attachments: context.preparedAttachments,
+    ...(visualizationContext ? { visualizationContext } : {}),
+  }
+}
+
 function runQueuedWaggle(
   input: RegisteredRunInput,
   context: RegisteredRunContext,
   waggle: WaggleInvocation,
 ) {
-  const payload = {
-    text: input.request.intent.text,
-    attachments: context.preparedAttachments,
-    waggle,
-    ...(input.request.intent.visualizationContext
-      ? { visualizationContext: input.request.intent.visualizationContext }
-      : {}),
-  }
+  const payload = { ...runPayload(input, context), waggle }
   return Effect.map(
     runRegisteredExplicitWaggle({
       sessionId: input.request.sessionId,
@@ -196,13 +196,7 @@ function noteHeartbeatRunEnd(input: RegisteredRunInput, result: AgentRunResult) 
 
 function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
   return Effect.gen(function* () {
-    const payload = {
-      text: input.request.intent.text,
-      attachments: context.preparedAttachments,
-      ...(input.request.intent.visualizationContext
-        ? { visualizationContext: input.request.intent.visualizationContext }
-        : {}),
-    }
+    const payload = runPayload(input, context)
     let didReportWorktreeLaunch = false
     const terminal = trackTerminalEvent()
     const result = yield* executeAgentRun({
@@ -288,7 +282,7 @@ function runClassic(input: RegisteredRunInput, context: RegisteredRunContext) {
             context.orchestration,
             input.request,
           ),
-          onOrchestrationUpdatesDelivered,
+          ...(onOrchestrationUpdatesDelivered ? { onOrchestrationUpdatesDelivered } : {}),
         },
       })
     }

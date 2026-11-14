@@ -1,9 +1,10 @@
+import { Schema } from '@shared/schema'
 import {
   normalizeSessionReportReference,
   type SessionReportReferenceKind,
 } from '@shared/session-report-reference'
 import type { HostSqliteDatabase } from './host-sqlite-database'
-import { cutoverRecord } from './session-host-cutover-database'
+import { decodeCutoverRow } from './session-host-cutover-database'
 
 interface ReferenceSource {
   readonly sessionId: string
@@ -11,13 +12,26 @@ interface ReferenceSource {
   readonly agentDefinitionName?: string
 }
 
+const profileAgentDefinitionSchema = Schema.Struct({ agentDefinitionName: Schema.String })
+
+const referenceSourceRowSchema = Schema.Struct({
+  session_id: Schema.String,
+  title: Schema.String,
+  profile_json: Schema.String,
+})
+
+const referenceCatalogRowSchema = Schema.Struct({
+  session_id: Schema.String,
+  kind: Schema.String,
+  normalized_reference: Schema.String,
+})
+
 function optionalAgentDefinitionName(profileJson: string) {
   const decoded: unknown = JSON.parse(profileJson)
-  const record = cutoverRecord(decoded)
-  return typeof record?.agentDefinitionName === 'string' ? record.agentDefinitionName : undefined
+  return decodeCutoverRow(profileAgentDefinitionSchema, decoded)?.agentDefinitionName
 }
 
-function referenceSources(database: HostSqliteDatabase): readonly ReferenceSource[] {
+function referenceSources(database: HostSqliteDatabase) {
   const values: unknown = database
     .prepare(`
       SELECT sessions.id AS session_id, sessions.title,
@@ -29,14 +43,8 @@ function referenceSources(database: HostSqliteDatabase): readonly ReferenceSourc
     .all()
   if (!Array.isArray(values)) throw new Error('Session report reference sources are invalid.')
   return values.map((value) => {
-    const row = cutoverRecord(value)
-    if (
-      typeof row?.session_id !== 'string' ||
-      typeof row.title !== 'string' ||
-      typeof row.profile_json !== 'string'
-    ) {
-      throw new Error('Session report reference source is invalid.')
-    }
+    const row = decodeCutoverRow(referenceSourceRowSchema, value)
+    if (!row) throw new Error('Session report reference source is invalid.')
     const agentDefinitionName = optionalAgentDefinitionName(row.profile_json)
     return {
       sessionId: row.session_id,
@@ -89,14 +97,8 @@ export function validateSessionReportReferenceCatalog(database: HostSqliteDataba
   }
   const actualByKey = new Map<string, string>()
   for (const value of actual) {
-    const row = cutoverRecord(value)
-    if (
-      typeof row?.session_id !== 'string' ||
-      typeof row.kind !== 'string' ||
-      typeof row.normalized_reference !== 'string'
-    ) {
-      throw new Error('Session report reference catalog row is invalid.')
-    }
+    const row = decodeCutoverRow(referenceCatalogRowSchema, value)
+    if (!row) throw new Error('Session report reference catalog row is invalid.')
     actualByKey.set(`${row.session_id}\0${row.kind}`, row.normalized_reference)
   }
   for (const reference of expected) {

@@ -8,6 +8,9 @@ import { actionCatalog, TEST_ACTION } from '../../components/__tests__/native-ac
 const mocks = vi.hoisted(() => ({ manage: vi.fn(), useChat: vi.fn() }))
 vi.mock('@/shared/lib/ipc', () => ({ api: { manageProjectActions: mocks.manage } }))
 vi.mock('@/features/chat/hooks', () => ({ useChat: mocks.useChat }))
+vi.mock('@/features/chat/state', () => ({
+  useChatStore: (select: (state: unknown) => unknown) => select(mocks.useChat()),
+}))
 
 import { useProjectActionMutations, useProjectActions } from '../useProjectActions'
 

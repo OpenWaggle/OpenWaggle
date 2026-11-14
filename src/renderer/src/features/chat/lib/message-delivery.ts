@@ -10,7 +10,7 @@ import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
  * agent had already received, offering it for a second submission and reporting that it could not be sent.
  */
 export class MessageDeliveredRunFailed extends Error {
-  readonly cause: Error
+  override readonly cause: Error
 
   constructor(cause: Error) {
     super(cause.message)
@@ -63,7 +63,7 @@ export const DEFAULT_NOT_DELIVERED_MESSAGE = 'The agent did not receive this mes
  * message drops Electron's transport prefix.
  */
 export class SendFailedOutOfView extends Error {
-  readonly cause: Error
+  override readonly cause: Error
 
   constructor(cause: Error) {
     super(ipcErrorMessage(cause))
@@ -93,7 +93,7 @@ export function isReportableSendFailure(error: unknown) {
  * conversation. The session id is known here, so it is carried rather than guessed.
  */
 export class FirstSendFailed extends Error {
-  readonly cause: Error
+  override readonly cause: Error
   readonly createdSessionId: string
 
   constructor(cause: Error, createdSessionId: string) {

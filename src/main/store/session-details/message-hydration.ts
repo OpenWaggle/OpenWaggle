@@ -1,42 +1,19 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
-import { nestedToolCallsSchema } from '@shared/schemas/nested-tool-calls'
+import { toolCallRequestSchema, toolCallResultSchema } from '@shared/schemas/message'
 import { waggleInvocationMetadataSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message } from '@shared/types/agent'
-import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import { buildPiTranscriptPath } from '@shared/utils/session-entry-paths'
 import { isRecord } from '@shared/utils/validation'
 import { createLogger } from '../../logger'
 import { MESSAGE_ENTRY_TYPE, TOOL_RESULT_KIND } from './constants'
 import { describeError } from './errors'
-import {
-  normalizeModelId,
-  parseJsonValue,
-  sessionJsonObjectSchema,
-  sessionJsonValueSchema,
-} from './json'
+import { normalizeModelId, parseJsonValue } from './json'
 import type { SessionNodeRow, SessionRow } from './types'
 
 const logger = createLogger('session-details')
-
-const toolCallRequestSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  args: sessionJsonObjectSchema,
-  state: Schema.optional(Schema.Literal('input-complete')),
-})
-
-const toolCallResultSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  args: sessionJsonObjectSchema,
-  result: sessionJsonValueSchema,
-  isError: Schema.Boolean,
-  duration: Schema.Number,
-  details: Schema.optional(sessionJsonValueSchema),
-  nestedCalls: Schema.optional(nestedToolCallsSchema),
-})
 
 const messagePartSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }),
@@ -47,14 +24,15 @@ const messagePartSchema = Schema.Union(
     attachment: Schema.Struct({
       id: Schema.String,
       kind: Schema.Literal('text', 'image', 'pdf'),
-      origin: Schema.optional(
+      origin: Schema.optionalWith(
         Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
+        { exact: true },
       ),
       name: Schema.String,
       path: Schema.String,
       mimeType: Schema.String,
       sizeBytes: Schema.Number,
-      contentSha256: Schema.optional(Schema.String),
+      contentSha256: Schema.optionalWith(Schema.String, { exact: true }),
       extractedText: Schema.String,
     }),
   }),
@@ -63,21 +41,23 @@ const messagePartSchema = Schema.Union(
 )
 
 const messageMetadataSchema = Schema.Struct({
-  durableTextSha256: Schema.optional(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/))),
-  scheduledTask: Schema.optional(messageScheduledTaskOriginSchema),
-  hiveWake: Schema.optional(Schema.Literal(true)),
-  visualizationSessionId: Schema.optional(Schema.String),
-  waggle: Schema.optional(waggleMetadataSchema),
-  waggleInvocation: Schema.optional(waggleInvocationMetadataSchema),
-  selectedModel: Schema.optional(Schema.String),
-  stopReason: Schema.optional(Schema.String),
-  errorMessage: Schema.optional(Schema.NullOr(Schema.String)),
-  omittedFromContext: Schema.optional(Schema.Boolean),
+  durableTextSha256: Schema.optionalWith(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)), {
+    exact: true,
+  }),
+  scheduledTask: Schema.optionalWith(messageScheduledTaskOriginSchema, { exact: true }),
+  hiveWake: Schema.optionalWith(Schema.Literal(true), { exact: true }),
+  visualizationSessionId: Schema.optionalWith(Schema.String, { exact: true }),
+  waggle: Schema.optionalWith(waggleMetadataSchema, { exact: true }),
+  waggleInvocation: Schema.optionalWith(waggleInvocationMetadataSchema, { exact: true }),
+  selectedModel: Schema.optionalWith(Schema.String, { exact: true }),
+  stopReason: Schema.optionalWith(Schema.String, { exact: true }),
+  errorMessage: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
+  omittedFromContext: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 const messageNodeContentSchema = Schema.Struct({
   parts: Schema.mutable(Schema.Array(messagePartSchema)),
-  model: Schema.optional(Schema.NullOr(Schema.String)),
+  model: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
 })
 
 type ParsedPart = SchemaType<typeof messagePartSchema>
@@ -88,28 +68,8 @@ function transformPart(part: ParsedPart) {
     .with('reasoning', (value) => ({ type: 'reasoning', text: value.text }))
     .with('thinking', (value) => ({ type: 'reasoning', text: value.text }))
     .with('attachment', (value) => ({ type: 'attachment', attachment: value.attachment }))
-    .with('tool-call', (value) => ({
-      type: 'tool-call',
-      toolCall: {
-        id: ToolCallId(value.toolCall.id),
-        name: value.toolCall.name,
-        args: value.toolCall.args,
-        state: value.toolCall.state,
-      },
-    }))
-    .with('tool-result', (value) => ({
-      type: 'tool-result',
-      toolResult: {
-        id: ToolCallId(value.toolResult.id),
-        name: value.toolResult.name,
-        args: value.toolResult.args,
-        result: value.toolResult.result,
-        isError: value.toolResult.isError,
-        duration: value.toolResult.duration,
-        details: value.toolResult.details,
-        ...(value.toolResult.nestedCalls ? { nestedCalls: value.toolResult.nestedCalls } : {}),
-      },
-    }))
+    .with('tool-call', (value) => ({ type: 'tool-call', toolCall: value.toolCall }))
+    .with('tool-result', (value) => ({ type: 'tool-result', toolResult: value.toolResult }))
     .exhaustive()
 }
 
@@ -119,26 +79,34 @@ function hydrateMessageMetadata(raw: string) {
     return undefined
   }
 
-  const { stopReason, errorMessage, omittedFromContext, ...metadata } = parsedMetadata.data
+  const {
+    stopReason,
+    errorMessage,
+    omittedFromContext,
+    visualizationSessionId,
+    selectedModel,
+    waggle,
+    ...metadata
+  } = parsedMetadata.data
   // An attempt Pi retried and dropped from the context is not the turn's failure.
   const failed = stopReason === 'error' && errorMessage && omittedFromContext !== true
   return {
     ...metadata,
     ...(failed ? { error: errorMessage } : {}),
-    visualizationSessionId: parsedMetadata.data.visualizationSessionId
-      ? SessionId(parsedMetadata.data.visualizationSessionId)
-      : undefined,
-    selectedModel: parsedMetadata.data.selectedModel
-      ? SupportedModelId(parsedMetadata.data.selectedModel)
-      : undefined,
-    waggle: parsedMetadata.data.waggle
-      ? {
-          ...parsedMetadata.data.waggle,
-          agentModel: parsedMetadata.data.waggle.agentModel
-            ? SupportedModelId(parsedMetadata.data.waggle.agentModel)
-            : undefined,
-        }
-      : undefined,
+    ...(visualizationSessionId
+      ? { visualizationSessionId: SessionId(visualizationSessionId) }
+      : {}),
+    ...(selectedModel ? { selectedModel: SupportedModelId(selectedModel) } : {}),
+    ...(waggle ? { waggle: hydrateWaggleMetadata(waggle) } : {}),
+  }
+}
+
+function hydrateWaggleMetadata(waggle: SchemaType<typeof waggleMetadataSchema>) {
+  const { agentModel, sessionId, ...rest } = waggle
+  return {
+    ...rest,
+    ...(agentModel ? { agentModel: SupportedModelId(agentModel) } : {}),
+    ...(sessionId === undefined ? {} : { sessionId }),
   }
 }
 
@@ -159,7 +127,7 @@ export function hydrateSessionMessage(row: SessionNodeRow) {
     id: MessageId(row.id),
     role: row.role ?? 'assistant',
     parts: parsedContent.data.parts.map(transformPart),
-    model: modelId ? SupportedModelId(modelId) : undefined,
+    ...(modelId ? { model: SupportedModelId(modelId) } : {}),
     metadata: {
       ...hydrateMessageMetadata(row.metadata_json),
       sessionNodeCreatedOrder: row.created_order,
@@ -191,7 +159,7 @@ function getCompactionReason(value: unknown) {
   return reason === 'manual' || reason === 'threshold' || reason === 'overflow' ? reason : undefined
 }
 
-export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | null {
+export function hydrateStructuralSessionMessage(row: SessionNodeRow) {
   const content = parseJsonValue(row.content_json)
   const summary = getStringField(content, 'summary')
   if (!summary) {
@@ -205,7 +173,7 @@ export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | 
       parts: [{ type: 'text', text: `Branch summary\n\n${summary}` }],
       metadata: { branchSummary: { summary } },
       createdAt: row.timestamp_ms,
-    }
+    } satisfies Message
   }
 
   if (row.kind === 'compaction_summary') {
@@ -216,10 +184,14 @@ export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | 
       role: 'assistant',
       parts: [{ type: 'text', text: `Compaction summary\n\n${summary}` }],
       ...(tokensBefore !== null
-        ? { metadata: { compactionSummary: { summary, tokensBefore, reason } } }
+        ? {
+            metadata: {
+              compactionSummary: { summary, tokensBefore, ...(reason ? { reason } : {}) },
+            },
+          }
         : {}),
       createdAt: row.timestamp_ms,
-    }
+    } satisfies Message
   }
 
   return null

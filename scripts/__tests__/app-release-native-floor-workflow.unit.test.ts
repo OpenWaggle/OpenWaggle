@@ -9,9 +9,9 @@ const WORKFLOW = fs.readFileSync(path.join(process.cwd(), '.github/workflows/rel
 describe('desktop app release workflow native platform floor', () => {
   it('checks the native platform floor after every platform build and before upload', () => {
     const buildCommands = [
-      'pnpm exec electron-builder --mac --arm64 --x64 --publish never',
-      'pnpm exec electron-builder --linux --publish never',
-      'pnpm exec electron-builder --win --publish never',
+      'bunx electron-builder --mac --arm64 --x64 --publish never',
+      'bunx electron-builder --linux --publish never',
+      'bunx electron-builder --win --publish never',
     ]
     const guardStepNames = [
       'Check macOS native platform floor',
@@ -26,7 +26,7 @@ describe('desktop app release workflow native platform floor', () => {
       expect(guardIndex).toBeGreaterThan(buildIndex)
       expect(nextUploadIndex).toBeGreaterThan(guardIndex)
     }
-    expect(WORKFLOW.match(/run: pnpm exec tsx scripts\/check-native-platform-floor\.ts$/gmu)).toHaveLength(3)
+    expect(WORKFLOW.match(/run: bun scripts\/check-native-platform-floor\.ts$/gmu)).toHaveLength(3)
   })
 
   it('builds Linux on Ubuntu 22.04 so native modules keep the glibc 2.35 floor', () => {

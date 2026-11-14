@@ -44,7 +44,10 @@ function isByteVerified(name: string) {
   return name === CHECKSUMS_FILE || name.endsWith(UPDATE_METADATA_SUFFIX)
 }
 
-export function compareReleaseAssets(local: readonly LocalReleaseAsset[], remote: readonly RemoteReleaseAsset[]) {
+export function compareReleaseAssets(
+  local: readonly LocalReleaseAsset[],
+  remote: readonly RemoteReleaseAsset[],
+) {
   const problems: string[] = []
   const remoteByName = new Map(remote.map((asset) => [asset.name, asset]))
   for (const asset of local) {
@@ -58,12 +61,16 @@ export function compareReleaseAssets(local: readonly LocalReleaseAsset[], remote
       continue
     }
     if (uploaded.size !== asset.size) {
-      problems.push(`${asset.name} is ${uploaded.size} bytes on the release, ${asset.size} bytes locally`)
+      problems.push(
+        `${asset.name} is ${uploaded.size} bytes on the release, ${asset.size} bytes locally`,
+      )
     }
   }
   const localNames = new Set(local.map((asset) => asset.name))
   for (const asset of remote) {
-    if (!localNames.has(asset.name)) problems.push(`${asset.name} is on the release but was not built`)
+    if (!localNames.has(asset.name)) {
+      problems.push(`${asset.name} is on the release but was not built`)
+    }
   }
   return problems
 }
@@ -78,7 +85,9 @@ export async function verifyRelease(input: {
   if (release === null) return ['the release does not exist']
   const problems: string[] = []
   if (release.draft !== input.expectDraft) {
-    problems.push(`the release is ${release.draft ? 'a draft' : 'published'}, expected ${input.expectDraft ? 'a draft' : 'published'}`)
+    problems.push(
+      `the release is ${release.draft ? 'a draft' : 'published'}, expected ${input.expectDraft ? 'a draft' : 'published'}`,
+    )
   }
   problems.push(...compareReleaseAssets(input.local, release.assets))
   for (const asset of input.local.filter((candidate) => isByteVerified(candidate.name))) {
@@ -108,23 +117,36 @@ async function readLocalAssets(directory: string) {
 
 function gh(args: readonly string[]) {
   return new Promise<Buffer>((resolve, reject) => {
-    execFile('gh', [...args], { encoding: 'buffer', maxBuffer: GH_MAX_BUFFER_BYTES }, (error, stdout) => {
-      if (error) reject(error)
-      else resolve(stdout)
-    })
+    execFile(
+      'gh',
+      [...args],
+      { encoding: 'buffer', maxBuffer: GH_MAX_BUFFER_BYTES },
+      (error, stdout) => {
+        if (error) reject(error)
+        else resolve(stdout)
+      },
+    )
   })
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+/*
+ * This script runs under plain Node with no install, so it checks its JSON with local type guards
+ * instead of the shared schemas.
+ */
+function isRecord(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseAsset(value: unknown): RemoteReleaseAsset {
+function parseAsset(value: unknown) {
   if (
     isRecord(value) &&
+    'id' in value &&
     typeof value.id === 'number' &&
+    'name' in value &&
     typeof value.name === 'string' &&
+    'size' in value &&
     typeof value.size === 'number' &&
+    'state' in value &&
     typeof value.state === 'string'
   ) {
     return { id: value.id, name: value.name, size: value.size, state: value.state }
@@ -133,26 +155,39 @@ function parseAsset(value: unknown): RemoteReleaseAsset {
 }
 
 /** Lists every release, drafts included, because the tag lookup endpoint does not return drafts. */
-async function findRelease(repository: string, tag: string): Promise<RemoteRelease | null> {
+async function findRelease(repository: string, tag: string) {
   const pages: unknown = JSON.parse(
-    (await gh(['api', '--paginate', '--slurp', `repos/${repository}/releases?per_page=100`])).toString('utf8'),
+    (
+      await gh(['api', '--paginate', '--slurp', `repos/${repository}/releases?per_page=100`])
+    ).toString('utf8'),
   )
   if (!Array.isArray(pages)) throw new Error('GitHub returned releases in an unexpected shape.')
   const releases: readonly unknown[] = pages.flat()
-  const matches = releases.filter((release) => isRecord(release) && release.tag_name === tag)
+  const matches = releases.filter(
+    (release) => isRecord(release) && 'tag_name' in release && release.tag_name === tag,
+  )
   if (matches.length > 1) throw new Error(`More than one release uses ${tag}.`)
   const release: unknown = matches[0]
   if (release === undefined) return null
-  if (!isRecord(release) || typeof release.draft !== 'boolean' || !Array.isArray(release.assets)) {
+  if (
+    !isRecord(release) ||
+    !('draft' in release) ||
+    typeof release.draft !== 'boolean' ||
+    !('assets' in release) ||
+    !Array.isArray(release.assets)
+  ) {
     throw new Error('GitHub returned a release in an unexpected shape.')
   }
-  return { draft: release.draft, assets: release.assets.map(parseAsset) }
+  const assets: readonly unknown[] = release.assets
+  return { draft: release.draft, assets: assets.map(parseAsset) }
 }
 
 function argumentValue(args: readonly string[], flag: string) {
   const value = args[args.indexOf(flag) + ARGUMENT_VALUE_OFFSET]
   if (!args.includes(flag) || value === undefined || value.startsWith('--')) {
-    throw new Error('Usage: verify-release-assets.ts --repo <owner/repo> --tag <tag> --dir <directory> [--published]')
+    throw new Error(
+      'Usage: verify-release-assets.ts --repo <owner/repo> --tag <tag> --dir <directory> [--published]',
+    )
   }
   return value
 }
@@ -168,12 +203,23 @@ async function main() {
     release: await findRelease(repository, tag),
     expectDraft,
     downloadSha256: async (asset) =>
-      sha256(await gh(['api', '-H', 'Accept: application/octet-stream', `repos/${repository}/releases/assets/${asset.id}`])),
+      sha256(
+        await gh([
+          'api',
+          '-H',
+          'Accept: application/octet-stream',
+          `repos/${repository}/releases/assets/${asset.id}`,
+        ]),
+      ),
   })
   if (problems.length > 0) {
-    throw new Error(`Release ${tag} does not match the built assets:\n${problems.map((problem) => `- ${problem}`).join('\n')}`)
+    throw new Error(
+      `Release ${tag} does not match the built assets:\n${problems.map((problem) => `- ${problem}`).join('\n')}`,
+    )
   }
-  console.log(`Release ${tag} (${expectDraft ? 'draft' : 'published'}) holds exactly the ${local.length} built assets.`)
+  console.log(
+    `Release ${tag} (${expectDraft ? 'draft' : 'published'}) holds exactly the ${local.length} built assets.`,
+  )
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

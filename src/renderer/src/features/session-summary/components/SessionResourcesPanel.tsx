@@ -197,7 +197,7 @@ export function SessionResourcesPanel({
       activePathNodeIds={activePathNodeIds}
       target={target}
       onClose={onClose}
-      onTargetChange={onTargetChange}
+      {...(onTargetChange === undefined ? {} : { onTargetChange })}
     />
   )
 }

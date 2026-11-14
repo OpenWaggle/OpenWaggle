@@ -22,6 +22,16 @@ describe('registerAttachmentHandlers limits and hydration', () => {
     ;({ hydrateAttachmentSources, registerAttachmentHandlers } = await loadAttachmentHandlers())
   })
 
+  it.each([
+    ['an empty project path', '', [], 'Project path must be a non-empty string.'],
+    ['paths that are not a list', '/tmp/repo', 'a.txt', 'Attachment paths must be a list of'],
+  ])('names the argument it refuses: %s', async (_case, projectPath, paths, message) => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+
+    await expect(handler?.({}, projectPath, paths)).rejects.toThrow(message)
+  })
+
   it('rejects unsupported attachment types', async () => {
     registerFile('/tmp/repo/archive.zip', Buffer.from('zip-data'))
 

@@ -87,7 +87,7 @@ describe('build identity', () => {
     expect(identity.isolateUserData).toBe(true)
     // ASCII-only: a non-ASCII product name propagates into Electron's User-Agent
     // (an HTTP ByteString header) and throws on every request. Regression guard.
-    expect([...identity.productName].every((c) => c.charCodeAt(0) <= 127)).toBe(true)
+    expect(identity.productName).toMatch(/^[\x20-\x7e]*$/u)
   })
 })
 
@@ -102,7 +102,9 @@ describe('icon path', () => {
 
   it('ships the channel icon as the runtime icon resource (dock/taskbar match the channel)', () => {
     const expected = resolveIconBasePath(resolveBuildChannel(), 'build')
-    const runtimeIcon = electronBuilderConfig.extraResources.find((entry) => entry.to === 'icon.png')
+    const runtimeIcon = electronBuilderConfig.extraResources.find(
+      (entry) => entry.to === 'icon.png',
+    )
     expect(runtimeIcon?.from).toBe(expected)
   })
 
@@ -141,7 +143,9 @@ describe('Session link scheme', () => {
         { name: 'OpenWaggle Session link', schemes: ['openwaggle'] },
       ])
     }
-    expect(electronBuilderConfig.protocols).toEqual(resolveUrlSchemeProtocols(resolveBuildChannel()))
+    expect(electronBuilderConfig.protocols).toEqual(
+      resolveUrlSchemeProtocols(resolveBuildChannel()),
+    )
   })
 })
 

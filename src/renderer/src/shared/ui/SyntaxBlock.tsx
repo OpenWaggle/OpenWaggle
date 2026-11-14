@@ -167,11 +167,11 @@ export function SyntaxBlock({
     return (
       <SourceView
         source={source}
-        language={language}
-        path={path}
+        {...(language === undefined ? {} : { language })}
+        {...(path === undefined ? {} : { path })}
         className={cn('syntax-typography', className)}
-        ariaLabel={ariaLabel}
-        theme={theme}
+        {...(ariaLabel === undefined ? {} : { ariaLabel })}
+        {...(theme === undefined ? {} : { theme })}
         showLineNumbers={showLineNumbers}
         style={{ height: 'min(60vh, 32rem)' }}
       />

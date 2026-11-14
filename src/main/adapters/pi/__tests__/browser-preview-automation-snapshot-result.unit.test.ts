@@ -4,9 +4,9 @@ import { BROWSER_PREVIEW_AUTOMATION_LIMITS } from '@shared/types/browser-preview
 import { describe, expect, it } from 'vitest'
 import { boundedBrowserPreviewSnapshotSummary } from '../browser-preview-automation-snapshot-result'
 
-function oversizedSnapshot(): BrowserPreviewAutomationSnapshot {
+function oversizedSnapshot() {
   const diagnosticText = 'diagnostic '.repeat(1_000)
-  return {
+  const snapshot: BrowserPreviewAutomationSnapshot = {
     url: 'http://localhost:5173/',
     title: 'Application',
     loading: false,
@@ -42,6 +42,7 @@ function oversizedSnapshot(): BrowserPreviewAutomationSnapshot {
       height: 800,
     },
   }
+  return snapshot
 }
 
 describe('boundedBrowserPreviewSnapshotSummary', () => {

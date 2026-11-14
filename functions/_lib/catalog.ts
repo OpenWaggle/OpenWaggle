@@ -63,7 +63,7 @@ function withCatalogLists(properties: Readonly<Record<string, UsageStatisticsVal
 }
 
 /** The event with every catalog field reduced to catalog identifiers or `custom`. */
-export function withCatalogIdentifiers(event: UsageStatisticsEvent): UsageStatisticsEvent {
+export function withCatalogIdentifiers(event: UsageStatisticsEvent) {
   if (event.name === 'run.finished') {
     const identity = catalogProviderModel(
       stringProperty(event.properties, 'provider'),

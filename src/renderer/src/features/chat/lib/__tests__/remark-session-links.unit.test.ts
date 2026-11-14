@@ -8,8 +8,12 @@ interface MarkdownNode {
   children?: MarkdownNode[]
 }
 
-function paragraph(value: string): MarkdownNode {
-  return { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', value }] }] }
+function paragraph(value: string) {
+  const node: MarkdownNode = {
+    type: 'root',
+    children: [{ type: 'paragraph', children: [{ type: 'text', value }] }],
+  }
+  return node
 }
 
 function linkedParagraph(value: string) {

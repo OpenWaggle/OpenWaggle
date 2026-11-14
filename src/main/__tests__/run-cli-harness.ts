@@ -24,9 +24,13 @@ export function resetSequence() {
   sequence = 0
 }
 
-export function envelope(payload: SessionHostEventPayload): SessionHostEventEnvelope {
+export function envelope(payload: SessionHostEventPayload) {
   sequence += 1
-  return { cursor: { hostInstanceId: 'host', sequence }, timestamp: sequence, payload }
+  return {
+    cursor: { hostInstanceId: 'host', sequence },
+    timestamp: sequence,
+    payload,
+  } satisfies SessionHostEventEnvelope
 }
 
 export function transport(event: AgentTransportEvent, sessionId = SESSION) {
@@ -81,7 +85,7 @@ export const confirmation: AgentLoopConfirmInteraction = {
   purpose: 'authorization',
 }
 
-export function launchedResult(replayed = false): LocalSessionCommandResult {
+export function launchedResult(replayed = false) {
   return fromPartial({
     contract: 'session-lifecycle-v2',
     response: {
@@ -94,7 +98,7 @@ export function launchedResult(replayed = false): LocalSessionCommandResult {
         workspaceId: 'w-1',
       },
     },
-  })
+  }) satisfies LocalSessionCommandResult
 }
 
 const accepted: LocalSessionCommandResult = fromPartial({
@@ -136,7 +140,7 @@ export interface HarnessOptions {
   readonly writeStdout?: RunCliDependencies['writeStdout']
 }
 
-export function harness(options: HarnessOptions = {}): Harness {
+export function harness(options: HarnessOptions = {}) {
   const stdout: string[] = []
   const stderr: string[] = []
   const combined: string[] = []
@@ -207,5 +211,5 @@ export function harness(options: HarnessOptions = {}): Harness {
     endWatch: (result) => settleWatch(result),
     failWatch: (error) => rejectWatch(error),
     interrupt: () => interruptListener(),
-  }
+  } satisfies Harness
 }

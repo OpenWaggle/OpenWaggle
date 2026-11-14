@@ -22,7 +22,7 @@ export type SidebarBranchRow =
 interface BuildSidebarBranchRowsInput {
   readonly session: SessionSummary
   readonly activeSessionTree?: SessionTree | null
-  readonly activeBranchId?: SessionBranchId | null | undefined
+  readonly activeBranchId?: SessionBranchId | null
   readonly branchesCollapsed?: boolean
   readonly draftBranch: SidebarDraftBranchInput | null
 }
@@ -59,9 +59,7 @@ function isDraftForSession(
   return draftBranch !== null && draftBranch.sessionId === session.id
 }
 
-export function buildSidebarBranchRows(
-  input: BuildSidebarBranchRowsInput,
-): readonly SidebarBranchRow[] {
+export function buildSidebarBranchRows(input: BuildSidebarBranchRowsInput) {
   const hasDraftBranch = isDraftForSession(input.session, input.draftBranch)
   const visibleBranches = getSessionBranches(input).filter((branch) => branch.archived !== true)
   const hasMaterializedBranchRows = visibleBranches.length > 1
@@ -69,7 +67,7 @@ export function buildSidebarBranchRows(
     input.branchesCollapsed ?? input.session.treeUiState?.branchesSidebarCollapsed === true
 
   if (!hasDraftBranch && (!hasMaterializedBranchRows || collapsed)) {
-    return []
+    return [] satisfies readonly SidebarBranchRow[]
   }
 
   const rows: SidebarBranchRow[] = []

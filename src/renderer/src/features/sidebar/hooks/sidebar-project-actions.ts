@@ -5,6 +5,7 @@ import {
   SESSION_QUERY_CONTRACT_VERSION,
   SESSION_QUERY_DISCOVERY_LIMIT,
 } from '@shared/types/session-query'
+import { loadInBatches } from '@shared/utils/batches'
 import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
 import { refreshArchivedSessions } from '@/queries/archived-sessions'
@@ -67,13 +68,7 @@ async function listProjectSessionSummaries(path: string) {
       cursor = response.outcome.nextCursor
     } while (cursor)
   }
-  const sessions: SessionSummary[] = []
-  for (let offset = 0; offset < ids.length; offset += SESSION_HYDRATION_BATCH_SIZE) {
-    sessions.push(
-      ...(await api.listSessionsByIds(ids.slice(offset, offset + SESSION_HYDRATION_BATCH_SIZE))),
-    )
-  }
-  return sessions
+  return loadInBatches(ids, SESSION_HYDRATION_BATCH_SIZE, (batch) => api.listSessionsByIds(batch))
 }
 
 export interface SidebarProjectActionDeps {
@@ -122,7 +117,7 @@ export function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
   const ordered: SessionSummary[] = []
   const discovered = new Set<string>()
   for (const root of sessions) {
-    const stack: Array<{ readonly session: SessionSummary; readonly expanded: boolean }> = [
+    const stack: { readonly session: SessionSummary; readonly expanded: boolean }[] = [
       { session: root, expanded: false },
     ]
     while (stack.length > 0) {
@@ -256,12 +251,12 @@ async function removeProjectWith(
 
 export function createSidebarProjectActions(deps: SidebarProjectActionDeps) {
   return {
-    archiveSessions(path: string, _projectSessions: readonly SessionSummary[]) {
+    archiveSessions: (path: string, _projectSessions: readonly SessionSummary[]) => {
       void archiveProjectSessions(deps, path).catch((error: unknown) => {
         deps.showToast(`Failed to archive project sessions: ${errorMessage(error)}`)
       })
     },
-    async openProject() {
+    openProject: async () => {
       const path = await deps.selectFolder()
       if (!path) return
       try {
@@ -270,22 +265,22 @@ export function createSidebarProjectActions(deps: SidebarProjectActionDeps) {
         deps.showToast(`Failed to select project: ${errorMessage(error)}`)
       }
     },
-    openInFinder(path: string) {
+    openInFinder: (path: string) => {
       void api.openPath(path).catch((error: unknown) => {
         deps.showToast(`Failed to open project folder: ${errorMessage(error)}`)
       })
     },
-    remove(path: string) {
+    remove: (path: string) => {
       void removeProject(deps, path).catch((error: unknown) => {
         deps.showToast(`Failed to remove project: ${errorMessage(error)}`)
       })
     },
-    rename(path: string, name: string) {
+    rename: (path: string, name: string) => {
       void deps.setProjectDisplayName(path, name).catch((error: unknown) => {
         deps.showToast(`Failed to rename project: ${errorMessage(error)}`)
       })
     },
-    async selectProjectPath(path: string) {
+    selectProjectPath: async (path: string) => {
       try {
         await selectProjectPath(deps, path)
       } catch (error) {

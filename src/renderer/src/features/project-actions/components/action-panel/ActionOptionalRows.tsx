@@ -186,13 +186,14 @@ export function FolderField(props: {
 }) {
   const id = useId()
   const { invocation } = props
-  if (invocation.type === 'task')
+  if (invocation.type === 'task') {
     return (
       <p className="text-sm leading-6 text-text-tertiary">
         Scripts always run in their own package folder:{' '}
         <code className="font-mono text-text-secondary">{invocation.task.directory}</code>.
       </p>
     )
+  }
   return (
     <>
       <label htmlFor={id} className="sr-only">

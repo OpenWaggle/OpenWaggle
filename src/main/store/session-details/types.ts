@@ -1,97 +1,96 @@
+import { type SchemaType, Schema } from '@shared/schema'
+import { SESSION_NODE_KINDS } from '@shared/types/session-node'
+import { sqliteIntegerSchema } from '../../adapters/sqlite-row-schema'
+import { sessionBranchStateRowSchema } from '../sessions/types'
 import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionEnvironmentMode } from '@shared/types/git'
-import type { SessionNode } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 
-export interface SessionRow {
-  readonly id: string
-  readonly pi_session_id: string
-  readonly pi_session_file: string | null
-  readonly project_path: string | null
-  readonly title: string
+export type { SessionActiveRunRow, SessionBranchRow } from '../sessions/types'
+
+const nullableStringSchema = Schema.NullOr(Schema.String)
+
+export const sessionRowSchema = Schema.Struct({
+  id: Schema.String,
+  pi_session_id: Schema.String,
+  pi_session_file: nullableStringSchema,
+  project_path: nullableStringSchema,
+  title: Schema.String,
   /** Read where a caller needs the title's provenance, such as the Run preflight. */
-  readonly title_source?: string | null
-  readonly archived: number
-  readonly waggle_config_json: string | null
-  readonly created_at: number
-  readonly updated_at: number
-  readonly last_active_node_id: string | null
-  readonly last_active_branch_id: string | null
-  readonly environment_mode: string | null
-  readonly worktree_path: string | null
-  readonly worktree_base_ref: string | null
-  readonly worktree_start_from_origin: number | null
-  readonly authorization_mode_override: string | null
-  readonly execution_model_id: string | null
-  readonly execution_thinking_level: string | null
+  title_source: Schema.optionalWith(nullableStringSchema, { exact: true }),
+  archived: sqliteIntegerSchema,
+  waggle_config_json: nullableStringSchema,
+  created_at: sqliteIntegerSchema,
+  updated_at: sqliteIntegerSchema,
+  last_active_node_id: nullableStringSchema,
+  last_active_branch_id: nullableStringSchema,
+  environment_mode: nullableStringSchema,
+  worktree_path: nullableStringSchema,
+  worktree_base_ref: nullableStringSchema,
+  worktree_start_from_origin: Schema.NullOr(sqliteIntegerSchema),
+  authorization_mode_override: nullableStringSchema,
+  execution_model_id: nullableStringSchema,
+  execution_thinking_level: nullableStringSchema,
   /** 1 when the Session uses a discovered Pi session file (ADR 0051). */
-  readonly pi_adopted?: number
+  pi_adopted: Schema.optionalWith(sqliteIntegerSchema, { exact: true }),
   /** The working directory a discovered Pi session ran in (ADR 0051). */
-  readonly pi_cwd?: string | null
+  pi_cwd: Schema.optionalWith(nullableStringSchema, { exact: true }),
+})
+export type SessionRow = SchemaType<typeof sessionRowSchema>
+
+export const sessionSummaryRowSchema = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  project_path: nullableStringSchema,
+  archived: sqliteIntegerSchema,
+  created_at: sqliteIntegerSchema,
+  updated_at: sqliteIntegerSchema,
+  message_count: sqliteIntegerSchema,
+})
+export type SessionSummaryRow = SchemaType<typeof sessionSummaryRowSchema>
+
+/** A branch's state as snapshot persistence reads it, with the Waggle preset it last used. */
+export const sessionBranchStateDetailRowSchema = Schema.Struct({
+  ...sessionBranchStateRowSchema.fields,
+  waggle_preset_id: nullableStringSchema,
+})
+export type SessionBranchStateRow = SchemaType<typeof sessionBranchStateDetailRowSchema>
+
+const sessionNodeShapeFields = {
+  id: Schema.String,
+  session_id: Schema.String,
+  parent_id: nullableStringSchema,
+  pi_entry_type: Schema.String,
+  kind: Schema.Literal(...SESSION_NODE_KINDS),
+  role: Schema.NullOr(Schema.Literal('user', 'assistant', 'system')),
+  timestamp_ms: Schema.Number,
+  branch_hint_id: nullableStringSchema,
+  path_depth: sqliteIntegerSchema,
+  created_order: sqliteIntegerSchema,
 }
 
-export interface SessionSummaryRow {
-  readonly id: string
-  readonly title: string
-  readonly project_path: string | null
-  readonly archived: number
-  readonly created_at: number
-  readonly updated_at: number
-  readonly message_count: number
-}
-
-export interface SessionBranchRow {
-  readonly id: string
-  readonly session_id: string
-  readonly source_node_id: string | null
-  readonly head_node_id: string | null
-  readonly name: string
-  readonly is_main: number
-  readonly archived_at: number | null
-  readonly created_at: number
-  readonly updated_at: number
-}
-
-export interface SessionBranchStateRow {
-  readonly branch_id: string
-  readonly future_mode: 'standard' | 'waggle'
-  readonly waggle_preset_id: string | null
-  readonly waggle_config_json: string | null
-  readonly last_active_at: number
-  readonly ui_state_json: string
-}
-
-export interface SessionActiveRunRow {
-  readonly run_id: string
-  readonly session_id: string
-  readonly branch_id: string
-  readonly run_mode: string
-  readonly status: string
-  readonly runtime_json: string
-  readonly updated_at: number
-}
-
-export interface SessionNodeRow {
-  readonly id: string
-  readonly session_id: string
-  readonly parent_id: string | null
-  readonly pi_entry_type: string
-  readonly kind: SessionNode['kind']
-  readonly role: 'user' | 'assistant' | 'system' | null
-  readonly timestamp_ms: number
-  readonly content_json: string
-  readonly metadata_json: string
-  readonly branch_hint_id: string | null
-  readonly path_depth: number
-  readonly created_order: number
-}
+export const sessionNodeRowSchema = Schema.Struct({
+  ...sessionNodeShapeFields,
+  content_json: Schema.String,
+  metadata_json: Schema.String,
+})
+export type SessionNodeRow = SchemaType<typeof sessionNodeRowSchema>
 
 /** A node row as snapshot persistence first reads it: every column but the content (D6). */
-export type SessionNodeShapeRow = Omit<SessionNodeRow, 'content_json' | 'metadata_json'> & {
+export const sessionNodeShapeRowSchema = Schema.Struct({
+  ...sessionNodeShapeFields,
   /** `sessionNodeContentHash` of the stored content and metadata, or null when unknown. */
-  readonly content_hash: string | null
-}
+  content_hash: nullableStringSchema,
+})
+export type SessionNodeShapeRow = SchemaType<typeof sessionNodeShapeRowSchema>
+
+/** A node's stored content, read in batches only where it may differ from the snapshot's. */
+export const sessionNodeContentRowSchema = Schema.Struct({
+  id: Schema.String,
+  content_json: Schema.String,
+  metadata_json: Schema.String,
+})
 
 /**
  * A node row as snapshot persistence compares it with the snapshot. `content` is the stored

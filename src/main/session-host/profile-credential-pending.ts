@@ -83,8 +83,9 @@ async function legacyCandidates(input: CredentialScope, profileIdentity: string)
     if (
       input.destination.kind === 'credential-store' &&
       isLocalSessionProfileCredential(file.content.toString('utf8').trim())
-    )
+    ) {
       continue
+    }
     decodePendingCredential(input.destination, file.content, location)
     compatible.push(name)
   }

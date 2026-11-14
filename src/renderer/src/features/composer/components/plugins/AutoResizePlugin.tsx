@@ -28,7 +28,7 @@ function adjustHeight(element: HTMLElement) {
  * rewraps it. The observer also fires for the height set here; measuring again then found the
  * same height and cost a second forced layout on every keystroke.
  */
-export function AutoResizePlugin(): null {
+export function AutoResizePlugin() {
   const [editor] = useLexicalComposerContext()
   const rootRef = useRef<HTMLElement | null>(null)
 

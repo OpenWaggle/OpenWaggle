@@ -8,7 +8,7 @@ const RENDERER_HOST = 'app'
  * ownership may survive these trusted reloads because the Electron WebContents is
  * unchanged; any other cross-document navigation revokes the capability.
  */
-export function isTrustedRendererDocument(url: string): boolean {
+export function isTrustedRendererDocument(url: string) {
   try {
     const candidate = new URL(url)
     if (candidate.protocol === RENDERER_PROTOCOL && candidate.host === RENDERER_HOST) {

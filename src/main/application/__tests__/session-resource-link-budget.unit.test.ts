@@ -13,11 +13,7 @@ import { sessionResourceTestLayer } from './session-resource-capture.fixtures'
 
 const EXCESS_LINK_COUNT = SESSION_LINK_CAPTURE_LIMIT + 8
 
-function linkMessage(
-  index: number,
-  count: number,
-  role: 'user' | 'assistant' = 'assistant',
-): Message {
+function linkMessage(index: number, count: number, role: 'user' | 'assistant' = 'assistant') {
   const markdown = Array.from(
     { length: count },
     (_, linkIndex) =>
@@ -28,10 +24,10 @@ function linkMessage(
     role,
     parts: [{ type: 'text', text: markdown }],
     createdAt: index,
-  }
+  } satisfies Message
 }
 
-function capturedResource(input: UpsertSessionResourceInput): SessionResource {
+function capturedResource(input: UpsertSessionResourceInput) {
   return {
     id: input.id,
     sessionId: input.sessionId,
@@ -47,7 +43,7 @@ function capturedResource(input: UpsertSessionResourceInput): SessionResource {
     occurrences: [input.occurrence],
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
-  }
+  } satisfies SessionResource
 }
 
 describe('session link capture budgets', () => {
@@ -74,55 +70,43 @@ describe('session link capture budgets', () => {
     )
   })
 
-  it('bounds one mixed-actor lazy backfill pass and resumes after cataloged occurrences', async () => {
-    const messages = [linkMessage(0, SESSION_LINK_CAPTURE_LIMIT - 4, 'user'), linkMessage(1, 12)]
-    const firstUpserts: UpsertSessionResourceInput[] = []
+  it.each([
+    {
+      actors: 'mixed-actor',
+      messages: () => [linkMessage(0, SESSION_LINK_CAPTURE_LIMIT - 4, 'user'), linkMessage(1, 12)],
+      remaining: 8,
+    },
+    {
+      actors: 'user-only',
+      messages: () => [linkMessage(0, EXCESS_LINK_COUNT, 'user')],
+      remaining: EXCESS_LINK_COUNT - SESSION_LINK_CAPTURE_LIMIT,
+    },
+  ])(
+    'bounds one $actors lazy backfill pass and resumes after cataloged occurrences',
+    async ({ messages: makeMessages, remaining }) => {
+      const messages = makeMessages()
+      const firstUpserts: UpsertSessionResourceInput[] = []
 
-    await Effect.runPromise(
-      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
-        Effect.provide(sessionResourceTestLayer(firstUpserts)),
-      ),
-    )
-
-    expect(firstUpserts).toHaveLength(SESSION_LINK_CAPTURE_LIMIT)
-    const cataloged = firstUpserts.map(capturedResource)
-    const resumedUpserts: UpsertSessionResourceInput[] = []
-
-    await Effect.runPromise(
-      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
-        Effect.provide(
-          sessionResourceTestLayer(resumedUpserts, {
-            listedResources: cataloged,
-          }),
+      await Effect.runPromise(
+        captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
+          Effect.provide(sessionResourceTestLayer(firstUpserts)),
         ),
-      ),
-    )
+      )
 
-    expect(resumedUpserts).toHaveLength(8)
-  })
+      expect(firstUpserts).toHaveLength(SESSION_LINK_CAPTURE_LIMIT)
+      const resumedUpserts: UpsertSessionResourceInput[] = []
 
-  it('bounds a user-only lazy backfill pass and resumes its remaining links', async () => {
-    const messages = [linkMessage(0, EXCESS_LINK_COUNT, 'user')]
-    const firstUpserts: UpsertSessionResourceInput[] = []
-
-    await Effect.runPromise(
-      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
-        Effect.provide(sessionResourceTestLayer(firstUpserts)),
-      ),
-    )
-
-    expect(firstUpserts).toHaveLength(SESSION_LINK_CAPTURE_LIMIT)
-    const resumedUpserts: UpsertSessionResourceInput[] = []
-    await Effect.runPromise(
-      captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
-        Effect.provide(
-          sessionResourceTestLayer(resumedUpserts, {
-            listedResources: firstUpserts.map(capturedResource),
-          }),
+      await Effect.runPromise(
+        captureProjectedSessionResources({ sessionId: SessionId('session-1'), messages }).pipe(
+          Effect.provide(
+            sessionResourceTestLayer(resumedUpserts, {
+              listedResources: firstUpserts.map(capturedResource),
+            }),
+          ),
         ),
-      ),
-    )
+      )
 
-    expect(resumedUpserts).toHaveLength(EXCESS_LINK_COUNT - SESSION_LINK_CAPTURE_LIMIT)
-  })
+      expect(resumedUpserts).toHaveLength(remaining)
+    },
+  )
 })

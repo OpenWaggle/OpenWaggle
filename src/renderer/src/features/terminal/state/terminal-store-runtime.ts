@@ -54,8 +54,9 @@ function rekeyRuntimeRecord<Value>(
   const next = { ...record }
   for (const terminalId of terminalIds) {
     const previousKey = runtimeKeyOf(fromOwnerKey, terminalId)
-    if (!(previousKey in next)) continue
-    next[runtimeKeyOf(toOwnerKey, terminalId)] = next[previousKey]
+    const value = next[previousKey]
+    if (value === undefined) continue
+    next[runtimeKeyOf(toOwnerKey, terminalId)] = value
     delete next[previousKey]
   }
   return next

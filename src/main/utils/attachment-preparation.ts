@@ -31,7 +31,7 @@ export interface PreparedAttachmentSnapshot extends PreparedAttachment {
 }
 
 /** Remove Host-only snapshot bytes before a prepared attachment crosses a process boundary. */
-export function toPublicPreparedAttachment(attachment: PreparedAttachment): PreparedAttachment {
+export function toPublicPreparedAttachment(attachment: PreparedAttachment) {
   return {
     id: attachment.id,
     kind: attachment.kind,
@@ -141,7 +141,7 @@ async function readAttachmentSnapshot(
   origin: AttachmentOrigin,
   allowedRoots: readonly string[] | undefined,
   beforeRead?: (filePath: string) => Promise<void>,
-): Promise<AttachmentSnapshot> {
+) {
   if (allowedRoots && !allowedRoots.some((root) => isPathInsideDirectory(root, filePath))) {
     throw new Error('Attachment path is outside the caller-authorized workspace.')
   }
@@ -195,9 +195,7 @@ async function readAttachmentSnapshot(
   }
 }
 
-async function extractAttachmentSnapshot(
-  snapshot: AttachmentSnapshot,
-): Promise<PreparedAttachmentSnapshot> {
+async function extractAttachmentSnapshot(snapshot: AttachmentSnapshot) {
   return {
     id: randomUUID(),
     kind: snapshot.kind,
@@ -225,7 +223,7 @@ export async function prepareAttachmentFiles(input: {
   readonly entries: readonly AttachmentPreparationEntry[]
   readonly allowedRoots?: readonly string[]
   readonly beforeRead?: (filePath: string) => Promise<void>
-}): Promise<PreparedAttachmentSnapshot[]> {
+}) {
   if (input.entries.length > ATTACHMENT.MAX_COUNT) {
     throw new Error(`A maximum of ${String(ATTACHMENT.MAX_COUNT)} attachments is supported.`)
   }
@@ -259,10 +257,9 @@ export async function prepareAttachmentFiles(input: {
     ? await assertCanonicalDirectoryRoots(input.allowedRoots, 'Profile attachment root')
     : undefined
   const snapshots = await Promise.all(
-    unique.map(async (entry) => ({
-      ...(await readAttachmentSnapshot(entry.path, entry.origin, roots, input.beforeRead)),
-      browserPreview: entry.browserPreview,
-      browserAnnotationText: entry.browserAnnotationText,
+    unique.map(async ({ path: entryPath, origin, ...browserContext }) => ({
+      ...(await readAttachmentSnapshot(entryPath, origin, roots, input.beforeRead)),
+      ...browserContext,
     })),
   )
   const totalSize = snapshots.reduce((sum, snapshot) => sum + snapshot.buffer.byteLength, 0)

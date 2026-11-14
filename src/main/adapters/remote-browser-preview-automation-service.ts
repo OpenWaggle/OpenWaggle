@@ -15,14 +15,13 @@ import {
 
 const INVALID_BROWSER_RESPONSE = 'Desktop browser service returned an invalid response.'
 
-function unexpectedOperation(): never {
+/** An arrow, so its inferred type is `never` and a branch that calls it narrows away. */
+const unexpectedOperation = () => {
   throw new Error(INVALID_BROWSER_RESPONSE)
 }
 
 /** The Session Host delegates browser work to the authenticated desktop owner. */
-export function makeRemoteBrowserPreviewAutomationService(
-  broker: DesktopServiceBrokerShape,
-): BrowserPreviewAutomationServiceShape {
+export function makeRemoteBrowserPreviewAutomationService(broker: DesktopServiceBrokerShape) {
   function execute<Value>(
     command: DesktopBrowserCommand,
     select: (result: DesktopBrowserResult) => Value,
@@ -37,7 +36,7 @@ export function makeRemoteBrowserPreviewAutomationService(
     )
   }
 
-  return {
+  const shape: BrowserPreviewAutomationServiceShape = {
     status: (scope, input) =>
       execute({ service: 'browser', operation: 'status', scope, input }, (result) =>
         result.operation === 'status' ? result.value : unexpectedOperation(),
@@ -95,6 +94,7 @@ export function makeRemoteBrowserPreviewAutomationService(
         result.operation === 'stopRecording' ? result.value : unexpectedOperation(),
       ),
   }
+  return shape
 }
 
 export const RemoteBrowserPreviewAutomationServiceLive = Layer.effect(

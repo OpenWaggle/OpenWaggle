@@ -38,7 +38,7 @@ interface FactsRow {
 }
 
 /** A stored cause, or null for anything the Host does not write. */
-export function decodeAttentionCause(value: string | null | undefined): HiveAttentionCause | null {
+export function decodeAttentionCause(value: string | null | undefined) {
   return HIVE_ATTENTION_CAUSES.find((cause) => cause === value) ?? null
 }
 
@@ -49,12 +49,18 @@ export interface HiveStoredNextActorFacts extends HiveNextActorFacts {
   readonly parentWillAct: boolean
 }
 
-export function loadHiveNextActorFacts(
-  sql: SqlClient.SqlClient,
-  sessionIds: readonly string[],
-): Effect.Effect<ReadonlyMap<string, HiveStoredNextActorFacts>, SqlError> {
-  if (sessionIds.length === 0) return Effect.succeed(new Map())
-  return sql<FactsRow>`
+export function loadHiveNextActorFacts(sql: SqlClient.SqlClient, sessionIds: readonly string[]) {
+  if (sessionIds.length === 0) {
+    const effect: Effect.Effect<
+      ReadonlyMap<string, HiveStoredNextActorFacts>,
+      SqlError
+    > = Effect.succeed(new Map())
+    return effect
+  }
+  const effect: Effect.Effect<
+    ReadonlyMap<string, HiveStoredNextActorFacts>,
+    SqlError
+  > = sql<FactsRow>`
     SELECT contracts.child_session_id AS session_id, contracts.state AS delegation_state,
       ${sql.literal(attentionCauseSql('contracts'))} AS attention_cause,
       ${sql.literal(parentWillActSql('contracts'))} AS parent_will_act
@@ -75,4 +81,5 @@ export function loadHiveNextActorFacts(
         ),
     ),
   )
+  return effect
 }

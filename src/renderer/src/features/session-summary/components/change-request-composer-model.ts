@@ -23,21 +23,19 @@ function generatedDescription(session: SessionDetail, status: GitStatusSummary |
   return lines.join('\n')
 }
 
-export function changeRequestPreflightPayload(
-  input: ChangeRequestActionInput,
-): ChangeRequestPreflightPayload {
+export function changeRequestPreflightPayload(input: ChangeRequestActionInput) {
   return {
     headRef: input.createFeatureBranch
       ? input.branchName.trim()
       : (input.vcsStatus?.refName ?? input.gitStatus?.branch ?? ''),
-    baseRef: input.vcsStatus?.defaultRef ?? undefined,
+    ...defaultBaseRef(input),
     title: input.title.trim() || input.session.title,
     body:
       input.description.trim() ||
       generatedDescription(input.session, input.commitAndPush ? input.gitStatus : null),
     draft: input.draft,
     createFeatureBranch: input.createFeatureBranch,
-  }
+  } satisfies ChangeRequestPreflightPayload
 }
 
 export function wouldCreateEmptyFeatureBranch(
@@ -84,32 +82,40 @@ export function changeRequestStatusReadinessMessage(
   return null
 }
 
-export function changeRequestActionInput(
-  input: ChangeRequestActionInput,
-): GitRunStackedActionOptions {
+export function changeRequestActionInput(input: ChangeRequestActionInput) {
   if (wouldCreateEmptyFeatureBranch(input)) {
     throw new Error('A new branch needs at least one committed change before creating a request.')
   }
   const title = input.title.trim() || input.session.title
-  return {
+  const options: GitRunStackedActionOptions = {
     // `create_pr` is OpenWaggle's push-and-create workflow. It pushes even when the tree is
     // clean, so a local branch without an upstream is published before provider creation.
     action: input.commitAndPush ? 'commit_push_pr' : 'create_pr',
     sessionId: input.session.id,
-    commitMessage: input.commitAndPush ? title : undefined,
-    paths: input.commitAndPush
-      ? (input.gitStatus?.changedFiles.map((file) => file.path) ?? [])
-      : undefined,
+    ...(input.commitAndPush
+      ? {
+          commitMessage: title,
+          paths: input.gitStatus?.changedFiles.map((file) => file.path) ?? [],
+        }
+      : {}),
     changeRequestTitle: title,
     changeRequestBody:
       input.description.trim() ||
       generatedDescription(input.session, input.commitAndPush ? input.gitStatus : null),
     draft: input.draft,
     createFeatureBranch: input.createFeatureBranch,
-    featureBranchName: input.createFeatureBranch ? input.branchName : undefined,
     // Preflight already chose and validated this exact ref. Re-running automatic suffixing after
     // the safety gate would make the mutation target differ from the branch that was approved.
-    exactFeatureBranchName: input.createFeatureBranch ? true : undefined,
-    baseRef: input.vcsStatus?.defaultRef ?? undefined,
+    ...(input.createFeatureBranch
+      ? { featureBranchName: input.branchName, exactFeatureBranchName: true }
+      : {}),
+    ...defaultBaseRef(input),
   }
+  return options
+}
+
+/** The repository's default ref as the base, when the provider status reported one. */
+function defaultBaseRef(input: Pick<ChangeRequestActionInput, 'vcsStatus'>) {
+  const baseRef = input.vcsStatus?.defaultRef
+  return baseRef === undefined || baseRef === null ? {} : { baseRef }
 }

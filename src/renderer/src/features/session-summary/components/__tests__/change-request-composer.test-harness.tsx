@@ -3,7 +3,6 @@ import type { GitStatusSummary, SourceControlProviderId, VcsStatus } from '@shar
 import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import type { SessionDetail } from '@shared/types/session'
 import type { QueryClient } from '@tanstack/react-query'
-import { screen } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { type Mock, vi } from 'vitest'
 import { useUIStore } from '@/shell/ui-store'
@@ -64,7 +63,7 @@ export const GIT_STATUS: GitStatusSummary = {
   behind: 0,
 }
 
-export function vcsStatus(provider: SourceControlProviderId, isDefaultRef: boolean): VcsStatus {
+export function vcsStatus(provider: SourceControlProviderId, isDefaultRef: boolean) {
   return fromPartial<VcsStatus>({
     isRepo: true,
     sourceControlProvider: { id: provider, host: `${provider}.com` },
@@ -97,7 +96,7 @@ export function renderComposer(
     readonly gitStatus?: GitStatusSummary | null
     readonly vcs?: VcsStatus
   } = {},
-): ComposerRenderResult {
+) {
   const onClose = vi.fn()
   const onCompleted = vi.fn()
   const renderResult = renderWithQueryClient(
@@ -110,7 +109,8 @@ export function renderComposer(
       onCompleted={onCompleted}
     />,
   )
-  return { onClose, onCompleted, queryClient: renderResult.client }
+  const result: ComposerRenderResult = { onClose, onCompleted, queryClient: renderResult.client }
+  return result
 }
 
 export function setupChangeRequestComposerMocks() {
@@ -147,8 +147,4 @@ export function setupChangeRequestComposerMocks() {
       id: 'change-request-resource',
     }),
   )
-}
-
-export async function waitForNativeCreationReady(provider = 'GitHub') {
-  await screen.findByText(`${provider} CLI ready as octocat.`)
 }

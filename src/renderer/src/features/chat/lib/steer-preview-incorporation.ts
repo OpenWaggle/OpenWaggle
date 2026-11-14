@@ -15,7 +15,7 @@ import { incorporatedContentOf } from './steer-preview-matching'
 export function withIncorporatedPreview(
   previews: readonly OptimisticSteerPreview[],
   userRow: UIMessage,
-): readonly OptimisticSteerPreview[] {
+) {
   if (userRow.createdAt === undefined) return previews
   const taken = previews.some(
     (turn) => turn.incorporatedRowId === userRow.id || turn.durableMessageId === userRow.id,
@@ -44,7 +44,7 @@ export function withIncorporatedPreview(
           ...preview,
           incorporatedAt,
           incorporatedRowId: userRow.id,
-          incorporatedOrder: createdOrder,
+          ...(createdOrder === undefined ? {} : { incorporatedOrder: createdOrder }),
         }
       : preview,
   )

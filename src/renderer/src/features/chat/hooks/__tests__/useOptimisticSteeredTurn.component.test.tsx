@@ -18,14 +18,14 @@ const FIRST_PAYLOAD: AgentSendPayload = {
 }
 const SECOND_PAYLOAD = { ...FIRST_PAYLOAD }
 
-function userMessage(id: string, content: string, createdOrder?: number): UIMessage {
+function userMessage(id: string, content: string, createdOrder?: number) {
   return {
     id,
     role: 'user',
     parts: [{ type: 'text', content }],
     createdAt: new Date(),
     ...(createdOrder !== undefined ? { metadata: { sessionNodeCreatedOrder: createdOrder } } : {}),
-  }
+  } satisfies UIMessage
 }
 
 function messageText(message: UIMessage) {

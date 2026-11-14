@@ -4,7 +4,7 @@ import type { WagglePreset } from '@shared/types/waggle'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useComposerStore } from '../composer-store'
 
-function makeAttachment(id: string): AttachmentRecord {
+function makeAttachment(id: string) {
   return {
     id,
     kind: 'text',
@@ -13,10 +13,10 @@ function makeAttachment(id: string): AttachmentRecord {
     mimeType: 'text/plain',
     sizeBytes: 100,
     extractedText: 'content',
-  }
+  } satisfies AttachmentRecord
 }
 
-function makeWagglePreset(): WagglePreset {
+function makeWagglePreset() {
   return {
     id: WagglePresetId('review'),
     name: 'Review',
@@ -42,7 +42,7 @@ function makeWagglePreset(): WagglePreset {
     isBuiltIn: false,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies WagglePreset
 }
 
 describe('composer-store', () => {
@@ -78,7 +78,7 @@ describe('composer-store', () => {
       useComposerStore.getState().removeAttachment('a1')
       const remaining = useComposerStore.getState().attachments
       expect(remaining).toHaveLength(1)
-      expect(remaining[0].id).toBe('a2')
+      expect(remaining[0]?.id).toBe('a2')
     })
 
     it('setAttachmentError sets and clears errors', () => {

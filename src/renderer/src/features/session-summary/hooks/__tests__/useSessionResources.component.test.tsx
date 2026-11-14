@@ -10,7 +10,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   sessionResourcesQueryOptions,
   useSessionImageResourcesByNodeIds,
-  useSessionResourceCatalog,
   useSessionResourceInvalidation,
   useSessionResources,
 } from '../useSessionResources'
@@ -23,13 +22,13 @@ const resourceMocks = vi.hoisted(() => ({
   nodePage: vi.fn(),
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     listSessionResources: resourceMocks.list,
     advanceSessionResourceBackfill: resourceMocks.advanceBackfill,
     onSessionResourcesInvalidated: resourceMocks.onResourcesInvalidated,
     listSessionResourceNodePage: resourceMocks.nodePage,
-  },
+  }),
 }))
 
 describe('useSessionResources', () => {
@@ -117,64 +116,29 @@ describe('useSessionResources', () => {
     expect(resourceMocks.onResourcesInvalidated).not.toHaveBeenCalled()
   })
 
-  it('filters the legacy catalog fallback to change-request resources', async () => {
-    const changeRequest: SessionResource = {
-      ...RESOURCE,
-      id: 'change-request-one',
-      canonicalKey: 'url:https://github.example/pull/42',
-      kind: 'change-request',
-      title: 'Pull request 42',
-      mimeType: null,
-      locator: 'https://github.example/pull/42',
-      managed: false,
-    }
-    const sourceChangeRequest: SessionResource = {
-      ...changeRequest,
-      id: 'source-change-request',
-      canonicalKey: 'url:https://github.example/pull/7',
-      isSource: true,
-      isOutput: false,
-    }
-    resourceMocks.list.mockResolvedValue({
-      resources: [RESOURCE, sourceChangeRequest, changeRequest],
-      backfillComplete: true,
-    })
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const wrapper = ({ children }: { readonly children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    )
-
-    const { result } = renderHook(
-      () => useSessionResourceCatalog('session-one', 'change-requests'),
-      { wrapper },
-    )
-
-    await waitFor(() => expect(result.current.resources).toEqual([changeRequest]))
-    expect(result.current.total).toBe(1)
-  })
-
   it('loads and deduplicates more than 512 node-scoped images in bounded pages', async () => {
     const nodeIds = Array.from({ length: 600 }, (_, index) => `node-${String(index)}`)
     let inFlight = 0
     let maxInFlight = 0
-    const imageForNode = (nodeId: string, suffix: string): SessionResource => ({
-      ...RESOURCE,
-      id: `image-${nodeId}-${suffix}`,
-      canonicalKey: `sha256:${nodeId}-${suffix}`,
-      title: `${nodeId}-${suffix}.png`,
-      occurrences: [
-        {
-          id: `occurrence-${nodeId}-${suffix}`,
-          nodeId,
-          branchId: null,
-          actor: 'agent',
-          activity: 'created',
-          label: null,
-          locator: `/images/${nodeId}-${suffix}.png`,
-          createdAt: Number(nodeId.slice('node-'.length)),
-        },
-      ],
-    })
+    const imageForNode = (nodeId: string, suffix: string) =>
+      ({
+        ...RESOURCE,
+        id: `image-${nodeId}-${suffix}`,
+        canonicalKey: `sha256:${nodeId}-${suffix}`,
+        title: `${nodeId}-${suffix}.png`,
+        occurrences: [
+          {
+            id: `occurrence-${nodeId}-${suffix}`,
+            nodeId,
+            branchId: null,
+            actor: 'agent',
+            activity: 'created',
+            label: null,
+            locator: `/images/${nodeId}-${suffix}.png`,
+            createdAt: Number(nodeId.slice('node-'.length)),
+          },
+        ],
+      }) satisfies SessionResource
     resourceMocks.nodePage.mockImplementation(
       async (_sessionId: SessionId, input: SessionResourceNodePageRequest) => {
         inFlight += 1

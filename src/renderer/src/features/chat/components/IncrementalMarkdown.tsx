@@ -47,7 +47,7 @@ interface IncrementalMarkdownProps {
   isStreaming: boolean
   rehypePlugins: RehypePlugins
   /** Lightweight plugins for the streaming tail (e.g. sanitize-only, no Shiki). */
-  tailRehypePlugins?: RehypePlugins | undefined
+  tailRehypePlugins?: RehypePlugins
 }
 
 /**
@@ -59,14 +59,16 @@ const markdownComponents: Components = {
   img: NonFetchingMarkdownImage,
   pre({ children }: { children?: ReactNode }) {
     const language = fencedCodeLanguage(children)
-    return <CodeBlock language={language}>{children}</CodeBlock>
+    return <CodeBlock {...(language === undefined ? {} : { language })}>{children}</CodeBlock>
   },
   code({
     className,
     children,
     ...props
   }: {
+    // explicit undefined: react-markdown's element props type className as string | undefined
     className?: string | undefined
+    // explicit undefined: react-markdown's element props type children as ReactNode | undefined
     children?: ReactNode | undefined
   }) {
     return (
@@ -82,7 +84,7 @@ const streamingTailMarkdownComponents: Components = {
   pre({ children }: { children?: ReactNode }) {
     const language = fencedCodeLanguage(children)
     return (
-      <CodeBlock language={language} highlight={false}>
+      <CodeBlock {...(language === undefined ? {} : { language })} highlight={false}>
         {children}
       </CodeBlock>
     )
@@ -101,11 +103,11 @@ const FENCE_LANGUAGE_PATTERN = /^[\w#+.-]+$/u
  * An open fence as Markdown renders it, built without parsing: a `pre` holding a `code` whose
  * text is the fenced lines, without their last line ending, plus the one Markdown adds.
  */
-function openFenceHast(language: string | null, code: string): Root {
+function openFenceHast(language: string | null, code: string) {
   const value = code.replace(/\r?\n$/u, '')
   const className =
     language && FENCE_LANGUAGE_PATTERN.test(language) ? [`language-${language}`] : []
-  return {
+  const root: Root = {
     type: 'root',
     children: [
       {
@@ -123,6 +125,7 @@ function openFenceHast(language: string | null, code: string): Root {
       },
     ],
   }
+  return root
 }
 
 /**

@@ -53,7 +53,7 @@ const chains = new Map<ThinkingLevelTarget, Promise<void>>()
  * Resolves once every thinking-level write already requested for `target` has settled. Await it
  * before anything that starts a Run or creates a Session, since the Host reads the level then.
  */
-export function settledThinkingLevelWrites(target: ThinkingLevelTarget): Promise<void> {
+export function settledThinkingLevelWrites(target: ThinkingLevelTarget) {
   return chains.get(target) ?? Promise.resolve()
 }
 
@@ -67,13 +67,17 @@ interface ThinkingLevelWriteInput {
 }
 
 /** Serializes writes per target so they land in pick order; rejects with the write's failure. */
-export function writeThinkingLevel(input: ThinkingLevelWriteInput): Promise<void> {
+export function writeThinkingLevel(input: ThinkingLevelWriteInput) {
   const store = usePendingThinkingLevelStore.getState()
   store.setPending(input.target, input.level)
   const previous = chains.get(input.target) ?? Promise.resolve()
-  const result = previous.then(input.write).finally(async () => {
+  const settle = async () => {
     await input.refresh().catch(() => undefined)
     usePendingThinkingLevelStore.getState().clearPending(input.target, input.level)
+  }
+  const result = previous.then(input.write).then(settle, async (error: unknown) => {
+    await settle()
+    throw error
   })
   const chain = result.then(
     () => undefined,

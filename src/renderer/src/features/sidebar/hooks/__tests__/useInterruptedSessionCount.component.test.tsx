@@ -45,7 +45,10 @@ describe('interrupted Session chip count', () => {
       outcome: { operation: 'list', sessions: [], totalCount: 0 },
     })
     // A new array of the same (empty) catalog on every render, as startup produced.
-    const noSessions = (): readonly SessionSummary[] => []
+    const noSessions = () => {
+      const summary: readonly SessionSummary[] = []
+      return summary
+    }
     const { rerender } = renderHook(({ sessions }) => useInterruptedSessionCount(sessions), {
       initialProps: { sessions: noSessions() },
     })

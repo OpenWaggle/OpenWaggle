@@ -1,7 +1,6 @@
 import type { SessionId } from '@shared/types/brand'
 import type { PinnedSession, PinnedSessionMove } from '@shared/types/session'
 import { type Mock, vi } from 'vitest'
-import type * as SessionDetailsHandler from '../session-details-handler'
 import { sessionDetailsCommandResponse } from './session-details-handler-command-response'
 
 interface SessionDetailsHandlerMocks {
@@ -133,6 +132,6 @@ export function resetSessionDetailsHandlerMocks() {
   dispatchLocalSessionCommandMock.mockImplementation(sessionDetailsCommandResponse)
 }
 
-export function loadSessionDetailsHandlers(): Promise<typeof SessionDetailsHandler> {
+export function loadSessionDetailsHandlers() {
   return import('../session-details-handler')
 }

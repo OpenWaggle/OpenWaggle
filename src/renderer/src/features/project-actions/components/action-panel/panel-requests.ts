@@ -7,13 +7,15 @@ export function requestForDraft(
   draft: ActionPanelDraft,
   scope: ActionManagementScope,
   origin: ActionPanelOrigin,
-): ActionPanelRequest {
-  if (draft.kind === 'action') return { kind: 'action', scope, actionId: draft.actionId, origin }
+) {
+  if (draft.kind === 'action') {
+    return { kind: 'action', scope, actionId: draft.actionId, origin } satisfies ActionPanelRequest
+  }
   return {
     kind: 'preparation',
     scope,
     phase: draft.definition.phase,
     profileId: draft.definition.profileId,
     origin,
-  }
+  } satisfies ActionPanelRequest
 }

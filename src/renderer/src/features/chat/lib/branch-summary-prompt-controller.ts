@@ -24,7 +24,7 @@ export interface BranchSummaryPromptOpenRequest {
   readonly projectPath: string | null
 }
 
-export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenRequest): void {
+export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenRequest) {
   useBranchSummaryStore.getState().clearPrompt()
 
   const workspace = input.activeWorkspace
@@ -57,11 +57,6 @@ export function maybeOpenBranchSummaryPrompt(input: BranchSummaryPromptOpenReque
       previousComposerText: input.previousComposerText,
       draftComposerText: input.draftComposerText,
     })
-  }
-
-  if (typeof api.getPiBranchSummarySkipPrompt !== 'function') {
-    openIfCurrent()
-    return
   }
 
   void api

@@ -30,7 +30,11 @@ function contextFixture(
     file: {
       path: 'src/file.ts',
       basename: 'file.ts',
-      fidelity: { encoding: 'utf-8', lineEnding: 'lf', editorConfigPolicy },
+      fidelity: {
+        encoding: 'utf-8',
+        lineEnding: 'lf',
+        ...(editorConfigPolicy === undefined ? {} : { editorConfigPolicy }),
+      },
     },
     queryClient: { setQueryData: vi.fn() },
     conflict: { current: false },

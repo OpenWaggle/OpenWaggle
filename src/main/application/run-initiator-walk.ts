@@ -53,7 +53,7 @@ function runKey(run: RunReference) {
 export function walkRunInitiators<Verdict, E>(
   walk: RunInitiatorWalk<Verdict, E>,
   run: RunReference,
-): Effect.Effect<Verdict, E> {
+) {
   const walked = new Map<string, Extract<WalkOutcome<Verdict>, { kind: 'walked' }>>()
   const visit = (current: RunReference, budget: number): Effect.Effect<WalkOutcome<Verdict>, E> => {
     if (budget <= 0) return Effect.succeed(EXCEEDED)

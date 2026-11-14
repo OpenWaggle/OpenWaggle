@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import {
@@ -33,7 +34,17 @@ function normalizedWebSearchQuery(value: unknown) {
   return query && query.length <= MAX_WEB_SEARCH_QUERY_CHARACTERS ? query : null
 }
 
-function explicitWebSearchQueries(toolName: string, args: Readonly<Record<string, unknown>>) {
+/** The search arguments a model wrote, each still unchecked. */
+interface WebSearchToolArgs {
+  readonly query?: unknown
+  readonly q?: unknown
+  readonly search_query?: unknown
+}
+
+const webSearchEntrySchema = Schema.Struct({ q: Schema.String })
+const toolDetailsSourceSchema = Schema.Struct({ source: Schema.String })
+
+function explicitWebSearchQueries(toolName: string, args: WebSearchToolArgs) {
   if (DIRECT_WEB_SEARCH_TOOL_NAMES.has(toolName)) {
     const query = normalizedWebSearchQuery(args.query) ?? normalizedWebSearchQuery(args.q)
     return query ? [query] : []
@@ -44,7 +55,7 @@ function explicitWebSearchQueries(toolName: string, args: Readonly<Record<string
   const queries: string[] = []
   for (const candidate of args.search_query) {
     if (queries.length >= MAX_WEB_SEARCHES_PER_TOOL) break
-    if (!isRecord(candidate) || typeof candidate.q !== 'string') continue
+    if (!isRecord(candidate) || !Schema.is(webSearchEntrySchema)(candidate)) continue
     const query = normalizedWebSearchQuery(candidate.q)
     if (query) queries.push(query)
   }
@@ -72,7 +83,7 @@ export interface CapturedToolOutputGroup {
   readonly markdownImages: MarkdownImageOrigin
 }
 
-function capturedToolIdentity(name: string): CapturedToolIdentity {
+function capturedToolIdentity(name: string) {
   return { canonicalKey: `tool:${name}`, title: name }
 }
 
@@ -84,9 +95,11 @@ export function toolResultResourceLabel(toolResult: ToolCallResult) {
 
 /** The topic's source from the tool's details, which Pi keeps both beside and inside the result. */
 function docsTopicSource(toolResult: ToolCallResult) {
-  const result = isRecord(toolResult.result) ? toolResult.result : null
+  const result: { readonly details?: unknown } | null = isRecord(toolResult.result)
+    ? toolResult.result
+    : null
   for (const details of [toolResult.details, result?.details]) {
-    if (isRecord(details) && typeof details.source === 'string') return details.source
+    if (isRecord(details) && Schema.is(toolDetailsSourceSchema)(details)) return details.source
   }
   return null
 }
@@ -96,20 +109,21 @@ function docsTopicSource(toolResult: ToolCallResult) {
  * topic's root-relative image paths are pages of the website. Pi and extension docs name no
  * website, and none of their image paths is a file this Session produced, so they are skipped.
  */
-function toolMarkdownImages(toolResult: ToolCallResult): MarkdownImageOrigin {
+function toolMarkdownImages(toolResult: ToolCallResult) {
   if (toolResult.name.trim() !== OPENWAGGLE_DOCS_TOOL_NAME) return LOCAL_FILE_MARKDOWN_IMAGES
-  return docsTopicSource(toolResult) === 'openwaggle'
-    ? { kind: 'website', origin: OPENWAGGLE_WEBSITE_ORIGIN }
-    : { kind: 'none' }
+  return (
+    docsTopicSource(toolResult) === 'openwaggle'
+      ? { kind: 'website', origin: OPENWAGGLE_WEBSITE_ORIGIN }
+      : { kind: 'none' }
+  ) satisfies MarkdownImageOrigin
 }
 
-export function toolResultOutputGroups(
-  toolResult: ToolCallResult,
-): readonly CapturedToolOutputGroup[] {
+export function toolResultOutputGroups(toolResult: ToolCallResult) {
   const label = toolResultResourceLabel(toolResult)
-  return label
+  const group: readonly CapturedToolOutputGroup[] = label
     ? [{ label, result: toolResult.result, markdownImages: toolMarkdownImages(toolResult) }]
     : []
+  return group
 }
 
 /** The images, links and sites of one tool output group. */
@@ -238,7 +252,8 @@ function capturedFileTitle(normalizedPath: string, workingPath: string | null) {
 }
 
 function captureFileResource(input: ToolMetadataCaptureInput, toolName: string) {
-  const filePath = input.toolResult.args.path
+  const fileArgs: { readonly path?: unknown } = input.toolResult.args
+  const filePath = fileArgs.path
   const activity = fileToolActivity(toolName)
   if (!activity || typeof filePath !== 'string') return Effect.void
   const normalizedPath = path.isAbsolute(filePath)

@@ -1,6 +1,6 @@
 import { refuseFormerCliOptions } from './cli-former-options'
 import { CommandCliUsageError } from './command-cli-option-contract'
-import { isFlagValue, isOptionWithoutValue, type ParsedArguments } from './mcp-cli-arguments'
+import { optionValueProblem, type ParsedArguments } from './mcp-cli-arguments'
 import { refuseRunSettingsOnActiveRunCommand } from './sessions-cli-arguments'
 import { formerGroupReplacement } from './sessions-cli-former-commands'
 import {
@@ -258,27 +258,8 @@ export function isLocalHiveCliCommand(command: string) {
 }
 
 function validateOptionValues(arguments_: ParsedArguments) {
-  const missing = [...arguments_.options.entries()].flatMap(([name, values]) =>
-    !BOOLEAN_OPTIONS.has(name) && values.some(isOptionWithoutValue) ? [name] : [],
-  )
-  if (missing.length > 0) {
-    throw new CommandCliUsageError(
-      `Missing value for ${missing
-        .sort()
-        .map((name) => `--${name}`)
-        .join(', ')}.`,
-    )
-  }
-  const valuedBooleans = [...arguments_.options.entries()]
-    .flatMap(([name, values]) =>
-      BOOLEAN_OPTIONS.has(name) && values.some((value) => !isFlagValue(value)) ? [name] : [],
-    )
-    .sort()
-  if (valuedBooleans.length > 0) {
-    throw new CommandCliUsageError(
-      `${valuedBooleans.map((name) => `--${name}`).join(', ')} do not accept values.`,
-    )
-  }
+  const valueProblem = optionValueProblem(arguments_, BOOLEAN_OPTIONS)
+  if (valueProblem !== null) throw new CommandCliUsageError(valueProblem)
 }
 
 export function validateSessionsCliOptions(command: string, arguments_: ParsedArguments) {

@@ -3,7 +3,6 @@ import type { RunId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import {
   deliverPersonFollowUpPastCapacity,
-  type IdleQueueDelivery,
   markFollowUpNeedsAttention,
 } from '../domain/session-control/follow-up-delivery'
 import type { SessionControlSessionState } from '../domain/session-control/message-aggregate'
@@ -19,7 +18,7 @@ export function deliverAuthorizedPersonFollowUpPastCapacity(
   state: SessionControlSessionState,
   nextRunId: RunId,
   retriesAfter?: number,
-): Effect.Effect<IdleQueueDelivery, unknown> {
+) {
   return Effect.gen(function* () {
     let current = state
     for (const _item of state.followUpQueue.items) {

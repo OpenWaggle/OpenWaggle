@@ -24,12 +24,16 @@ function modelReference(provider: string, id: string) {
 }
 
 export function modelReferenceForCurrentModel(ctx: ExtensionContext) {
-  return ctx.model ? modelReference(ctx.model.provider, ctx.model.id) : null
+  const result: string | null = ctx.model ? modelReference(ctx.model.provider, ctx.model.id) : null
+  return result
 }
 
-function modelPickerItems(ctx: ExtensionContext): readonly ModelPickerItem[] {
-  if (typeof ctx.modelRegistry.getAvailable !== 'function') return []
-  return ctx.modelRegistry
+function modelPickerItems(ctx: ExtensionContext) {
+  if (typeof ctx.modelRegistry.getAvailable !== 'function') {
+    const item: readonly ModelPickerItem[] = []
+    return item
+  }
+  const item: readonly ModelPickerItem[] = ctx.modelRegistry
     .getAvailable()
     .map((model) => ({
       provider: model.provider,
@@ -41,6 +45,7 @@ function modelPickerItems(ctx: ExtensionContext): readonly ModelPickerItem[] {
       (left, right) =>
         left.provider.localeCompare(right.provider) || left.id.localeCompare(right.id),
     )
+  return item
 }
 
 function filterModelItems(items: readonly ModelPickerItem[], query: string) {
@@ -129,7 +134,11 @@ export function createModelPickerComponent(input: {
     return rendered
   }
 
-  return {
+  const result: {
+    invalidate(): undefined
+    render(width: number): string[]
+    handleInput(data: string): void
+  } = {
     invalidate() {
       return undefined
     },
@@ -161,6 +170,7 @@ export function createModelPickerComponent(input: {
       if (printable) updateFilter(`${query}${printable}`)
     },
   }
+  return result
 }
 
 export async function selectConcreteModelReference(input: {
@@ -191,12 +201,15 @@ export async function selectConcreteModelReference(input: {
     })
     const selected = await input.ctx.ui.select('Select Waggle agent model', labels)
     const selectedIndex = selected ? labels.indexOf(selected) : -1
-    return selectedIndex >= 0 ? (items[selectedIndex]?.reference ?? null) : null
+    const result: string | null | undefined =
+      selectedIndex >= 0 ? (items[selectedIndex]?.reference ?? null) : null
+    return result
   }
 
   const typed = await input.ctx.ui.input(
     'Pin Waggle agent model (provider/modelId)',
     input.currentModelReference ?? modelReferenceForCurrentModel(input.ctx) ?? 'provider/modelId',
   )
-  return typed?.trim() || null
+  const result: string | null | undefined = typed?.trim() || null
+  return result
 }

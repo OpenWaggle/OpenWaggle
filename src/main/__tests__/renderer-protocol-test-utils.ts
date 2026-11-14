@@ -81,7 +81,7 @@ export async function writeExtensionPackage(input: {
 
   const packages = await discoverExtensionPackages({
     projectPath: input.projectPath,
-    globalRootPath: input.globalRootPath,
+    ...(input.globalRootPath === undefined ? {} : { globalRootPath: input.globalRootPath }),
     hostSdkVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
   })
   const extensionPackage = packages.find(

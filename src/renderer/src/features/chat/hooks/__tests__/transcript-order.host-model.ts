@@ -1,4 +1,4 @@
-import type { MessagePart } from '@shared/types/agent'
+import type { TextPart } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -36,8 +36,8 @@ import {
 /** Host clock: one fake epoch shared with the renderer's, which runs `lag` behind it. */
 const EPOCH = Date.UTC(2026, 9, 4, 18, 41)
 
-function textPart(text: string): MessagePart {
-  return { type: 'text', text }
+function textPart(text: string) {
+  return { type: 'text', text } satisfies TextPart
 }
 
 export interface AnswerOptions {
@@ -156,7 +156,7 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
     },
     retainsUsers: () => retention !== 'none',
     /** The detail's `updatedAt` moves only when the Session changes (a Run persisted, `touch`). */
-    detail(): SessionDetail {
+    detail() {
       return {
         id: SESSION_ID,
         title: 'Order',
@@ -166,7 +166,7 @@ export function createHostModel(publish: (event: AgentTransportEvent) => void) {
         messages: truth
           .filter((entry) => persistedRunIds.has(entry.runId))
           .flatMap(persistedMessages),
-      }
+      } satisfies SessionDetail
     },
     /** The Session changes without a new message: its title, its queue. */
     touch() {

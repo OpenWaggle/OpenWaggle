@@ -1,9 +1,4 @@
-import type { SessionHostEventCursor } from './session-host-event'
-import type { SessionQueryOutcome } from './session-query'
+import type { SchemaType } from '@shared/schema'
+import type { sessionQueryResponseSchema } from '@shared/schemas/local-session-command-response'
 
-export interface SessionQueryResponse {
-  readonly contractVersion: 2
-  readonly requestId: string
-  readonly eventCursor?: SessionHostEventCursor
-  readonly outcome: SessionQueryOutcome
-}
+export type SessionQueryResponse = SchemaType<typeof sessionQueryResponseSchema>

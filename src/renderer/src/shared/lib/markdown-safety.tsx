@@ -41,7 +41,7 @@ function extractProtocol(rawUrl: string) {
   return match[0].toLowerCase()
 }
 
-export function isAllowedMarkdownUrl(rawUrl: string): boolean {
+export function isAllowedMarkdownUrl(rawUrl: string) {
   const protocol = extractProtocol(rawUrl)
   if (!protocol) return false
   // A Session link opens its Session in this app; the main process handles the click.
@@ -57,11 +57,11 @@ export const safeMarkdownUrlTransform: UrlTransform = (url) => {
 export const safeMarkdownSanitizeSchema: SanitizeSchema = {
   ...defaultSchema,
   protocols: {
-    ...(defaultSchema.protocols ?? {}),
+    ...defaultSchema.protocols,
     href: ALLOWED_HREF_PROTOCOLS,
   },
   attributes: {
-    ...(defaultSchema.attributes ?? {}),
+    ...defaultSchema.attributes,
     a: [...schemaAttributesForTag('a'), anchorTargetDefinition, anchorRelDefinition],
     code: [...schemaAttributesForTag('code'), shikiClassDefinition, styleAttributeDefinition],
     pre: [...schemaAttributesForTag('pre'), shikiClassDefinition, styleAttributeDefinition],

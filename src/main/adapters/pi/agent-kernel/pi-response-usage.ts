@@ -11,26 +11,21 @@ type AssistantMessage = Extract<MessageEndSessionEvent['message'], { role: 'assi
  * physical model that answered, which differs from the selection under a virtual model, so its
  * usage is measured against that model's own window and never another model's.
  */
-export function piResponseUsageInput(
-  session: AgentSession,
-): Pick<SessionListenerInput, 'getContextWindow' | 'isVirtualSelection'> {
+export function piResponseUsageInput(session: AgentSession) {
   return {
     getContextWindow: (provider, modelId) => {
       const window = session.modelRuntime.getPhysicalModel(provider, modelId)?.contextWindow
       return window && window > 0 ? window : undefined
     },
     isVirtualSelection: () => (session.model ? isPiVirtualModel(session.model) : false),
-  }
+  } satisfies Pick<SessionListenerInput, 'getContextWindow' | 'isVirtualSelection'>
 }
 
 /**
  * The authoritative context usage of one completed response, measured against the window of the
  * model that produced it. None for a failed or aborted response, or when either value is unknown.
  */
-export function responseContextUsageEvent(
-  input: SessionListenerInput,
-  message: AssistantMessage,
-): AgentTransportEvent | null {
+export function responseContextUsageEvent(input: SessionListenerInput, message: AssistantMessage) {
   const tokens = calculateContextTokens(message.usage)
   const contextWindow = input.getContextWindow?.(message.provider, message.model)
   if (message.stopReason === 'error' || message.stopReason === 'aborted') return null
@@ -42,5 +37,5 @@ export function responseContextUsageEvent(
     timestamp: Date.now(),
     model: createModelRef(message.provider, message.model),
     ...(input.isVirtualSelection?.() ? { routedFrom: input.model } : {}),
-  }
+  } satisfies AgentTransportEvent
 }

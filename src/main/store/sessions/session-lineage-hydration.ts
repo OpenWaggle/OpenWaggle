@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import type { DelegationState } from '@shared/types/session-collaboration'
@@ -11,7 +12,7 @@ export interface SessionLineageRow {
   readonly hive_root_session_id: string | null
   readonly direct_worker_count: number
   readonly active_direct_worker_count: number
-  /** Workers below the Session, at any depth, with a live Run (ADR 0063). */
+  /** Workers below the Session, at any depth, with a live Run (ADR 0065). */
   readonly running_worker_count: number
   /** When the last settled Run below the Session ended; null when none has. */
   readonly workers_last_run_ended_at: number | null
@@ -40,21 +41,34 @@ function isThinkingLevel(value: unknown): value is ThinkingLevel {
   return THINKING_LEVELS.some((level) => level === value)
 }
 
-function profileAgentFacts(profileJson: string | null): ProfileAgentFacts {
-  if (!profileJson) return {}
+/** The execution profile members these facts read, each still unchecked. */
+const profileAgentFieldsSchema = Schema.Struct({
+  agentDefinitionName: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  modelId: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  thinkingLevel: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
+function profileAgentFacts(profileJson: string | null) {
+  if (!profileJson) {
+    const facts: ProfileAgentFacts = {}
+    return facts
+  }
   try {
     const parsed: unknown = JSON.parse(profileJson)
-    if (typeof parsed !== 'object' || parsed === null) return {}
-    const name: unknown = Reflect.get(parsed, 'agentDefinitionName')
-    const modelId: unknown = Reflect.get(parsed, 'modelId')
-    const thinkingLevel: unknown = Reflect.get(parsed, 'thinkingLevel')
-    return {
+    if (!Schema.is(profileAgentFieldsSchema)(parsed)) {
+      const facts: ProfileAgentFacts = {}
+      return facts
+    }
+    const { agentDefinitionName: name, modelId, thinkingLevel } = parsed
+    const facts: ProfileAgentFacts = {
       ...(typeof name === 'string' ? { agentDefinitionName: name } : {}),
       ...(typeof modelId === 'string' && modelId ? { modelId } : {}),
       ...(isThinkingLevel(thinkingLevel) ? { thinkingLevel } : {}),
     }
+    return facts
   } catch {
-    return {}
+    const facts: ProfileAgentFacts = {}
+    return facts
   }
 }
 
@@ -83,7 +97,7 @@ function agentDefinitionLineage(row: SessionLineageRow) {
   }
 }
 
-/** A parent's Running Workers and Done-below time (ADR 0063); nothing for a Session without any. */
+/** A parent's Running Workers and Done-below time (ADR 0065); nothing for a Session without any. */
 function workerRunLineage(row: SessionLineageRow) {
   if (row.running_worker_count === 0 && row.workers_last_run_ended_at === null) return {}
   return {

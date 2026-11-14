@@ -164,16 +164,22 @@ function isCsiQuery(body: string, final: string) {
   return final === 'n' || final === 'c'
 }
 
-function readEscapeSequence(text: string, start: number): EscapeSequence | null {
+function readEscapeSequence(text: string, start: number) {
   const second = text.charCodeAt(start + ESC_CODE_LENGTH)
   if (Number.isNaN(second)) return null
-  if (second === CSI_MARKER_CODE) return readCsiSequence(text, start)
-  if (second === OSC_MARKER_CODE) return readOscSequence(text, start)
-  if (second === DCS_MARKER_CODE) return readDcsSequence(text, start)
-  return readPlainEscapeSequence(text, start, second)
+  if (second === CSI_MARKER_CODE) {
+    return readCsiSequence(text, start) satisfies EscapeSequence | null
+  }
+  if (second === OSC_MARKER_CODE) {
+    return readOscSequence(text, start) satisfies EscapeSequence | null
+  }
+  if (second === DCS_MARKER_CODE) {
+    return readDcsSequence(text, start) satisfies EscapeSequence | null
+  }
+  return readPlainEscapeSequence(text, start, second) satisfies EscapeSequence | null
 }
 
-function readCsiSequence(text: string, start: number): EscapeSequence | null {
+function readCsiSequence(text: string, start: number) {
   for (let index = ESC_BODY_OFFSET + start; index < text.length; index += 1) {
     const code = text.charCodeAt(index)
     if (code >= CSI_FINAL_MIN && code <= CSI_FINAL_MAX) {
@@ -182,13 +188,13 @@ function readCsiSequence(text: string, start: number): EscapeSequence | null {
         body: text.slice(start + ESC_BODY_OFFSET, index),
         kind: ESCAPE_KIND_CSI,
         end: index + ESC_CODE_LENGTH,
-      }
+      } satisfies EscapeSequence
     }
   }
   return null
 }
 
-function readOscSequence(text: string, start: number): EscapeSequence | null {
+function readOscSequence(text: string, start: number) {
   for (let index = ESC_BODY_OFFSET + start; index < text.length; index += 1) {
     if (text.charCodeAt(index) === BEL_CODE) {
       return {
@@ -196,7 +202,7 @@ function readOscSequence(text: string, start: number): EscapeSequence | null {
         body: text.slice(start + ESC_BODY_OFFSET, index),
         kind: ESCAPE_KIND_OSC,
         end: index + ESC_CODE_LENGTH,
-      }
+      } satisfies EscapeSequence
     }
     if (text.charCodeAt(index) === ESC_CODE && text.charCodeAt(index + 1) === ST_ESCAPE_CODE) {
       return {
@@ -204,13 +210,13 @@ function readOscSequence(text: string, start: number): EscapeSequence | null {
         body: text.slice(start + ESC_BODY_OFFSET, index),
         kind: ESCAPE_KIND_OSC,
         end: index + ST_LENGTH,
-      }
+      } satisfies EscapeSequence
     }
   }
   return null
 }
 
-function readDcsSequence(text: string, start: number): EscapeSequence | null {
+function readDcsSequence(text: string, start: number) {
   for (let index = ESC_BODY_OFFSET + start; index < text.length - ESC_CODE_LENGTH; index += 1) {
     if (text.charCodeAt(index) === ESC_CODE && text.charCodeAt(index + 1) === ST_ESCAPE_CODE) {
       return {
@@ -218,24 +224,20 @@ function readDcsSequence(text: string, start: number): EscapeSequence | null {
         body: text.slice(start + ESC_BODY_OFFSET, index),
         kind: ESCAPE_KIND_DCS,
         end: index + ST_LENGTH,
-      }
+      } satisfies EscapeSequence
     }
   }
   return null
 }
 
-function readPlainEscapeSequence(
-  text: string,
-  start: number,
-  second: number,
-): EscapeSequence | null {
+function readPlainEscapeSequence(text: string, start: number, second: number) {
   if (second < ESC_INTERMEDIATE_MIN || second > ESC_INTERMEDIATE_MAX) {
     return {
       raw: text.slice(start, start + ESC_BODY_OFFSET),
       body: '',
       kind: ESCAPE_KIND_ESC,
       end: start + ESC_BODY_OFFSET,
-    }
+    } satisfies EscapeSequence
   }
   for (let index = start + ESC_BODY_OFFSET; index < text.length; index += 1) {
     const code = text.charCodeAt(index)
@@ -245,7 +247,7 @@ function readPlainEscapeSequence(
         body: text.slice(start + ESC_CODE_LENGTH, index),
         kind: ESCAPE_KIND_ESC,
         end: index + ESC_CODE_LENGTH,
-      }
+      } satisfies EscapeSequence
     }
   }
   return null

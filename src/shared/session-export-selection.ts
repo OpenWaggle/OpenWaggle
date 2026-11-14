@@ -5,12 +5,16 @@ interface SessionExportBranchSelection {
   readonly branchId?: string
 }
 
-export function sessionExportBranchSelectionIsValid(input: SessionExportBranchSelection) {
-  return input.branchScope !== 'tree' || input.branchId === undefined
+/** A branch can be named only for an active-branch export; a tree export covers every branch. */
+export function sessionExportBranchSelectionIsValid(
+  branchScope: SessionExportBranchScope | undefined,
+  branchId: string | undefined,
+) {
+  return branchScope !== 'tree' || branchId === undefined
 }
 
 export function assertSessionExportBranchSelection(input: SessionExportBranchSelection) {
-  if (!sessionExportBranchSelectionIsValid(input)) {
+  if (!sessionExportBranchSelectionIsValid(input.branchScope, input.branchId)) {
     throw new Error('A Session branch can be selected only for an active-branch export.')
   }
 }

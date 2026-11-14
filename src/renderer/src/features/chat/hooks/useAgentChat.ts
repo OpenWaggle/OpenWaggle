@@ -49,16 +49,16 @@ function isRunStatusActive(status: AgentChatStatus, backgroundStreaming: boolean
 function visibleRunStatus(
   status: AgentChatStatus,
   flags: { readonly isFinishing: boolean; readonly backgroundStreaming: boolean },
-): AgentChatStatus {
-  if (flags.isFinishing) return 'finishing'
-  return flags.backgroundStreaming ? 'streaming' : status
+) {
+  if (flags.isFinishing) return 'finishing' as const
+  return flags.backgroundStreaming ? ('streaming' as const) : status
 }
 
 export function useAgentChat(
   sessionId: SessionId | null,
   session: SessionDetail | null,
   model: SupportedModelId | undefined,
-): AgentChatReturn {
+) {
   const upsertSession = useChatStore((state) => state.upsertSession)
   const selectedSessionHasActiveRun = useBackgroundRunStore((state) =>
     sessionId ? state.hasActiveRun(sessionId) : false,

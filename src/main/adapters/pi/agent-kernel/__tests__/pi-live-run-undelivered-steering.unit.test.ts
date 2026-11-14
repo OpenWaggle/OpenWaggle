@@ -15,8 +15,8 @@ function userMessage(text: string) {
   return fromPartial<UserMessage>({ role: 'user', content: [{ type: 'text', text }] })
 }
 
-function followUp(id: string, text: string): SessionControlFollowUp {
-  return {
+function followUp(id: string, text: string) {
+  const result: SessionControlFollowUp = {
     id: FollowUpId(id),
     deliveryState: 'pending',
     intent: {
@@ -27,6 +27,7 @@ function followUp(id: string, text: string): SessionControlFollowUp {
       idempotencyKey: `key-${id}`,
     },
   }
+  return result
 }
 
 function liveSession(options: { readonly compacting?: boolean } = {}) {

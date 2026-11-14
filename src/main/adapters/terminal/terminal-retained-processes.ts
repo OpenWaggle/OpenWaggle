@@ -27,12 +27,18 @@ function mergeProcessPids(...groups: readonly (readonly number[])[]) {
 export class TerminalRetainedProcesses {
   private readonly entries = new Map<LiveTerminalProcess['pty'], RetainedCleanupEntry>()
 
+  private readonly onRecordInactive: (record: TerminalRecord) => void
+  private readonly shutdownDetachedProcess: (target: RetainedTerminalProcess) => Promise<boolean>
+
   constructor(
-    private readonly onRecordInactive: (record: TerminalRecord) => void,
-    private readonly shutdownDetachedProcess: (
+    onRecordInactive: (record: TerminalRecord) => void,
+    shutdownDetachedProcess: (
       target: RetainedTerminalProcess,
     ) => Promise<boolean> = shutdownDetachedTerminal,
-  ) {}
+  ) {
+    this.onRecordInactive = onRecordInactive
+    this.shutdownDetachedProcess = shutdownDetachedProcess
+  }
 
   readonly registerDetachedProcess = (
     owner: TerminalRecord,
@@ -74,7 +80,7 @@ export class TerminalRetainedProcesses {
     return target
   }
 
-  readonly releaseRetainedProcess = (entry: RetainedCleanupEntry): Promise<boolean> => {
+  readonly releaseRetainedProcess = (entry: RetainedCleanupEntry) => {
     if (this.entries.get(entry.target.live.pty) !== entry) return Promise.resolve(true)
     if (entry.releaseInFlight !== null) return entry.releaseInFlight
     const { live } = entry.target
@@ -103,7 +109,7 @@ export class TerminalRetainedProcesses {
     return attempt
   }
 
-  readonly shutdownRetainedProcess = (target: RetainedTerminalProcess): Promise<boolean> => {
+  readonly shutdownRetainedProcess = (target: RetainedTerminalProcess) => {
     const entry = this.entries.get(target.live.pty)
     if (entry === undefined) return Promise.resolve(true)
     if (entry.target.terminationCommitted) {
@@ -150,10 +156,7 @@ export class TerminalRetainedProcesses {
     }
   }
 
-  readonly awaitRetainedRelease = (
-    entry: RetainedCleanupEntry,
-    deadline: number,
-  ): Promise<boolean> => {
+  readonly awaitRetainedRelease = (entry: RetainedCleanupEntry, deadline: number) => {
     const release = this.releaseRetainedProcess(entry)
     const remaining = deadline - Date.now()
     if (remaining <= 0) return Promise.resolve(false)

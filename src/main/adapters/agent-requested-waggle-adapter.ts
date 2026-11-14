@@ -2,7 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import type { Message } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import type { WaggleHandoffRequest, WaggleInvocation } from '@shared/types/waggle'
+import type { WaggleHandoffRequest } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { classifyAgentError } from '../agent/error-classifier'
@@ -34,7 +34,7 @@ import { publishSessionHostEvent } from '../session-host/session-host-events'
 import { userFacingErrorDetail } from '../utils/describe-error'
 import { startStreamBuffer } from '../utils/stream-bridge'
 
-function invocation(handoff: WaggleHandoffRequest): WaggleInvocation {
+function invocation(handoff: WaggleHandoffRequest) {
   return {
     presetId: handoff.presetId,
     presetName: handoff.presetName,

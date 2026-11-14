@@ -1,14 +1,14 @@
-import { app } from 'electron'
 import { writeAgentsCliError } from './agents-cli-output'
 import { cliExitCodeForKind } from './cli-error'
 import { flushCliOutput } from './cli-output-flush'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
 import { env } from './env'
 import { configureAppStoragePaths } from './session-data'
 
 export function startAgentsCliIfRequested(argv: readonly string[]) {
   if (argv[0] !== 'agents') return false
-  configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
-  void app
+  configureAppStoragePaths(env.OPENWAGGLE_USER_DATA_DIR)
+  void appLifecycle
     .whenReady()
     .then(async () => {
       // This CLI loads Settings and builds Pi runtimes in-process, as the Host does.
@@ -17,7 +17,7 @@ export function startAgentsCliIfRequested(argv: readonly string[]) {
       const { runAgentsCli } = await import('./agents-cli')
       const exitCode = await runAgentsCli(argv.slice(1))
       await flushCliOutput()
-      app.exit(exitCode)
+      appLifecycle.exit(exitCode)
     })
     .catch(async (error: unknown) => {
       const kind = writeAgentsCliError(
@@ -26,7 +26,7 @@ export function startAgentsCliIfRequested(argv: readonly string[]) {
         process.stderr.write.bind(process.stderr),
       )
       await flushCliOutput().catch(() => undefined)
-      app.exit(cliExitCodeForKind(kind))
+      appLifecycle.exit(cliExitCodeForKind(kind))
     })
   return true
 }

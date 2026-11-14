@@ -7,7 +7,7 @@ import { api } from '@/shared/lib/ipc'
  * Subscribe to Waggle IPC events and route them to the collaboration store.
  * Tracks both turn events (status changes) and stream chunks (live message metadata).
  */
-export function useWaggleChat(sessionId: SessionId | null): void {
+export function useWaggleChat(sessionId: SessionId | null) {
   const handleTurnEvent = useWaggleStore((s) => s.handleTurnEvent)
   const trackMessageMetadata = useWaggleStore((s) => s.trackMessageMetadata)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)

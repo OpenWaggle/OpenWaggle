@@ -38,15 +38,16 @@ function shortcutText(definition: Pick<ActionDefinition, 'shortcutRules'>) {
   return formatShortcutBinding(rules[0]?.shortcut ?? null)
 }
 
-function change(label: string, before: string, after: string): DefinitionChange[] {
-  return before === after ? [] : [{ label, before, after }]
+function change(label: string, before: string, after: string) {
+  const result: DefinitionChange[] = before === after ? [] : [{ label, before, after }]
+  return result
 }
 
 /** Plain-words differences, for "changed since you started" and agent proposals. */
 export function actionChanges(
   before: ActionDefinition | DraftActionDefinition,
   after: ActionDefinition | DraftActionDefinition,
-): readonly DefinitionChange[] {
+) {
   return [
     ...change('Name', before.name, after.name),
     ...change('Command', invocationText(before.invocation), invocationText(after.invocation)),
@@ -69,13 +70,13 @@ export function actionChanges(
     ...change('Preview URL', before.previewUrl ?? 'Detected', after.previewUrl ?? 'Detected'),
     ...change('Icon', before.icon, after.icon),
     ...change('Keyboard shortcut', shortcutText(before), shortcutText(after)),
-  ]
+  ] satisfies readonly DefinitionChange[]
 }
 
 export function preparationChanges(
   before: PreparationDefinition | DraftPreparationDefinition,
   after: PreparationDefinition | DraftPreparationDefinition,
-): readonly DefinitionChange[] {
+) {
   return [
     ...change('Command', invocationText(before.invocation), invocationText(after.invocation)),
     ...change(
@@ -83,7 +84,7 @@ export function preparationChanges(
       invocationDirectory(before.invocation),
       invocationDirectory(after.invocation),
     ),
-  ]
+  ] satisfies readonly DefinitionChange[]
 }
 
 export interface ActionSummaryInput {
@@ -99,8 +100,9 @@ export interface ActionSummaryInput {
 }
 
 function audience(storage: ActionStorage, sharedEdit: boolean) {
-  if (sharedEdit)
+  if (sharedEdit) {
     return storage === 'local' ? 'only you get these changes' : 'everyone gets these changes'
+  }
   return storage === 'local' ? 'only you' : 'everyone on the project'
 }
 

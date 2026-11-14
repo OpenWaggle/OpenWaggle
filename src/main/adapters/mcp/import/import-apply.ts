@@ -2,21 +2,20 @@
  * Applying an import preview. The importer never writes files: it hands Pi
  * entries to the caller's config writer, which owns the target file.
  */
-import { isRecord } from '@shared/utils/validation'
 import { withServerSecretNames } from '../../../domain/mcp/config/mcp-server-secret-names'
-import { sameServerName } from './import-identity'
+import type { McpImportWriteEntry } from '../../../ports/mcp-import-service'
+import { isEarlierImportOf, sameServerName } from './import-identity'
 import type {
   ExternalMcpImportCandidate,
   ExternalMcpImportPreview,
   ExternalMcpImportSource,
   McpImportProvenance,
   McpImportTarget,
-  PiMcpEntry,
 } from './import-types'
 
 export interface McpImportWrite {
   readonly name: string
-  readonly entry: PiMcpEntry
+  readonly entry: McpImportWriteEntry['entry']
   /** True when the entry replaces an existing server of that name. */
   readonly replace: boolean
 }
@@ -65,14 +64,7 @@ function earlierImportName(
   candidate: ExternalMcpImportCandidate,
   servers: Readonly<Record<string, unknown>>,
 ) {
-  return Object.entries(servers).find(([, value]) => {
-    const provenance = isRecord(value) && isRecord(value.provenance) ? value.provenance : undefined
-    return (
-      provenance?.source === candidate.source &&
-      provenance.sourcePath === candidate.sourcePath &&
-      provenance.sourceName === candidate.name
-    )
-  })?.[0]
+  return Object.entries(servers).find(([, value]) => isEarlierImportOf(value, candidate))?.[0]
 }
 
 function renamed(name: string, names: readonly string[]) {
@@ -90,24 +82,39 @@ function placementFor(
   names: readonly string[],
   servers: Readonly<Record<string, unknown>>,
   policy: McpImportConflictPolicy,
-): Placement {
+) {
   if (candidate.entry.command === undefined && candidate.entry.url === undefined) {
-    return { kind: 'skip', reason: candidate.warnings.at(-1) ?? 'No portable command or URL.' }
+    const placement: Placement = {
+      kind: 'skip',
+      reason: candidate.warnings.at(-1) ?? 'No portable command or URL.',
+    }
+    return placement
   }
   const taken = earlierImportName(candidate, servers) ?? existingName(names, candidate.targetName)
-  if (!taken) return { kind: 'write', name: candidate.targetName, replace: false }
-  if (policy === 'replace') return { kind: 'write', name: taken, replace: true }
-  if (policy === 'rename')
-    return { kind: 'write', name: renamed(candidate.targetName, names), replace: false }
-  return {
+  if (!taken) {
+    const placement: Placement = { kind: 'write', name: candidate.targetName, replace: false }
+    return placement
+  }
+  if (policy === 'replace') {
+    const placement: Placement = { kind: 'write', name: taken, replace: true }
+    return placement
+  }
+  if (policy === 'rename') {
+    const placement: Placement = {
+      kind: 'write',
+      name: renamed(candidate.targetName, names),
+      replace: false,
+    }
+    return placement
+  }
+  const placement: Placement = {
     kind: 'skip',
     reason: `A server named ${candidate.targetName} already exists in the target configuration.`,
   }
+  return placement
 }
 
-export async function applyMcpImports(
-  input: ApplyMcpImportsInput,
-): Promise<ExternalMcpImportApplyResult> {
+export async function applyMcpImports(input: ApplyMcpImportsInput) {
   const byFingerprint = new Map(
     input.preview.candidates.map((candidate) => [candidate.fingerprint, candidate]),
   )
@@ -152,5 +159,6 @@ export async function applyMcpImports(
     })
   }
   if (writes.length > 0) await input.write(input.target, writes)
-  return { imported, skipped }
+  const result: ExternalMcpImportApplyResult = { imported, skipped }
+  return result
 }

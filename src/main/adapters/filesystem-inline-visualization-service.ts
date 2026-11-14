@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { InlineVisualizationReadResult } from '@shared/types/inline-visualization'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import {
   InlineVisualizationService,
   type InlineVisualizationServiceShape,
@@ -25,14 +25,7 @@ const MAX_VISUALIZATION_SOURCE_BYTES = 5 * 1024 * 1024
 const INITIAL_VISUALIZATION_READ_BYTES = 64 * 1024
 const READ_BUFFER_GROWTH_FACTOR = 2
 
-async function resolveAuthorizedSource(
-  sourcePath: string,
-  authorizedRoots: readonly string[],
-): Promise<{
-  readonly realSourcePath: string
-  readonly device: number
-  readonly inode: number
-} | null> {
+async function resolveAuthorizedSource(sourcePath: string, authorizedRoots: readonly string[]) {
   if (!path.isAbsolute(sourcePath)) return null
   const normalizedSourcePath = path.normalize(sourcePath)
 
@@ -107,7 +100,7 @@ export function makeFilesystemInlineVisualizationService(
     readonly beforeSourceOpen?: () => Promise<void>
     readonly beforeSourceRead?: () => Promise<void>
   } = {},
-): InlineVisualizationServiceShape {
+) {
   return {
     prepareSession: (sessionId) =>
       Effect.tryPromise({
@@ -142,14 +135,22 @@ export function makeFilesystemInlineVisualizationService(
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }),
     readSource: (input) =>
-      Effect.promise(async (): Promise<InlineVisualizationReadResult> => {
+      Effect.promise(async () => {
         try {
           const filename = path.basename(input.sourcePath)
           if (!VISUALIZATION_FILENAME_PATTERN.test(filename)) {
-            return { status: 'unavailable', reason: 'invalid-path' }
+            return {
+              status: 'unavailable',
+              reason: 'invalid-path',
+            } satisfies InlineVisualizationReadResult
           }
           const resolved = await resolveSessionSource(userDataPath, input)
-          if (!resolved) return { status: 'unavailable', reason: 'invalid-path' }
+          if (!resolved) {
+            return {
+              status: 'unavailable',
+              reason: 'invalid-path',
+            } satisfies InlineVisualizationReadResult
+          }
           await dependencies.beforeSourceOpen?.()
           const sourceHandle = await fs.open(
             resolved.realSourcePath,
@@ -162,41 +163,53 @@ export function makeFilesystemInlineVisualizationService(
               openedStats.dev !== resolved.device ||
               openedStats.ino !== resolved.inode
             ) {
-              return { status: 'unavailable', reason: 'invalid-path' }
+              return {
+                status: 'unavailable',
+                reason: 'invalid-path',
+              } satisfies InlineVisualizationReadResult
             }
             if (openedStats.size > MAX_VISUALIZATION_SOURCE_BYTES) {
-              return { status: 'unavailable', reason: 'too-large' }
+              return {
+                status: 'unavailable',
+                reason: 'too-large',
+              } satisfies InlineVisualizationReadResult
             }
             await dependencies.beforeSourceRead?.()
             const contents = await readVisualizationSource(sourceHandle, openedStats.size)
-            if (contents === null) return { status: 'unavailable', reason: 'too-large' }
+            if (contents === null) {
+              return {
+                status: 'unavailable',
+                reason: 'too-large',
+              } satisfies InlineVisualizationReadResult
+            }
             return {
               status: 'loaded',
               contents,
               sizeBytes: Buffer.byteLength(contents),
-            }
+            } satisfies InlineVisualizationReadResult
           } finally {
             await sourceHandle.close()
           }
         } catch (cause) {
           if (cause instanceof InvalidVisualizationPathError) {
-            return { status: 'unavailable', reason: 'invalid-path' }
+            return {
+              status: 'unavailable',
+              reason: 'invalid-path',
+            } satisfies InlineVisualizationReadResult
           }
           const code = cause instanceof Error && 'code' in cause ? cause.code : undefined
           return {
             status: 'unavailable',
             reason: code === 'ENOENT' ? 'missing' : 'read-failed',
-          }
+          } satisfies InlineVisualizationReadResult
         }
       }),
-  }
+  } satisfies InlineVisualizationServiceShape
 }
 
 export const FilesystemInlineVisualizationLive = Layer.effect(
   InlineVisualizationService,
   Effect.sync(() =>
-    InlineVisualizationService.of(
-      makeFilesystemInlineVisualizationService(app.getPath('userData')),
-    ),
+    InlineVisualizationService.of(makeFilesystemInlineVisualizationService(appPaths.userData())),
   ),
 )

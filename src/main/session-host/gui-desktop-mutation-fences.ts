@@ -37,8 +37,9 @@ export function makeGuiDesktopMutationFences(input: {
       if (!sameFence(existing.record, record)) throw new Error('Desktop fence identity changed.')
       return existing.acquired
     }
-    if (held.size >= DESKTOP_SERVICE_LIMITS.fenceRecords)
+    if (held.size >= DESKTOP_SERVICE_LIMITS.fenceRecords) {
       throw new Error('Desktop fence capacity exceeded.')
+    }
     const acquired = Promise.withResolvers<void>()
     const release = Promise.withResolvers<void>()
     let acquiredNativeFence = false
@@ -65,12 +66,13 @@ export function makeGuiDesktopMutationFences(input: {
         releaseBrowser()
       } catch (error) {
         browserReleaseFailed = true
-        if (!terminalOutcome.ok)
+        if (!terminalOutcome.ok) {
           throw new AggregateError(
             [terminalOutcome.error, error],
             'Native desktop fence settlement failed.',
             { cause: error },
           )
+        }
         throw error
       }
       if (!terminalOutcome.ok) throw terminalOutcome.error
@@ -99,8 +101,9 @@ export function makeGuiDesktopMutationFences(input: {
       }
       const fence = held.get(record.token)
       if (fence) {
-        if (!sameFence(fence.record, record))
+        if (!sameFence(fence.record, record)) {
           throw new Error('Released desktop fence identity changed.')
+        }
         fence.release()
         await fence.finished
         held.delete(record.token)
@@ -124,8 +127,9 @@ export function makeGuiDesktopMutationFences(input: {
       [...held.values()].some((fence) => desktopCommandTouchesFence(command, fence.record)),
     acknowledge: (record: DesktopFenceRecord) => {
       const fence = held.get(record.token)
-      if (!fence || !sameFence(fence.record, record))
+      if (!fence || !sameFence(fence.record, record)) {
         throw new Error('Desktop fence is not active in the reconciled journal.')
+      }
       return fence.acquired
     },
   }

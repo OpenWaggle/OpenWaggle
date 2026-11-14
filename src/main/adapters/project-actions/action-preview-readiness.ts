@@ -1,7 +1,7 @@
 const PROBE_TIMEOUT_MS = 1_000
 const PROBE_INTERVAL_MS = 750
 
-export async function probeActionPreview(url: string, signal: AbortSignal): Promise<boolean> {
+export async function probeActionPreview(url: string, signal: AbortSignal) {
   try {
     const response = await fetch(url, {
       method: 'HEAD',
@@ -21,7 +21,11 @@ export class ActionPreviewReadiness {
     string,
     { readonly url: string; readonly controller: AbortController }
   >()
-  constructor(private readonly probe = probeActionPreview) {}
+  private readonly probe: (url: string, signal: AbortSignal) => Promise<boolean>
+
+  constructor(probe = probeActionPreview) {
+    this.probe = probe
+  }
 
   watch(id: string, url: string | null, onReady: (url: string) => void) {
     if (!url || this.pending.get(id)?.url === url) return

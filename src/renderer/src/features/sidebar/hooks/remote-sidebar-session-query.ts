@@ -5,6 +5,7 @@ import {
   SESSION_QUERY_DISCOVERY_LIMIT,
   SESSION_QUERY_PROJECT_PATH_FILTER_LIMIT,
 } from '@shared/types/session-query'
+import { loadInBatches } from '@shared/utils/batches'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
 
@@ -42,14 +43,9 @@ export async function hydrateSidebarSessions(
   ids: readonly SessionId[],
   beforeHydrate?: (sessions: readonly SessionSummary[]) => void,
 ) {
-  const sessions: SessionSummary[] = []
-  for (let offset = 0; offset < ids.length; offset += SIDEBAR_SESSION_HYDRATION_BATCH_SIZE) {
-    sessions.push(
-      ...(await api.listSessionsByIds(
-        ids.slice(offset, offset + SIDEBAR_SESSION_HYDRATION_BATCH_SIZE),
-      )),
-    )
-  }
+  const sessions = await loadInBatches(ids, SIDEBAR_SESSION_HYDRATION_BATCH_SIZE, (batch) =>
+    api.listSessionsByIds(batch),
+  )
   beforeHydrate?.(sessions)
   useSessionStatusStore.getState().hydratePersistedStatuses(sessions)
   return sessions
@@ -73,9 +69,10 @@ async function querySidebarList(query: {
   if (response.outcome.operation !== 'list' || !('sessions' in response.outcome)) {
     throw new Error('Sidebar Session search returned an unexpected response.')
   }
+  const { nextCursor } = response.outcome
   return {
     ids: response.outcome.sessions.map((session) => SessionId(session.sessionId)),
-    nextCursor: response.outcome.nextCursor,
+    ...(nextCursor === undefined ? {} : { nextCursor }),
   }
 }
 

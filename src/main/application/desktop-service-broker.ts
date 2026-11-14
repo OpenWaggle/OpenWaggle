@@ -22,7 +22,7 @@ export function makeDesktopServiceBroker(input: {
   readonly offlineExecute: (
     command: DesktopServiceCommand,
   ) => Effect.Effect<DesktopServiceResult, Error>
-}): DesktopServiceBrokerShape {
+}) {
   const queue = new DesktopServiceCommandQueue()
   const leases = new DesktopServiceLeases({ ...input, queue })
   const mutations = new DesktopServiceFences({ ...input, leases, queue, execute })
@@ -47,14 +47,16 @@ export function makeDesktopServiceBroker(input: {
         leases.require(owner.id, true)
         const existingAcquire =
           command.service === 'fence' && mutations.hasToken(command.record.token)
-        if (owner.draining && !existingAcquire && !mutations.cleanupAllowed(command, records))
+        if (owner.draining && !existingAcquire && !mutations.cleanupAllowed(command, records)) {
           throw desktopUnavailableError()
+        }
         return { result: queue.execute(command, owner.id, signal) }
       }
       const offlineAllowed =
         isDesktopPresenceInspection(command) || mutations.cleanupAllowed(command, records)
-      if (!offlineAllowed || !(await isDesktopNativeFree(input.owners)))
+      if (!offlineAllowed || !(await isDesktopNativeFree(input.owners))) {
         throw desktopUnavailableError()
+      }
       // Durable active fence predates this proof; any subsequent GUI registration must
       // restore that fence before opening native admission. Never infer proof from TTL.
       return { result: runEffectWithAbortSignal(input.offlineExecute(command), signal) }
@@ -62,7 +64,7 @@ export function makeDesktopServiceBroker(input: {
     return admitted.result
   }
 
-  return {
+  const shape: DesktopServiceBrokerShape = {
     execute: (command) =>
       Effect.tryPromise({ try: (signal) => execute(command, signal), catch: asError }),
     handleGuiRequest: (request) =>
@@ -70,4 +72,5 @@ export function makeDesktopServiceBroker(input: {
     runWithMutationFence: (scope, operation) => mutations.runWithMutationFence(scope, operation),
     close: () => leases.close(),
   }
+  return shape
 }

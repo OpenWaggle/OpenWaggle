@@ -1,5 +1,5 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
-import type { SessionResource, SessionResourceOccurrence } from '@shared/types/session-resource'
+import type { SessionResource } from '@shared/types/session-resource'
 import * as Effect from 'effect/Effect'
 import { SessionResourceImageValidator } from '../ports/session-resource-image-validator'
 import type { SessionResourceRepositoryShape } from '../ports/session-resource-repository'
@@ -11,11 +11,11 @@ import {
   removeReplacedCopy,
 } from './session-resource-capture-shared'
 
-function resourceOccurrence(input: CaptureAttachmentInput, id: string): SessionResourceOccurrence {
+function resourceOccurrence(input: CaptureAttachmentInput, id: string) {
   return occurrence({
     id,
     nodeId: input.nodeId,
-    branchId: input.branchId,
+    ...(input.branchId === undefined ? {} : { branchId: input.branchId }),
     actor: 'user',
     activity: 'provided',
     locator: input.attachment.path,
@@ -37,6 +37,7 @@ export function repairManagedAttachment(
   store: SessionResourceStoreShape,
 ) {
   return Effect.gen(function* () {
+    const sha256 = input.attachment.contentSha256 ?? expectedSha256(resource)
     const stored = yield* store
       .storeFile({
         sessionId: input.sessionId,
@@ -44,7 +45,7 @@ export function repairManagedAttachment(
         fileName: input.attachment.name,
         sourcePath: input.attachment.path,
         expectedSizeBytes: input.attachment.sizeBytes,
-        expectedSha256: input.attachment.contentSha256 ?? expectedSha256(resource),
+        ...(sha256 === undefined ? {} : { expectedSha256: sha256 }),
         maxSizeBytes: ATTACHMENT.MAX_SIZE_BYTES,
       })
       .pipe(Effect.option)

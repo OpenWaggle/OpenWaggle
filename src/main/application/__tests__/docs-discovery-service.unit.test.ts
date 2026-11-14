@@ -89,8 +89,8 @@ async function makeExtensionPackage() {
   } satisfies DiscoveredExtensionPackage
 }
 
-function makeLifecycle(extensionPackage: DiscoveredExtensionPackage): ExtensionLifecycleState {
-  return {
+function makeLifecycle(extensionPackage: DiscoveredExtensionPackage) {
+  const state: ExtensionLifecycleState = {
     extensionId: extensionPackage.id,
     scope: extensionPackage.scope,
     enabled: false,
@@ -109,6 +109,7 @@ function makeLifecycle(extensionPackage: DiscoveredExtensionPackage): ExtensionL
     installedAt: NOW,
     updatedAt: NOW,
   }
+  return state
 }
 
 function makeLayer(extensionPackage: DiscoveredExtensionPackage) {

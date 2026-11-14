@@ -67,7 +67,7 @@ export const runServiceSessionTree: SessionContentTree = {
   uiState: null,
 }
 
-export function runServiceKernelResult(model: SupportedModelId): AgentKernelRunResult {
+export function runServiceKernelResult(model: SupportedModelId) {
   return {
     newMessages: [
       {
@@ -84,7 +84,7 @@ export function runServiceKernelResult(model: SupportedModelId): AgentKernelRunR
       activeNodeId: 'assistant-1',
       nodes: [projectedAssistantNode('assistant-1', 3)],
     },
-  }
+  } satisfies AgentKernelRunResult
 }
 
 export const runServiceRecoveredSnapshot: AgentKernelSessionSnapshotResult = {
@@ -96,7 +96,7 @@ export const runServiceRecoveredSnapshot: AgentKernelSessionSnapshotResult = {
   },
 }
 
-function projectedAssistantNode(id: string, timestampMs: number): ProjectedSessionNodeInput {
+function projectedAssistantNode(id: string, timestampMs: number) {
   return {
     id,
     parentId: null,
@@ -108,5 +108,5 @@ function projectedAssistantNode(id: string, timestampMs: number): ProjectedSessi
     metadataJson: '{}',
     pathDepth: 0,
     createdOrder: 0,
-  }
+  } satisfies ProjectedSessionNodeInput
 }

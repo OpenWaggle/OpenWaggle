@@ -15,7 +15,7 @@ export interface PersistedRunResourceNodes {
 export function mapPersistedRunResourceNodes(
   existingTree: SessionContentTree | null,
   persistedTree: SessionContentTree | null,
-): PersistedRunResourceNodes {
+) {
   const existingNodeIds = new Set((existingTree?.nodes ?? []).map((node) => String(node.id)))
   const resourceNodes = (persistedTree?.nodes ?? [])
     .filter((node) => !existingNodeIds.has(String(node.id)) && node.message !== undefined)

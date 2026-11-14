@@ -58,7 +58,7 @@ export function providerForRepository(
   repository: SourceControlRepositoryIdentity,
   access: SourceControlSettingsAccess,
   preferredLogin: string | null,
-): SourceControlProvider | null {
+) {
   const key = sourceControlRepositoryKey(repository)
   return getSourceControlProvider(repository.provider, repository, {
     accountPreference: {
@@ -76,7 +76,7 @@ export function providerForRepository(
 export async function rememberingProviderForRepository(
   repository: SourceControlRepositoryIdentity,
   access: SourceControlSettingsAccess,
-): Promise<SourceControlProvider | null> {
+) {
   const settings = await access.read()
   const preferred = settings.sourceControlRepositoryAccounts[sourceControlRepositoryKey(repository)]
   return providerForRepository(repository, access, preferred ?? null)
@@ -91,7 +91,7 @@ export async function openWorkingTreeSourceControl(
   workingPath: string,
   access: SourceControlSettingsAccess,
   options: OpenSourceControlOptions = {},
-): Promise<WorkingTreeSourceControlResult> {
+) {
   const deps = options.deps ?? createLiveSourceControlResolutionDeps(resolutionPreferences(access))
   const resolution = await resolveSourceControlRemote(
     {
@@ -104,10 +104,16 @@ export async function openWorkingTreeSourceControl(
     },
     deps,
   )
-  if (resolution.kind !== 'resolved') return { resolution, sourceControl: null }
+  if (resolution.kind !== 'resolved') {
+    const result: WorkingTreeSourceControlResult = { resolution, sourceControl: null }
+    return result
+  }
   const provider = await rememberingProviderForRepository(resolution.repository, access)
-  if (!provider) return { resolution, sourceControl: null }
-  return {
+  if (!provider) {
+    const result: WorkingTreeSourceControlResult = { resolution, sourceControl: null }
+    return result
+  }
+  const result: WorkingTreeSourceControlResult = {
     resolution,
     sourceControl: {
       remote: resolution.remote,
@@ -118,6 +124,7 @@ export async function openWorkingTreeSourceControl(
       webUrl: repositoryWebUrlFor(resolution.repository),
     },
   }
+  return result
 }
 
 /** A remote URL's repository, plus the server address it names, for push-target checks. */
@@ -135,7 +142,7 @@ export async function resolveRemoteUrlRepository(
   remoteUrl: string,
   deps: SourceControlRemoteResolutionDeps,
   projectPath: string | null,
-): Promise<RemoteUrlRepository | null> {
+) {
   const location = parseRemoteLocation(remoteUrl)
   if (!location) return null
   const resolution = await resolveSourceControlRemote(
@@ -165,11 +172,16 @@ export async function resolveLiveRemoteUrlRepository(
 export function attentionForFailure(
   failure: SourceControlFailure,
   info: SourceControlProviderInfo,
-): SourceControlAttention | null {
+) {
   if (failure.attention) return failure.attention
   const cli = sourceControlCliForProvider(info.id)
   if (failure.code === 'cli-missing') {
-    return { kind: 'cli-missing', provider: info.id, host: info.host, cli }
+    return {
+      kind: 'cli-missing',
+      provider: info.id,
+      host: info.host,
+      cli,
+    } satisfies SourceControlAttention
   }
   if (failure.code === 'not-authenticated') {
     const ignoredTokenVariables = ignoredSourceControlTokenVariables(info.id)
@@ -180,15 +192,12 @@ export function attentionForFailure(
       cli,
       environmentTokenIgnored: ignoredTokenVariables.length > 0,
       ignoredTokenVariables,
-    }
+    } satisfies SourceControlAttention
   }
   return null
 }
 
-export function withAttention(
-  failure: SourceControlFailure,
-  info: SourceControlProviderInfo,
-): SourceControlFailure {
+export function withAttention(failure: SourceControlFailure, info: SourceControlProviderInfo) {
   const attention = attentionForFailure(failure, info)
   return attention ? { ...failure, attention } : failure
 }

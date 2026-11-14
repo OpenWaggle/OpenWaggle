@@ -10,7 +10,7 @@ export interface ScrollPosition {
 export function isScrollContainerNearBottom(
   position: ScrollPosition,
   thresholdPx = DEFAULT_BOTTOM_THRESHOLD_PX,
-): boolean {
+) {
   const threshold = Number.isFinite(thresholdPx)
     ? Math.max(MIN_SCROLL_POSITION_PX, thresholdPx)
     : DEFAULT_BOTTOM_THRESHOLD_PX
@@ -21,11 +21,11 @@ export function isScrollContainerNearBottom(
   return scrollHeight - clientHeight - scrollTop <= threshold
 }
 
-export function getMaxScrollTop(el: HTMLElement): number {
+export function getMaxScrollTop(el: HTMLElement) {
   return Math.max(MIN_SCROLL_POSITION_PX, el.scrollHeight - el.clientHeight)
 }
 
-export function scrollElementToBottom(el: HTMLElement, behavior: ScrollBehavior): void {
+export function scrollElementToBottom(el: HTMLElement, behavior: ScrollBehavior) {
   if (typeof el.scrollTo === 'function') {
     el.scrollTo({ top: el.scrollHeight, behavior })
     return

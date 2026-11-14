@@ -8,7 +8,7 @@ import { executeSessionQuery, makeSessionQueryRuntime } from './sqlite-session-q
 
 describe('SQLite Delegation conflict query', () => {
   let root: string
-  const runtimes: Array<ReturnType<typeof makeSessionQueryRuntime>> = []
+  const runtimes: ReturnType<typeof makeSessionQueryRuntime>[] = []
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-conflict-query-'))

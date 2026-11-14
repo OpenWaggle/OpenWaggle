@@ -51,8 +51,8 @@ function searchPayload(projectPath?: string) {
   } as const
 }
 
-function emptySearchResponse(): SessionQueryResponse {
-  return {
+function emptySearchResponse() {
+  const response: SessionQueryResponse = {
     contractVersion: 2,
     requestId: 'workspace-search',
     outcome: {
@@ -63,6 +63,7 @@ function emptySearchResponse(): SessionQueryResponse {
       discoveryWindow: { size: 0, truncated: false, expiresAt: 1 },
     },
   }
+  return response
 }
 
 function testLayer(repository: SessionQueryRepositoryShape) {

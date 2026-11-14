@@ -41,7 +41,7 @@ export function setSkillEnabledOperation(
     }
     const settings = yield* settingsService.get()
     const nextSkillTogglesByProject = { ...settings.skillTogglesByProject }
-    const projectToggles = { ...(nextSkillTogglesByProject[projectPath] ?? {}) }
+    const projectToggles = { ...nextSkillTogglesByProject[projectPath] }
     projectToggles[skillId] = enabled
     nextSkillTogglesByProject[projectPath] = projectToggles
     yield* settingsService.update({ skillTogglesByProject: nextSkillTogglesByProject })

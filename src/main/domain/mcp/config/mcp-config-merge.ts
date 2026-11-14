@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 /**
  * Merges the MCP configuration file set of ADR 0051 into the server list Pi's MCP extension
  * receives.
@@ -32,8 +33,10 @@ export type McpConfigFileId = (typeof MCP_CONFIG_FILE_IDS)[number]
 
 export type McpConfigScope = 'global' | 'project'
 
-export function mcpConfigFileScope(fileId: McpConfigFileId): McpConfigScope {
-  return fileId === 'pi-global' || fileId === 'openwaggle-global' ? 'global' : 'project'
+export function mcpConfigFileScope(fileId: McpConfigFileId) {
+  const scope: McpConfigScope =
+    fileId === 'pi-global' || fileId === 'openwaggle-global' ? 'global' : 'project'
+  return scope
 }
 
 /** OpenWaggle's own files, the only ones that may hold vault secret references. */
@@ -105,6 +108,11 @@ interface MergeState {
   autoEnableCodemode?: boolean
 }
 
+/** The `enabled` member of a server entry layer, still unchecked. */
+function enabledField(entry: { readonly enabled?: unknown }) {
+  return entry.enabled
+}
+
 function applyOverride(
   state: MergeState,
   layer: McpConfigLayer,
@@ -150,7 +158,7 @@ function applyOverride(
   }
   const baseOn = base.offByOverride === true || base.config.enabled !== false
   const offByOverride =
-    'enabled' in value ? value.enabled === false && baseOn : base.offByOverride === true
+    'enabled' in value ? enabledField(value) === false && baseOn : base.offByOverride === true
   const { offByOverride: _previous, ...rest } = base
   state.servers.set(name, {
     ...rest,
@@ -194,6 +202,18 @@ function defineServer(state: MergeState, layer: McpConfigLayer, name: string, va
   })
 }
 
+/** The members of an MCP config file this reader looks at; each is checked where it is read. */
+const mcpConfigFileFieldsSchema = Schema.Struct({
+  mcpServers: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  autoEnableCodemode: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
+/** The file's members, or `undefined` when it is not an object with an `mcpServers` object. */
+function configFileFields(value: unknown) {
+  if (!isJsonRecord(value) || !Schema.is(mcpConfigFileFieldsSchema)(value)) return undefined
+  return value.mcpServers === undefined || isJsonRecord(value.mcpServers) ? value : undefined
+}
+
 function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
   const { content } = layer
   if (content.kind === 'missing') return
@@ -202,11 +222,8 @@ function readLayer(state: MergeState, layer: McpConfigLayer, isFirst: boolean) {
     state.errors.push(`${layer.path}: ${content.error}`)
     return
   }
-  const parsed = content.value
-  if (
-    !isJsonRecord(parsed) ||
-    (parsed.mcpServers !== undefined && !isJsonRecord(parsed.mcpServers))
-  ) {
+  const parsed = configFileFields(content.value)
+  if (!parsed) {
     state.unreadLayer = true
     state.errors.push(`${layer.path}: expected an object with an "mcpServers" object`)
     return
@@ -258,7 +275,7 @@ function classifyUnapplied(state: MergeState) {
 }
 
 /** Merge the file layers, given in precedence order from lowest to highest. */
-export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMergedConfig {
+export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]) {
   const state: MergeState = {
     servers: new Map(),
     errors: [],
@@ -272,7 +289,7 @@ export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMerg
     readLayer(state, layer, index === 0)
   })
   classifyUnapplied(state)
-  return {
+  const config: McpMergedConfig = {
     servers: [...state.servers.values()],
     errors: state.errors,
     ...(state.warnings.length > 0 ? { warnings: state.warnings } : {}),
@@ -283,4 +300,5 @@ export function mergeMcpConfigLayers(layers: readonly McpConfigLayer[]): McpMerg
     ...(state.unreadLayer ? { incomplete: true as const } : {}),
     ...(state.rejectedNames.size > 0 ? { rejectedNames: [...state.rejectedNames] } : {}),
   }
+  return config
 }

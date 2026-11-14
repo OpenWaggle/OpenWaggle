@@ -34,20 +34,18 @@ type InterruptibleRun = Extract<
   { readonly state: 'starting' | 'active' }
 >
 
-function interruptExpectedRun(
-  input: ApplyRunInterruptionInput,
-  run: InterruptibleRun,
-): ApplyRunInterruptionResult {
+function interruptExpectedRun(input: ApplyRunInterruptionInput, run: InterruptibleRun) {
   if (run.runId !== input.expectedRunId) {
-    return {
+    const result: ApplyRunInterruptionResult = {
       accepted: false,
       code: 'run_changed',
       currentRunId: run.runId,
       state: input.state,
     }
+    return result
   }
   const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
-  return {
+  const result: ApplyRunInterruptionResult = {
     accepted: true,
     state: {
       ...input.state,
@@ -62,10 +60,11 @@ function interruptExpectedRun(
       stateRevision: nextRevision,
     },
   }
+  return result
 }
 
-export function applyRunInterruption(input: ApplyRunInterruptionInput): ApplyRunInterruptionResult {
-  return matchBy(input.state.run, 'state')
+export function applyRunInterruption(input: ApplyRunInterruptionInput) {
+  const result: ApplyRunInterruptionResult = matchBy(input.state.run, 'state')
     .with('idle', () => ({ accepted: false, code: 'run_not_active', state: input.state }))
     .with('stopping', (run) => ({
       accepted: false,
@@ -76,12 +75,13 @@ export function applyRunInterruption(input: ApplyRunInterruptionInput): ApplyRun
     .with('starting', (run) => interruptExpectedRun(input, run))
     .with('active', (run) => interruptExpectedRun(input, run))
     .exhaustive()
+  return result
 }
 
 export function releaseRejectedRunInterruption(
   state: SessionControlSessionState,
   expectedRunId: RunId,
-): SessionControlSessionState {
+) {
   if (state.run.state !== 'stopping' || state.run.runId !== expectedRunId) return state
   // The Run was already gone, so its settlement (and any steers it returned) happened without a
   // successor. Its Follow-ups would otherwise wait in a running queue nothing schedules.

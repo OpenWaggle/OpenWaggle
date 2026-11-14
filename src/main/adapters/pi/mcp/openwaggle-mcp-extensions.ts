@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import { homedir } from 'node:os'
 import {
   createMcpExtension,
@@ -5,7 +6,6 @@ import {
   type InlineExtension,
   type McpServerEntry,
 } from '@earendil-works/pi-coding-agent'
-import { isRecord } from '@shared/utils/validation'
 import { mcpShellEnvironmentReady } from '../../../mcp-shell-environment'
 import { createMcpUpdateConfig } from '../../mcp/config/mcp-config-writer'
 import { loadMcpRuntimeConfig, type McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
@@ -42,6 +42,10 @@ import {
 } from './openwaggle-mcp-migration'
 import { openWaggleMcpTransport } from './openwaggle-mcp-transport'
 import { withShellResolvedClientSecrets } from './pi-mcp-server-oauth'
+import { mcpToolCallResultFields } from './mcp-tool-list-schema'
+
+/** The `details` Pi's MCP extension gives a tool result: the server and tool it called. */
+const isMcpToolDetails = Schema.is(Schema.Struct({ server: Schema.String, tool: Schema.String }))
 
 export { openWaggleMcpTransport }
 
@@ -86,13 +90,7 @@ function withMcpApp(
   },
 ) {
   const details = event.details
-  if (
-    !isRecord(details) ||
-    typeof details.server !== 'string' ||
-    typeof details.tool !== 'string'
-  ) {
-    return undefined
-  }
+  if (!isMcpToolDetails(details)) return undefined
   const server = config.loaded.servers.find((entry) => entry.name === details.server)
   if (!server) return undefined
   const descriptor = mcpAppDescriptor({
@@ -103,7 +101,7 @@ function withMcpApp(
     piToolName: event.toolName,
   })
   if (!descriptor) return undefined
-  const result = isRecord(event.structuredContent) ? event.structuredContent : {}
+  const result = mcpToolCallResultFields(event.structuredContent)
   return {
     details: {
       ...details,
@@ -160,11 +158,9 @@ function companionExtension(
  * for a Run loads these. Like codemode and tool search (`pi-built-in-extensions.ts`), MCP is the
  * `builtin:mcp` extension, so Pi's `-builtin:mcp` in the `extensions` setting turns it off.
  */
-export async function createOpenWaggleMcpExtensions(
-  input: OpenWaggleMcpSessionInput,
-): Promise<readonly InlineExtension[]> {
+export async function createOpenWaggleMcpExtensions(input: OpenWaggleMcpSessionInput) {
   // MCP off means no MCP runtime, so servers Pi extensions register do not connect either.
-  if (input.sessionMcpEnabled === false) return []
+  if (input.sessionMcpEnabled === false) return [] satisfies readonly InlineExtension[]
   await migrateOpenWaggleMcpFilesOnce(input.projectPath)
   const config = await loadMcpRuntimeConfig({
     roots: { homeDir: homedir(), piAgentDir: getPiAgentDir(), projectPath: input.projectPath },
@@ -242,5 +238,5 @@ export async function createOpenWaggleMcpExtensions(
   return [
     { name: 'mcp', factory: mcp, replaceable: true, builtin: true },
     companionExtension(input, config, extensionServers),
-  ]
+  ] satisfies readonly InlineExtension[]
 }

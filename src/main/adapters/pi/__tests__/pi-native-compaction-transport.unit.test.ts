@@ -16,7 +16,7 @@ describe('Pi Responses native compaction transport', () => {
 
   it('uses the public compact endpoint and returns its canonical replacement items', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      expect(JSON.parse(String(init?.body))).toMatchObject({
+      expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toMatchObject({
         model: 'native-model',
         instructions: 'System instructions',
         input: [
@@ -177,7 +177,7 @@ describe('Pi Responses native compaction transport', () => {
 
   it('includes manual compaction instructions in the Native request', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      expect(JSON.parse(String(init?.body))).toMatchObject({
+      expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toMatchObject({
         instructions: expect.stringContaining('Preserve schema decisions'),
       })
       return makeCompactResponse([

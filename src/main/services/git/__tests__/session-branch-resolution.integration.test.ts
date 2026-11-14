@@ -13,12 +13,12 @@ let repositoryPath: string | null = null
 /** A session id long enough that its legacy 8-character branch name differs from the full one. */
 const SESSION_ID = '01a014fc-7ee0-71da-bfa9-95f630d6fa24'
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFileAsync('git', [...args], { cwd })
   return stdout
 }
 
-async function createRepository(): Promise<string> {
+async function createRepository() {
   const repository = await mkdtemp(path.join(tmpdir(), 'openwaggle-session-branch-'))
   repositoryPath = repository
   await git(repository, ['init', '--initial-branch=main'])

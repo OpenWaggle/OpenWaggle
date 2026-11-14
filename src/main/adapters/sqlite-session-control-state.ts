@@ -1,23 +1,16 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
-import { MAX_NODE_TIMER_DELAY_MS } from '@shared/constants/time'
-import { decodeUnknownExactOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
-import { inlineVisualizationContextSchema } from '@shared/schemas/validation'
-import { toWaggleInvocation, waggleInvocationSchema } from '@shared/schemas/waggle'
-import { AGENT_AUTHORIZATION_MODES } from '@shared/types/agent-authorization'
 import { FollowUpId, RunId, SessionId } from '@shared/types/brand'
 import { isFollowUpQueuePauseReason } from '@shared/types/session-control-queue'
-import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import type {
   SessionControlFollowUp,
-  SessionControlIntentSnapshot,
-  SessionControlRunIntent,
   SessionControlRunState,
   SessionControlSessionState,
 } from '../domain/session-control/message-aggregate'
 import { SessionControlRepositoryError } from '../errors'
 import { monotonicNowMs } from '../utils/monotonic-clock'
 import { persistFollowUpEditHolds, withFollowUpEditLeaseState } from './sqlite-follow-up-edit-holds'
+import { decodeFollowUpIntent, decodeRunIntent } from './sqlite-session-control-intent'
 import { persistRun } from './sqlite-session-control-run-row'
 import { persistRunStartThinkingLevel } from './sqlite-session-run-start-settings'
 
@@ -48,57 +41,11 @@ interface SessionFollowUpRow {
   readonly intent_json: string
 }
 
-const followUpIntentFields = {
-  text: Schema.String,
-  attachmentIds: Schema.Array(Schema.String),
-  waggle: Schema.optional(waggleInvocationSchema),
-  visualizationContext: Schema.optional(inlineVisualizationContextSchema),
-  interactionTimeoutMs: Schema.optional(
-    Schema.Number.pipe(Schema.int(), Schema.between(0, MAX_NODE_TIMER_DELAY_MS)),
-  ),
-  callerId: Schema.String,
-  acceptedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
-  idempotencyKey: Schema.String,
-  returnedSteer: Schema.optional(Schema.Struct({ runId: Schema.String })),
-}
-
-/**
- * A starting Run's intent: its Follow-up intent snapshot plus what only a Run started on an idle
- * Session has: its settings (`thinkingLevel`, `runAuthorizationOverride`) and the Host's `hiveWake`.
- * A stored Follow-up decodes with the same schema; `decodeFollowUpIntent` drops those three.
- * `authorCallerId` is kept: who queued a Follow-up the desktop user adopted (`queue-adopt`).
- */
-const storedIntentSchema = Schema.Struct({
-  ...followUpIntentFields,
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  runAuthorizationOverride: Schema.optional(Schema.Literal(...AGENT_AUTHORIZATION_MODES)),
-  authorCallerId: Schema.optional(Schema.String),
-  hiveWake: Schema.optional(Schema.Literal(true)),
-})
-
 function repositoryError(operation: string, cause: unknown) {
   return new SessionControlRepositoryError({ operation, cause })
 }
 
-function decodeRunIntent(raw: string): SessionControlRunIntent {
-  const { waggle, ...intent } = decodeUnknownExactOrThrow(storedIntentSchema, parseJsonUnknown(raw))
-  return {
-    ...intent,
-    ...(waggle ? { waggle: toWaggleInvocation(waggle) } : {}),
-  }
-}
-
-function decodeFollowUpIntent(raw: string): SessionControlIntentSnapshot {
-  const {
-    thinkingLevel: _thinkingLevel,
-    runAuthorizationOverride: _runAuthorizationOverride,
-    hiveWake: _hiveWake,
-    ...intent
-  } = decodeRunIntent(raw)
-  return intent
-}
-
-function decodeQueueState(raw: string): 'running' | 'paused' {
+function decodeQueueState(raw: string) {
   if (raw === 'running' || raw === 'paused') return raw
   throw new Error(`Invalid Follow-up queue state: ${raw}`)
 }
@@ -109,40 +56,50 @@ function decodePauseReason(state: 'running' | 'paused', raw: string | null) {
   throw new Error(`Invalid Follow-up queue pause reason: ${raw}`)
 }
 
-function decodeRun(row: SessionRunRow | undefined): SessionControlRunState {
-  if (!row) return { state: 'idle' }
+function decodeRun(row: SessionRunRow | undefined) {
+  if (!row) return { state: 'idle' } satisfies SessionControlRunState
   if (row.status === 'starting') {
     if (row.intent_json === null) throw new Error(`Starting Run ${row.id} has no intent snapshot.`)
-    return { state: 'starting', runId: RunId(row.id), intent: decodeRunIntent(row.intent_json) }
+    return {
+      state: 'starting',
+      runId: RunId(row.id),
+      intent: decodeRunIntent(row.intent_json),
+    } satisfies SessionControlRunState
   }
-  if (row.status === 'active') return { state: 'active', runId: RunId(row.id) }
-  if (row.status === 'stopping') return { state: 'stopping', runId: RunId(row.id) }
+  if (row.status === 'active') {
+    return { state: 'active', runId: RunId(row.id) } satisfies SessionControlRunState
+  }
+  if (row.status === 'stopping') {
+    return { state: 'stopping', runId: RunId(row.id) } satisfies SessionControlRunState
+  }
   throw new Error(`Invalid active Run status: ${row.status}`)
 }
 
-function decodeFollowUp(row: SessionFollowUpRow): SessionControlFollowUp {
+function decodeFollowUp(row: SessionFollowUpRow) {
   // A Follow-up blocked on an authorization override it no longer carries is simply pending.
   if (
     (row.delivery_state === 'pending' && row.attention_reason === null) ||
     (row.delivery_state === 'needs_attention' &&
       row.attention_reason === LEGACY_AUTHORIZATION_BLOCK_REASON)
   ) {
-    return {
+    const result: SessionControlFollowUp = {
       id: FollowUpId(row.id),
       deliveryState: 'pending',
       intent: decodeFollowUpIntent(row.intent_json),
     }
+    return result
   }
   if (
     row.delivery_state === 'needs_attention' &&
     (row.attention_reason === 'profile_revoked' || row.attention_reason === 'authority_changed')
   ) {
-    return {
+    const result: SessionControlFollowUp = {
       id: FollowUpId(row.id),
       deliveryState: 'needs_attention',
       attentionReason: row.attention_reason,
       intent: decodeFollowUpIntent(row.intent_json),
     }
+    return result
   }
   throw new Error(
     `Invalid Follow-up delivery state: ${row.delivery_state}/${row.attention_reason ?? 'none'}`,
@@ -178,9 +135,9 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
     `
 
     const state = yield* Effect.try({
-      try: (): SessionControlSessionState => {
+      try: () => {
         const queueState = decodeQueueState(stateRow.queue_state)
-        return {
+        const result: SessionControlSessionState = {
           sessionId: SessionId(stateRow.session_id),
           revision: stateRow.state_revision,
           run: decodeRun(runRows[0]),
@@ -191,6 +148,7 @@ export function loadSessionControlState(sql: SqlClient.SqlClient, sessionId: str
             items: followUpRows.map(decodeFollowUp),
           },
         }
+        return result
       },
       catch: (cause) => repositoryError('decode-session-state', cause),
     })

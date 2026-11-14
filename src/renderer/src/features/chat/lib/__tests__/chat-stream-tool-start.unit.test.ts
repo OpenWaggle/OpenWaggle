@@ -15,14 +15,14 @@ function toolEvent(
     AgentTransportEvent,
     { type: 'message_update' }
   >['assistantMessageEvent'],
-): AgentTransportEvent {
+) {
   return {
     type: 'message_update',
     messageId: 'assistant-1',
     role: 'assistant',
     assistantMessageEvent,
     timestamp: 2,
-  }
+  } satisfies AgentTransportEvent
 }
 
 const START: AgentTransportEvent = {

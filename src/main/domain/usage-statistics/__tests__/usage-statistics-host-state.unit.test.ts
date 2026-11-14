@@ -33,7 +33,7 @@ function state(
     readonly reporting?: Partial<UsageStatisticsHostState['reporting']>
     readonly days?: UsageStatisticsHostState['days']
   } = {},
-): UsageStatisticsHostState {
+) {
   return {
     ...INITIAL_USAGE_STATISTICS_HOST_STATE,
     install: { ...INITIAL_USAGE_STATISTICS_HOST_STATE.install, ...input.install },

@@ -283,12 +283,26 @@ export function ProjectActionConditionNodeEditor({
         condition={condition}
         depth={depth}
         onChange={onChange}
-        onRemove={onRemove}
+        {...(onRemove === undefined ? {} : { onRemove })}
       />
     )
   }
   if (node.type === 'not') {
-    return <NegatedGroupEditor node={node} depth={depth} onChange={onChange} onRemove={onRemove} />
+    return (
+      <NegatedGroupEditor
+        node={node}
+        depth={depth}
+        onChange={onChange}
+        {...(onRemove === undefined ? {} : { onRemove })}
+      />
+    )
   }
-  return <BooleanGroupEditor node={node} depth={depth} onChange={onChange} onRemove={onRemove} />
+  return (
+    <BooleanGroupEditor
+      node={node}
+      depth={depth}
+      onChange={onChange}
+      {...(onRemove === undefined ? {} : { onRemove })}
+    />
+  )
 }

@@ -4,9 +4,10 @@ import type {
   TerminalProcessExitObservation,
   TerminalResourceDrainObservation,
 } from './terminal-records'
+import { terminalBackendProcess } from './terminal-pty-backend-fields'
 
 /** Install once, immediately after spawn, so even a pre-attach exit is retained. */
-export function observeTerminalProcessExit(pty: IPty): TerminalProcessExitObservation {
+export function observeTerminalProcessExit(pty: IPty) {
   let resolveExit: () => void = () => undefined
   let disposed = false
   const notifyExit = (exitCode: unknown) => {
@@ -36,8 +37,8 @@ export function observeTerminalProcessExit(pty: IPty): TerminalProcessExitObserv
   return observation
 }
 
-function observeNativeProcessTreeExit(pty: IPty): TerminalProcessExitObservation | null {
-  const event: unknown = Reflect.get(pty, 'onProcessTreeExit')
+function observeNativeProcessTreeExit(pty: IPty) {
+  const event: unknown = terminalBackendProcess(pty).onProcessTreeExit
   if (typeof event !== 'function') return null
 
   let resolveExit: () => void = () => undefined
@@ -65,11 +66,11 @@ function observeNativeProcessTreeExit(pty: IPty): TerminalProcessExitObservation
   if (
     candidate === null ||
     typeof candidate !== 'object' ||
-    typeof Reflect.get(candidate, 'dispose') !== 'function'
+    typeof ('dispose' in candidate ? candidate.dispose : undefined) !== 'function'
   ) {
     return null
   }
-  const dispose: unknown = Reflect.get(candidate, 'dispose')
+  const dispose: unknown = 'dispose' in candidate ? candidate.dispose : undefined
   if (typeof dispose !== 'function') return null
   subscription = {
     dispose: () => {
@@ -83,8 +84,8 @@ function observeResourceDrain(
   pty: IPty,
   exit: TerminalProcessExitObservation,
   requireNative: boolean,
-): TerminalResourceDrainObservation {
-  const waitForResourceDrain: unknown = Reflect.get(pty, 'waitForResourceDrain')
+) {
+  const waitForResourceDrain: unknown = terminalBackendProcess(pty).waitForResourceDrain
   let status: TerminalResourceDrainObservation['status'] = 'pending'
 
   let drain: Promise<boolean>
@@ -94,7 +95,7 @@ function observeResourceDrain(
       if (
         candidate === null ||
         (typeof candidate !== 'object' && typeof candidate !== 'function') ||
-        typeof Reflect.get(candidate, 'then') !== 'function'
+        typeof ('then' in candidate ? candidate.then : undefined) !== 'function'
       ) {
         throw new Error('The terminal backend returned an invalid resource-drain promise.')
       }
@@ -116,12 +117,13 @@ function observeResourceDrain(
     status = drained ? 'drained' : 'failed'
     return drained
   })
-  return {
+  const observation: TerminalResourceDrainObservation = {
     whenDrained,
     get status() {
       return status
     },
   }
+  return observation
 }
 
 /** Install every lifecycle latch immediately after spawn, before renderer attachment. */

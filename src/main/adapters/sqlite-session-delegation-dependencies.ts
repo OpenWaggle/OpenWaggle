@@ -2,13 +2,14 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { decodeUnknownExactOrThrow } from '@shared/schema'
 import { delegationSpecificationSchema } from '@shared/schemas/session-lifecycle'
 import type { SessionControlMutationOutcome } from '@shared/types/session-control'
-import type { DelegationSpecificationInput } from '@shared/types/session-lifecycle'
 import * as Effect from 'effect/Effect'
 import { enqueueDelegationSpecificationUpdate } from './sqlite-session-delegation-specification-update'
 import {
   type DelegationContractRow,
   type ExecuteDelegationInput,
   rejectedDelegationOutcome,
+  taskChangeMessageRefusal,
+  taskChangeRevisionRequest,
 } from './sqlite-session-delegation-support'
 
 interface DependencyRow {
@@ -16,7 +17,7 @@ interface DependencyRow {
   readonly required_state: 'ready_for_review' | 'accepted'
 }
 
-function parseSpecification(value: string): DelegationSpecificationInput | undefined {
+function parseSpecification(value: string) {
   try {
     return decodeUnknownExactOrThrow(delegationSpecificationSchema, JSON.parse(value))
   } catch {
@@ -123,6 +124,8 @@ export function updateDelegationDependency(
     ) {
       return rejectedDelegationOutcome(input, 'delegation_dependency_invalid')
     }
+    const messageRefusal = yield* taskChangeMessageRefusal(sql, input, contract)
+    if (messageRefusal) return messageRefusal
     const dependencies =
       command.action === 'add'
         ? [
@@ -196,6 +199,7 @@ export function updateDelegationDependency(
       specificationRevision,
       dependencyCount: dependencies.length,
       workerSessionId: contract.child_session_id,
+      ...taskChangeRevisionRequest(contract),
     } satisfies Extract<
       SessionControlMutationOutcome,
       { readonly effect: 'delegation-dependencies-updated' }

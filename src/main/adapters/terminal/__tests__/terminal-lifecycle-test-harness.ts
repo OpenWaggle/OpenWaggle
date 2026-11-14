@@ -7,8 +7,8 @@ interface ExitEvent {
 
 /** Independently controlled native lifecycle stages for ordering regressions. */
 export function makeTerminalLifecycleHarness() {
-  const exitListeners: Array<(event: ExitEvent) => void> = []
-  const treeExitListeners: Array<(event: ExitEvent) => void> = []
+  const exitListeners: ((event: ExitEvent) => void)[] = []
+  const treeExitListeners: ((event: ExitEvent) => void)[] = []
   const resourceDrain = Promise.withResolvers<void>()
   let resourceSettled = false
 
@@ -35,11 +35,13 @@ export function makeTerminalLifecycleHarness() {
   }
 
   const install = (pty: IPty) => {
-    Reflect.set(pty, 'onProcessTreeExit', (listener: (event: ExitEvent) => void) => {
-      treeExitListeners.push(listener)
-      return { dispose: () => undefined }
+    Object.assign(pty, {
+      onProcessTreeExit: (listener: (event: ExitEvent) => void) => {
+        treeExitListeners.push(listener)
+        return { dispose: () => undefined }
+      },
     })
-    Reflect.set(pty, 'waitForResourceDrain', () => resourceDrain.promise)
+    Object.assign(pty, { waitForResourceDrain: () => resourceDrain.promise })
     return observeTerminalProcessLifecycle(pty)
   }
 

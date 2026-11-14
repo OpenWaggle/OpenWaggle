@@ -36,7 +36,7 @@ export function pixelValue(value: number) {
   return `${String(value)}px`
 }
 
-export function sidebarWidthValue(width: number, mainMinWidth: number): string {
+export function sidebarWidthValue(width: number, mainMinWidth: number) {
   return `min(${pixelValue(width)}, max(${pixelValue(ZERO_WIDTH_PX)}, calc(100% - ${pixelValue(mainMinWidth)})))`
 }
 
@@ -45,14 +45,14 @@ export function sidebarShellStyle(
   width: number,
   mainMinWidth: number,
   maximized = false,
-): CSSProperties {
+) {
   return {
     width: open ? (maximized ? '100%' : sidebarWidthValue(width, mainMinWidth)) : ZERO_WIDTH_PX,
-  }
+  } satisfies CSSProperties
 }
 
-export function sidebarPanelStyle(): CSSProperties {
-  return { width: '100%' }
+export function sidebarPanelStyle() {
+  return { width: '100%' } satisfies CSSProperties
 }
 
 export function resizeRailRightValue(open: boolean, width: number, mainMinWidth: number) {
@@ -61,7 +61,7 @@ export function resizeRailRightValue(open: boolean, width: number, mainMinWidth:
     : pixelValue(ZERO_WIDTH_PX)
 }
 
-export function resizeRailStyle(open: boolean, width: number, mainMinWidth: number): CSSProperties {
+export function resizeRailStyle(open: boolean, width: number, mainMinWidth: number) {
   return { right: resizeRailRightValue(open, width, mainMinWidth) }
 }
 

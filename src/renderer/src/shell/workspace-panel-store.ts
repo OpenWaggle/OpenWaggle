@@ -23,12 +23,9 @@ import {
   type WorkspacePanelSet,
   type WorkspacePanelState,
 } from './workspace-panel-store-types'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
-export type {
-  BrowserPreviewTabState,
-  WorkspacePanelGroupState,
-  WorkspacePanelSurface,
-} from './workspace-panel-model'
+export type { BrowserPreviewTabState, WorkspacePanelSurface } from './workspace-panel-model'
 
 function removeStoredGroup(set: WorkspacePanelSet, get: WorkspacePanelGet, ownerKey: string) {
   const groups = { ...get().groups }
@@ -128,11 +125,8 @@ function removeGroup(set: WorkspacePanelSet, get: WorkspacePanelGet, ownerKey: s
   return previewIds
 }
 
-function createWorkspacePanelState(
-  set: WorkspacePanelSet,
-  get: WorkspacePanelGet,
-): WorkspacePanelState {
-  return {
+function createWorkspacePanelState(set: WorkspacePanelSet, get: WorkspacePanelGet) {
+  const state: WorkspacePanelState = {
     groups: {},
     newBrowser: (ownerKey, profileId) => newBrowser(set, get, ownerKey, profileId),
     openBrowser: (ownerKey, url, profileId) => openBrowser(set, get, ownerKey, url, profileId),
@@ -169,6 +163,7 @@ function createWorkspacePanelState(
     migrateGroup: (fromOwnerKey, toOwnerKey) => migrateGroup(set, get, fromOwnerKey, toOwnerKey),
     removeGroup: (ownerKey) => removeGroup(set, get, ownerKey),
   }
+  return state
 }
 
 export const useWorkspacePanelStore = create<WorkspacePanelState>()(
@@ -179,9 +174,7 @@ export const useWorkspacePanelStore = create<WorkspacePanelState>()(
     merge: (persisted, current) => ({
       ...current,
       groups: sanitizeWorkspacePanelGroups(
-        persisted !== null && typeof persisted === 'object'
-          ? Reflect.get(persisted, 'groups')
-          : undefined,
+        uncheckedFields<{ readonly groups: unknown }>(persisted).groups,
       ),
     }),
   }),

@@ -65,10 +65,7 @@ export function modelVendorLine(modelId: string) {
  * priced at zero (subscriptions, local servers) is already as cheap as it gets and is kept.
  * Non-reasoning models are preferred because thinking only adds latency to a six-word answer.
  */
-export function selectAutomaticTitleModel(
-  sessionModel: PiModel,
-  available: readonly PiModel[],
-): PiModel {
+export function selectAutomaticTitleModel(sessionModel: PiModel, available: readonly PiModel[]) {
   const sessionPrice = price(sessionModel)
   if (sessionPrice <= 0) return sessionModel
   const vendorLine = modelVendorLine(sessionModel.id)
@@ -245,8 +242,8 @@ export function createPiSessionTitleGenerator(deps: {
  */
 export function projectTitleModelRuntime(
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
-): TitleModelRuntime {
-  return async (projectPath) => {
+) {
+  return (async (projectPath) => {
     if (!projectPath) {
       registerPiBundledBedrockProvider()
       return { modelRuntime: await createPiModelRuntime(), release: () => undefined }
@@ -268,7 +265,7 @@ export function projectTitleModelRuntime(
       sessionManager: SessionManager.inMemory(projectPath),
     })
     return { modelRuntime: services.modelRuntime, release: () => session.dispose() }
-  }
+  }) satisfies TitleModelRuntime
 }
 
 export const PiSessionTitleGeneratorLive = Layer.effect(

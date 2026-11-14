@@ -57,11 +57,7 @@ function comparePinnedRows(sortMode: PinnedSortMode) {
  * archived session (pin kept, row hidden until unarchive) and a pin left behind by a
  * session that no longer exists, which must never render and never throw.
  */
-export function buildPinnedSessionRows({
-  pins,
-  sessions,
-  sortMode,
-}: BuildPinnedSessionRowsInput): readonly PinnedSessionRow[] {
+export function buildPinnedSessionRows({ pins, sessions, sortMode }: BuildPinnedSessionRowsInput) {
   const sessionsById = new Map(sessions.map((session) => [String(session.id), session]))
   const rows: UnpositionedPinnedRow[] = []
 

@@ -41,9 +41,9 @@ export function CommandPalette({
     slashSkills,
     onSelectSkill,
     onStartWaggle,
-    onOpenSessionTree,
-    onForkToNewSession,
-    onCloneToNewSession,
+    ...(onOpenSessionTree === undefined ? {} : { onOpenSessionTree }),
+    ...(onForkToNewSession === undefined ? {} : { onForkToNewSession }),
+    ...(onCloneToNewSession === undefined ? {} : { onCloneToNewSession }),
   })
   function dismiss() {
     setDismissedSlashToken(activeSlashCommand?.token ?? null)

@@ -91,22 +91,25 @@ describe('stream-buffer content blocks', () => {
   })
 
   it('restores a snapshot whose omissions were an earlier message as holding this one whole', () => {
-    const snapshot = (messageCutShort: boolean): BackgroundRunSnapshot => ({
-      activity: 'agent-run',
-      sessionId: SESSION_ID,
-      runId: 'run-1',
-      model: MODEL,
-      mode: 'classic',
-      startedAt: 1,
-      activityEvents: [],
-      messageId: 'a2',
-      parts: [{ type: 'text', text: 'Plan.', contentIndex: 0 }],
-      degraded: {
-        reason: 'content-limit',
-        omittedBytes: 10,
-        messageCutShort,
-      },
-    })
+    const snapshot = (messageCutShort: boolean) => {
+      const snapshot: BackgroundRunSnapshot = {
+        activity: 'agent-run',
+        sessionId: SESSION_ID,
+        runId: 'run-1',
+        model: MODEL,
+        mode: 'classic',
+        startedAt: 1,
+        activityEvents: [],
+        messageId: 'a2',
+        parts: [{ type: 'text', text: 'Plan.', contentIndex: 0 }],
+        degraded: {
+          reason: 'content-limit',
+          omittedBytes: 10,
+          messageCutShort,
+        },
+      }
+      return snapshot
+    }
     // The next message retains the restored one in the Run's history only when it was whole.
     for (const [cutShort, retained] of [
       [false, 1],

@@ -33,7 +33,7 @@ type StreamingContentSegment =
       readonly sourceOffset: number
     }
 
-function splitStreamingContent(text: string, isStreaming: boolean): StreamingContentSegment[] {
+function splitStreamingContent(text: string, isStreaming: boolean) {
   const visibleText = isStreaming ? withholdUnresolvedVisualizationSuffix(text) : text
   const segments: StreamingContentSegment[] = []
   let scanFrom = 0
@@ -77,11 +77,13 @@ function splitStreamingContent(text: string, isStreaming: boolean): StreamingCon
     })
   }
 
-  return segments.length > 0
-    ? segments
-    : visibleText.length > 0
-      ? [{ type: 'markdown', text: visibleText, sourceOffset: 0 }]
-      : []
+  const segment: StreamingContentSegment[] =
+    segments.length > 0
+      ? segments
+      : visibleText.length > 0
+        ? [{ type: 'markdown', text: visibleText, sourceOffset: 0 }]
+        : []
+  return segment
 }
 
 export function StreamingText({
@@ -116,7 +118,7 @@ export function StreamingText({
           text={segment.text}
           isStreaming={isStreaming}
           rehypePlugins={MARKDOWN_PLUGINS}
-          tailRehypePlugins={isStreaming ? TAIL_STREAMING_PLUGINS : undefined}
+          {...(isStreaming ? { tailRehypePlugins: TAIL_STREAMING_PLUGINS } : {})}
         />
       </div>
     )

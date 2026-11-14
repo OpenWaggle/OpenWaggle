@@ -34,7 +34,7 @@ function commandWorkingDirectory(options: unknown) {
   if (typeof options !== 'object' || options === null) {
     throw new Error('Expected Git execution options.')
   }
-  const cwd = Reflect.get(options, 'cwd')
+  const cwd = 'cwd' in options ? options.cwd : undefined
   if (typeof cwd !== 'string') throw new Error('Expected a Git working directory.')
   return cwd
 }

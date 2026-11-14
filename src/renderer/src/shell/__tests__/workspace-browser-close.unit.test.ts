@@ -12,7 +12,7 @@ vi.mock('@/shared/lib/ipc', () => ({ api: apiMocks }))
 function browserTab(
   id: string,
   controller: BrowserPreviewTabState['controller'] = { kind: 'human' },
-): BrowserPreviewTabState {
+) {
   return {
     id,
     ownerKey: 'session-1',
@@ -28,7 +28,7 @@ function browserTab(
     audible: false,
     favicon: null,
     controller,
-  }
+  } satisfies BrowserPreviewTabState
 }
 
 describe('browser tab close confirmation', () => {

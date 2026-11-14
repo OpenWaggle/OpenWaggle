@@ -71,7 +71,11 @@ export async function flush(store: KeyValueStore | undefined, options: FlushOpti
     headers: { Authorization: `Bearer ${SNAPSHOT_TOKEN}`, ...options.headers },
     ...(options.cursor === undefined ? {} : { body: JSON.stringify({ cursor: options.cursor }) }),
   })
-  const env = environment({ STATS_KV: store, STATS_SNAPSHOT_TOKEN: SNAPSHOT_TOKEN, ...options.env })
+  const env = environment({
+    ...(store === undefined ? {} : { STATS_KV: store }),
+    STATS_SNAPSHOT_TOKEN: SNAPSHOT_TOKEN,
+    ...options.env,
+  })
   const dependencies = { ...test.dependencies, randomUuid: uniqueUuid }
   const result = await handleFlushRequest(routeContext(request, env, dependencies))
   return { ...test, result, body: await result.response.json() }
@@ -81,11 +85,20 @@ export function bufferedKeys(store: MemoryKeyValueStore) {
   return [...store.entries.keys()].filter((key) => key.startsWith('buf:'))
 }
 
+/** The properties of an aggregated record the tests read: its breakdown row and its tallies. */
+export interface PublishedProperties {
+  readonly field?: unknown
+  readonly value?: unknown
+  readonly count?: unknown
+  readonly sum?: unknown
+  readonly kind?: unknown
+}
+
 export interface PublishedRecord {
   readonly event: string
   readonly uuid?: string
   readonly timestamp: string
-  readonly properties: Record<string, unknown>
+  readonly properties: PublishedProperties
 }
 
 /** The aggregated records of a flush's batch, without its own `endpoint.request` event. */

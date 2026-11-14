@@ -1,6 +1,6 @@
-import { isRecord } from '@shared/utils/validation'
 import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
 import { type RegistryInputResolution, resolveRegistryInput } from './registry-inputs'
+import type { RegistryInput, RegistryInputList } from './registry-server-schema'
 
 /** An `env` or `headers` value in an OpenWaggle MCP file: a literal or a vault reference. */
 export type RegistryEntryValue = string | { readonly secret: string }
@@ -9,19 +9,12 @@ const ENVIRONMENT_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 const INVALID_SECRET_CHARACTERS = /[^A-Za-z0-9._-]+/g
 
-export function stringValue(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value : undefined
+function secretReference(name: string) {
+  const value: RegistryEntryValue = {
+    secret: name.replace(INVALID_SECRET_CHARACTERS, '_').toUpperCase(),
+  }
+  return value
 }
-
-export function arrayValue(value: unknown): readonly unknown[] {
-  return Array.isArray(value) ? value.map((entry: unknown) => entry) : []
-}
-
-function secretReference(name: string): RegistryEntryValue {
-  return { secret: name.replace(INVALID_SECRET_CHARACTERS, '_').toUpperCase() }
-}
-
-type RegistryInput = Readonly<Record<string, unknown>>
 
 function isRequiredInput(candidate: RegistryInput, resolved: RegistryInputResolution) {
   return candidate.isRequired === true || (resolved.kind === 'unfilled' && resolved.required)
@@ -53,36 +46,40 @@ export function isOptionalRegistrySecret(
  * or default (with `{variables}` filled) is known; a vault reference for a required value it has
  * none for; left out otherwise, as is an optional secret.
  */
-function declaredValue(name: string, candidate: RegistryInput): RegistryEntryValue | undefined {
+function declaredValue(name: string, candidate: RegistryInput) {
   const resolved = resolveRegistryInput(candidate)
   if (isOptionalRegistrySecret(candidate, resolved)) return undefined
-  if (isSecretInput(candidate, resolved)) return secretReference(name)
-  if (resolved.kind === 'value') return piLiteral(resolved.value)
-  return isRequiredInput(candidate, resolved) ? secretReference(name) : undefined
+  if (isSecretInput(candidate, resolved)) {
+    const result: RegistryEntryValue | undefined = secretReference(name)
+    return result
+  }
+  if (resolved.kind === 'value') {
+    const result: RegistryEntryValue | undefined = piLiteral(resolved.value)
+    return result
+  }
+  const result: RegistryEntryValue | undefined = isRequiredInput(candidate, resolved)
+    ? secretReference(name)
+    : undefined
+  return result
 }
 
 /** The names of the optional secrets in Registry inputs, which an install leaves out. */
-export function optionalRegistrySecrets(...lists: unknown[]) {
+export function optionalRegistrySecrets(...lists: RegistryInputList[]) {
   return lists.flatMap((list) =>
-    arrayValue(list).flatMap((candidate) =>
-      isRecord(candidate) && isOptionalRegistrySecret(candidate)
-        ? [
-            stringValue(candidate.name) ??
-              stringValue(candidate.valueHint) ??
-              'a positional argument',
-          ]
+    list.flatMap((candidate) =>
+      isOptionalRegistrySecret(candidate)
+        ? [candidate.name ?? candidate.valueHint ?? 'a positional argument']
         : [],
     ),
   )
 }
 
 /** The environment variables or headers a Registry entry declares, as `declaredValue` makes them. */
-export function declaredRegistryValues(value: unknown, kind: 'env' | 'header') {
+export function declaredRegistryValues(list: RegistryInputList, kind: 'env' | 'header') {
   const pattern = kind === 'env' ? ENVIRONMENT_NAME : HEADER_NAME
   const result: Record<string, RegistryEntryValue> = {}
-  for (const candidate of arrayValue(value)) {
-    if (!isRecord(candidate)) continue
-    const name = stringValue(candidate.name)
+  for (const candidate of list) {
+    const { name } = candidate
     if (!name || !pattern.test(name)) continue
     const declared = declaredValue(name, candidate)
     if (declared !== undefined) result[name] = declared

@@ -33,32 +33,35 @@ vi.mock('@/features/workspace-files/hooks', () => ({
 
 // The real DiffBlock pulls in Pierre and the syntax runtime; a stub keeps the lazy
 // import instant and exposes the options the card passes.
-vi.mock('@/shared/ui/DiffBlock', () => ({
-  DiffBlock: ({
-    patch,
-    view,
-    wrap,
-    embedded,
-  }: {
-    readonly patch: string
-    readonly view: string
-    readonly wrap: boolean
-    readonly embedded?: boolean
-  }) => {
-    if (patch.includes(UNRENDERABLE_MARKER)) throw new Error('must contain exactly 1 file diff')
-    if (patch.includes(SUSPEND_MARKER) && !diffLoad.ready.done) throw diffLoad.promise
-    return (
-      <pre
-        data-testid="patch-diff"
-        data-view={view}
-        data-wrap={String(wrap)}
-        data-embedded={String(embedded)}
-      >
-        {patch}
-      </pre>
-    )
-  },
-}))
+vi.mock('@/shared/ui/DiffBlock', async () => {
+  const { use } = await import('react')
+  return {
+    DiffBlock: ({
+      patch,
+      view,
+      wrap,
+      embedded,
+    }: {
+      readonly patch: string
+      readonly view: string
+      readonly wrap: boolean
+      readonly embedded?: boolean
+    }) => {
+      if (patch.includes(UNRENDERABLE_MARKER)) throw new Error('must contain exactly 1 file diff')
+      if (patch.includes(SUSPEND_MARKER) && !diffLoad.ready.done) use(diffLoad.promise)
+      return (
+        <pre
+          data-testid="patch-diff"
+          data-view={view}
+          data-wrap={String(wrap)}
+          data-embedded={String(embedded)}
+        >
+          {patch}
+        </pre>
+      )
+    },
+  }
+})
 
 const WORKTREE = '/Users/me/.openwaggle/worktrees/app/abc'
 const PROJECT = '/Users/me/projects/app'
@@ -79,7 +82,7 @@ function editArgs(path: string) {
 
 const PI_EDIT_RESULT = 'Successfully replaced 1 block(s) in src/geo.ts.'
 
-function editResult(details: { readonly [key: string]: unknown }, text = PI_EDIT_RESULT) {
+function editResult(details: Readonly<Record<string, unknown>>, text = PI_EDIT_RESULT) {
   return {
     content: { content: [{ type: 'text', text }], details },
     state: 'complete',
@@ -91,11 +94,13 @@ function renderEdit({
   details = { patch: EDIT_PATCH, firstChangedLine: 11 },
   workingPath = WORKTREE,
   resultText = PI_EDIT_RESULT,
+  expand = true,
 }: {
   readonly path?: string
-  readonly details?: { readonly [key: string]: unknown }
+  readonly details?: Readonly<Record<string, unknown>>
   readonly workingPath?: string | null
   readonly resultText?: string
+  readonly expand?: boolean
 } = {}) {
   const args = editArgs(path)
   render(
@@ -112,7 +117,7 @@ function renderEdit({
       />
     </ChatDisplayPathProvider>,
   )
-  fireEvent.click(screen.getByRole('button', { name: /^Edited / }))
+  if (expand) fireEvent.click(screen.getByRole('button', { name: /^Edited / }))
   return { args }
 }
 
@@ -208,7 +213,11 @@ describe('ToolCallBlock edit diffs (ADR 0050)', () => {
   })
 
   it('announces a loading state until the diff renderer is ready', async () => {
-    renderEdit({ details: { patch: `${EDIT_PATCH}${SUSPEND_MARKER}` } })
+    renderEdit({ details: { patch: `${EDIT_PATCH}${SUSPEND_MARKER}` }, expand: false })
+    // The diff suspends on `use`, which React retries only from an awaited act.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Edited / }))
+    })
 
     expect(await screen.findByRole('status')).toHaveTextContent('Loading diff…')
     await act(async () => diffLoad.release())

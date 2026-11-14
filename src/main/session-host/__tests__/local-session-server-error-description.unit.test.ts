@@ -13,6 +13,14 @@ async function fiberFailure(error: unknown) {
 }
 
 describe('Local Session server error descriptions', () => {
+  // Regression for the no-base-to-string fix: a thrown function described itself by its source.
+  it('names a thrown function instead of printing its source', () => {
+    function rejectWithToken() {
+      return 'sk-secret'
+    }
+    expect(describeLocalSessionServerError(rejectWithToken)).toBe('rejectWithToken')
+  })
+
   it('keeps ordinary error messages', async () => {
     expect(describeLocalSessionServerError(new Error('Session not found.'))).toBe(
       'Session not found.',

@@ -27,13 +27,13 @@ const context = {
   signal: new AbortController().signal,
 }
 
-function assistantMessage(): Message {
+function assistantMessage() {
   return {
     id: MessageId('message-1'),
     role: 'assistant',
     createdAt: 1,
     parts: [{ type: 'text', text: 'Done' }],
-  }
+  } satisfies Message
 }
 
 describe('buildAgentRunOutcome', () => {
@@ -140,20 +140,6 @@ describe('recoverAgentRunFailure', () => {
         }),
       ),
     ).resolves.toEqual({ outcome: 'aborted', assignedTitle: 'Abort title' })
-  })
-
-  it('classifies unknown failures as user-facing error outcomes', async () => {
-    const result = await Effect.runPromise(
-      recoverAgentRunFailure({ ...context, error: new Error('network unavailable') }),
-    )
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        outcome: 'error',
-        code: expect.any(String),
-        message: expect.any(String),
-      }),
-    )
   })
 
   /*

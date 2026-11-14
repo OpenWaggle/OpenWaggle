@@ -3,11 +3,12 @@ import { mkdir, mkdtemp, open, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { decodeUnknownOrThrow, parseJsonUnknown, Schema } from '@shared/schema'
 import type { ActionInvocation } from '@shared/types/action-definitions'
+import { desktopShellEnvironmentReady } from '../../desktop-shell-environment-process'
 import {
   capturePreparedEnvironment,
   type PreparedEnvironment,
 } from '../../domain/prepared-environment'
-import { desktopShellEnvironmentReady, getInteractiveTerminalEnv } from '../../env'
+import { getInteractiveTerminalEnv } from '../../env'
 import type { ActionRunWorkspace } from '../../ports/action-run-service'
 import { type ActionProcessRunner, resolveActionShell } from './action-process'
 import { createPreparationLaunches } from './preparation-launch'
@@ -26,7 +27,7 @@ async function readCapturedEnvironment(
   path: string,
   format: 'json' | 'nul',
   verifiedPath?: string,
-): Promise<Readonly<Record<string, string>>> {
+) {
   if (verifiedPath) {
     try {
       const verification = await open(verifiedPath, constants.O_RDONLY | constants.O_NOFOLLOW)
@@ -44,20 +45,24 @@ async function readCapturedEnvironment(
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
   try {
     const identity = await handle.stat()
-    if (!identity.isFile() || identity.size > ENVIRONMENT_BYTES)
+    if (!identity.isFile() || identity.size > ENVIRONMENT_BYTES) {
       throw new Error('The setup environment export is invalid or too large.')
+    }
     const source = await handle.readFile('utf8')
-    if (!source)
+    if (!source) {
       throw new Error(
         'Setup completed without an environment export. Review its exit behavior and retry.',
       )
-    if (Buffer.byteLength(source) > ENVIRONMENT_BYTES)
+    }
+    if (Buffer.byteLength(source) > ENVIRONMENT_BYTES) {
       throw new Error('The setup environment export is too large.')
-    if (format === 'json')
+    }
+    if (format === 'json') {
       return decodeUnknownOrThrow(
         Schema.Record({ key: Schema.String, value: Schema.String }),
         parseJsonUnknown(source),
       )
+    }
     const environment: Record<string, string> = {}
     for (const entry of source.split('\0')) {
       const separator = entry.indexOf('=')
@@ -68,6 +73,12 @@ async function readCapturedEnvironment(
     await handle.close()
   }
 }
+
+/** `fields` with the caller's abort signal, when it has one. */
+function withAbortSignal<T extends object>(fields: T, signal: AbortSignal | undefined) {
+  return signal === undefined ? fields : { ...fields, signal }
+}
+
 export function createPreparationExecutor(
   runner: ActionProcessRunner,
   directory: string,
@@ -117,12 +128,9 @@ export function createPreparationExecutor(
       const invocation = capture?.invocation ?? resolved
       if (shuttingDown) throw new Error('The Session Host is stopping.')
       input.signal?.throwIfAborted()
-      const child = await launches.start({
-        invocation,
-        environment,
-        signal: input.signal,
-        onOutput: input.onOutput,
-      })
+      const child = await launches.start(
+        withAbortSignal({ invocation, environment, onOutput: input.onOutput }, input.signal),
+      )
       let exitCode: number | null
       const stop = () => {
         void ownership.stop(child)

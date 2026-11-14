@@ -51,10 +51,10 @@ export interface ResolvedBuildIdentity {
  * channel. Anything else is `dev`, so a local or worktree build can never
  * masquerade as a release.
  */
-export function resolveBuildChannel(env: NodeJS.ProcessEnv = process.env): BuildChannel {
+export function resolveBuildChannel(env: NodeJS.ProcessEnv = process.env) {
   const raw = env[RELEASE_CHANNEL_ENV]?.trim().toLowerCase()
   if (raw === 'stable' || raw === 'alpha' || raw === 'beta' || raw === 'rc') return raw
-  return 'dev'
+  return 'dev' as const
 }
 
 function sanitizeSlug(value: string) {
@@ -68,10 +68,7 @@ function sanitizeSlug(value: string) {
 }
 
 /** Dev provenance slug: explicit override, else the git branch, else `local`. */
-export function resolveDevSlug(
-  env: NodeJS.ProcessEnv = process.env,
-  cwd: string = process.cwd(),
-): string {
+export function resolveDevSlug(env: NodeJS.ProcessEnv = process.env, cwd: string = process.cwd()) {
   const explicit = env[DEV_SLUG_ENV]?.trim()
   if (explicit) return sanitizeSlug(explicit)
   try {
@@ -89,7 +86,7 @@ export function resolveDevSlug(
 export function resolveBuildIdentity(
   env: NodeJS.ProcessEnv = process.env,
   cwd: string = process.cwd(),
-): ResolvedBuildIdentity {
+) {
   const channel = resolveBuildChannel(env)
   if (channel === 'dev') {
     const slug = resolveDevSlug(env, cwd)
@@ -99,7 +96,7 @@ export function resolveBuildIdentity(
       productName: `OpenWaggle Dev (${slug})`,
       appId: `com.openwaggle.dev.${slug}`,
       isolateUserData: true,
-    }
+    } satisfies ResolvedBuildIdentity
   }
   return {
     channel,
@@ -107,7 +104,7 @@ export function resolveBuildIdentity(
     productName: RELEASE_DISPLAY_NAME[channel],
     appId: CANONICAL_APP_ID,
     isolateUserData: false,
-  }
+  } satisfies ResolvedBuildIdentity
 }
 
 /**
@@ -116,7 +113,7 @@ export function resolveBuildIdentity(
  * wears a labelled ribbon so builds are distinguishable at a glance. POSIX
  * separators: this value is an electron-builder config path.
  */
-export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: string): string {
+export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: string) {
   const file = channel === 'stable' ? 'icon.png' : `icon-${channel}.png`
   return path.posix.join(buildResourcesDir, file)
 }
@@ -126,7 +123,7 @@ export function resolveIconBasePath(channel: BuildChannel, buildResourcesDir: st
  * a fixed rounded-square grid, so its icons are generated separately from the free-form Windows and
  * Linux icons (scripts/generate-macos-icons.ts). POSIX separators, as above.
  */
-export function resolveMacIconPath(channel: BuildChannel, buildResourcesDir: string): string {
+export function resolveMacIconPath(channel: BuildChannel, buildResourcesDir: string) {
   const file = channel === 'stable' ? 'icon.icns' : `icon-${channel}.icns`
   return path.posix.join(buildResourcesDir, file)
 }

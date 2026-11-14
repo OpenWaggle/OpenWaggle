@@ -49,10 +49,7 @@ export function agentIdentityTitle(agent: HiveAgentPresentation) {
 }
 
 /** How many of the Hive's loaded Sessions run each Agent definition, most used first. */
-export function hiveAgentCounts(
-  root: HiveSession | null,
-  members: readonly HiveSession[],
-): readonly HiveAgentCount[] {
+export function hiveAgentCounts(root: HiveSession | null, members: readonly HiveSession[]) {
   const counts = new Map<string, number>()
   for (const session of [...(root ? [root] : []), ...members]) {
     const name = session.lineage?.agentDefinitionName

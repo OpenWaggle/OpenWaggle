@@ -13,7 +13,7 @@ const PI_CODING_AGENT_PACKAGE = '@earendil-works/pi-coding-agent'
  * package.json instead. Pi's package exports neither `package.json` nor a CommonJS entry, so the
  * search paths are probed directly.
  */
-export function findPiCodingAgentPackageDirectory(fromFile: string): string | undefined {
+export function findPiCodingAgentPackageDirectory(fromFile: string) {
   const searchPaths = createRequire(fromFile).resolve.paths(PI_CODING_AGENT_PACKAGE) ?? []
   for (const searchPath of searchPaths) {
     const packageDirectory = join(searchPath, PI_CODING_AGENT_PACKAGE)

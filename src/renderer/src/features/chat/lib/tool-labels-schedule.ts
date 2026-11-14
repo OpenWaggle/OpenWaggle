@@ -29,13 +29,13 @@ function requested(running: string) {
  * "Created scheduled task · Morning triage": the task an action acts on, by the name its result,
  * the task list or its arguments give, and a bare "scheduled task" while none does.
  */
-export function scheduleLabel(action: SessionsToolScheduleAction, name: string | null): ToolLabel {
+export function scheduleLabel(action: SessionsToolScheduleAction, name: string | null) {
   if (action === 'schedule_list') {
     return {
       running: 'Listing scheduled tasks...',
       done: 'Listed scheduled tasks',
       requested: requested('Listing scheduled tasks'),
-    }
+    } satisfies ToolLabel
   }
   const verbs = SCHEDULE_VERBS[action]
   const phrase = name ? `${TASK_NOUN} · ${name}` : TASK_NOUN
@@ -44,5 +44,5 @@ export function scheduleLabel(action: SessionsToolScheduleAction, name: string |
     running: `${running}...`,
     done: `${verbs.done} ${phrase}`,
     requested: requested(running),
-  }
+  } satisfies ToolLabel
 }

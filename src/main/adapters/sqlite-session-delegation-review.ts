@@ -6,6 +6,7 @@ import {
   type ExecuteDelegationInput,
   rejectedDelegationOutcome,
   updatedDelegationOutcome,
+  workerMessageRefusal,
 } from './sqlite-session-delegation-support'
 
 function dependenciesSatisfied(sql: SqlClient.SqlClient, delegationId: string) {
@@ -22,6 +23,22 @@ function dependenciesSatisfied(sql: SqlClient.SqlClient, delegationId: string) {
         )
     ) AS blocked
   `.pipe(Effect.map((rows) => rows[0]?.blocked !== 1))
+}
+
+/** An accept waits for its dependencies; a revision request needs a reviewer who may message. */
+function operationRefusal(
+  sql: SqlClient.SqlClient,
+  input: ExecuteDelegationInput,
+  contract: DelegationContractRow,
+) {
+  return Effect.gen(function* () {
+    if (input.request.command.operation === 'delegation-request-revision') {
+      return yield* workerMessageRefusal(sql, input, contract)
+    }
+    return (yield* dependenciesSatisfied(sql, contract.id))
+      ? undefined
+      : rejectedDelegationOutcome(input, 'delegation_dependencies_unmet')
+  })
 }
 
 export function reviewDelegation(
@@ -46,12 +63,8 @@ export function reviewDelegation(
     if (command.submissionRevision !== contract.latest_submission_revision) {
       return rejectedDelegationOutcome(input, 'submission_revision_stale')
     }
-    if (
-      command.operation === 'delegation-accept' &&
-      !(yield* dependenciesSatisfied(sql, contract.id))
-    ) {
-      return rejectedDelegationOutcome(input, 'delegation_dependencies_unmet')
-    }
+    const refusal = yield* operationRefusal(sql, input, contract)
+    if (refusal) return refusal
     let specificationRevision = contract.current_specification_revision
     if (command.operation === 'delegation-request-revision' && command.revisedSpecification) {
       const dependencyRows = yield* sql<{

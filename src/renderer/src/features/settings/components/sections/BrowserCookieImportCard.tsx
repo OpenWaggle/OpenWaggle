@@ -98,20 +98,22 @@ function useBrowserCookieImportModel(profiles: readonly BrowserProfile[]) {
   async function importCookies(input: {
     readonly sourceProfileDirectory: string
     readonly target: BrowserImportTarget
-  }): Promise<GuidedBrowserImportResult> {
+  }) {
     if (!activeSource) {
-      return {
+      const result: GuidedBrowserImportResult = {
         ok: false,
         reason: 'unknown-source',
         message: BROWSER_IMPORT_FAILURE_COPY['unknown-source'],
       }
+      return result
     }
     if (importInFlight.current) {
-      return {
+      const result: GuidedBrowserImportResult = {
         ok: false,
         reason: 'read-failed',
         message: BROWSER_IMPORT_FAILURE_COPY['read-failed'],
       }
+      return result
     }
     importInFlight.current = true
     try {

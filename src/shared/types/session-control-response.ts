@@ -1,12 +1,4 @@
-import type {
-  SESSION_CONTROL_CONTRACT_VERSION,
-  SessionControlMutationOutcome,
-} from './session-control'
+import type { SchemaType } from '@shared/schema'
+import type { sessionControlMutationResponseSchema } from '@shared/schemas/session-control'
 
-export interface SessionControlMutationResponse {
-  readonly contractVersion: typeof SESSION_CONTROL_CONTRACT_VERSION
-  readonly requestId: string
-  readonly idempotencyKey: string
-  readonly replayed: boolean
-  readonly outcome: SessionControlMutationOutcome
-}
+export type SessionControlMutationResponse = SchemaType<typeof sessionControlMutationResponseSchema>

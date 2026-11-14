@@ -133,7 +133,7 @@ describe('inline visualization host runtime restored state', () => {
     expect(openai.visualizationState).toEqual({ selected: 'B' })
     expect(restoredStateMetadata.remove).toHaveBeenCalledOnce()
     const copy = openai.visualizationState
-    if (typeof copy === 'object' && copy !== null) Reflect.set(copy, 'selected', 'tampered')
+    if (typeof copy === 'object' && copy !== null) Object.assign(copy, { selected: 'tampered' })
     expect(openai.visualizationState).toEqual({ selected: 'B' })
 
     // Fragment values come from the frame's own realm.

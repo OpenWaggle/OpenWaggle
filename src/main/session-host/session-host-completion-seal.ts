@@ -1,4 +1,4 @@
-import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { decodeUnknownExactOrThrow, decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { migrationIdentitySchema } from '@shared/schemas/migration-ledger'
 import {
   planSessionHostLedgerUpgrade,
@@ -14,40 +14,58 @@ import {
   SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID,
 } from '../services/session-host-schema-identity'
 import type { HostSqliteDatabase } from './host-sqlite-database'
-import { queryCutoverRecord } from './session-host-cutover-database'
+import { queryCutoverRow } from './session-host-cutover-database'
 
-function nonNegativeInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+const nonNegativeIntegerSchema = Schema.Number.pipe(Schema.int(), Schema.nonNegative())
+
+/** A cutover's source counts, with exactly these keys. */
+const cutoverHighWatermarkSchema = Schema.Struct({
+  sessions: nonNegativeIntegerSchema,
+  nodes: nonNegativeIntegerSchema,
+  sourceSchemaRevision: nonNegativeIntegerSchema,
+})
+
+/** A fresh install's high-water mark: `{}`. An empty Struct schema would accept any object. */
+function isEmptyObject(value: unknown) {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  )
 }
 
-function positiveInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
-}
-
-function parseHighWatermark(value: unknown) {
-  if (typeof value !== 'string') return undefined
+function decodesExactly(schema: Schema.Schema.AnyNoContext, value: unknown) {
   try {
-    const parsed: unknown = JSON.parse(value)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? Object.fromEntries(Object.entries(parsed))
-      : undefined
+    decodeUnknownExactOrThrow(schema, value)
+    return true
   } catch {
-    return undefined
+    return false
   }
 }
 
-function validHighWatermark(revision: unknown, value: unknown) {
-  const highWatermark = parseHighWatermark(value)
-  if (!highWatermark) return false
-  if (revision === SESSION_HOST_FRESH_REVISION) return Object.keys(highWatermark).length === 0
-  if (revision !== SESSION_HOST_CUTOVER_REVISION) return false
-  return (
-    Object.keys(highWatermark).sort().join(',') === 'nodes,sessions,sourceSchemaRevision' &&
-    nonNegativeInteger(highWatermark.sessions) &&
-    nonNegativeInteger(highWatermark.nodes) &&
-    nonNegativeInteger(highWatermark.sourceSchemaRevision)
-  )
+function validHighWatermark(revision: string, value: string) {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    return false
+  }
+  if (revision === SESSION_HOST_FRESH_REVISION) return isEmptyObject(parsed)
+  return !Array.isArray(parsed) && decodesExactly(cutoverHighWatermarkSchema, parsed)
 }
+
+const completionSealRowSchema = Schema.Struct({
+  schema_revision: Schema.Literal(SESSION_HOST_SCHEMA_REVISION),
+  migration_revision: Schema.Literal(SESSION_HOST_FRESH_REVISION, SESSION_HOST_CUTOVER_REVISION),
+  source_high_watermark_json: Schema.String,
+  completed_at: Schema.Number.pipe(Schema.int(), Schema.positive()),
+  ledger_name: Schema.Literal(SESSION_HOST_BASELINE_MIGRATION_NAME),
+  ledger_applied_at: Schema.String.pipe(Schema.minLength(1)),
+  max_migration_id: nonNegativeIntegerSchema.pipe(
+    Schema.lessThanOrEqualTo(SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID),
+  ),
+})
 
 /**
  * O(1) startup validation for an already-installed target. The seal is written only after the
@@ -71,8 +89,9 @@ export function validateSessionHostCompletionSeal(database: HostSqliteDatabase) 
   } catch {
     throw new Error('Session Host target completion metadata is missing or incompatible.')
   }
-  const seal = queryCutoverRecord(
+  const seal = queryCutoverRow(
     database,
+    completionSealRowSchema,
     `SELECT metadata.schema_revision, metadata.migration_revision,
       metadata.source_high_watermark_json, metadata.completed_at,
       ledger.name AS ledger_name, ledger.applied_at AS ledger_applied_at,
@@ -82,15 +101,7 @@ export function validateSessionHostCompletionSeal(database: HostSqliteDatabase) 
     WHERE metadata.singleton = 1`,
   )
   const valid =
-    seal?.schema_revision === SESSION_HOST_SCHEMA_REVISION &&
-    (seal.migration_revision === SESSION_HOST_FRESH_REVISION ||
-      seal.migration_revision === SESSION_HOST_CUTOVER_REVISION) &&
-    validHighWatermark(seal.migration_revision, seal.source_high_watermark_json) &&
-    positiveInteger(seal.completed_at) &&
-    seal.ledger_name === SESSION_HOST_BASELINE_MIGRATION_NAME &&
-    typeof seal.ledger_applied_at === 'string' &&
-    seal.ledger_applied_at.length > 0 &&
-    nonNegativeInteger(seal.max_migration_id) &&
-    seal.max_migration_id <= SESSION_HOST_SUPPORTED_MAX_MIGRATION_ID
+    seal !== undefined &&
+    validHighWatermark(seal.migration_revision, seal.source_high_watermark_json)
   if (!valid) throw new Error('Session Host target completion metadata is missing or incompatible.')
 }

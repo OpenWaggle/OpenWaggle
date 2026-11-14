@@ -52,12 +52,10 @@ describe('Removing a project with discovered Pi sessions', () => {
         BEGIN INSERT INTO dismissal_log VALUES (NEW.pi_session_file); END
       `,
     )
-    const { beginPiSessionProjectRemoval, deleteSessionForProjectRemoval } = await import(
-      '../../../application/pi-session-project-removal'
-    )
-    const { SessionProjectionRepository } = await import(
-      '../../../ports/session-projection-repository'
-    )
+    const { beginPiSessionProjectRemoval, deleteSessionForProjectRemoval } =
+      await import('../../../application/pi-session-project-removal')
+    const { SessionProjectionRepository } =
+      await import('../../../ports/session-projection-repository')
 
     beginPiSessionProjectRemoval(fixture.project)
     await run(
@@ -90,13 +88,11 @@ describe('Removing a project with discovered Pi sessions', () => {
     const copy = path.join(path.dirname(cli.file), `2020-01-01T00-00-00-000Z_${cli.id}.jsonl`)
     await fs.copyFile(cli.file, copy)
     // The Host stopped right after journaling the deletion; the next Host finishes it.
-    const { prepareSessionDeletion } = await import(
-      '../../../store/session-details/session-deletion-journal'
-    )
+    const { prepareSessionDeletion } =
+      await import('../../../store/session-details/session-deletion-journal')
     await prepareSessionDeletion(sessionId, undefined, { removingProject: true })
-    const { SessionProjectionRepository } = await import(
-      '../../../ports/session-projection-repository'
-    )
+    const { SessionProjectionRepository } =
+      await import('../../../ports/session-projection-repository')
     await run(
       Effect.flatMap(SessionProjectionRepository, (repository) =>
         repository.recoverPendingDeletions ? repository.recoverPendingDeletions() : Effect.void,

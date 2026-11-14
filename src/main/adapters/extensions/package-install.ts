@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { extensionIdSchema, extensionRelativePathSchema } from '@openwaggle/extension-sdk'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { parseJsonUnknown, safeDecodeUnknown } from '@shared/schema'
-import { isExtensionId, isPortableRelativePath } from '@shared/schemas/extension-schema-primitives'
+import { ParseResult, parseJsonUnknown, type Schema, safeDecodeUnknown } from '@shared/schema'
 import { openWaggleExtensionManifestSchema } from '@shared/schemas/extensions'
 import { isEnoent } from '@shared/utils/node-error'
 import type { ExtensionPackageScope } from '../../extensions/types'
@@ -13,7 +13,6 @@ import type {
   RemoveExtensionPackageInput,
   RemoveExtensionPackageResult,
   WriteExtensionPackageInput,
-  WriteExtensionPackageResult,
 } from '../../ports/extension-package-repository'
 import { isPathInside } from '../../utils/paths'
 import { normalizeManifestRelativePath } from './content-hash-input'
@@ -39,10 +38,19 @@ interface NormalizedPackageFileWrite extends ExtensionPackageFileWrite {
   readonly normalizedRelativePath: string
 }
 
+/** Why `value` fails the manifest's own rule for it, or null when it passes. */
+function manifestRuleFailure(schema: Schema.Schema<string>, value: string) {
+  const result = ParseResult.decodeUnknownEither(schema)(value)
+  if (result._tag === 'Right') return null
+  return ParseResult.ArrayFormatter.formatIssueSync(result.left)
+    .map((issue) => issue.message)
+    .join(' ')
+}
+
 function validateExtensionId(extensionId: string) {
-  const result = isExtensionId(extensionId)
-  if (result !== true) {
-    throw new Error(`Invalid extension id "${extensionId}": ${result}`)
+  const failure = manifestRuleFailure(extensionIdSchema, extensionId)
+  if (failure !== null) {
+    throw new Error(`Invalid extension id "${extensionId}": ${failure}`)
   }
 }
 
@@ -73,9 +81,9 @@ function extensionPackagePath(input: {
 }
 
 function validateRelativePath(relativePath: string) {
-  const result = isPortableRelativePath(relativePath)
-  if (result !== true) {
-    throw new Error(`Invalid extension package file path "${relativePath}": ${result}`)
+  const failure = manifestRuleFailure(extensionRelativePathSchema, relativePath)
+  if (failure !== null) {
+    throw new Error(`Invalid extension package file path "${relativePath}": ${failure}`)
   }
   return normalizeManifestRelativePath(relativePath)
 }
@@ -246,9 +254,7 @@ async function replacePackageDirectory(input: {
   }
 }
 
-export async function writeFilesystemExtensionPackage(
-  input: FilesystemWriteExtensionPackageInput,
-): Promise<WriteExtensionPackageResult> {
+export async function writeFilesystemExtensionPackage(input: FilesystemWriteExtensionPackageInput) {
   const paths = extensionPackagePath(input)
   const files = normalizePackageFiles(input.files)
   validatePackageManifestIdentity({ extensionId: input.extensionId, files })
@@ -269,23 +275,18 @@ export async function writeFilesystemExtensionPackage(
 
 export async function removeFilesystemExtensionPackage(
   input: FilesystemRemoveExtensionPackageInput,
-): Promise<RemoveExtensionPackageResult> {
+) {
   const paths = extensionPackagePath(input)
   try {
     await rm(paths.packagePath, { recursive: true })
-    return { packagePath: paths.packagePath, removed: true }
+    return { packagePath: paths.packagePath, removed: true } satisfies RemoveExtensionPackageResult
   } catch (error) {
     if (isEnoent(error)) {
-      return { packagePath: paths.packagePath, removed: false }
+      return {
+        packagePath: paths.packagePath,
+        removed: false,
+      } satisfies RemoveExtensionPackageResult
     }
     throw error
   }
-}
-
-export function getFilesystemExtensionPackagePath(input: {
-  readonly extensionId: string
-  readonly scope: ExtensionPackageScope
-  readonly globalRootPath: string
-}) {
-  return extensionPackagePath(input)
 }

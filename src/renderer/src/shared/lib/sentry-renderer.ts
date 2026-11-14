@@ -10,7 +10,6 @@
  */
 
 import {
-  type BrowserOptions,
   captureException,
   dedupeIntegration,
   type Event,
@@ -31,7 +30,7 @@ import { rejectedApiMethodOf } from './ipc'
  * Drops what the renderer must not hand over. The text rules wait for the main process, which
  * knows the home directory and applies them to every renderer report before sending it.
  */
-function scrubbed<Report extends Event>(event: Report, hint: EventHint): Report {
+function scrubbed<Report extends Event>(event: Report, hint: EventHint) {
   const rejectedMethod = rejectedApiMethodOf(hint.originalException)
   if (rejectedMethod !== undefined) {
     // A method name is the bridge's own, so no text rule needs to drop it, and scrubbing keeps
@@ -42,9 +41,28 @@ function scrubbed<Report extends Event>(event: Report, hint: EventHint): Report 
   return event
 }
 
+/** The renderer SDK's own options type; it leaves out the main-process-only `dsn`. */
+type SentryRendererSdkOptions = NonNullable<Parameters<typeof init>[0]>
+
+/**
+ * The options this renderer sets. A `Pick` of the SDK's options, so declarations can name it: the
+ * SDK does not export its options interface.
+ */
+export type SentryRendererOptions = Pick<
+  SentryRendererSdkOptions,
+  | 'dataCollection'
+  | 'maxBreadcrumbs'
+  | 'attachStacktrace'
+  | 'defaultIntegrations'
+  | 'integrations'
+  | 'beforeBreadcrumb'
+  | 'beforeSend'
+  | 'beforeSendTransaction'
+>
+
 /** The complete Sentry options for the renderer. Release and environment come from main. */
-export function createSentryRendererOptions(): BrowserOptions {
-  return {
+export function createSentryRendererOptions() {
+  const options: SentryRendererOptions = {
     dataCollection: errorReportingDataCollection(),
     maxBreadcrumbs: 0,
     attachStacktrace: false,
@@ -59,6 +77,7 @@ export function createSentryRendererOptions(): BrowserOptions {
     beforeSend: scrubbed,
     beforeSendTransaction: scrubbed,
   }
+  return options
 }
 
 /** Initializes Sentry in this renderer and returns how the app reports a caught error. */

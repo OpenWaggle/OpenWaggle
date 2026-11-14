@@ -2,10 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  createTestTemporaryDirectory,
-  temporaryDirectoryLeaks,
-} from '../temporary-directory-guard'
+import { createTestTemporaryDirectory, temporaryDirectoryLeaks } from '../temporary-directory-guard'
 
 const created: string[] = []
 
@@ -28,9 +25,9 @@ describe('the test temporary-directory guard', () => {
   })
 
   it('does not count the shared caches tools keep in the temporary directory', () => {
-    expect(temporaryDirectoryLeaks(['jiti', 'node-compile-cache', 'tsx-501', 'left-behind'])).toEqual([
-      'left-behind',
-    ])
+    expect(
+      temporaryDirectoryLeaks(['jiti', 'node-compile-cache', 'tsx-501', 'left-behind']),
+    ).toEqual(['left-behind'])
   })
 
   it('gives each test file a private temporary directory inside the run root', () => {
@@ -39,9 +36,11 @@ describe('the test temporary-directory guard', () => {
     const directory = createTestTemporaryDirectory({ runRoot: root, environment })
 
     expect(path.dirname(directory.root)).toBe(root)
-    expect(environment.TMPDIR).toBe(directory.temporaryDirectory)
-    expect(environment.TMP).toBe(directory.temporaryDirectory)
-    expect(environment.TEMP).toBe(directory.temporaryDirectory)
+    expect(environment).toMatchObject({
+      TMPDIR: directory.temporaryDirectory,
+      TMP: directory.temporaryDirectory,
+      TEMP: directory.temporaryDirectory,
+    })
     expect(fs.statSync(directory.temporaryDirectory).isDirectory()).toBe(true)
   })
 
@@ -60,7 +59,10 @@ describe('the test temporary-directory guard', () => {
     const root = runRoot()
     const directory = createTestTemporaryDirectory({ runRoot: root, environment: {} })
     fs.mkdirSync(path.join(directory.temporaryDirectory, 'openwaggle-pi-skills-abc123'))
-    fs.writeFileSync(path.join(directory.temporaryDirectory, 'openwaggle-pi-skills-abc123', 'settings.json'), '{}')
+    fs.writeFileSync(
+      path.join(directory.temporaryDirectory, 'openwaggle-pi-skills-abc123', 'settings.json'),
+      '{}',
+    )
     fs.writeFileSync(path.join(directory.temporaryDirectory, 'stray.txt'), 'x')
 
     expect(() => directory.finish('leaky.unit.test.ts')).toThrow(

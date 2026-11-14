@@ -21,22 +21,32 @@ export interface ScheduledTasksPanelTitle {
 export function useScheduledTasksPanelTitle(scope: {
   readonly projectPath: string | null
   readonly sessionId: string | null
-}): ScheduledTasksPanelTitle {
+}) {
   const storedView = useScheduledTasksNavigationStore((state) => state.panel)
   const names = useScheduledTaskIndexStore((state) => state.names)
   const projects = useScheduledTaskIndexStore((state) => state.projects)
   const view = shownScheduledTasksView(storedView, projects, scope)
   const nameOf = (taskId: string) => names[taskId] ?? 'Scheduled task'
   const toList = () => showScheduledTasksView('panel', { kind: 'list' })
-  if (view.kind === 'list') return { label: PANEL_LABEL }
-  if (view.kind === 'new') return { label: 'New task', backLabel: PANEL_LABEL, onBack: toList }
+  if (view.kind === 'list') return { label: PANEL_LABEL } satisfies ScheduledTasksPanelTitle
+  if (view.kind === 'new') {
+    return {
+      label: 'New task',
+      backLabel: PANEL_LABEL,
+      onBack: toList,
+    } satisfies ScheduledTasksPanelTitle
+  }
   if (view.kind === 'task') {
-    return { label: nameOf(view.taskId), backLabel: PANEL_LABEL, onBack: toList }
+    return {
+      label: nameOf(view.taskId),
+      backLabel: PANEL_LABEL,
+      onBack: toList,
+    } satisfies ScheduledTasksPanelTitle
   }
   const name = nameOf(view.taskId)
   return {
     label: `Edit ${name}`,
     backLabel: name,
     onBack: () => showScheduledTasksView('panel', { kind: 'task', taskId: view.taskId }),
-  }
+  } satisfies ScheduledTasksPanelTitle
 }

@@ -14,7 +14,7 @@
  * scripts/electron-builder-native-prebuilds.ts should exclude. Every per-platform package that a
  * package in `app.asar` declares for the target in `optionalDependencies` must ship as well
  * (scripts/packaged-native-dependencies.ts), which catches a build that is missing entirely.
- * Run it after packaging and before upload: `pnpm exec tsx scripts/check-native-platform-floor.ts`.
+ * Run it after packaging and before upload: `bun scripts/check-native-platform-floor.ts`.
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -44,7 +44,9 @@ export interface FloorReport {
 }
 
 type Floor = typeof SUPPORTED_PLATFORM_FLOOR
-type Evaluation = { readonly kind: 'checked'; readonly violations: readonly string[] } | { readonly kind: 'foreign'; readonly label: string }
+type Evaluation =
+  | { readonly kind: 'checked'; readonly violations: readonly string[] }
+  | { readonly kind: 'foreign'; readonly label: string }
 
 const MAIN_EXECUTABLE: Readonly<Record<FloorPlatform, string>> = {
   darwin: 'Contents/MacOS/OpenWaggle',
@@ -68,14 +70,21 @@ const NUMERIC_VERSION = /^\d+(?:\.\d+)*$/u
 const FIRST_CLI_ARGUMENT = 2
 
 function binaryArchitectures(binary: NativeBinary) {
-  return binary.format === 'mach-o' ? binary.slices.map((slice) => slice.architecture) : [binary.architecture]
+  return binary.format === 'mach-o'
+    ? binary.slices.map((slice) => slice.architecture)
+    : [binary.architecture]
 }
 
 function foreignLabel(binary: NativeBinary) {
   return `${FORMAT_LABEL[binary.format]} ${[...new Set(binaryArchitectures(binary))].join('+')}`
 }
 
-function evaluateLinux(file: string, binary: NativeBinary, architectures: readonly BinaryArchitecture[], floor: Floor) {
+function evaluateLinux(
+  file: string,
+  binary: NativeBinary,
+  architectures: readonly BinaryArchitecture[],
+  floor: Floor,
+) {
   if (binary.format !== 'elf' || !architectures.includes(binary.architecture)) {
     return { kind: 'foreign', label: foreignLabel(binary) } satisfies Evaluation
   }
@@ -95,17 +104,30 @@ function evaluateLinux(file: string, binary: NativeBinary, architectures: readon
   return { kind: 'checked', violations } satisfies Evaluation
 }
 
-function evaluateMacos(file: string, binary: NativeBinary, architectures: readonly BinaryArchitecture[], floor: Floor) {
+function evaluateMacos(
+  file: string,
+  binary: NativeBinary,
+  architectures: readonly BinaryArchitecture[],
+  floor: Floor,
+) {
   const slices =
     binary.format === 'mach-o'
-      ? binary.slices.filter((slice) => architectures.includes(slice.architecture) && slice.platform !== 'other')
+      ? binary.slices.filter(
+          (slice) => architectures.includes(slice.architecture) && slice.platform !== 'other',
+        )
       : []
-  if (slices.length === 0) return { kind: 'foreign', label: foreignLabel(binary) } satisfies Evaluation
+  if (slices.length === 0) {
+    return { kind: 'foreign', label: foreignLabel(binary) } satisfies Evaluation
+  }
   const supported = floor.macos.supportedVersion
   const violations = slices.flatMap((slice) => {
-    if (slice.minimumVersion === null) return [`${file} (${slice.architecture}) declares no minimum macOS version`]
+    if (slice.minimumVersion === null) {
+      return [`${file} (${slice.architecture}) declares no minimum macOS version`]
+    }
     if (compareVersions(slice.minimumVersion, supported) <= 0) return []
-    return [`${file} (${slice.architecture}) needs macOS ${slice.minimumVersion}, above the supported ${supported}`]
+    return [
+      `${file} (${slice.architecture}) needs macOS ${slice.minimumVersion}, above the supported ${supported}`,
+    ]
   })
   return { kind: 'checked', violations } satisfies Evaluation
 }
@@ -113,10 +135,18 @@ function evaluateMacos(file: string, binary: NativeBinary, architectures: readon
 /** x64 Windows runs x86 images too (electron-builder's `elevate.exe` is one), so they are checked. */
 function runsOnWindows(binary: NativeBinary, architectures: readonly BinaryArchitecture[]) {
   if (binary.format !== 'pe') return false
-  return architectures.includes(binary.architecture) || (binary.architecture === 'x86' && architectures.includes('x64'))
+  return (
+    architectures.includes(binary.architecture) ||
+    (binary.architecture === 'x86' && architectures.includes('x64'))
+  )
 }
 
-function evaluateWindows(file: string, binary: NativeBinary, architectures: readonly BinaryArchitecture[], floor: Floor) {
+function evaluateWindows(
+  file: string,
+  binary: NativeBinary,
+  architectures: readonly BinaryArchitecture[],
+  floor: Floor,
+) {
   if (binary.format !== 'pe' || !runsOnWindows(binary, architectures)) {
     return { kind: 'foreign', label: foreignLabel(binary) } satisfies Evaluation
   }
@@ -136,7 +166,9 @@ async function readBinaryAt(filePath: string) {
     const { size } = await handle.stat()
     return await readNativeBinary(fileByteSource(handle, size))
   } catch (error) {
-    throw new Error(`${filePath}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+    throw new Error(`${filePath}: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    })
   } finally {
     await handle.close()
   }
@@ -146,7 +178,9 @@ async function listFiles(root: string) {
   const entries = await fs.readdir(root, { recursive: true, withFileTypes: true })
   return entries
     .filter((entry) => entry.isFile())
-    .map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
+    .map((entry) =>
+      path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'),
+    )
     .sort((left, right) => left.localeCompare(right))
 }
 
@@ -157,12 +191,20 @@ async function mainExecutable(root: string, platform: FloorPlatform) {
   return { relative, binary, architectures: [...new Set(binaryArchitectures(binary))] }
 }
 
-async function macosLaunchViolations(root: string, executable: string, binary: NativeBinary, floor: Floor) {
+async function macosLaunchViolations(
+  root: string,
+  executable: string,
+  binary: NativeBinary,
+  floor: Floor,
+) {
   const launch = floor.macos.launchVersion
   const violations =
     binary.format === 'mach-o'
       ? binary.slices
-          .filter((slice) => slice.minimumVersion !== null && compareVersions(slice.minimumVersion, launch) > 0)
+          .filter(
+            (slice) =>
+              slice.minimumVersion !== null && compareVersions(slice.minimumVersion, launch) > 0,
+          )
           .map(
             (slice) =>
               `${executable} (${slice.architecture}) needs macOS ${slice.minimumVersion}, so macOS ${launch} could not launch the app`,
@@ -181,7 +223,7 @@ export async function checkNativePlatformFloor(
   root: string,
   platform: FloorPlatform,
   floor: Floor = SUPPORTED_PLATFORM_FLOOR,
-): Promise<FloorReport> {
+) {
   const executable = await mainExecutable(root, platform)
   const foreign: string[] = []
   const violations: string[] = []
@@ -192,7 +234,9 @@ export async function checkNativePlatformFloor(
     const evaluation = EVALUATORS[platform](file, binary, executable.architectures, floor)
     if (evaluation.kind === 'foreign') {
       foreign.push(`${file} (${evaluation.label})`)
-      violations.push(`${file} (${evaluation.label}) cannot load in this ${executable.architectures.join('+')} app`)
+      violations.push(
+        `${file} (${evaluation.label}) cannot load in this ${executable.architectures.join('+')} app`,
+      )
       continue
     }
     checked += 1
@@ -203,7 +247,9 @@ export async function checkNativePlatformFloor(
     violations.push(...(await missingNativeDependencies(archive, platform, architecture)))
   }
   if (platform === 'darwin') {
-    violations.push(...(await macosLaunchViolations(root, executable.relative, executable.binary, floor)))
+    violations.push(
+      ...(await macosLaunchViolations(root, executable.relative, executable.binary, floor)),
+    )
   }
   return { root, platform, architectures: executable.architectures, checked, foreign, violations }
 }
@@ -226,7 +272,9 @@ async function main() {
     failed ||= report.violations.length > 0 || report.checked === 0
   }
   if (failed) {
-    throw new Error('Native binaries exceed the supported platform floor (scripts/supported-platform-floor.ts).')
+    throw new Error(
+      'Native binaries exceed the supported platform floor (scripts/supported-platform-floor.ts).',
+    )
   }
 }
 

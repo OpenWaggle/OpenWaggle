@@ -35,9 +35,7 @@ function clearProjectModelEntry(
  * because the legacy migration failed (absence could not be confirmed). `legacyModel` is the value
  * the file held before the strip, so a failed removal can restore it.
  */
-function retireLegacyFileModel(
-  candidate: string,
-): Effect.Effect<{ tombstone: boolean; legacyModel: string | undefined }, never> {
+function retireLegacyFileModel(candidate: string) {
   return Effect.gen(function* () {
     const fileRead = yield* Effect.promise(() =>
       getProjectPreferencesStrict(candidate)
@@ -72,7 +70,7 @@ function restoreProjectModelEntry(
   canonicalPath: string,
   priorEntry: string | undefined,
   legacyModel: string | undefined,
-): Effect.Effect<void, Error> {
+) {
   const restored = priorEntry ?? legacyModel
   if (restored !== undefined && settings.setProjectModel) {
     return settings.setProjectModel(canonicalPath, restored === '' ? null : restored)
@@ -80,7 +78,7 @@ function restoreProjectModelEntry(
   if (restored === undefined && settings.removeProjectModel) {
     return settings.removeProjectModel(canonicalPath)
   }
-  return Effect.gen(function* () {
+  const effect: Effect.Effect<void, Error> = Effect.gen(function* () {
     const current = yield* settings.get()
     const next = { ...current.selectedModelsByProject }
     if (restored === undefined) {
@@ -90,16 +88,14 @@ function restoreProjectModelEntry(
     }
     yield* settings.update({ selectedModelsByProject: next })
   })
+  return effect
 }
 
 /**
  * Resolves one project reference to its stored identity: the recorded alias mapping when present,
  * otherwise the realpath of the directory (or the raw path when the directory is gone).
  */
-function resolveReferenceIdentity(
-  settings: SettingsServiceShape,
-  referencePath: string,
-): Effect.Effect<string, Error> {
+function resolveReferenceIdentity(settings: SettingsServiceShape, referencePath: string) {
   return Effect.gen(function* () {
     if (settings.resolveProjectPathAlias) {
       const recorded = yield* settings.resolveProjectPathAlias(referencePath)
@@ -118,7 +114,7 @@ function removeStaleAliasRecords(
   settings: SettingsServiceShape,
   canonicalPath: string,
   removedPath: string,
-): Effect.Effect<void, Error> {
+) {
   return Effect.gen(function* () {
     const current = yield* settings.get()
     const aliases = { ...current.projectPathAliases }

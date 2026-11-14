@@ -1,6 +1,6 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Effect, Layer } from 'effect'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { ExtensionDiscoveryError } from '../errors'
 import { ExtensionManagerService } from '../ports/extension-manager-service'
 import { discoverExtensionPackages } from './extensions/discovery'
@@ -14,8 +14,8 @@ const FilesystemExtensionPackageDiscoveryLive = Layer.succeed(
       Effect.tryPromise({
         try: () =>
           discoverExtensionPackages({
-            projectPath: input.projectPath,
-            globalRootPath: getGlobalExtensionRoot(app.getPath('userData')),
+            projectPath: input.projectPath ?? null,
+            globalRootPath: getGlobalExtensionRoot(appPaths.userData()),
             hostSdkVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
           }),
         catch: (cause) => new ExtensionDiscoveryError({ operation: 'list-packages', cause }),

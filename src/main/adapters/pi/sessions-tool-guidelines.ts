@@ -3,6 +3,7 @@ import {
   permitsSessionsToolAction,
   type SessionsToolActionGrant,
 } from './sessions-tool-capability-schema'
+import { REVISION_STARTS_WORKER_RUN, revisionGuideline } from './sessions-tool-revision-guidelines'
 import { SCHEDULED_TASK_GUIDELINES } from './sessions-tool-schedule-guidelines'
 import { SELF_ARCHIVE_GUIDELINE } from './sessions-tool-self-archive-guideline'
 
@@ -32,10 +33,12 @@ function rootGuideline(permits: Permits) {
   if (launch && create) {
     return 'Use launch for an independent root Session that starts immediately, or create for an idle independent root. Neither joins the current Hive.'
   }
-  if (launch)
+  if (launch) {
     return 'Use launch for an independent root Session that starts immediately; it does not join the current Hive.'
-  if (create)
+  }
+  if (create) {
     return 'Use create for an idle independent root Session; it does not join the current Hive.'
+  }
   return undefined
 }
 
@@ -114,8 +117,9 @@ function newSessionGuidance(newSession: readonly string[], firstRun: readonly st
   if (newSession.length === 0) return ''
   const thinking = `${accepts(newSession)} thinking as the new Session's starting level`
   if (firstRun.length === 0) return `${thinking}.`
-  if (firstRun.join() === newSession.join())
+  if (firstRun.join() === newSession.join()) {
     return `${thinking} and authorization for its first Run.`
+  }
   return `${thinking}; ${accepts(firstRun)} authorization for its first Run.`
 }
 
@@ -158,12 +162,14 @@ function delegationGuideline(permits: Permits) {
   const submits = permits('delegation_submit')
   const reviews = permits('delegation_accept') || permits('delegation_request_revision')
   if (submits && reviews) {
-    return `Workers submit immutable Delegation results; parents request revision or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
+    return `Workers submit immutable Delegation results; parents request revision ${REVISION_STARTS_WORKER_RUN} or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
   }
-  if (submits)
+  if (submits) {
     return 'Submit immutable Delegation results; your parent requests revision or accepts an exact submission revision.'
-  if (reviews)
-    return `Workers submit immutable Delegation results; request revision or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
+  }
+  if (reviews) {
+    return `Workers submit immutable Delegation results; request revision ${REVISION_STARTS_WORKER_RUN} or accept an exact submission revision. ${IDLE_PARENT_WAKE}`
+  }
   return undefined
 }
 
@@ -238,6 +244,7 @@ function sessionsToolGuidelines(permits: Permits) {
       ? 'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.'
       : undefined,
     delegationGuideline(permits),
+    revisionGuideline(permits),
     nextActorGuideline(permits),
     cleanupGuideline(permits),
     permits('archive') ? SELF_ARCHIVE_GUIDELINE : undefined,

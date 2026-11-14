@@ -18,9 +18,9 @@ describe('nightly packaged canary workflow', () => {
     for (const label of ['label: macOS', 'label: Linux', 'label: Windows']) {
       expect(WORKFLOW).toContain(label)
     }
-    expect(WORKFLOW).toContain('run: pnpm build')
-    expect(WORKFLOW).toContain('pnpm exec electron-builder ${{ matrix.build_flags }}')
-    expect(WORKFLOW).toContain('run: pnpm packaged-app:smoke')
+    expect(WORKFLOW).toContain('run: bun run build')
+    expect(WORKFLOW).toContain('bunx electron-builder ${{ matrix.build_flags }}')
+    expect(WORKFLOW).toContain('run: bun run packaged-app:smoke')
     expect(WORKFLOW).toContain('CSC_IDENTITY_AUTO_DISCOVERY: false')
     // Package a real release identity, not the dev fallback.
     expect(WORKFLOW).toContain('OPENWAGGLE_RELEASE_CHANNEL: stable')
@@ -29,9 +29,7 @@ describe('nightly packaged canary workflow', () => {
   it('installs, exercises, and uninstalls the Windows artifact before release day', () => {
     expect(WORKFLOW).toContain('- name: Verify Windows installer')
     expect(WORKFLOW).toContain("if: matrix.label == 'Windows'")
-    expect(WORKFLOW).toContain(
-      'pnpm exec tsx scripts/verify-windows-installer.ts "$installerPath"',
-    )
+    expect(WORKFLOW).toContain('bun scripts/verify-windows-installer.ts "$installerPath"')
   })
 
   it('checks the native platform floor after packaging, on the release build hosts', () => {
@@ -40,12 +38,12 @@ describe('nightly packaged canary workflow', () => {
     const smoke = WORKFLOW.indexOf('- name: Smoke packaged runtime')
     expect(guard).toBeGreaterThan(packaging)
     expect(smoke).toBeGreaterThan(guard)
-    expect(WORKFLOW).toContain('run: pnpm exec tsx scripts/check-native-platform-floor.ts')
+    expect(WORKFLOW).toContain('run: bun scripts/check-native-platform-floor.ts')
     expect(WORKFLOW).toMatch(/- label: Linux\n(?:\s+#.*\n)*\s+runner: ubuntu-22\.04\n/u)
   })
 
   it('pins every third-party action to a commit SHA, like the other workflows', () => {
-    const actionUses = [...WORKFLOW.matchAll(/uses:\s*(\S+)/gu)].map((match) => match[1])
+    const actionUses = [...WORKFLOW.matchAll(/uses:\s*(\S+)/gu)].flatMap((match) => match[1] ?? [])
     expect(actionUses.length).toBeGreaterThan(0)
     for (const use of actionUses) {
       // Local composite actions are path refs; third-party actions must be SHA-pinned.
@@ -68,11 +66,25 @@ describe('nightly packaged canary workflow', () => {
     )
     expect(WORKFLOW).toMatch(/- name: Install dependencies\n\s+id: install\n/u)
     expect(WORKFLOW).toMatch(
-      /if pnpm benchmark:syntax; then\n\s+exit 0\n\s+fi\n\s+echo "::warning::[^"]+"\n\s+pnpm benchmark:syntax\n/u,
+      /if bun run benchmark:syntax; then\n\s+exit 0\n\s+fi\n\s+echo "::warning::[^"]+"\n\s+bun run benchmark:syntax\n/u,
     )
     expect(WORKFLOW).toContain(
       'SYNTAX_BENCHMARK_PROFILE: performance/syntax-budgets/macos-arm64-github-hosted.json',
     )
+  })
+
+  // Regression: on Bun (JavaScriptCore) the cold 16 KiB p95 exceeded the hosted budget the
+  // V8-based app meets, so the benchmark measured the runtime instead of the highlighter.
+  it('runs the syntax benchmark on Node.js, the engine the app highlights on', () => {
+    const packageJson: unknown = JSON.parse(
+      fs.readFileSync(path.join(PROJECT_ROOT, 'package.json'), 'utf8'),
+    )
+    expect(packageJson).toMatchObject({
+      scripts: {
+        'benchmark:syntax':
+          'bun scripts/node-script-bundle.ts --run scripts/benchmarks/syntax-highlighting.ts --check',
+      },
+    })
   })
 
   it('runs the unit tier west of UTC, opposite the zone every config pins', () => {
@@ -81,7 +93,7 @@ describe('nightly packaged canary workflow', () => {
       WORKFLOW.indexOf('  packaged-canary:'),
     )
     expect(job).toContain('OPENWAGGLE_TEST_TIME_ZONE: America/Adak')
-    expect(job).toContain('run: pnpm test:unit')
+    expect(job).toContain('run: bun run test:unit')
     expect(job).toContain('runs-on: ubuntu-latest')
   })
 
@@ -96,5 +108,25 @@ describe('nightly packaged canary workflow', () => {
     const canaryPins = new Set(pins(WORKFLOW.slice(canary)))
     expect(westPins.length).toBeGreaterThan(0)
     for (const pin of westPins) expect(canaryPins).toContain(pin)
+  })
+
+  it('builds the coverage-uniqueness index in shards and publishes it under the name advise reads', () => {
+    const advise = fs.readFileSync(
+      path.join(PROJECT_ROOT, 'scripts/coverage-uniqueness.ts'),
+      'utf8',
+    )
+    expect(WORKFLOW).toContain('shard: [1, 2, 3, 4]')
+    expect(WORKFLOW).toContain('index --shard ${{ matrix.shard }}/4')
+    expect(WORKFLOW).toContain('needs: coverage-uniqueness-shard')
+    expect(WORKFLOW).toContain('name: coverage-uniqueness-index')
+    expect(advise).toContain("const INDEX_ARTIFACT = 'coverage-uniqueness-index'")
+  })
+
+  // Regression: the merge ran with no install and failed on `Cannot find module 'effect/ParseResult'`.
+  it('installs the dependencies before it merges the coverage-uniqueness shards', () => {
+    const job = WORKFLOW.slice(WORKFLOW.indexOf('  coverage-uniqueness-index:'))
+    const install = job.indexOf('uses: ./.github/actions/bun-install')
+    expect(install).toBeGreaterThan(0)
+    expect(job.indexOf('bun scripts/coverage-uniqueness.ts merge')).toBeGreaterThan(install)
   })
 })

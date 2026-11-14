@@ -16,6 +16,7 @@ import { useToolRowSessionId } from '../hooks/ToolRowSessionContext'
 import { useSessionsToolHive } from '../hooks/useSessionsToolHive'
 import { ScheduledTaskToolCallBlock } from './ScheduledTaskToolCallBlock'
 import { ToolCallBlock } from './ToolCallBlock'
+import { hiveToolArgFields } from '@/features/chat/lib/hive-tool-args'
 
 interface SessionsToolCallBlockProps {
   readonly name: string
@@ -54,7 +55,8 @@ function SessionTargetToolCallBlock({
     callerSessionId === null ? null : String(callerSessionId),
   )
   const session = findHiveSession(targetId, hive)
-  const spawned = parsedArgs.action === 'spawn' && session !== null ? session : null
+  const spawned =
+    hiveToolArgFields(parsedArgs).action === 'spawn' && session !== null ? session : null
   return (
     <ToolCallBlock
       {...props}

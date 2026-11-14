@@ -17,7 +17,11 @@ import {
   enabledPiWaggleModeState,
   latestPiWaggleModeStateFromBranch,
 } from './mode-state.js'
-import { loadPiWagglePresetLayers, resolvedPresetsForUi } from './presets.js'
+import {
+  loadPiWagglePresetLayers,
+  resolvedPresetsForUi,
+  type PiWaggleResolvedPreset,
+} from './presets.js'
 
 const FIRST_PROVIDER_CHARACTER_INDEX = 0
 const MODEL_ID_START_OFFSET = 1
@@ -68,13 +72,14 @@ function appendModeState(
   )
 }
 
-export function latestActiveState(ctx: ExtensionCommandContext): ActiveWaggleState | null {
+export function latestActiveState(ctx: ExtensionCommandContext) {
   const state = latestPiWaggleModeStateFromBranch(ctx.sessionManager)
   if (!state?.enabled || !state.config) return null
-  return {
+  const result: ActiveWaggleState = {
     config: state.config,
     ...(state.presetId ? { presetId: state.presetId } : {}),
   }
+  return result
 }
 
 function effectiveAgentModelReference(ctx: ExtensionContext, model: string) {
@@ -153,19 +158,21 @@ export async function activatePreset(
 
 export async function resolvePresetById(cwd: string, presetId: string) {
   const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(cwd))
-  return presets.find((candidate) => candidate.preset.id === presetId) ?? null
+  const result: PiWaggleResolvedPreset | null =
+    presets.find((candidate) => candidate.preset.id === presetId) ?? null
+  return result
 }
 
 export async function resolvePresetByReference(cwd: string, reference: string) {
   const normalizedReference = reference.trim().toLowerCase()
   const presets = resolvedPresetsForUi(await loadPiWagglePresetLayers(cwd))
-  return (
+  const result: PiWaggleResolvedPreset | null =
     presets.find(
       (candidate) =>
         candidate.preset.id.toLowerCase() === normalizedReference ||
         candidate.preset.name.toLowerCase() === normalizedReference,
     ) ?? null
-  )
+  return result
 }
 
 export function disableWaggle(input: {

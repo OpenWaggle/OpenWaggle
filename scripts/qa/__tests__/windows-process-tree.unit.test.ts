@@ -20,12 +20,9 @@ describe('Windows process-tree identity proof', () => {
       processRecord(44, 43),
     ])
 
-    expect(
-      windowsTreeSnapshotExited(snapshot, [
-        processRecord(43, 1),
-        processRecord(44, 43),
-      ]),
-    ).toBe(false)
+    expect(windowsTreeSnapshotExited(snapshot, [processRecord(43, 1), processRecord(44, 43)])).toBe(
+      false,
+    )
   })
 
   it('does not mistake PID reuse for a surviving captured process', () => {
@@ -34,8 +31,6 @@ describe('Windows process-tree identity proof', () => {
       processRecord(43, 42),
     ])
 
-    expect(windowsTreeSnapshotExited(snapshot, [processRecord(43, 1, 'reused-pid')])).toBe(
-      true,
-    )
+    expect(windowsTreeSnapshotExited(snapshot, [processRecord(43, 1, 'reused-pid')])).toBe(true)
   })
 })

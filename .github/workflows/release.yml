@@ -20,6 +20,9 @@ concurrency:
 permissions:
   contents: read
 
+# No job here restores Bun's package cache: Bun does not check cached package files against the
+# integrity in bun.lock, and these jobs sign, notarize and publish what they install
+# (.github/actions/bun-install).
 jobs:
   version:
     name: Prepare or Publish Protected Version
@@ -47,14 +50,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Determine bump from conventional commits
         if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')"
@@ -143,7 +148,7 @@ jobs:
 
           HEAD_SUBJECT=$(git show -s --format=%s HEAD)
           CURRENT_VERSION=$(node -p "require('./package.json').version")
-          RELEASE_SUBJECT_VERSION=$(pnpm exec tsx scripts/app-release-state.ts release-subject-version \
+          RELEASE_SUBJECT_VERSION=$(bun scripts/app-release-state.ts release-subject-version \
             --subject "$HEAD_SUBJECT" 2>/dev/null || true)
 
           write_no_release_output() {
@@ -161,7 +166,7 @@ jobs:
           }
 
           if [ -n "$RELEASE_TARGET_VERSION" ]; then
-            pnpm exec tsx scripts/app-release-state.ts validate-transition \
+            bun scripts/app-release-state.ts validate-transition \
               --current "$CURRENT_VERSION" \
               --target "$RELEASE_TARGET_VERSION"
             VERSION="$RELEASE_TARGET_VERSION"
@@ -185,7 +190,7 @@ jobs:
             local releases_path="$RUNNER_TEMP/app-releases.jsonl"
             gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
               --jq '.[] | {tag_name, draft}' > "$releases_path"
-            pnpm exec tsx scripts/app-release-state.ts verify-promotion \
+            bun scripts/app-release-state.ts verify-promotion \
               --target "$VERSION" \
               --candidate "$candidate_ref" \
               --releases "$releases_path"
@@ -196,7 +201,7 @@ jobs:
           # while a dispatch or a merged release commit fails. The promotion guard requires an RC
           # before a new major and RC-identical content after one.
           if [[ "$VERSION" != *-* ]]; then
-            if ! pnpm exec tsx scripts/app-release-notes.ts check --version "$VERSION"; then
+            if ! bun scripts/app-release-notes.ts check --version "$VERSION"; then
               if [ -z "$RELEASE_TARGET_VERSION" ] && [ "$RELEASE_SUBJECT_VERSION" != "$VERSION" ]; then
                 echo "::notice::Stable ${VERSION} waits for its CHANGELOG.md entry; no release PR was prepared."
                 write_no_release_output
@@ -226,7 +231,7 @@ jobs:
             test "$(git diff --name-only "${base_ref}...${candidate_ref}")" = "package.json"
             git show "${base_ref}:package.json" > "$RUNNER_TEMP/base-package.json"
             git show "${candidate_ref}:package.json" > "$RUNNER_TEMP/candidate-package.json"
-            pnpm exec tsx scripts/app-release-state.ts expected-manifest \
+            bun scripts/app-release-state.ts expected-manifest \
               --base "$RUNNER_TEMP/base-package.json" \
               --output "$RUNNER_TEMP/expected-package.json" \
               --version "$VERSION"
@@ -250,7 +255,7 @@ jobs:
             git merge-base --is-ancestor "$commit_sha" origin/main
             local commit_subject
             commit_subject=$(git show -s --format=%s "$commit_sha")
-            test "$(pnpm exec tsx scripts/app-release-state.ts release-subject-version \
+            test "$(bun scripts/app-release-state.ts release-subject-version \
               --subject "$commit_subject")" = "$VERSION"
             local parent_sha
             parent_sha=$(git rev-parse "${commit_sha}^")
@@ -371,7 +376,7 @@ jobs:
 
           ALL_PRS=$(gh pr list --state all --head "$RELEASE_BRANCH" --limit 100 \
             --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url)
-          PRS=$(pnpm exec tsx scripts/app-release-state.ts filter-prs \
+          PRS=$(bun scripts/app-release-state.ts filter-prs \
             --branch "$RELEASE_BRANCH" \
             --owner "$GITHUB_REPOSITORY_OWNER" \
             --repository "${GITHUB_REPOSITORY#*/}" \
@@ -405,7 +410,7 @@ jobs:
               git fetch origin "refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
               git switch --detach "origin/${RELEASE_BRANCH}"
             else
-              pnpm exec tsx scripts/app-release-state.ts expected-manifest \
+              bun scripts/app-release-state.ts expected-manifest \
                 --base package.json \
                 --output package.json \
                 --version "$VERSION"
@@ -437,7 +442,7 @@ jobs:
               RECOVERY_ALL_PRS=""
               if RECOVERY_ALL_PRS=$(gh pr list --state open --head "$RELEASE_BRANCH" --limit 100 \
                 --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url); then
-                RECOVERY_PRS=$(pnpm exec tsx scripts/app-release-state.ts filter-prs \
+                RECOVERY_PRS=$(bun scripts/app-release-state.ts filter-prs \
                   --branch "$RELEASE_BRANCH" \
                   --owner "$GITHUB_REPOSITORY_OWNER" \
                   --repository "${GITHUB_REPOSITORY#*/}" \
@@ -598,14 +603,17 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
+      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
+      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
 
       - name: Stamp release Build channel
         shell: bash
@@ -637,7 +645,7 @@ jobs:
               ;;
           esac
 
-      - run: pnpm build
+      - run: bun run build
 
       # A runner blip must not fail the release. Three are known: notarytool losing Apple while it
       # polls (1.0.0-beta.1, run 36695614844), stapler losing Apple's ticket service after a
@@ -656,7 +664,7 @@ jobs:
           sudo mdutil -a -i off >/dev/null 2>&1 || true
           for BUILD_ATTEMPT in 1 2 3; do
             sudo pkill -9 XProtect >/dev/null 2>&1 || true
-            if pnpm exec electron-builder --mac --arm64 --x64 --publish never 2>&1 | tee "$BUILD_LOG"; then
+            if bunx electron-builder --mac --arm64 --x64 --publish never 2>&1 | tee "$BUILD_LOG"; then
               exit 0
             fi
             if [ "$BUILD_ATTEMPT" -eq 3 ] || ! FAILURE_REASON="$(node scripts/macos-build-failure.ts "$BUILD_LOG")"; then
@@ -679,7 +687,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Check macOS native platform floor
-        run: pnpm exec tsx scripts/check-native-platform-floor.ts
+        run: bun scripts/check-native-platform-floor.ts
 
       - name: Verify macOS signing and notarization
         shell: bash
@@ -714,10 +722,10 @@ jobs:
           done
 
       - name: Prepare macOS update channels
-        run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac
+        run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac
 
       - name: Smoke packaged macOS PTY runtime
-        run: pnpm packaged-app:smoke
+        run: bun run packaged-app:smoke
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -752,14 +760,17 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
+      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
+      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
 
       - name: Stamp release Build channel
         shell: bash
@@ -775,19 +786,19 @@ jobs:
           esac
           echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
 
-      - run: pnpm build
+      - run: bun run build
 
       - name: Build Linux AppImage
-        run: pnpm exec electron-builder --linux --publish never
+        run: bunx electron-builder --linux --publish never
 
       - name: Check Linux native platform floor
-        run: pnpm exec tsx scripts/check-native-platform-floor.ts
+        run: bun scripts/check-native-platform-floor.ts
 
       - name: Prepare Linux update channels
-        run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux
+        run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux
 
       - name: Smoke packaged Linux PTY runtime
-        run: pnpm packaged-app:smoke
+        run: bun run packaged-app:smoke
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -817,14 +828,17 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
+      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
+      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
 
       - name: Stamp release Build channel
         shell: bash
@@ -840,20 +854,20 @@ jobs:
           esac
           echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
 
-      - run: pnpm build
+      - run: bun run build
 
       - name: Build Windows NSIS installer
-        run: pnpm exec electron-builder --win --publish never
+        run: bunx electron-builder --win --publish never
 
       - name: Check Windows native platform floor
-        run: pnpm exec tsx scripts/check-native-platform-floor.ts
+        run: bun scripts/check-native-platform-floor.ts
 
       - name: Prepare Windows update channels
         shell: bash
-        run: pnpm exec tsx scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows
+        run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows
 
       - name: Smoke packaged Windows PTY runtimes
-        run: pnpm packaged-app:smoke
+        run: bun run packaged-app:smoke
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -902,18 +916,20 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: matrix.platform == 'windows'
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         if: matrix.platform == 'windows'
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
       - name: Install Windows verifier dependencies
         if: matrix.platform == 'windows'
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Verify Linux installer
         if: matrix.platform == 'linux'
@@ -988,7 +1004,7 @@ jobs:
         shell: pwsh
         env:
           INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
-        run: pnpm exec tsx scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
+        run: bun scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
 
   release:
     name: Create GitHub Release

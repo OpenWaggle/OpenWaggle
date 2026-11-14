@@ -20,10 +20,7 @@ const DATABASE_BYTES_PER_SESSION = 2_048
 const DATABASE_BYTES_PER_MESSAGE = 3_072
 
 /** Linear storage envelope for rows, indexes, FTS postings, and bounded semantic vectors. */
-export function sessionDiscoveryDatabaseSizeLimitMb(
-  sessionCount: number,
-  messageCount: number,
-) {
+export function sessionDiscoveryDatabaseSizeLimitMb(sessionCount: number, messageCount: number) {
   return Math.ceil(
     DATABASE_FIXED_BUDGET_MB +
       (sessionCount * DATABASE_BYTES_PER_SESSION + messageCount * DATABASE_BYTES_PER_MESSAGE) /

@@ -13,7 +13,11 @@ import { api } from '@/shared/lib/ipc'
 import { hiveWakeRunError } from '../lib/hive-wake-run-error'
 import { isPiSessionFileRefusal } from '../lib/message-delivery'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
-import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
+import {
+  cachedRunSnapshotInput,
+  hydrateSessionMessages,
+  resetMissingSessionHydration,
+} from './useAgentChat.hydration'
 import { handleAgentStreamPayload } from './useAgentChat.stream-events'
 import type {
   AgentRunActions,
@@ -195,11 +199,7 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
         session,
         optimisticUserMessages,
         hasActiveRun: activeRun,
-        cachedRenderMessages: activeRun ? (cachedRenderSnapshot?.messages ?? null) : null,
-        cachedRenderSeeded: activeRun && cachedRenderSnapshot?.seededByRunId !== undefined,
-        cachedSettledMessageIds: cachedRenderSnapshot?.settledMessageIds,
-        cachedNoticedMessageIds: cachedRenderSnapshot?.noticedMessageIds,
-        cachedCompactionStatus: cachedRenderSnapshot?.compactionStatus ?? null,
+        ...cachedRunSnapshotInput(activeRun, cachedRenderSnapshot),
         resyncRevision,
         activityRestoreRevision,
         unannouncedRunNotice,

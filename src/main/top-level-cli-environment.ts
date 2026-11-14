@@ -1,14 +1,13 @@
 import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import type { CliPathKind, TopLevelCliEnvironment } from './top-level-cli-route'
 
-function pathKind(absolutePath: string): CliPathKind {
+function pathKind(absolutePath: string) {
   try {
     const stats = statSync(absolutePath)
-    if (stats.isDirectory()) return 'directory'
-    return 'file'
+    if (stats.isDirectory()) return 'directory' as const
+    return 'file' as const
   } catch {
-    return 'missing'
+    return 'missing' as const
   }
 }
 
@@ -21,7 +20,7 @@ function workingDirectory() {
   }
 }
 
-export function nodeTopLevelCliEnvironment(isPackaged: boolean): TopLevelCliEnvironment {
+export function nodeTopLevelCliEnvironment(isPackaged: boolean) {
   return {
     workingDirectory: workingDirectory(),
     homeDirectory: homedir(),

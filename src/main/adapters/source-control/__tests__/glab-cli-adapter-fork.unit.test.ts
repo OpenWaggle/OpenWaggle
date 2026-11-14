@@ -7,8 +7,8 @@ const { runCliMock } = vi.hoisted(() => ({ runCliMock: vi.fn() }))
 
 vi.mock('../cli-runner', () => ({ runCli: runCliMock }))
 
-function cli(partial: Partial<CliResult>): CliResult {
-  return { stdout: '', stderr: '', code: 0, missing: false, ...partial }
+function cli(partial: Partial<CliResult>) {
+  return { stdout: '', stderr: '', code: 0, missing: false, ...partial } satisfies CliResult
 }
 
 const GITLAB_UPSTREAM = {

@@ -13,11 +13,7 @@ import {
   type LocalSessionProfileManagementOutcome,
   type LocalSessionProfileManagementRequest,
 } from '@shared/types/local-session-profile-management'
-import type { SessionCapability } from '@shared/types/session-capability'
-
-function includesAll<T>(available: readonly T[], requested: readonly T[]) {
-  return requested.every((value) => available.includes(value))
-}
+import { includesEvery } from '@shared/utils/set-membership'
 
 function arraySubset(
   available: readonly string[] | undefined,
@@ -25,7 +21,7 @@ function arraySubset(
 ) {
   if (!requested || requested.length === 0) return true
   if (!available) return false
-  return includesAll(available, requested)
+  return includesEvery(available, requested)
 }
 
 function scopeSubset(available: LocalSessionProfileScope, requested: LocalSessionProfileScope) {
@@ -46,7 +42,7 @@ function policySubset(
   command: Extract<LocalSessionProfileManagementCommand, { operation: 'create' | 'update' }>,
 ) {
   return (
-    includesAll(envelope.capabilities, command.capabilities) &&
+    includesEvery(envelope.capabilities, command.capabilities) &&
     scopeSubset(envelope.scope, command.scope) &&
     (envelope.authorizationCeiling === 'yolo' ||
       command.authorizationCeiling === 'ask-for-approval')
@@ -119,14 +115,4 @@ export function profileManagementTargetName(command: LocalSessionProfileManageme
     : 'profileName' in command
       ? command.profileName
       : undefined
-}
-
-export function canManageLocalSessionProfiles(
-  caller: LocalSessionCallerIdentity,
-  required: readonly SessionCapability[] = ['access:profiles'],
-) {
-  return (
-    caller.profileAuthority === undefined ||
-    includesAll(caller.profileAuthority.capabilities, required)
-  )
 }

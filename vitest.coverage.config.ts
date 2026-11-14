@@ -4,6 +4,7 @@ import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { ISOLATED_SOURCE_CONTROL_CLI_ENV } from './scripts/vitest-source-control-env'
 import {
+  BUN_RUNTIME_ALIASES,
   COMPONENT_TIER_TIMEOUTS,
   NODE_TIER_TIMEOUTS,
   TEST_TEMPORARY_ROOT_SETUP,
@@ -33,6 +34,7 @@ export default defineConfig({
   plugins: [svgStubPlugin(), react()],
   resolve: {
     alias: {
+      ...BUN_RUNTIME_ALIASES,
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
       '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
@@ -45,7 +47,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/main/**/*.ts', 'src/renderer/src/**/*.{ts,tsx}', 'src/preload/**/*.ts', 'src/shared/**/*.ts'],
+      include: [
+        'src/main/**/*.ts',
+        'src/renderer/src/**/*.{ts,tsx}',
+        'src/preload/**/*.ts',
+        'src/shared/**/*.ts',
+      ],
       exclude: [
         'src/**/*.test.ts',
         'src/**/*.test.tsx',
@@ -73,7 +80,11 @@ export default defineConfig({
           // The unit and integration tiers' deadlines, which instrumentation needs even more.
           ...NODE_TIER_TIMEOUTS,
           env: { ...ISOLATED_SOURCE_CONTROL_CLI_ENV, ...TEST_TIME_ZONE_ENV },
-          include: ['src/**/*.unit.test.ts', 'src/**/*.integration.test.ts', 'scripts/**/*.unit.test.ts'],
+          include: [
+            'src/**/*.unit.test.ts',
+            'src/**/*.integration.test.ts',
+            'scripts/**/*.unit.test.ts',
+          ],
           setupFiles: [
             'scripts/test-support/isolate-user-home.ts',
             'src/main/test-support/isolate-user-mcp-files.ts',
@@ -88,7 +99,10 @@ export default defineConfig({
           ...COMPONENT_TIER_TIMEOUTS,
           env: TEST_TIME_ZONE_ENV,
           include: ['src/**/*.component.test.tsx'],
-          setupFiles: ['scripts/test-support/isolate-user-home.ts', 'src/renderer/src/test-setup.ts'],
+          setupFiles: [
+            'scripts/test-support/isolate-user-home.ts',
+            'src/renderer/src/test-setup.ts',
+          ],
         },
       },
     ],

@@ -27,7 +27,7 @@ export function forTask<R>(
   record: ScheduledTaskRecord,
   step: string,
   effect: Effect.Effect<unknown, unknown, R>,
-): Effect.Effect<void, never, R> {
+) {
   return effect.pipe(
     Effect.asVoid,
     Effect.catchAllCause((cause) =>

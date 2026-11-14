@@ -21,7 +21,7 @@ function requireEditor(editorRef: RefObject<LexicalEditor | null>) {
   return editorRef.current
 }
 
-function reviewPreset(): WagglePreset {
+function reviewPreset() {
   return {
     id: WagglePresetId('review'),
     name: 'Review',
@@ -47,7 +47,7 @@ function reviewPreset(): WagglePreset {
     isBuiltIn: false,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies WagglePreset
 }
 
 describe('LexicalComposerEditor', () => {

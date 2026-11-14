@@ -7,11 +7,16 @@ import { draftMaterializationGeneration } from './draft-session-materialization'
  * Session exists. Returns the release, a no-op once the Session replaced the draft or the user
  * moved to another draft or Session.
  */
-export function lockDraftForFirstSend(projectPath: string): () => void {
+export function lockDraftForFirstSend(projectPath: string) {
   const state = useChatStore.getState()
   const draft = state.draftSession
-  if (state.activeSessionId !== null || draft?.projectPath !== projectPath || draft.isMaterializing)
+  if (
+    state.activeSessionId !== null ||
+    draft?.projectPath !== projectPath ||
+    draft.isMaterializing
+  ) {
     return () => {}
+  }
   const generation = draftMaterializationGeneration()
   useChatStore.setState({ draftSession: { ...draft, isMaterializing: true } })
   return () => {
@@ -20,8 +25,9 @@ export function lockDraftForFirstSend(projectPath: string): () => void {
       if (
         current.draftSession?.projectPath !== projectPath ||
         !current.draftSession.isMaterializing
-      )
+      ) {
         return {}
+      }
       const { isMaterializing: _materializing, ...draftSession } = current.draftSession
       return { draftSession }
     })

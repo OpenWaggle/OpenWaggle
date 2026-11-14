@@ -22,22 +22,22 @@ interface RankingCase {
   readonly profile: LocalSessionProfileAuthority | undefined
 }
 
-function request(query: Partial<DiscoverySearchRequest['query']> = {}): DiscoverySearchRequest {
+function request(query: Partial<DiscoverySearchRequest['query']> = {}) {
   return {
     contractVersion: SESSION_QUERY_CONTRACT_VERSION,
     requestId: 'discovery-ranking',
     query: { operation: 'search', query: 'marker', mode: 'lexical', limit: 10, ...query },
-  }
+  } satisfies DiscoverySearchRequest
 }
 
-function authority(scope: LocalSessionProfileAuthority['scope']): LocalSessionProfileAuthority {
+function authority(scope: LocalSessionProfileAuthority['scope']) {
   return {
     profileId: 'ranking-profile',
     profileName: 'Ranking profile',
     capabilities: ['sessions:discover'],
     scope,
     authorizationCeiling: 'ask-for-approval',
-  }
+  } satisfies LocalSessionProfileAuthority
 }
 
 function seedRankedSessions(sql: SqlClient.SqlClient) {

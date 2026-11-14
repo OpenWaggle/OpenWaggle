@@ -168,10 +168,7 @@ function captureWindowsEnvironmentCommand(names: readonly string[]) {
   ].join('; ')
 }
 
-export function extractShellEnvironment(
-  output: string,
-  names: readonly string[],
-): ShellEnvironmentPatch {
+export function extractShellEnvironment(output: string, names: readonly string[]) {
   const environment: ShellEnvironmentPatch = {}
   for (const name of names) {
     const marker = startMarker(name)
@@ -189,8 +186,8 @@ export function extractShellEnvironment(
   return environment
 }
 
-export function runBoundedShellEnvironmentCommand(input: ShellEnvironmentCommand): Promise<string> {
-  return new Promise((resolve) => {
+export function runBoundedShellEnvironmentCommand(input: ShellEnvironmentCommand) {
+  return new Promise<string>((resolve) => {
     let output = ''
     let outputBytes = 0
     let failed = false
@@ -247,10 +244,7 @@ export function runBoundedShellEnvironmentCommand(input: ShellEnvironmentCommand
   })
 }
 
-async function safeRun(
-  runner: ShellEnvironmentCommandRunner,
-  input: ShellEnvironmentCommand,
-): Promise<string> {
+async function safeRun(runner: ShellEnvironmentCommandRunner, input: ShellEnvironmentCommand) {
   try {
     return await runner(input)
   } catch (error) {
@@ -267,7 +261,7 @@ export async function readLoginShellEnvironment(
   shell: string,
   runner: ShellEnvironmentCommandRunner,
   env?: Readonly<Record<string, string | undefined>>,
-): Promise<ShellEnvironmentPatch> {
+) {
   const output = await safeRun(runner, {
     probe: 'login-shell',
     command: shell,
@@ -278,9 +272,7 @@ export async function readLoginShellEnvironment(
   return extractShellEnvironment(output, LOGIN_SHELL_ENV_NAMES)
 }
 
-export async function readLaunchctlPath(
-  runner: ShellEnvironmentCommandRunner,
-): Promise<string | undefined> {
+export async function readLaunchctlPath(runner: ShellEnvironmentCommandRunner) {
   const output = await safeRun(runner, {
     probe: 'launchctl-path',
     command: '/bin/launchctl',
@@ -293,7 +285,7 @@ export async function readLaunchctlPath(
 export async function readWindowsShellEnvironment(
   runner: ShellEnvironmentCommandRunner,
   loadProfile: boolean,
-): Promise<ShellEnvironmentPatch> {
+) {
   const args = [
     '-NoLogo',
     ...(loadProfile ? [] : ['-NoProfile']),

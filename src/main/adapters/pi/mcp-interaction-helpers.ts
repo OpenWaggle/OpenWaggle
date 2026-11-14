@@ -1,5 +1,7 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { MCP_CONFIG } from '@shared/constants/mcp'
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
+import { jsonValueSchema } from '@shared/schemas/validation'
 import type { McpJsonValue } from '@shared/types/mcp'
 import {
   getOpenWaggleDeclaredConfirm,
@@ -12,6 +14,35 @@ export type JsonObject = Record<string, McpJsonValue>
 
 export function isObject(value: McpJsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+// explicit undefined: MCP SDK request objects are in-process and may set a field to undefined
+const field = Schema.optional(jsonValueSchema)
+
+/**
+ * The fields of MCP sampling and elicitation requests (and of their `tools`) OpenWaggle reads.
+ * The server writes them, so each stays a JSON value its reader checks.
+ */
+const mcpRequestFieldsSchema = Schema.Struct({
+  mode: field,
+  url: field,
+  message: field,
+  requestedSchema: field,
+  maxTokens: field,
+  temperature: field,
+  tools: field,
+  messages: field,
+  systemPrompt: field,
+  name: field,
+  description: field,
+  inputSchema: field,
+})
+
+export type McpRequestFields = SchemaType<typeof mcpRequestFieldsSchema>
+
+export function mcpRequestFields(request: JsonObject) {
+  const fields: McpRequestFields = decodeUnknownOrThrow(mcpRequestFieldsSchema, request)
+  return fields
 }
 
 export function stringValue(value: McpJsonValue | undefined) {
@@ -56,7 +87,7 @@ export async function declaredConfirm(input: {
   readonly title: string
   readonly message: string
   readonly signal?: AbortSignal
-}): Promise<boolean> {
+}) {
   const declared = getOpenWaggleDeclaredConfirm(input.ctx.ui)
   if (declared) {
     return declared({
@@ -66,5 +97,9 @@ export async function declaredConfirm(input: {
       ...(input.signal ? { signal: input.signal } : {}),
     })
   }
-  return input.ctx.ui.confirm(input.title, input.message, { signal: input.signal })
+  return input.ctx.ui.confirm(
+    input.title,
+    input.message,
+    input.signal ? { signal: input.signal } : {},
+  )
 }

@@ -31,11 +31,10 @@ const {
   }
 })
 
-vi.mock('@electron-toolkit/utils', () => ({
-  get is() {
-    return { dev: mockIsDev.value }
-  },
-}))
+vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
+  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !mockIsDev.value } }
+})
 
 vi.mock('@shared/build-identity-runtime', () => ({
   get BUILD_CHANNEL() {
@@ -106,6 +105,8 @@ describe('updater service', () => {
     mockBroadcastToWindows.mockReset()
     mockCheckForUpdatesFn.mockReset()
     mockConfigureUpdaterFeed.mockReset()
+    // The feed lists a release, so each check goes on to ask the updater.
+    mockConfigureUpdaterFeed.mockResolvedValue({ type: 'release', tag: 'v0.5.0-alpha.1' })
     mockCancelDownload.mockReset()
     mockQuitAndInstall.mockReset()
     mockCheckForUpdatesFn.mockResolvedValue(undefined)
@@ -133,10 +134,10 @@ describe('updater service', () => {
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
     })
 
-    it('calls autoUpdater.checkForUpdates in prod mode', () => {
+    it('calls autoUpdater.checkForUpdates in prod mode', async () => {
       mockIsDev.value = false
       checkForUpdates()
-      expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
+      await vi.waitFor(() => expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce())
     })
 
     it('is a no-op for dev channel builds even outside dev mode', () => {
@@ -176,11 +177,11 @@ describe('updater service', () => {
       expect(emitter().listenerCount('error')).toBeGreaterThan(0)
     })
 
-    it('triggers an initial checkForUpdates after the startup delay', () => {
+    it('triggers an initial checkForUpdates after the startup delay', async () => {
       mockIsDev.value = false
       initAutoUpdater('alpha')
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(5_001)
+      await vi.advanceTimersByTimeAsync(5_001)
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
     })
 
@@ -208,32 +209,31 @@ describe('updater service', () => {
       initAutoUpdater('alpha')
 
       checkForUpdates('alpha')
-      await Promise.resolve()
-      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(0)
 
       checkForUpdates('stable')
 
       expect(mockCancelDownload).toHaveBeenCalledOnce()
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
     })
 
-    it('invalidates an already downloaded Alpha update when switching to Stable', () => {
+    it('invalidates an already downloaded Alpha update when switching to Stable', async () => {
       initAutoUpdater('alpha')
       emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
 
       checkForUpdates('stable')
 
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
       expect(getUpdateStatus()).not.toEqual({ type: 'downloaded', version: '0.5.0-alpha.1' })
-      installUpdate()
+      await installUpdate()
       expect(mockQuitAndInstall).not.toHaveBeenCalled()
       mockBroadcastToWindows.mockClear()
 
       emitter().emit('update-available', { version: '0.5.0-alpha.1' })
       emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
 
-      expect(Reflect.get(emitter(), 'autoInstallOnAppQuit')).toBe(false)
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
       const statusTypes = mockBroadcastToWindows.mock.calls.map(([, status]) => status.type)
       expect(statusTypes).not.toContain('available')
       expect(statusTypes).not.toContain('downloaded')
@@ -252,16 +252,16 @@ describe('updater service', () => {
       mockIsDev.value = false
       mockBuildChannel.value = 'alpha'
       initAutoUpdater('alpha')
-      expect(Reflect.get(emitter(), 'channel')).toBe('alpha')
-      expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(true)
-      expect(Reflect.get(emitter(), 'allowDowngrade')).toBe(false)
+      expect(emitter()).toHaveProperty('channel', 'alpha')
+      expect(emitter()).toHaveProperty('allowPrerelease', true)
+      expect(emitter()).toHaveProperty('allowDowngrade', false)
     })
 
     it('maps the Stable preference to the electron-updater latest feed', () => {
       initAutoUpdater('stable')
-      expect(Reflect.get(emitter(), 'channel')).toBe('latest')
-      expect(Reflect.get(emitter(), 'allowPrerelease')).toBe(false)
-      expect(Reflect.get(emitter(), 'allowDowngrade')).toBe(false)
+      expect(emitter()).toHaveProperty('channel', 'latest')
+      expect(emitter()).toHaveProperty('allowPrerelease', false)
+      expect(emitter()).toHaveProperty('allowDowngrade', false)
     })
   })
 
@@ -329,11 +329,11 @@ describe('updater service', () => {
   })
 
   describe('disposeAutoUpdater', () => {
-    it('clears the periodic interval so no further checks fire after disposal', () => {
+    it('clears the periodic interval so no further checks fire after disposal', async () => {
       mockIsDev.value = false
       initAutoUpdater('alpha')
 
-      vi.advanceTimersByTime(5_001)
+      await vi.advanceTimersByTimeAsync(5_001)
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
       mockCheckForUpdatesFn.mockClear()
 

@@ -6,8 +6,9 @@ const SHELL_MINIMUM_BUTTONS = 5
 const SHELL_MINIMUM_TEXT_LENGTH = 20
 const RENDERER_URL_PREFIX = 'openwaggle://app'
 /**
- * tsx compiles this file with esbuild's keepNames, which wraps named functions in `__name(...)`.
- * Functions sent into the page carry those calls, so the page needs the helper too.
+ * A runner that compiles this file with esbuild's keepNames (tsx did, before the scripts moved to
+ * Bun) wraps named functions in `__name(...)`. Functions sent into the page carry those calls, so
+ * the page defines the helper in case it is needed.
  */
 export const PAGE_NAME_HELPER = 'globalThis.__name ??= (target) => target'
 const LOCALHOST_CDP = 'http://127.0.0.1'
@@ -49,7 +50,7 @@ export interface RendererBoot {
 function installBootProbe(conditions: BootProbeConditions) {
   if (Reflect.has(globalThis, '__owPerf')) return
   const state: BootProbeState = { milestones: {}, lcp: null, longTaskMs: 0 }
-  Reflect.set(globalThis, '__owPerf', state)
+  Object.assign(globalThis, { __owPerf: state })
   const mark = (name: string) => {
     if (state.milestones[name] === undefined) state.milestones[name] = performance.now()
   }
@@ -64,7 +65,12 @@ function installBootProbe(conditions: BootProbeConditions) {
     // Observers are best effort; the milestones below do not depend on them.
   }
   let scheduled = false
-  const wanted = ['shell', 'composer', 'chatReady', ...(conditions.sessionListText ? ['sessionList'] : [])]
+  const wanted = [
+    'shell',
+    'composer',
+    'chatReady',
+    ...(conditions.sessionListText ? ['sessionList'] : []),
+  ]
   // Each check reads the whole page's text, which costs the renderer a layout and more per frame
   // the DOM changes: left watching, it was part of every later measurement, such as streaming.
   const observer = new MutationObserver(() => {
@@ -74,7 +80,8 @@ function installBootProbe(conditions: BootProbeConditions) {
   })
   function check() {
     scheduled = false
-    const body = document.body
+    // The DOM types `document.body` as always set; it is null until the parser reaches it.
+    const body = document.querySelector('body')
     if (!body) return
     const text = body.innerText
     const shell =
@@ -141,9 +148,12 @@ export async function connectRenderer(port: number, timeoutMs: number, boot: Boo
 export async function waitForMilestones(page: Page, names: readonly string[], timeoutMs: number) {
   await page.waitForFunction(
     (wanted) => {
-      const state: unknown = Reflect.get(globalThis, '__owPerf')
+      const holder: object = globalThis
+      const state: unknown = '__owPerf' in holder ? holder.__owPerf : null
       const milestones: unknown =
-        typeof state === 'object' && state !== null ? Reflect.get(state, 'milestones') : null
+        typeof state === 'object' && state !== null && 'milestones' in state
+          ? state.milestones
+          : null
       return (
         typeof milestones === 'object' &&
         milestones !== null &&
@@ -155,9 +165,10 @@ export async function waitForMilestones(page: Page, names: readonly string[], ti
   )
 }
 
-export async function readRendererBoot(page: Page, instrumentedFromStart: boolean): Promise<RendererBoot> {
+export async function readRendererBoot(page: Page, instrumentedFromStart: boolean) {
   const boot = await page.evaluate(() => {
-    const probe: unknown = Reflect.get(globalThis, '__owPerf')
+    const holder: object = globalThis
+    const probe: unknown = '__owPerf' in holder ? holder.__owPerf : null
     const isState = (value: unknown): value is BootProbeState =>
       typeof value === 'object' && value !== null && 'milestones' in value
     const state = isState(probe) ? probe : null
@@ -175,5 +186,6 @@ export async function readRendererBoot(page: Page, instrumentedFromStart: boolea
       longTaskMs: state?.longTaskMs ?? 0,
     }
   })
-  return { ...boot, instrumentedFromStart }
+  const result: RendererBoot = { ...boot, instrumentedFromStart }
+  return result
 }

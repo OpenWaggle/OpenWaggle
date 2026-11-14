@@ -7,9 +7,7 @@ import { getMcpToolExposure, type McpServerConfigBase } from './mcp-server-confi
  * tokens a call for four common servers) while the model used them in 0.2% of calls. Files are
  * never rewritten, so the `pi` command still declares those tools.
  */
-export function withOpenWaggleRuntimeExposure<Config extends McpServerConfigBase>(
-  config: Config,
-): Config {
+export function withOpenWaggleRuntimeExposure<Config extends McpServerConfigBase>(config: Config) {
   const { exposure, toolExposure } = config
   const directTool = Object.values(toolExposure ?? {}).includes('direct')
   if (exposure !== 'direct' && !directTool) return config
@@ -39,7 +37,7 @@ export function withOpenWaggleRuntimeExposure<Config extends McpServerConfigBase
 export function withFileDirectExposure<Config extends McpServerConfigBase>(
   config: Config,
   file: Pick<McpServerConfigBase, 'exposure' | 'toolExposure'>,
-): Config {
+) {
   const directTool = Object.values(file.toolExposure ?? {}).includes('direct')
   if (file.exposure !== 'direct' && !directTool) return config
   return {
@@ -58,7 +56,7 @@ export function withFileDirectExposure<Config extends McpServerConfigBase>(
 export function withMcpAppToolsDeclared<Config extends McpServerConfigBase>(
   config: Config,
   appTools: Iterable<string>,
-): Config {
+) {
   const declared = [...new Set(appTools)].filter(
     (tool) => getMcpToolExposure(config, tool) === 'codemode',
   )

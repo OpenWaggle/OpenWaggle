@@ -38,12 +38,10 @@ function repositoryOperation<T>(operation: string, task: () => Promise<T>) {
  * The discovery repository. An external projection renames Pi entries whose ids another Session
  * holds through the transcript repair, as a Run's snapshot does (ADR 0049).
  */
-function createPiSessionDiscoveryRepository(
-  transcriptRepair: SessionTranscriptRepairShape,
-): PiSessionDiscoveryRepositoryShape {
+function createPiSessionDiscoveryRepository(transcriptRepair: SessionTranscriptRepairShape) {
   const repairEntryIds: ExternalSnapshotEntryIdRepair = (input, foreignNodeIds) =>
     Effect.runPromise(transcriptRepair.renameForeignEntryIds(input, foreignNodeIds))
-  return {
+  const shape: PiSessionDiscoveryRepositoryShape = {
     readScope: () =>
       repositoryOperation('readPiSessionDiscoveryScope', readPiSessionDiscoveryScope),
     adoptDiscovered: (input) =>
@@ -83,7 +81,9 @@ function createPiSessionDiscoveryRepository(
             sessionId: SessionId(String(input.sessionId)),
             nodes: input.sessionSnapshot.nodes,
             activeNodeId: input.sessionSnapshot.activeNodeId,
-            piProjection: input.sessionSnapshot.piProjection,
+            ...(input.sessionSnapshot.piProjection
+              ? { piProjection: input.sessionSnapshot.piProjection }
+              : {}),
             piSessionId: input.piSessionId,
             piSessionFile: input.piSessionFile,
             expectedRevision: input.expectedRevision,
@@ -93,6 +93,7 @@ function createPiSessionDiscoveryRepository(
         ),
       ),
   }
+  return shape
 }
 
 export const SqlitePiSessionDiscoveryRepositoryLive = Layer.effect(

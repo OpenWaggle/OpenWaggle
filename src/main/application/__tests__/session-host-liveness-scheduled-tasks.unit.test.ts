@@ -21,26 +21,22 @@ describe('Session Host liveness with enabled Scheduled tasks', () => {
     expect(requestShutdown).toHaveBeenCalledOnce()
   })
 
-  it('lets a stop drain the Host although a Scheduled task is enabled', async () => {
-    const requestShutdown = vi.fn()
-    const liveness = new SessionHostLiveness({ idleGracePeriodMs: 1000, requestShutdown })
-    liveness.acquire('scheduled-task')
+  it.each([false, true])(
+    'lets a stop drain the Host although a Scheduled task is enabled (Run in flight: %s)',
+    (runInFlight) => {
+      const requestShutdown = vi.fn()
+      const liveness = new SessionHostLiveness({ idleGracePeriodMs: 1000, requestShutdown })
+      liveness.acquire('scheduled-task')
+      // A Run the Scheduled task started before the drain still holds it.
+      const releaseRun = runInFlight ? liveness.acquire('run') : undefined
 
-    liveness.requestDrain('stop')
+      liveness.requestDrain('stop')
+      if (releaseRun !== undefined) {
+        expect(requestShutdown).not.toHaveBeenCalled()
+        releaseRun()
+      }
 
-    expect(requestShutdown).toHaveBeenCalledOnce()
-  })
-
-  it('still waits for a Run a Scheduled task started before it drains', () => {
-    const requestShutdown = vi.fn()
-    const liveness = new SessionHostLiveness({ idleGracePeriodMs: 1000, requestShutdown })
-    liveness.acquire('scheduled-task')
-    const releaseRun = liveness.acquire('run')
-
-    liveness.requestDrain('stop')
-    expect(requestShutdown).not.toHaveBeenCalled()
-    releaseRun()
-
-    expect(requestShutdown).toHaveBeenCalledOnce()
-  })
+      expect(requestShutdown).toHaveBeenCalledOnce()
+    },
+  )
 })

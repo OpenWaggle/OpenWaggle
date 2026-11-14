@@ -1,8 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { sessionHostErrorKindForThrownCode } from '@shared/domain/session-host-refusals'
 import { formatErrorMessage } from '@shared/utils/node-error'
-import { app } from 'electron'
 import { CliError } from './cli-error'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
 import { env } from './env'
 import { hasFlag, option, type ParsedArguments, readSecretFromStdin } from './mcp-cli-arguments'
 import type { executeLocalSessionCommand } from './session-host/local-session-client'
@@ -121,7 +122,7 @@ export function refusedCredentialError(
 export async function prepareLocalSessionCliClientInput(
   arguments_: ParsedArguments,
   options: LocalSessionCliClientOptions = {},
-): Promise<LocalSessionCliClientInput> {
+) {
   const profile = option(arguments_, 'profile') ?? env.OPENWAGGLE_PROFILE
   const credentialFile =
     option(arguments_, 'profile-credential-file') ?? env.OPENWAGGLE_PROFILE_CREDENTIAL_FILE
@@ -130,7 +131,7 @@ export async function prepareLocalSessionCliClientInput(
   }
   if (!profile) assertCliAgentMayUseOwnerAuthority(options.agentRefusal)
   const paths = await prepareLocalSessionHostPaths(
-    resolveLocalSessionHostPaths({ userDataRoot: app.getPath('userData') }),
+    resolveLocalSessionHostPaths({ userDataRoot: appPaths.userData() }),
   )
   const profileCredential = profile
     ? await readProfileCredential(
@@ -146,7 +147,7 @@ export async function prepareLocalSessionCliClientInput(
   return {
     paths,
     clientKind: 'cli' as const,
-    clientVersion: app.getVersion(),
+    clientVersion: appLifecycle.version(),
     workingDirectory: process.cwd(),
     ...(options.supportedRevisions ? { supportedRevisions: options.supportedRevisions } : {}),
     ...(profile ? { profile } : {}),
@@ -157,7 +158,7 @@ export async function prepareLocalSessionCliClientInput(
 export async function createLocalSessionCliClientInput(
   arguments_: ParsedArguments,
   options: LocalSessionCliClientOptions = {},
-): Promise<LocalSessionCliClientInput> {
+) {
   const input = await prepareLocalSessionCliClientInput(arguments_, options)
   try {
     await ensureLocalSessionHost(input)

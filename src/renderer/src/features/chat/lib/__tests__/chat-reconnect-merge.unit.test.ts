@@ -2,18 +2,24 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import { describe, expect, it } from 'vitest'
 import { mergeBackgroundReconnectMessages } from '../chat-reconnect-merge'
 
-function userMessage(id: string, content: string): UIMessage {
-  return { id, role: 'user', parts: [{ type: 'text', content }], createdAt: new Date(1) }
+function userMessage(id: string, content: string) {
+  return {
+    id,
+    role: 'user',
+    parts: [{ type: 'text', content }],
+    createdAt: new Date(1),
+  } satisfies UIMessage
 }
 
 describe('mergeBackgroundReconnectMessages placement of cached-only messages', () => {
   it('keeps answers streamed while the Session was hidden above the answer still streaming', () => {
-    const assistant = (id: string, content: string): UIMessage => ({
-      id,
-      role: 'assistant',
-      parts: [{ type: 'text', content }],
-      createdAt: new Date(2),
-    })
+    const assistant = (id: string, content: string) =>
+      ({
+        id,
+        role: 'assistant',
+        parts: [{ type: 'text', content }],
+        createdAt: new Date(2),
+      }) satisfies UIMessage
     const prompt = userMessage('live-user-1', 'Fix the transcript')
 
     expect(
@@ -30,12 +36,13 @@ describe('mergeBackgroundReconnectMessages placement of cached-only messages', (
   })
 
   it('keeps messages before the first shared one above it, not below the streaming answer', () => {
-    const assistant = (id: string): UIMessage => ({
-      id,
-      role: 'assistant',
-      parts: [{ type: 'text', content: id }],
-      createdAt: new Date(2),
-    })
+    const assistant = (id: string) =>
+      ({
+        id,
+        role: 'assistant',
+        parts: [{ type: 'text', content: id }],
+        createdAt: new Date(2),
+      }) satisfies UIMessage
 
     expect(
       mergeBackgroundReconnectMessages(
@@ -46,10 +53,11 @@ describe('mergeBackgroundReconnectMessages placement of cached-only messages', (
   })
 
   it('keeps a prompt the Session log recorded at another order despite repeated text', () => {
-    const recorded = (id: string, order: number): UIMessage => ({
-      ...userMessage(id, 'continue'),
-      metadata: { sessionNodeCreatedOrder: order },
-    })
+    const recorded = (id: string, order: number) =>
+      ({
+        ...userMessage(id, 'continue'),
+        metadata: { sessionNodeCreatedOrder: order },
+      }) satisfies UIMessage
 
     expect(
       mergeBackgroundReconnectMessages(
@@ -82,7 +90,8 @@ describe('mergeBackgroundReconnectMessages placement of cached-only messages', (
 })
 
 describe("mergeBackgroundReconnectMessages of an answer's parts", () => {
-  const answer = (parts: UIMessage['parts']): UIMessage => ({ id: 'a1', role: 'assistant', parts })
+  const answer = (parts: UIMessage['parts']) =>
+    ({ id: 'a1', role: 'assistant', parts }) satisfies UIMessage
   const merge = (buffered: UIMessage['parts'], shown: UIMessage['parts']) =>
     mergeBackgroundReconnectMessages([answer(buffered)], [answer(shown)])[0]?.parts
 

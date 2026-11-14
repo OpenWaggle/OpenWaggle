@@ -105,11 +105,12 @@ function ChangeRequestStatusRow({
 }) {
   const terminology = getChangeRequestTerminology(vcsStatus.sourceControlProvider?.id)
   if (remoteVcsState === 'loaded') {
+    const disabledReason = requestCreationDisabledReason(gitStatus, vcsStatus, terminology.singular)
     return (
       <SessionSummaryRow
         icon={<GitPullRequest className="size-4" />}
         label={`Create ${terminology.shortLabel}`}
-        disabledReason={requestCreationDisabledReason(gitStatus, vcsStatus, terminology.singular)}
+        {...(disabledReason === undefined ? {} : { disabledReason })}
         onClick={onCreate}
       />
     )

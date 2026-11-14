@@ -19,12 +19,10 @@ export type RunStartSettingsRejection =
   | 'run_authorization_override_requires_idle_session'
 
 /** The refusal for settings sent on a command that does not start a Run, if it names any. */
-export function refuseRunStartSettings(
-  settings: RunStartSettings | undefined,
-): RunStartSettingsRejection | undefined {
-  if (settings?.thinkingLevel !== undefined) return 'thinking_level_requires_idle_session'
+export function refuseRunStartSettings(settings: RunStartSettings | undefined) {
+  if (settings?.thinkingLevel !== undefined) return 'thinking_level_requires_idle_session' as const
   if (settings?.runAuthorizationOverride !== undefined) {
-    return 'run_authorization_override_requires_idle_session'
+    return 'run_authorization_override_requires_idle_session' as const
   }
   return undefined
 }
@@ -33,7 +31,7 @@ export function refuseRunStartSettings(
 export function withRunStartSettings<Intent extends object>(
   intent: Intent,
   settings: RunStartSettings | undefined,
-): Intent & RunStartSettings {
+) {
   return {
     ...intent,
     ...(settings?.thinkingLevel !== undefined ? { thinkingLevel: settings.thinkingLevel } : {}),

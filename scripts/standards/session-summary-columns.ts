@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 interface Violation {
   readonly detail?: string
@@ -18,7 +19,7 @@ function normalizePath(filePath: string) {
   return filePath.split(path.sep).join('/')
 }
 
-function splitTopLevelTerms(projection: string): readonly string[] {
+function splitTopLevelTerms(projection: string) {
   const terms: string[] = []
   let depth = 0
   let current = ''
@@ -43,7 +44,7 @@ function namesNoColumns(projection: string) {
 }
 
 function selectsNamedColumns(query: string) {
-  const projection = SESSION_SUMMARY_PROJECTION.exec(query)?.groups?.['projection']
+  const projection = namedGroups(SESSION_SUMMARY_PROJECTION.exec(query), ['projection'])?.projection
   if (projection === undefined) return false
   return !namesNoColumns(projection)
 }
@@ -65,7 +66,8 @@ export function collectSessionSummaryColumnViolations(file: string, contents: st
       file: normalized,
       message:
         'SessionSummaryRow queries must interpolate sessionSummaryColumns(sql), not list columns inline',
-      detail: 'an inline list can omit a column the row type promises, and the type checker cannot see it',
+      detail:
+        'an inline list can omit a column the row type promises, and the type checker cannot see it',
     })
   }
   return violations

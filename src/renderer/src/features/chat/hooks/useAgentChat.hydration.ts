@@ -6,6 +6,7 @@ import {
   reconcileSnapshotUserMessages,
   sessionToUIMessages,
 } from '../lib/useAgentChat.utils'
+import type { RunRenderSnapshot } from '../state/background-run-render-state'
 import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
 import { activeRunHydrationMessages } from './useAgentChat.active-run-messages'
 import { isSendToOtherSession, settleDisplacedSends } from './useAgentChat.foreground-run'
@@ -223,8 +224,9 @@ export function hydrateSessionMessages(
   context.lastHydratedResyncRevisionRef.current = input.resyncRevision
   // With no Run active after a resync, a Run the subscription missed (it started and settled
   // unseen) returned the promoted steers it never took to the queue: their previews go.
-  if (resynced && !input.hasActiveRun)
+  if (resynced && !input.hasActiveRun) {
     useOptimisticSteerStore.getState().clearSession(input.sessionId)
+  }
   // Only a Run can have lost events to recover: an idle Session rebuilt from a detail that may
   // not hold its just-finished Run yet would drop that Run's rows until the refetch landed.
   const keys = getSessionHydrationKeys(input, context, resynced && input.hasActiveRun)
@@ -245,4 +247,17 @@ export function hydrateSessionMessages(
     return
   }
   hydrateIdleSession(input, keys, context)
+}
+
+/** The hydration input a Session's cached render snapshot gives; its rows only while it runs. */
+export function cachedRunSnapshotInput(activeRun: boolean, snapshot: RunRenderSnapshot | null) {
+  return {
+    cachedRenderMessages: activeRun ? (snapshot?.messages ?? null) : null,
+    cachedRenderSeeded: activeRun && snapshot?.seededByRunId !== undefined,
+    ...(snapshot?.settledMessageIds === undefined
+      ? {}
+      : { cachedSettledMessageIds: snapshot.settledMessageIds }),
+    cachedNoticedMessageIds: snapshot?.noticedMessageIds,
+    cachedCompactionStatus: snapshot?.compactionStatus ?? null,
+  }
 }

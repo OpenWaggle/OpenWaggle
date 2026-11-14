@@ -7,7 +7,7 @@ import { ACTION_DEFINITION_LIMITS } from '@shared/types/action-definitions'
 export function actionTaskUnavailable(
   invocation: ActionInvocation,
   discovery: ProjectTaskDiscovery | undefined,
-): string | undefined {
+) {
   if (invocation.type !== 'task' || !discovery) return undefined
   const task = findDiscoveredTask(invocation.task, discovery)
   if (task) return task.unavailableReason
@@ -15,8 +15,9 @@ export function actionTaskUnavailable(
   if (
     discovery.tasks.length >= ACTION_DEFINITION_LIMITS.DISCOVERED_TASKS ||
     discovery.diagnostics.length
-  )
+  ) {
     return undefined
+  }
   return 'This saved task is no longer available in the workspace.'
 }
 

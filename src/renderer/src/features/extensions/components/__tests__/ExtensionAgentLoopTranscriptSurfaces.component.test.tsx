@@ -20,8 +20,8 @@ function transcriptEntry(input: {
   readonly contributionId: string
   readonly title: string
   readonly entryPath: string
-}): ExtensionContributionRegistryEntry {
-  return {
+}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
     extensionVersion: '1.0.0',
@@ -53,6 +53,7 @@ function transcriptEntry(input: {
     },
     diagnostics: [],
   }
+  return entry
 }
 
 describe('ExtensionAgentLoopSurface transcript renderers', () => {

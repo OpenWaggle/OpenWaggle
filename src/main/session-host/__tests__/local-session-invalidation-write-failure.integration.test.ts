@@ -10,6 +10,7 @@ import { encodeLocalSessionFrame } from '../local-session-framing'
 import { LocalSessionOutboundCapacityError } from '../local-session-outbound-budget'
 import { fenceLocalSessionProfileAdmissions } from '../local-session-profile-invalidation'
 import { type LocalSessionServerHandle, listenLocalSessionServer } from '../local-session-server'
+import { decodeTestServerFrame, isTestServerFrame } from './local-session-server-test-client'
 import { writeLocalSessionSocketFrame } from '../local-session-server-frame'
 import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
 
@@ -99,10 +100,8 @@ describe('Local Session invalidation response failures', () => {
         },
         writeFrame: async (input) => {
           if (
-            typeof input.value === 'object' &&
-            input.value !== null &&
-            Reflect.get(input.value, 'kind') === 'response' &&
-            Reflect.get(input.value, 'requestId') === requestId
+            isTestServerFrame(input.value, 'response') &&
+            decodeTestServerFrame(input.value).requestId === requestId
           ) {
             if (failure === 'outbound capacity') input.socket.destroy()
             if (failure === 'stalled backpressure') return new Promise<void>(() => undefined)

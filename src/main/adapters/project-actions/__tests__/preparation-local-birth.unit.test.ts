@@ -61,16 +61,13 @@ describe('a local Workspace preparation', () => {
 })
 
 describe('local preparations stored by older builds', () => {
-  function legacyLocalRecord(
-    template: StoredWorkspacePreparation,
-    workspaceId: string,
-  ): StoredWorkspacePreparation {
+  function legacyLocalRecord(template: StoredWorkspacePreparation, workspaceId: string) {
     return {
       ...template,
       workspaceId,
       awaitingWorktreeBirth: true,
       awaitingWorktreeBirthSince: 1_700_000_000_000,
-    }
+    } satisfies StoredWorkspacePreparation
   }
 
   it('clears the birth flag of local Workspaces at Host start and leaves worktree births alone', async () => {

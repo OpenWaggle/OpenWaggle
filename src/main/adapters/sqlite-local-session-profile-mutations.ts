@@ -22,8 +22,9 @@ function createProfile(
 ) {
   return Effect.gen(function* () {
     const existing = yield* selectProfiles(sql, command.name.trim())
-    if (existing[0])
+    if (existing[0]) {
       return rejectedProfileOutcome(command.operation, 'profile_name_exists', command.name)
+    }
     if (!input.preparedCredential) {
       return rejectedProfileOutcome(command.operation, 'credential_required', command.name)
     }
@@ -48,8 +49,9 @@ function createProfile(
       now: input.now,
     })
     const created = yield* selectProfiles(sql, command.name.trim())
-    if (!created[0])
+    if (!created[0]) {
       return yield* Effect.fail(profileRepositoryError('read-created-profile', command))
+    }
     return {
       operation: command.operation,
       effect: 'profile-created',
@@ -134,8 +136,9 @@ function persistRevokedProfile(
       signalSessionAuthorityChanged(sql)
     }
     const revoked = yield* selectProfiles(sql, command.profileName)
-    if (!revoked[0])
+    if (!revoked[0]) {
       return yield* Effect.fail(profileRepositoryError('read-revoked-profile', command))
+    }
     return {
       operation: command.operation,
       effect: 'profile-revoked',
@@ -151,10 +154,20 @@ function changedOutcome(
     { operation: 'update' | 'rotate' }
   >,
   profile: ProfileRow,
-): LocalSessionProfileManagementOutcome {
-  return command.operation === 'update'
-    ? { operation: command.operation, effect: 'profile-updated', profile: profileSummary(profile) }
-    : { operation: command.operation, effect: 'profile-rotated', profile: profileSummary(profile) }
+) {
+  return (
+    command.operation === 'update'
+      ? {
+          operation: command.operation,
+          effect: 'profile-updated',
+          profile: profileSummary(profile),
+        }
+      : {
+          operation: command.operation,
+          effect: 'profile-rotated',
+          profile: profileSummary(profile),
+        }
+  ) satisfies LocalSessionProfileManagementOutcome
 }
 
 function changeProfile(
@@ -164,12 +177,13 @@ function changeProfile(
 ) {
   return Effect.gen(function* () {
     const existing = (yield* selectProfiles(sql, command.profileName))[0]
-    if (!existing)
+    if (!existing) {
       return rejectedProfileOutcome(
         command.operation,
         'target_profile_not_found',
         command.profileName,
       )
+    }
     if (command.operation !== 'revoke' && existing.revoked_at !== null) {
       return rejectedProfileOutcome(
         command.operation,

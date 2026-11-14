@@ -56,8 +56,8 @@ function piSession() {
   return { sessionManager, first, second, compaction, label }
 }
 
-function discoveredSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
-  return {
+function discoveredSession(overrides: Partial<SessionDetail> = {}) {
+  const detail: SessionDetail = {
     id: SessionId('session-1'),
     title: 'Discovered',
     projectPath: root,
@@ -67,6 +67,7 @@ function discoveredSession(overrides: Partial<SessionDetail> = {}): SessionDetai
     piEntryNodeIdPrefix: PREFIX,
     ...overrides,
   }
+  return detail
 }
 
 describe('Pi entry node ids', () => {
@@ -96,10 +97,7 @@ describe('Pi entry node ids', () => {
   it('keeps entry ids for Sessions OpenWaggle created', () => {
     const { sessionManager, first } = piSession()
 
-    const snapshot = projectPiSessionSnapshot(
-      { sessionManager },
-      piEntryNodeIds(discoveredSession({ piEntryNodeIdPrefix: undefined })),
-    )
+    const snapshot = projectPiSessionSnapshot({ sessionManager }, piEntryNodeIds({}))
 
     expect(snapshot.nodes[0]?.id).toBe(first)
   })

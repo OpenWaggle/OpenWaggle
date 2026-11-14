@@ -2,7 +2,6 @@ import { act, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface ViewerProps {
-  readonly activeMessageIds: ReadonlySet<string>
   readonly activePathNodeIds: readonly string[]
 }
 
@@ -41,7 +40,7 @@ describe('ChatPanel derived message ids', () => {
     viewer.props.length = 0
   })
 
-  it('keeps the id lists while only message content changes', async () => {
+  it('keeps the id list while only message content changes', async () => {
     const user = makeMessage({ id: 'u1', role: 'user', parts: [{ type: 'text', content: 'Hi' }] })
     const answer = (content: string) =>
       makeMessage({ id: 'a1', role: 'assistant', parts: [{ type: 'text', content }] })
@@ -56,11 +55,10 @@ describe('ChatPanel derived message ids', () => {
 
     const latest = viewer.props.at(-1)
     expect(latest?.activePathNodeIds).toBe(first?.activePathNodeIds)
-    expect(latest?.activeMessageIds).toBe(first?.activeMessageIds)
-    expect([...(latest?.activeMessageIds ?? [])]).toEqual(['u1', 'a1'])
+    expect(latest?.activePathNodeIds).toEqual(['u1', 'a1'])
   })
 
-  it('derives new lists when the ids change', async () => {
+  it('derives a new list when the ids change', async () => {
     const user = makeMessage({ id: 'u1', role: 'user', parts: [] })
     const view = await renderPanelSettled({ messages: [user] }, { session: SESSION })
     await waitFor(() => expect(viewer.props.length).toBeGreaterThan(0))

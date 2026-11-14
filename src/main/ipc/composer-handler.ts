@@ -7,7 +7,7 @@ import { typedHandle } from './typed-ipc'
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
 
-export function registerComposerHandlers(): void {
+export function registerComposerHandlers() {
   typedHandle('composer:file-suggest', (_event, rawProjectPath: string, query: string) =>
     Effect.gen(function* () {
       const projectPath = yield* validateRequiredProjectPath(

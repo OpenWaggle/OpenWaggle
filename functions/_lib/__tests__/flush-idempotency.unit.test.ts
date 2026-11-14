@@ -14,7 +14,9 @@ import {
 import { bufferExpiry, MemoryKeyValueStore, YESTERDAY } from './test-support'
 
 function uuidsOf(records: readonly PublishedRecord[]) {
-  return records.map((record) => record.uuid).sort()
+  return records
+    .map((record) => record.uuid ?? '')
+    .toSorted((left, right) => left.localeCompare(right))
 }
 
 /**
@@ -151,7 +153,9 @@ describe('flush lease', () => {
     await bufferRequests(store, 6)
 
     const results = await Promise.all([flush(store), flush(store)])
-    const statuses = results.map(({ result }) => result.response.status).sort()
+    const statuses = results
+      .map(({ result }) => result.response.status)
+      .toSorted((left, right) => left - right)
     const published = results.flatMap(({ requests }) =>
       requests.length === 0 ? [] : aggregatedRecords(requests),
     )

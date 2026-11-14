@@ -16,6 +16,7 @@ import {
   required,
   requiredSessionId,
   watchCursor,
+  optionEntry,
 } from './sessions-cli-arguments'
 import { buildSessionsCliControlPayload } from './sessions-cli-control-payload'
 import type { SessionsCliStructuredInput } from './sessions-cli-delegation-input'
@@ -48,10 +49,7 @@ function catalogPathScope(arguments_: ParsedArguments, workingDirectory: string)
     : { workingPath: workingDirectory }
 }
 
-function listPayload(
-  arguments_: ParsedArguments,
-  workingDirectory: string,
-): LocalSessionCommandPayload {
+function listPayload(arguments_: ParsedArguments, workingDirectory: string) {
   return {
     contract: 'session-query-v2',
     request: {
@@ -62,7 +60,7 @@ function listPayload(
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : SESSION_QUERY_DISCOVERY_LIMIT,
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
         // Like search, list leaves archived Sessions out; --archived lists only those.
         archived: hasFlag(arguments_, 'archived'),
         ...catalogPathScope(arguments_, workingDirectory),
@@ -71,13 +69,10 @@ function listPayload(
           : {}),
       },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
-function searchPayload(
-  arguments_: ParsedArguments,
-  workingDirectory: string,
-): LocalSessionCommandPayload {
+function searchPayload(arguments_: ParsedArguments, workingDirectory: string) {
   const mode = discoveryMode(option(arguments_, 'mode'))
   return {
     contract: 'session-query-v2',
@@ -90,7 +85,7 @@ function searchPayload(
         limit: option(arguments_, 'limit')
           ? positiveInteger(option(arguments_, 'limit'), '--limit')
           : DEFAULT_SEARCH_LIMIT,
-        ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
         ...catalogPathScope(arguments_, workingDirectory),
         ...(hasFlag(arguments_, 'include-archived') ? { includeArchived: true } : {}),
         ...(hasFlag(arguments_, 'full-transcript')
@@ -103,7 +98,7 @@ function searchPayload(
           : {}),
       },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
 function waitTargets(arguments_: ParsedArguments) {
@@ -147,7 +142,7 @@ function waitTargets(arguments_: ParsedArguments) {
   return sessionIds.map((sessionId) => ({ sessionId, condition: 'idle' as const }))
 }
 
-function waitPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
+function waitPayload(arguments_: ParsedArguments) {
   const after = watchCursor(arguments_)
   return {
     contract: 'session-query-v2',
@@ -161,14 +156,17 @@ function waitPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
         ...(after ? { after } : {}),
       },
     },
-  }
+  } satisfies LocalSessionCommandPayload
 }
 
-function detailsPayload(command: string, arguments_: ParsedArguments): LocalSessionCommandPayload {
-  if (command === 'items') return itemsPayload(arguments_)
+function detailsPayload(command: string, arguments_: ParsedArguments) {
+  if (command === 'items') {
+    const payload: LocalSessionCommandPayload = itemsPayload(arguments_)
+    return payload
+  }
   const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'turns') {
-    return {
+    const payload: LocalSessionCommandPayload = {
       contract: 'session-query-v2',
       request: {
         contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -179,13 +177,14 @@ function detailsPayload(command: string, arguments_: ParsedArguments): LocalSess
           limit: option(arguments_, 'limit')
             ? positiveInteger(option(arguments_, 'limit'), '--limit')
             : SESSION_QUERY_DISCOVERY_LIMIT,
-          ...(option(arguments_, 'cursor') ? { cursor: option(arguments_, 'cursor') } : {}),
+          ...optionEntry(arguments_, 'cursor', 'cursor'),
         },
       },
     }
+    return payload
   }
   if (command === 'read' || command === 'status') {
-    return {
+    const payload: LocalSessionCommandPayload = {
       contract: 'session-query-v2',
       request: {
         contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -193,12 +192,13 @@ function detailsPayload(command: string, arguments_: ParsedArguments): LocalSess
         query: { operation: command, sessionId },
       },
     }
+    return payload
   }
   throw new Error(`Unsupported Session query command: ${command}.`)
 }
 
-function queueListPayload(arguments_: ParsedArguments): LocalSessionCommandPayload {
-  return {
+function queueListPayload(arguments_: ParsedArguments) {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-query-v2',
     request: {
       contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -210,16 +210,17 @@ function queueListPayload(arguments_: ParsedArguments): LocalSessionCommandPaylo
       },
     },
   }
+  return payload
 }
 
 function requestsPayload(
   command: string,
   arguments_: ParsedArguments,
   structured: SessionsCliStructuredInput,
-): LocalSessionCommandPayload {
+) {
   const sessionId = requiredSessionId(arguments_.positionals[0])
   if (command === 'requests-list') {
-    return {
+    const payload: LocalSessionCommandPayload = {
       contract: 'session-query-v2',
       request: {
         contractVersion: SESSION_QUERY_CONTRACT_VERSION,
@@ -227,12 +228,13 @@ function requestsPayload(
         query: { operation: 'requests-list', sessionId },
       },
     }
+    return payload
   }
   if (command !== 'request-respond' && command !== 'approval-respond') {
     throw new Error(`Unsupported requests command: ${command}.`)
   }
   const response = interactionResponseFromInput(command, arguments_, structured.interactionResponse)
-  return {
+  const payload: LocalSessionCommandPayload = {
     contract: 'session-control-v2',
     request: {
       contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
@@ -251,6 +253,7 @@ function requestsPayload(
       },
     },
   }
+  return payload
 }
 
 function directSessionsCliPayload(
@@ -278,7 +281,7 @@ export function buildSessionsCliPayload(
     readonly workingDirectory?: string
     readonly structured?: SessionsCliStructuredInput
   } = {},
-): LocalSessionCommandPayload {
+) {
   const structured = context.structured ?? {}
   const workingDirectory = context.workingDirectory ?? process.cwd()
   const direct = directSessionsCliPayload(command, arguments_, workingDirectory)

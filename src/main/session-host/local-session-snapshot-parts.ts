@@ -1,12 +1,14 @@
-import { decodeUnknownExactOrThrow, getParseIssuePaths, Schema } from '@shared/schema'
-import { nestedToolCallsSchema } from '@shared/schemas/nested-tool-calls'
-import { browserPreviewAttachmentSchema, jsonValueSchema } from '@shared/schemas/validation'
+import {
+  decodeUnknownExactOrThrow,
+  getParseIssuePaths,
+  Schema,
+  safeDecodeUnknown,
+} from '@shared/schema'
+import { messagePartSchema } from '@shared/schemas/message'
 import type { MessagePart } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
-import { ToolCallId } from '@shared/types/brand'
 import { createLogger } from '../logger'
 import { describeError } from '../utils/describe-error'
-import { isRecord } from './local-session-client-connection'
 
 const logger = createLogger('session-host/run-snapshots')
 const MAX_REPORTED_ISSUES = 5
@@ -42,100 +44,40 @@ function byteLength(value: unknown) {
   return Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8')
 }
 
-const jsonObjectSchema = Schema.Record({ key: Schema.String, value: jsonValueSchema })
-/**
- * `MessagePart` as an active Run snapshot carries it. The decode is exact, so every field the Host
- * buffer can put on a part must be listed; `local-session-snapshot-parts.unit.test.ts` holds
- * the keys of each member to `MessagePart`'s.
- */
-export const messagePartSchema = Schema.Union(
-  Schema.Struct({
-    type: Schema.Literal('text', 'reasoning'),
-    text: Schema.String,
-    contentIndex: Schema.optional(Schema.Number),
-  }),
-  Schema.Struct({
-    type: Schema.Literal('attachment'),
-    attachment: Schema.Struct({
-      id: Schema.String,
-      kind: Schema.Literal('text', 'image', 'pdf'),
-      origin: Schema.optional(
-        Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
-      ),
-      name: Schema.String,
-      path: Schema.String,
-      mimeType: Schema.String,
-      sizeBytes: Schema.Number,
-      contentSha256: Schema.optional(Schema.String),
-      extractedText: Schema.String,
-      browserPreview: Schema.optional(browserPreviewAttachmentSchema),
-    }),
-  }),
-  Schema.Struct({
-    type: Schema.Literal('tool-call'),
-    toolCall: Schema.Struct({
-      id: Schema.String,
-      name: Schema.String,
-      args: jsonObjectSchema,
-      state: Schema.optional(Schema.Literal('input-complete')),
-      // The live record of a codemode call's nested calls. A snapshot that carried one used to
-      // fail to decode, which failed the whole subscription and left every Session's transcript
-      // without live events while its Runs went on in the Host.
-      nestedCalls: Schema.optional(nestedToolCallsSchema),
-    }),
-  }),
-  Schema.Struct({
-    type: Schema.Literal('tool-result'),
-    toolResult: Schema.Struct({
-      id: Schema.String,
-      name: Schema.String,
-      args: jsonObjectSchema,
-      result: jsonValueSchema,
-      isError: Schema.Boolean,
-      duration: Schema.Number,
-      details: Schema.optional(jsonValueSchema),
-      nestedCalls: Schema.optional(nestedToolCallsSchema),
-    }),
-  }),
-)
-
-function decodeMessagePart(value: unknown): MessagePart {
-  const part = decodeUnknownExactOrThrow(messagePartSchema, value)
-  if (part.type === 'tool-call') {
-    return { ...part, toolCall: { ...part.toolCall, id: ToolCallId(part.toolCall.id) } }
-  }
-  if (part.type === 'tool-result') {
-    return { ...part, toolResult: { ...part.toolResult, id: ToolCallId(part.toolResult.id) } }
-  }
-  return part
+/** A part as an active Run snapshot carries it, decoded exactly with the transcript's own schema. */
+function decodeMessagePart(value: unknown) {
+  return decodeUnknownExactOrThrow(messagePartSchema, value)
 }
+
+/** An earlier assistant message, with its parts still to decode one by one. */
+const assistantMessageCandidateSchema = Schema.Struct({
+  messageId: Schema.String,
+  timestamp: Schema.Number,
+  parts: Schema.Array(Schema.Unknown),
+})
+
+const partTypeSchema = Schema.Struct({ type: Schema.String })
 
 /**
  * The Run's earlier assistant messages, from a Host that retains them. Fields a later Host adds to
  * one are not read. One that is malformed, or holds a part this client cannot decode, is left out,
  * as the Host leaves out one its caps cut short: the reconnect then shows the saved copy.
  */
-export function decodeAssistantMessageSnapshots(
-  value: unknown,
-  context: SnapshotContext,
-): Pick<BackgroundRunSnapshot, 'assistantMessages'> {
+export function decodeAssistantMessageSnapshots(value: unknown, context: SnapshotContext) {
   if (value === undefined) return {}
   if (!Array.isArray(value)) {
     reportUndecodable(context, 'the earlier assistant messages', 'not an array')
     return {}
   }
-  const assistantMessages = value.flatMap((candidate, messageIndex) => {
-    if (
-      !isRecord(candidate) ||
-      typeof candidate.messageId !== 'string' ||
-      typeof candidate.timestamp !== 'number' ||
-      !Array.isArray(candidate.parts)
-    ) {
+  const assistantMessages = value.flatMap((value: unknown, messageIndex) => {
+    const decoded = safeDecodeUnknown(assistantMessageCandidateSchema, value)
+    if (!decoded.success) {
       reportUndecodable(context, 'an earlier assistant message', 'malformed message', {
         messageIndex,
       })
       return []
     }
+    const candidate = decoded.data
     try {
       return [
         {
@@ -173,7 +115,7 @@ export function decodeStreamingParts(
       reportUndecodable(context, 'a streaming message part', error, {
         ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
         partIndex,
-        partType: isRecord(part) && typeof part.type === 'string' ? part.type : null,
+        partType: Schema.is(partTypeSchema)(part) ? part.type : null,
       })
     }
   })
@@ -183,12 +125,12 @@ export function decodeStreamingParts(
 export function withUndecodableParts(
   degraded: BackgroundRunSnapshot['degraded'],
   streaming: ReturnType<typeof decodeStreamingParts>,
-): BackgroundRunSnapshot['degraded'] {
+) {
   if (!streaming.dropped) return degraded
   return {
     reason: 'content-limit',
     ...degraded,
     omittedBytes: (degraded?.omittedBytes ?? 0) + streaming.omittedBytes,
     messageCutShort: true,
-  }
+  } satisfies BackgroundRunSnapshot['degraded']
 }

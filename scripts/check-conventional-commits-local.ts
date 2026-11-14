@@ -19,7 +19,7 @@ const SHORT_SHA_LENGTH = 12
  *    the literal `origin/main` ref would fail closed on clones that never fetched it and
  *    hard-block the pre-push hook.
  */
-async function resolveLocalBaseline(): Promise<string | null> {
+async function resolveLocalBaseline() {
   try {
     const { stdout } = await execFileAsync('git', ['merge-base', 'HEAD', 'origin/main'], {
       maxBuffer: GIT_MERGE_BASE_MAX_BUFFER_BYTES,

@@ -39,7 +39,7 @@ interface ShortcutEvent {
   readonly isComposing?: boolean
 }
 
-export function workspaceShortcutContext(event: KeyboardEvent): ProjectActionShortcutContext {
+export function workspaceShortcutContext(event: KeyboardEvent) {
   const target = event.target instanceof Element ? event.target : null
   return {
     terminalFocus: target !== null && target.closest('[data-terminal-pane]') !== null,
@@ -69,11 +69,15 @@ function matchExtensionPanel(
   extensionPanels: readonly ExtensionPanelShortcut[],
   applePlatform: boolean,
   contextForMatch: () => ProjectActionShortcutContext,
-): UnifiedShortcutMatch | null {
+) {
   for (const panel of extensionPanels) {
     if (!projectActionShortcutMatches(event, panel.shortcut, applePlatform)) continue
     if (projectActionWhenMatches(EXTENSION_PANEL_SHORTCUT_WHEN, contextForMatch())) {
-      return { kind: 'extension-panel', surfaceId: panel.surfaceId }
+      const match: UnifiedShortcutMatch = {
+        kind: 'extension-panel',
+        surfaceId: panel.surfaceId,
+      }
+      return match
     }
   }
   return null
@@ -92,7 +96,7 @@ export function resolveUnifiedShortcut(
   applePlatform: boolean,
   getContext: () => ProjectActionShortcutContext,
   extensionPanels: readonly ExtensionPanelShortcut[] = [],
-): UnifiedShortcutMatch | null {
+) {
   let context: ProjectActionShortcutContext | null = null
   const contextForMatch = () => {
     context ??= getContext()
@@ -104,7 +108,8 @@ export function resolveUnifiedShortcut(
     if (entry === undefined) continue
     if (!projectActionShortcutMatches(event, entry.rule.shortcut, applePlatform)) continue
     if (projectActionWhenMatches(entry.rule.when, contextForMatch())) {
-      return { kind: 'project', action: entry.action }
+      const match: UnifiedShortcutMatch | null = { kind: 'project', action: entry.action }
+      return match
     }
   }
   for (let index = builtInRules.length - 1; index >= 0; index -= 1) {
@@ -115,9 +120,16 @@ export function resolveUnifiedShortcut(
     const panel = isLaterDefaultOverlappingPanels(rule)
       ? matchExtensionPanel(event, extensionPanels, applePlatform, contextForMatch)
       : null
-    return panel ?? { kind: 'builtin', rule }
+    const match: UnifiedShortcutMatch | null = panel ?? { kind: 'builtin', rule }
+    return match
   }
-  return matchExtensionPanel(event, extensionPanels, applePlatform, contextForMatch)
+  const match: UnifiedShortcutMatch | null = matchExtensionPanel(
+    event,
+    extensionPanels,
+    applePlatform,
+    contextForMatch,
+  )
+  return match
 }
 
 export function hasModifierFreeUnifiedShortcut(

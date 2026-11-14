@@ -53,9 +53,7 @@ export interface LocalSessionNamedProfileAuthenticator {
   }) => Promise<AuthenticatedLocalSessionCaller>
 }
 
-function authenticateTransientMcpAuthority(
-  hello: LocalSessionClientHello,
-): AuthenticatedLocalSessionCaller | undefined {
+function authenticateTransientMcpAuthority(hello: LocalSessionClientHello) {
   const authority = hello.transientAuthority
   if (!authority) return
   if (hello.clientKind !== 'mcp' || authority.managementEnvelope) {
@@ -102,16 +100,17 @@ function assertProfileNarrowing(hello: LocalSessionClientHello) {
 function narrowingPlaceholder(
   caller: AuthenticatedLocalSessionCaller,
   narrowing: NonNullable<LocalSessionClientHello['transientAuthority']>,
-): AuthenticatedLocalSessionCaller {
+) {
   const authority = caller.profileAuthority
   if (!authority) throw new Error('A narrowed MCP profile requires a named profile authority.')
   const { derivedSessionAuthorities: _, eventAdmissionSessionIds: __, ...rest } = caller
-  return {
+  const result: AuthenticatedLocalSessionCaller = {
     ...rest,
     profileAuthority: { ...authority, capabilities: [], scope: {} },
     baseProfileScope: {},
     profileNarrowing: narrowing,
   }
+  return result
 }
 
 export function createLocalSessionAuthenticator(input: {
@@ -122,7 +121,7 @@ export function createLocalSessionAuthenticator(input: {
     .update(input.localUserCredential)
     .digest('hex')
     .slice(0, MACHINE_IDENTITY_CHARACTERS)
-  return async (hello: LocalSessionClientHello): Promise<AuthenticatedLocalSessionCaller> => {
+  return async (hello: LocalSessionClientHello) => {
     if (hello.profile && hello.transientAuthority) assertProfileNarrowing(hello)
     if (hello.profile) {
       if (!hello.credential || !input.namedProfiles) {
@@ -139,7 +138,7 @@ export function createLocalSessionAuthenticator(input: {
           ? narrowingPlaceholder(caller, hello.transientAuthority)
           : caller),
         ...(hello.workingDirectory ? { workingDirectory: hello.workingDirectory } : {}),
-      }
+      } satisfies AuthenticatedLocalSessionCaller
     }
     if (!hello.credential || !credentialsMatch(input.localUserCredential, hello.credential)) {
       throw new Error('Local-user authentication failed.')
@@ -150,6 +149,6 @@ export function createLocalSessionAuthenticator(input: {
       callerId:
         hello.clientKind === 'gui' ? 'gui:local-user' : `local-user:${localMachineIdentity}`,
       ...(hello.workingDirectory ? { workingDirectory: hello.workingDirectory } : {}),
-    }
+    } satisfies AuthenticatedLocalSessionCaller
   }
 }

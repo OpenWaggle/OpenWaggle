@@ -1,15 +1,30 @@
-import { parsePackageReleaseWorkflow, workflowActionUses } from './package-release-validator-workflow-structure'
+import {
+  parsePackageReleaseWorkflow,
+  workflowActionUses,
+} from './package-release-validator-workflow-structure'
 import { RELEASE_PLEASE_CONTRACT } from './release-please-contract'
 
 export const DIRECT_NODE = 'node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON'
 
 const APPROVED_ACTIONS = [
-  { name: 'actions/attest-build-provenance', sha: '977bb373ede98d70efdf65b84cb5f73e068dcc2a', version: 'v3' },
+  {
+    name: 'actions/attest-build-provenance',
+    sha: '977bb373ede98d70efdf65b84cb5f73e068dcc2a',
+    version: 'v3',
+  },
   { name: 'actions/cache', sha: 'caa296126883cff596d87d8935842f9db880ef25', version: 'v5' },
   { name: 'actions/checkout', sha: 'df4cb1c069e1874edd31b4311f1884172cec0e10', version: 'v6' },
-  { name: 'actions/download-artifact', sha: '3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c', version: 'v8' },
+  {
+    name: 'actions/download-artifact',
+    sha: '3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c',
+    version: 'v8',
+  },
   { name: 'actions/setup-node', sha: '48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e', version: 'v6' },
-  { name: 'actions/upload-artifact', sha: '043fb46d1a93c77aae656e7c1c64a875d1fc6a0a', version: 'v7' },
+  {
+    name: 'actions/upload-artifact',
+    sha: '043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+    version: 'v7',
+  },
   {
     name: 'googleapis/release-please-action',
     sha: RELEASE_PLEASE_CONTRACT.actionSha,
@@ -25,7 +40,7 @@ const APPROVED_ACTIONS = [
  * AST contract. This is not a blanket exemption for arbitrary local workflows.
  */
 const REPO_OWNED_ACTION_REFS: readonly string[] = [
-  './.github/actions/pnpm-install',
+  './.github/actions/bun-install',
   './.github/workflows/session-performance.yml',
 ]
 
@@ -57,10 +72,9 @@ function validateWorkflowActions(
   workflowRoot: unknown,
   violations: string[],
 ) {
-  const approvedByName = new Map<
-    string,
-    (typeof APPROVED_ACTIONS)[number]
-  >(APPROVED_ACTIONS.map((action) => [action.name, action]))
+  const approvedByName = new Map<string, (typeof APPROVED_ACTIONS)[number]>(
+    APPROVED_ACTIONS.map((action) => [action.name, action]),
+  )
   for (const use of workflowActionUses(workflowRoot)) {
     if (use.ref === undefined) {
       violations.push(`${workflowPath} uses values must be strings.`)
@@ -72,11 +86,23 @@ function validateWorkflowActions(
     const separator = use.ref.lastIndexOf('@')
     const name = separator < 0 ? use.ref : use.ref.slice(0, separator)
     const approved = approvedByName.get(name)
-    addViolation(approved === undefined, `${workflowPath} executes unapproved action ${name}.`, violations)
+    addViolation(
+      approved === undefined,
+      `${workflowPath} executes unapproved action ${name}.`,
+      violations,
+    )
     if (approved === undefined) continue
     const expectedRef = `${approved.name}@${approved.sha}`
-    addViolation(use.ref !== expectedRef, `${workflowPath} must execute ${approved.name} at its approved immutable ${approved.version} SHA.`, violations)
-    addViolation(use.versionComment !== approved.version, `${workflowPath} ${approved.name} uses must retain the approved # ${approved.version} comment.`, violations)
+    addViolation(
+      use.ref !== expectedRef,
+      `${workflowPath} must execute ${approved.name} at its approved immutable ${approved.version} SHA.`,
+      violations,
+    )
+    addViolation(
+      use.versionComment !== approved.version,
+      `${workflowPath} ${approved.name} uses must retain the approved # ${approved.version} comment.`,
+      violations,
+    )
   }
 }
 

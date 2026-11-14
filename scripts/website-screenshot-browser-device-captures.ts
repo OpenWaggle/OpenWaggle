@@ -34,7 +34,7 @@ const ANNOTATED_MESSAGE = 'Fix this on phone widths and keep the cards readable.
 
 type PreviewGuest = Awaited<ReturnType<typeof waitForGuest>>
 
-async function waitForPhoneGuest(context: CaptureContext, url: string): Promise<PreviewGuest> {
+async function waitForPhoneGuest(context: CaptureContext, url: string) {
   const deadline = Date.now() + GUEST_RESIZE_TIMEOUT_MS
   while (Date.now() < deadline) {
     const guest = await waitForGuest(context, url)

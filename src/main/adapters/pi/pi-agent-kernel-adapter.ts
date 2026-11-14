@@ -50,7 +50,7 @@ export function readBrowserPreviewAutomationEnabled(settings: {
   readonly get: () => Effect.Effect<{ readonly enableAgentBrowserAccess: boolean }, unknown>
 }) {
   return settings.get().pipe(
-    Effect.map((snapshot) => snapshot.enableAgentBrowserAccess === true),
+    Effect.map((snapshot) => snapshot.enableAgentBrowserAccess),
     Effect.catchAllCause((cause) =>
       Effect.sync(() => {
         logger.warn('Failed to read browser preview agent access; disabling it', {
@@ -84,7 +84,7 @@ function loadEnabledOpenWaggleExtensionPackages(
 function loadPiRuntimeExtensionIsolationInput(
   input: AgentKernelSessionInput,
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
-): Effect.Effect<PiRuntimeExtensionIsolationInput> {
+) {
   return loadEnabledOpenWaggleExtensionPackages(input, extensionSelectionServices).pipe(
     Effect.map((enabledOpenWaggleExtensionPackages) => ({
       enabledOpenWaggleExtensionPackages,
@@ -97,7 +97,7 @@ function loadPiRuntimeExtensionIsolationInput(
           operation,
         }),
     })),
-  )
+  ) satisfies Effect.Effect<PiRuntimeExtensionIsolationInput>
 }
 
 /** The agent kernel; its Runs lease MCP connections from the Host's pool. */

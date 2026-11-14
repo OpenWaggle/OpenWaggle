@@ -25,7 +25,7 @@ vi.mock('@/shared/lib/logger', () => ({
   createRendererLogger: () => ({ warn: vi.fn() }),
 }))
 
-function turn(overrides: Partial<TurnCheckpointSummary> = {}): TurnCheckpointSummary {
+function turn(overrides: Partial<TurnCheckpointSummary> = {}) {
   return {
     turnId: 'turn-1',
     turnIndex: 0,
@@ -35,7 +35,7 @@ function turn(overrides: Partial<TurnCheckpointSummary> = {}): TurnCheckpointSum
     deletions: 12,
     anchorNodeId: 'anchor-1',
     ...overrides,
-  }
+  } satisfies TurnCheckpointSummary
 }
 
 beforeEach(() => {

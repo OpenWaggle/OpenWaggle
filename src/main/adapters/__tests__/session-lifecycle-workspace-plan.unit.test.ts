@@ -17,12 +17,12 @@ afterAll(() => rmSync(root, { recursive: true, force: true }))
 const PROJECT = '/code/app'
 const WORKTREE = '/worktrees/app/w-1'
 
-function input(initiatingWorkingDirectory: string | undefined): PrepareSessionLifecycleInput {
+function input(initiatingWorkingDirectory: string | undefined) {
   return fromPartial({
     ...(initiatingWorkingDirectory ? { initiatingWorkingDirectory } : {}),
     identities: { workspaceId: 'workspace-new' },
     request: { command: { operation: 'launch', projectPath: PROJECT } },
-  })
+  }) satisfies PrepareSessionLifecycleInput
 }
 
 function plan(workingDirectory: string | undefined) {

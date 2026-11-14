@@ -1,24 +1,40 @@
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
 import type { SessionUsageSummary } from '@shared/types/context-usage'
 import { createModelRef } from '@shared/types/llm'
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
+import { lenientOptional } from '@shared/schemas/lenient'
+import { isObjectValue } from '@shared/utils/object-shape'
+import { Option } from 'effect'
 
 interface UsageTotals {
   tokens: number
   cost: number
 }
 
-function usageTotals(usage: unknown): UsageTotals | null {
-  if (!isRecord(usage)) return null
-  const count = (key: string) => {
-    const value = usage[key]
-    return typeof value === 'number' && Number.isFinite(value) ? value : 0
+/** A message's `usage` as the totals read it: a count that is not a finite number counts 0. */
+const decodeUsageTotals = Schema.decodeUnknownOption(
+  Schema.Struct({
+    input: lenientOptional(Schema.Finite),
+    output: lenientOptional(Schema.Finite),
+    cacheRead: lenientOptional(Schema.Finite),
+    cacheWrite: lenientOptional(Schema.Finite),
+    cost: lenientOptional(Schema.Struct({ total: lenientOptional(Schema.Number) })),
+  }),
+)
+
+function usageTotals(usage: unknown) {
+  if (!isObjectValue(usage)) return null
+  const totals = Option.getOrUndefined(decodeUsageTotals(usage))
+  if (!totals) return null
+  const result: UsageTotals | null = {
+    tokens:
+      (totals.input ?? 0) +
+      (totals.output ?? 0) +
+      (totals.cacheRead ?? 0) +
+      (totals.cacheWrite ?? 0),
+    cost: totals.cost?.total ?? 0,
   }
-  const cost = isRecord(usage.cost) && typeof usage.cost.total === 'number' ? usage.cost.total : 0
-  return {
-    tokens: count('input') + count('output') + count('cacheRead') + count('cacheWrite'),
-    cost,
-  }
+  return result
 }
 
 /**

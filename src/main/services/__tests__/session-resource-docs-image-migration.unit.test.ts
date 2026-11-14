@@ -66,7 +66,7 @@ function migrate(db: Database.Database) {
 
 function ids(db: Database.Database, sql: string) {
   return db
-    .prepare<[], Record<string, unknown>>(sql)
+    .prepare<[], { readonly id: unknown }>(sql)
     .all()
     .map((row) => String(row.id))
 }

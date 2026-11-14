@@ -1,4 +1,11 @@
-import type { SessionId } from './brand'
+import type { SchemaType } from '@shared/schema'
+import type {
+  gitBranchCheckoutPayloadSchema,
+  gitBranchCreatePayloadSchema,
+  gitCommitPayloadSchema,
+  gitWorktreeCreatePayloadSchema,
+  gitWorktreeRemovePayloadSchema,
+} from '@shared/schemas/git-requests'
 import type { GitOutputRecordingResult } from './vcs'
 import type { WorkspacePreparation } from './workspace-preparation'
 
@@ -49,15 +56,7 @@ export interface GitStatusSummary {
   readonly behind: number
 }
 
-export interface GitCommitPayload {
-  /** Originating Session, used by main to verify ownership and project the commit into Outputs. */
-  readonly sessionId?: SessionId
-  readonly message: string
-  readonly amend: boolean
-  readonly paths: readonly string[]
-  /** False commits the existing index without staging working-tree changes. Defaults to true. */
-  readonly includeUnstaged?: boolean
-}
+export type GitCommitPayload = SchemaType<typeof gitCommitPayloadSchema>
 
 export const GIT_COMMIT_ERROR_CODES = [
   'not-git-repo',
@@ -137,15 +136,9 @@ export interface GitBranchListResult {
   readonly branches: readonly GitBranchInfo[]
 }
 
-export interface GitBranchCheckoutPayload {
-  readonly name: string
-}
+export type GitBranchCheckoutPayload = SchemaType<typeof gitBranchCheckoutPayloadSchema>
 
-export interface GitBranchCreatePayload {
-  readonly name: string
-  readonly startPoint?: string
-  readonly checkout?: boolean
-}
+export type GitBranchCreatePayload = SchemaType<typeof gitBranchCreatePayloadSchema>
 
 export const GIT_DIFF_ERROR_CODES = [
   'not-git-repo',
@@ -256,23 +249,7 @@ export interface GitWorktreeListResult {
   readonly worktrees: readonly GitWorktreeInfo[]
 }
 
-export interface GitWorktreeCreatePayload {
-  /** Absolute path where the worktree checkout is created. */
-  readonly path: string
-  /** Temporary branch created for the worktree (git worktree add -b). */
-  readonly branch: string
-  /** Base ref the worktree branch starts from. */
-  readonly baseRef: string
-  /**
-   * Set when the worktree belongs to a session, so main decides the branch name rather than the
-   * caller.
-   *
-   * Session branches follow a convention with a legacy form, and a caller deriving the current name
-   * itself missed it: recreating an older session's tree created a fresh branch at the base ref and
-   * left the agent's commits stranded on the old one.
-   */
-  readonly sessionId?: string
-}
+export type GitWorktreeCreatePayload = SchemaType<typeof gitWorktreeCreatePayloadSchema>
 
 /**
  * Whether a session's recorded Session worktree still exists on disk.
@@ -287,18 +264,7 @@ export interface SessionWorktreeCheck {
   readonly recorded: boolean
 }
 
-export interface GitWorktreeRemovePayload {
-  /** Explicitly bypass a failed or review-blocked cleanup. */
-  readonly skipCleanup?: boolean
-  readonly path: string
-  /** Only pass true on explicit user request; this can discard dirty or locked worktrees. */
-  readonly force?: boolean
-  /**
-   * With `force`, override only Git's lock: a worktree with uncommitted changes, or whose
-   * changes Git cannot report, is still refused. Git itself has no such flag.
-   */
-  readonly lockOnly?: boolean
-}
+export type GitWorktreeRemovePayload = SchemaType<typeof gitWorktreeRemovePayloadSchema>
 
 export const GIT_WORKTREE_ERROR_CODES = [
   'not-git-repo',

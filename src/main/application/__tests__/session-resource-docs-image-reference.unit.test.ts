@@ -16,12 +16,12 @@ const DOCS_TOPIC_TEXT = [
 ].join('\n')
 const WEBSITE_IMAGE_URL = 'https://openwaggle.ai/screenshots/hive-sessions.png'
 
-function docsReadResult(source: string): { readonly result: JsonValue; details: JsonValue } {
+function docsReadResult(source: string) {
   const details = { topic: 'openwaggle:using-openwaggle/hives-and-sessions', source }
   return {
     result: { content: [{ type: 'text', text: DOCS_TOPIC_TEXT }], details },
     details,
-  }
+  } satisfies { readonly result: JsonValue; details: JsonValue }
 }
 
 function docsReadMessage(source: string) {

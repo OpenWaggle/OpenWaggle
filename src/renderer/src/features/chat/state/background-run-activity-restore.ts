@@ -8,7 +8,8 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
 import { api } from '@/shared/lib/ipc'
 import { applyCompactionSnapshotEvent } from './background-run-compaction'
-import { type RunRenderSnapshot, UNNAMED_RUN_SEED } from './background-run-render-state'
+import type { RunRenderSnapshot } from './background-run-render-state'
+import { UNNAMED_RUN_SEED } from './background-run-seed'
 
 interface RunRenderState {
   readonly renderSnapshotsBySessionId: ReadonlyMap<SessionId, RunRenderSnapshot>
@@ -94,10 +95,7 @@ export function restoreCompactionSnapshots(
  * A restored Run's compaction status, in a snapshot of its own or in the one it seeded streaming
  * before the restore landed (its start unseen); `null` when the Run has none or a snapshot exists.
  */
-function restoredRunSnapshot(
-  run: ActiveAgentRunInfo,
-  existing: RunRenderSnapshot | undefined,
-): RunRenderSnapshot | null {
+function restoredRunSnapshot(run: ActiveAgentRunInfo, existing: RunRenderSnapshot | undefined) {
   const activityEvents = run.activityEvents ?? []
   const unannounced = existing?.seededByRunId === UNNAMED_RUN_SEED && !existing.compactionStatus
   if ((existing && !unannounced) || activityEvents.length === 0) return null

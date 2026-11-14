@@ -15,8 +15,8 @@ vi.mock('@pierre/diffs/react', async () => ({
   useWorkerPool: () => undefined,
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     getGitDiff: vi.fn(),
     getGitBranchDiff: vi.fn(),
     getGitStatus: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     getLocalVcsStatus: vi.fn(),
     getRemoteVcsStatus: vi.fn(),
     showConfirm: vi.fn(),
-  },
+  }),
 }))
 
 const WORKING_PATH = WorkingPath('/repo')

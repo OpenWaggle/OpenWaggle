@@ -136,7 +136,7 @@ describe('session-status-store', () => {
     function summary(
       id: SessionId,
       input: Pick<SessionSummary, 'latestRun' | 'pendingInteractionAt' | 'treeUiState'>,
-    ): SessionSummary {
+    ) {
       return {
         id,
         title: String(id),
@@ -144,7 +144,7 @@ describe('session-status-store', () => {
         createdAt: 1,
         updatedAt: input.latestRun?.updatedAt ?? 1,
         ...input,
-      }
+      } satisfies SessionSummary
     }
 
     it('rebuilds terminal status and read receipt after a renderer close and reopen', () => {

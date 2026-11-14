@@ -2,6 +2,7 @@ import {
   DEFAULT_SESSION_AGENT_CAPABILITIES,
   type SessionCapability,
 } from '@shared/types/session-capability'
+import { valuesIn } from '@shared/utils/set-membership'
 
 /**
  * The default agent grant before Scheduled tasks (#335, 1.0.0-beta.23) added `schedules:read` and
@@ -36,10 +37,8 @@ export const DEFAULT_BEFORE_SCHEDULED_TASKS = [
  */
 export function callerSessionCapabilityRestriction(
   callerCapabilities: readonly SessionCapability[] | undefined,
-): readonly SessionCapability[] | undefined {
+) {
   if (!callerCapabilities) return undefined
-  const restriction = DEFAULT_SESSION_AGENT_CAPABILITIES.filter((capability) =>
-    callerCapabilities.includes(capability),
-  )
+  const restriction = valuesIn(DEFAULT_SESSION_AGENT_CAPABILITIES, callerCapabilities)
   return restriction.length === DEFAULT_SESSION_AGENT_CAPABILITIES.length ? undefined : restriction
 }

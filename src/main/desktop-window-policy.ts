@@ -1,40 +1,27 @@
-import { optimizer } from '@electron-toolkit/utils'
-import type { App, BrowserWindow } from 'electron'
 import { configureApplicationMenu } from './application-menu'
-import {
-  AutomationDesktopUiError,
-  installAutomationDesktopUiBlockers,
-  isAutomationMode,
-} from './desktop-ui'
+import { isAutomationMode } from './desktop-automation-policy'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { desktopWindows } from './desktop-shell/desktop-windows'
+import { systemIntegration } from './desktop-shell/system-integration'
 
-export function prepareDesktopUi(app: App) {
-  installAutomationDesktopUiBlockers()
+/**
+ * Before ready: the window policy, so automation fails closed before any service runs, and an
+ * automated run stays out of the macOS Dock.
+ */
+export function prepareDesktopUi() {
+  desktopWindows.installWindowPolicy()
   if (isAutomationMode() && process.platform === 'darwin') {
-    app.setActivationPolicy('accessory')
+    systemIntegration.setActivationPolicy('accessory')
   }
 }
 
-// Packaged apps take their Dock icon from the bundle's Info.plist; calling app.dock.setIcon
-// at runtime makes macOS LaunchServices register a second Dock tile on every launch. Dev
-// builds keep the runtime override so they stay visually distinct (ADR 0032).
-export function configureDesktopUiAfterReady(app: App, devDockIconPath: string) {
-  if (!isAutomationMode() && !app.isPackaged && process.platform === 'darwin') {
-    app.dock?.setIcon(devDockIconPath)
+// Packaged apps take their Dock icon from the bundle's Info.plist; setting the Dock icon at
+// runtime makes macOS LaunchServices register a second Dock tile on every launch. Dev builds keep
+// the runtime override so they stay visually distinct (ADR 0032).
+export function configureDesktopUiAfterReady(devDockIconPath: string) {
+  if (!isAutomationMode() && !appLifecycle.isPackaged() && process.platform === 'darwin') {
+    systemIntegration.setDockIcon(devDockIconPath)
   }
-  if (!isAutomationMode()) {
-    app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
-  }
-  configureApplicationMenu(app.name, !isAutomationMode())
-}
-
-export function revealWindow(window: BrowserWindow) {
-  if (isAutomationMode()) throw new AutomationDesktopUiError('BrowserWindow.show')
-  window.show()
-}
-
-export function focusWindow(window: BrowserWindow) {
-  if (isAutomationMode()) throw new AutomationDesktopUiError('BrowserWindow.focus')
-  if (window.isMinimized()) window.restore()
-  window.show()
-  window.focus()
+  if (!isAutomationMode()) desktopWindows.installWindowShortcuts()
+  configureApplicationMenu(appLifecycle.name(), !isAutomationMode())
 }

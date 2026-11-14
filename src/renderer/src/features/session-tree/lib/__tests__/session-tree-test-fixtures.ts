@@ -20,7 +20,7 @@ export function node(input: {
   readonly depth: number
   readonly order: number
   readonly kind?: SessionNode['kind']
-}): SessionNode {
+}) {
   return {
     id: SessionNodeId(input.id),
     sessionId: SESSION_ID,
@@ -32,20 +32,20 @@ export function node(input: {
     pathDepth: input.depth,
     contentJson: '{}',
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 export function treeUiState(input: {
   readonly expandedNodeIds: readonly string[]
   readonly expandedNodeIdsTouched: boolean
-}): SessionTreeUiState {
+}) {
   return {
     sessionId: SESSION_ID,
     expandedNodeIds: input.expandedNodeIds.map(SessionNodeId),
     expandedNodeIdsTouched: input.expandedNodeIdsTouched,
     branchesSidebarCollapsed: false,
     updatedAt: 1,
-  }
+  } satisfies SessionTreeUiState
 }
 
 export function rowIds(rows: readonly SessionTreeRow[]) {
@@ -62,7 +62,7 @@ export function connectorLineXs(
   return lines.map((line) => line.xPx)
 }
 
-export function rowAt(rows: readonly SessionTreeRow[], index: number): SessionTreeRow {
+export function rowAt(rows: readonly SessionTreeRow[], index: number) {
   const row = rows[index]
   if (!row) {
     throw new Error(`Expected session tree row at index ${String(index)}`)
@@ -70,7 +70,7 @@ export function rowAt(rows: readonly SessionTreeRow[], index: number): SessionTr
   return row
 }
 
-export function nodeAt(nodes: readonly SessionNode[], index: number): SessionNode {
+export function nodeAt(nodes: readonly SessionNode[], index: number) {
   const sessionNode = nodes[index]
   if (!sessionNode) {
     throw new Error(`Expected session node at index ${String(index)}`)

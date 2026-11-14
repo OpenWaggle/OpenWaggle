@@ -5,9 +5,7 @@ import {
   ComposerExtensionActions,
 } from '../ComposerExtensionActions'
 
-function launcher(
-  overrides: Partial<ComposerExtensionActionLauncher> = {},
-): ComposerExtensionActionLauncher {
+function launcher(overrides: Partial<ComposerExtensionActionLauncher> = {}) {
   return {
     id: 'extension-dialog:sample-extension:sample.dialog:interaction:interaction-1',
     title: 'Open sample dialog',
@@ -15,7 +13,7 @@ function launcher(
     badge: 'Dialog',
     onOpen: vi.fn(),
     ...overrides,
-  }
+  } satisfies ComposerExtensionActionLauncher
 }
 
 describe('ComposerExtensionActions', () => {

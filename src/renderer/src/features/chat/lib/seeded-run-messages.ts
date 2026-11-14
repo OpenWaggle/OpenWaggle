@@ -4,11 +4,7 @@ import {
   type AgentCompactionTimelineItem,
   getTimelineCompactionStatus,
 } from './compaction-lifecycle'
-import {
-  createSavedAnswerMatcher,
-  type SavedAnswerMatcher,
-  type SavedAnswerSince,
-} from './saved-run-answers'
+import { createSavedAnswerMatcher, type SavedAnswerMatcher } from './saved-run-answers'
 
 interface PlacedRunMessages {
   readonly messages: UIMessage[]
@@ -32,7 +28,7 @@ export function placeSeededRunMessages(input: {
   readonly persistedMessages: readonly UIMessage[]
   readonly seededMessages: readonly UIMessage[]
   readonly compactionStatus: AgentCompactionStatus | null
-}): PlacedRunMessages {
+}) {
   return placeRunMessages({
     persistedMessages: input.persistedMessages,
     cachedMessages: input.seededMessages,
@@ -53,7 +49,7 @@ export function placeUnsettledRunMessages(input: {
   readonly cachedMessages: readonly UIMessage[]
   readonly settledMessageIds: ReadonlySet<string> | undefined
   readonly compactionStatus: AgentCompactionStatus | null
-}): PlacedRunMessages | null {
+}) {
   const { settledMessageIds } = input
   const kept = unsettledRunMessages(input)
   if (!settledMessageIds || kept === null) return null
@@ -68,7 +64,7 @@ function placeRunMessages(input: {
   readonly cachedMessages: readonly UIMessage[]
   readonly settledMessageIds: ReadonlySet<string>
   readonly compactionStatus: AgentCompactionStatus | null
-}): PlacedRunMessages {
+}) {
   const { persistedMessages, cachedMessages, settledMessageIds } = input
   const persisted = indexPersistedMessages(persistedMessages)
   const runMessages: UIMessage[] = []
@@ -98,7 +94,7 @@ function placeRunMessages(input: {
       summaryOffsetAt: (count) =>
         followsSettled(count) ? persisted.summaryCount - settledSummaries : 0,
     }),
-  }
+  } satisfies PlacedRunMessages
 }
 
 function isPersisted(message: UIMessage, persisted: PersistedIndex) {
@@ -112,10 +108,7 @@ interface RunCompactionRebase {
   readonly summaryOffsetAt: (cachedMessageCount: number) => number
 }
 
-function rebaseTimelineItem(
-  item: AgentCompactionTimelineItem,
-  rebase: RunCompactionRebase,
-): AgentCompactionTimelineItem {
+function rebaseTimelineItem(item: AgentCompactionTimelineItem, rebase: RunCompactionRebase) {
   const summaryOffset = rebase.summaryOffsetAt(item.messageCountAtStart)
   return {
     ...item,
@@ -127,10 +120,7 @@ function rebaseTimelineItem(
   }
 }
 
-function rebaseRunCompaction(
-  status: AgentCompactionStatus | null,
-  rebase: RunCompactionRebase,
-): AgentCompactionStatus | null {
+function rebaseRunCompaction(status: AgentCompactionStatus | null, rebase: RunCompactionRebase) {
   const timelineStatus = getTimelineCompactionStatus(status)
   if (!status || !timelineStatus) return status
   // The status's own count is the latest compaction's.
@@ -168,7 +158,7 @@ export function unsettledRunMessages(input: {
    * ids next to their persisted copies. One it lacks (a save that failed) is kept.
    */
   readonly fetchedAfterSettlement?: boolean
-}): UIMessage[] | null {
+}) {
   const { persistedMessages, cachedMessages, settledMessageIds } = input
   if (!settledMessageIds || settledMessageIds.size === 0) return null
   const persisted = indexPersistedMessages(persistedMessages)
@@ -236,7 +226,7 @@ function settledRunsSince(
   cachedMessages: readonly UIMessage[],
   settledMessageIds: ReadonlySet<string>,
   persisted: PersistedIndex,
-): SavedAnswerSince {
+) {
   const firstSettled = cachedMessages.findIndex((message) => settledMessageIds.has(message.id))
   let afterOrder: number | undefined
   for (const message of cachedMessages.slice(0, Math.max(firstSettled, 0))) {
@@ -263,7 +253,7 @@ interface PersistedIndex {
   readonly summaryCount: number
 }
 
-function indexPersistedMessages(messages: readonly UIMessage[]): PersistedIndex {
+function indexPersistedMessages(messages: readonly UIMessage[]) {
   const ids = new Set<string>()
   const userOrders = new Set<number>()
   let summaryCount = 0

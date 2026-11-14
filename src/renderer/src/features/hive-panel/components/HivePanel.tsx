@@ -28,7 +28,7 @@ export interface HivePanelProps {
 }
 
 /** One page of the Hive tree query, for passing query state to a subcomponent. */
-type HiveTreeQuery = UseInfiniteQueryResult<InfiniteData<HiveTreePage, unknown>, Error>
+type HiveTreeQuery = UseInfiniteQueryResult<InfiniteData<HiveTreePage>>
 
 /**
  * The Hive panel: every Session of the current Hive from its Queen down, at any depth (ADR 0051).

@@ -93,10 +93,7 @@ function parseOriginSession(arguments_: ParsedArguments) {
 }
 
 /** Reads the profile's credential: `--profile-credential-file`, else the credential store. */
-export async function resolveServeIdentity(
-  identity: ParsedServeIdentity,
-  userDataRoot: string,
-): Promise<OpenWaggleMcpServeIdentity> {
+export async function resolveServeIdentity(identity: ParsedServeIdentity, userDataRoot: string) {
   if (identity.kind === 'owner') return identity
   const stateRoot = (
     await prepareLocalSessionHostPaths(resolveLocalSessionHostPaths({ userDataRoot }))
@@ -106,5 +103,9 @@ export async function resolveServeIdentity(
     identity.credentialFile ? { kind: 'file', path: identity.credentialFile } : { kind: 'store' },
     stateRoot,
   )
-  return { kind: 'profile', profile: identity.profile, credential }
+  return {
+    kind: 'profile',
+    profile: identity.profile,
+    credential,
+  } satisfies OpenWaggleMcpServeIdentity
 }

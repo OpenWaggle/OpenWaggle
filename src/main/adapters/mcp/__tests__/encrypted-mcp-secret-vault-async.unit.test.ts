@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEncryptedMcpSecretVault } from '../encrypted-mcp-secret-vault-service'
 
 /**
@@ -9,7 +9,7 @@ import { createEncryptedMcpSecretVault } from '../encrypted-mcp-secret-vault-ser
  * stall for minutes: reading the vault must only use the asynchronous API. Electron 43's
  * `decryptStringAsync` opens values `encryptString` sealed (same `v10` format).
  */
-const keychainOffMainThread = {
+const keychainOffMainThread = vi.hoisted(() => ({
   isEncryptionAvailable: () => {
     throw new Error('synchronous keychain call')
   },
@@ -26,7 +26,10 @@ const keychainOffMainThread = {
     if (!text.startsWith('sealed:')) throw new Error('Error while decrypting the ciphertext.')
     return { result: text.slice('sealed:'.length), shouldReEncrypt: false }
   },
-}
+}))
+
+// The production default reaches Electron's safeStorage through the SecureStorage port.
+vi.mock('electron', () => ({ safeStorage: keychainOffMainThread }))
 
 let root: string
 
@@ -44,6 +47,15 @@ describe('the MCP secret vault without the synchronous keychain API', () => {
       path.join(root, 'vault.json'),
       keychainOffMainThread,
     )
+
+    await vault.set('TOKEN', 'value')
+
+    await expect(vault.resolve('TOKEN')).resolves.toBe('value')
+  })
+
+  it('uses the asynchronous keychain calls through the production SecureStorage', async () => {
+    // Without them the port answers only the synchronous calls, which here throw.
+    const vault = createEncryptedMcpSecretVault(path.join(root, 'vault.json'))
 
     await vault.set('TOKEN', 'value')
 

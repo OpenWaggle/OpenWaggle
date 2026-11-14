@@ -43,8 +43,8 @@ function makeToolCallPart(
   args = '{}',
   id = 'tc-1',
   state: ToolCallPart['state'] = 'input-complete',
-): ToolCallPart {
-  return { type: 'tool-call', id, name, arguments: args, state }
+) {
+  return { type: 'tool-call', id, name, arguments: args, state } satisfies ToolCallPart
 }
 
 function emptyResults() {
@@ -58,14 +58,14 @@ function resultsWithEntry(
   error?: string,
 ) {
   const map = new Map<string, { content: unknown; state: string; error?: string }>()
-  map.set(id, { content, state, error })
+  map.set(id, { content, state, ...(error === undefined ? {} : { error }) })
   return map
 }
 
 const defaultSessionId = SessionId('session-1')
 const projectPath = '/test/project'
 
-function registryWithToolRenderer(toolName: string): ExtensionContributionRegistryView {
+function registryWithToolRenderer(toolName: string) {
   const entry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
@@ -99,7 +99,11 @@ function registryWithToolRenderer(toolName: string): ExtensionContributionRegist
     diagnostics: [],
   } satisfies ExtensionContributionRegistryEntry
 
-  return { projectPaths: [projectPath], entries: [entry] }
+  const view: ExtensionContributionRegistryView = {
+    projectPaths: [projectPath],
+    entries: [entry],
+  }
+  return view
 }
 
 // ---------------------------------------------------------------------------

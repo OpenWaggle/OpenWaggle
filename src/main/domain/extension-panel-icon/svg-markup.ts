@@ -92,7 +92,11 @@ class SvgMarkupReader {
   private index = 0
   private elementCount = 0
 
-  constructor(private readonly source: string) {}
+  private readonly source: string
+
+  constructor(source: string) {
+    this.source = source
+  }
 
   parseDocument() {
     this.skipMisc()
@@ -201,7 +205,7 @@ class SvgMarkupReader {
     }
   }
 
-  private parseElement(depth: number): SvgMarkupElement {
+  private parseElement(depth: number) {
     if (depth > MAX_ELEMENT_DEPTH) throw new SvgMarkupError('Elements are nested too deeply.')
     this.elementCount += 1
     if (this.elementCount > MAX_ELEMENT_COUNT) throw new SvgMarkupError('Too many elements.')
@@ -211,10 +215,17 @@ class SvgMarkupReader {
     const attributes = this.readAttributes()
     if (this.source.startsWith('/>', this.index)) {
       this.index += '/>'.length
-      return { kind: 'element', name, attributes, children: [] }
+      const element: SvgMarkupElement = { kind: 'element', name, attributes, children: [] }
+      return element
     }
     this.index += 1
-    return { kind: 'element', name, attributes, children: this.parseChildren(name, depth) }
+    const element: SvgMarkupElement = {
+      kind: 'element',
+      name,
+      attributes,
+      children: this.parseChildren(name, depth),
+    }
+    return element
   }
 
   private parseChildren(parentName: string, depth: number) {
@@ -266,14 +277,22 @@ class SvgMarkupReader {
   }
 }
 
-export function parseSvgMarkup(source: string): SvgMarkupParseResult {
+export function parseSvgMarkup(source: string) {
   if (NON_XML_CHAR.test(source)) {
-    return { ok: false, reason: 'The file contains characters that XML does not allow.' }
+    return {
+      ok: false,
+      reason: 'The file contains characters that XML does not allow.',
+    } satisfies SvgMarkupParseResult
   }
   try {
-    return { ok: true, root: new SvgMarkupReader(source).parseDocument() }
+    return {
+      ok: true,
+      root: new SvgMarkupReader(source).parseDocument(),
+    } satisfies SvgMarkupParseResult
   } catch (error) {
-    if (error instanceof SvgMarkupError) return { ok: false, reason: error.message }
+    if (error instanceof SvgMarkupError) {
+      return { ok: false, reason: error.message } satisfies SvgMarkupParseResult
+    }
     throw error
   }
 }

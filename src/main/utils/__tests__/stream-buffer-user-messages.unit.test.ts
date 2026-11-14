@@ -18,7 +18,7 @@ function clearAllBuffers() {
   for (const buffer of listStreamBuffers()) clearStreamBuffer(buffer.sessionId)
 }
 
-function userMessageStart(messageId: string, text: string, order: number): AgentTransportEvent {
+function userMessageStart(messageId: string, text: string, order: number) {
   return {
     type: 'message_start',
     messageId,
@@ -29,7 +29,7 @@ function userMessageStart(messageId: string, text: string, order: number): Agent
       durableTextSha256: 'd'.repeat(64),
     },
     timestamp: order,
-  }
+  } satisfies AgentTransportEvent
 }
 
 describe('stream-buffer user messages', () => {

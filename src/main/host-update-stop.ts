@@ -1,5 +1,6 @@
-import { app } from 'electron'
 import { isDesktopAppRunning } from './desktop-instance-probe'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { systemIntegration } from './desktop-shell/system-integration'
 import {
   askRunHandling,
   openPromptTerminal,
@@ -58,16 +59,19 @@ const INTERRUPTED_EXIT_CODE = 130
  * Ctrl-C, closing the terminal or SIGTERM quits Electron gracefully with status 0, which would
  * read as a finished stop and let an installer go on. While the Host stops, they cancel the update.
  */
-export async function cancelUpdateOnInterrupt<T>(task: () => Promise<T>): Promise<T> {
+export async function cancelUpdateOnInterrupt<T>(task: () => Promise<T>) {
   const cancel = () => {
     process.stderr.write('\nUpdate cancelled. OpenWaggle was not updated.\n')
-    app.exit(INTERRUPTED_EXIT_CODE)
+    appLifecycle.exit(INTERRUPTED_EXIT_CODE)
   }
-  app.once('before-quit', cancel)
+  const stopCancelling = appLifecycle.onBeforeQuit(() => {
+    stopCancelling()
+    cancel()
+  })
   try {
     return await task()
   } finally {
-    app.off('before-quit', cancel)
+    stopCancelling()
   }
 }
 
@@ -89,34 +93,47 @@ async function waitForRuns(dependencies: HostUpdateStopDependencies, activeRuns:
 }
 
 /** Settle the Host's active Runs as the user chooses, then stop it. */
-async function settleRunsAndRelease(
-  dependencies: HostUpdateStopDependencies,
-): Promise<HostUpdateStopReport> {
-  if (dependencies.desktopAppRunning()) return { state: 'desktop-open', activeRuns: 0 }
+async function settleRunsAndRelease(dependencies: HostUpdateStopDependencies) {
+  if (dependencies.desktopAppRunning()) {
+    const report: HostUpdateStopReport = { state: 'desktop-open', activeRuns: 0 }
+    return report
+  }
   const host = await dependencies.countActiveRuns()
-  if (!host) return { state: 'not-running', activeRuns: 0 }
+  if (!host) {
+    const report: HostUpdateStopReport = { state: 'not-running', activeRuns: 0 }
+    return report
+  }
   const { activeRuns } = host
   if (activeRuns > 0) {
     // An older Host cannot be told to stop its Runs; it hands over once they end.
     const choice = host.handingOver ? 'when-idle' : await dependencies.chooseRunHandling(activeRuns)
-    if (choice === 'cancel') return { state: 'cancelled', activeRuns }
+    if (choice === 'cancel') {
+      const report: HostUpdateStopReport = { state: 'cancelled', activeRuns }
+      return report
+    }
     if (choice === 'when-idle' && !(await waitForRuns(dependencies, activeRuns))) {
-      return { state: 'not-running', activeRuns }
+      const report: HostUpdateStopReport = { state: 'not-running', activeRuns }
+      return report
     }
     // Stop them now: the Host's update deadline interrupts Runs still active, recorded as such.
   }
   // The wait can be long, and the user may have opened the app meanwhile to watch the Runs.
-  if (dependencies.desktopAppRunning()) return { state: 'desktop-open', activeRuns }
+  if (dependencies.desktopAppRunning()) {
+    const report: HostUpdateStopReport = { state: 'desktop-open', activeRuns }
+    return report
+  }
   const outcome = await dependencies.release()
-  return { state: outcome === 'stop-requested' ? 'stopped' : outcome, activeRuns }
+  const report: HostUpdateStopReport = {
+    state: outcome === 'stop-requested' ? 'stopped' : outcome,
+    activeRuns,
+  }
+  return report
 }
 
 /** A Host that another client, such as `openwaggle mcp serve`, started again is stopped once more. */
 const RELEASE_ATTEMPTS = 2
 
-export async function stopSessionHostForUpdate(
-  dependencies: HostUpdateStopDependencies,
-): Promise<HostUpdateStopReport> {
+export async function stopSessionHostForUpdate(dependencies: HostUpdateStopDependencies) {
   let report = await settleRunsAndRelease(dependencies)
   for (let attempt = 1; attempt < RELEASE_ATTEMPTS && report.state === 'replaced'; attempt++) {
     // The new Host may have Runs of its own; they are asked about like the first Host's.
@@ -143,12 +160,10 @@ export function formatHostUpdateStopReport(report: HostUpdateStopReport) {
 }
 
 /** The real dependencies of `openwaggle host stop --update`, for a prepared CLI client. */
-export function defaultCliHostUpdateStopDependencies(
-  client: LocalSessionCliClientInput,
-): HostUpdateStopDependencies {
+export function defaultCliHostUpdateStopDependencies(client: LocalSessionCliClientInput) {
   const status = defaultStatusCliDependencies
   return {
-    desktopAppRunning: () => isDesktopAppRunning(app),
+    desktopAppRunning: () => isDesktopAppRunning(systemIntegration),
     countActiveRuns: async () => {
       const host = await probeRunningHost(client, status.probe)
       if (host.state === 'not-running') return null
@@ -165,5 +180,5 @@ export function defaultCliHostUpdateStopDependencies(
     release: () => releaseSessionHostForUpdate(client, { waitForExit: true }),
     progress: (text) => process.stderr.write(`${text}\n`),
     wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-  }
+  } satisfies HostUpdateStopDependencies
 }

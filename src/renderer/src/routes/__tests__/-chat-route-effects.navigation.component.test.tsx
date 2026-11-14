@@ -31,8 +31,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   },
 }))
 
-function sessionDetail(id: string): SessionDetail {
-  return {
+function sessionDetail(id: string) {
+  const detail: SessionDetail = {
     id: SessionId(id),
     title: id,
     projectPath: '/project',
@@ -40,9 +40,10 @@ function sessionDetail(id: string): SessionDetail {
     createdAt: 1,
     updatedAt: 2,
   }
+  return detail
 }
 
-function sessionDetailIn(projectPath: string): SessionDetail {
+function sessionDetailIn(projectPath: string) {
   return { ...sessionDetail('route-session'), projectPath }
 }
 

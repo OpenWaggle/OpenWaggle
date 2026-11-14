@@ -1,4 +1,4 @@
-import type { McpOAuthSettings, McpServerEntry } from '@earendil-works/pi-coding-agent'
+import type { McpServerEntry } from '@earendil-works/pi-coding-agent'
 import { resolveConfigValueOrThrow } from '@earendil-works/pi-coding-agent'
 import { piLiteral } from '../../../domain/mcp/config/mcp-pi-literal'
 import { mcpValueEnvironment } from '../../../mcp-shell-environment'
@@ -14,7 +14,7 @@ export function mcpOAuthUrl(entry: McpServerEntry) {
   return hasAuthorization ? undefined : config.url
 }
 
-export function mcpOAuthSettings(entry: McpServerEntry): McpOAuthSettings {
+export function mcpOAuthSettings(entry: McpServerEntry) {
   const oauth = 'url' in entry.config ? entry.config.oauth : undefined
   if (!oauth) return {}
   return {
@@ -52,7 +52,7 @@ export function mcpSignedIn(entry: McpServerEntry) {
  */
 export function withShellResolvedClientSecrets<
   T extends { readonly servers: readonly McpServerEntry[] },
->(loaded: T): T {
+>(loaded: T) {
   const environment = mcpValueEnvironment()
   const servers = loaded.servers.map((entry) => {
     const oauth = 'url' in entry.config ? entry.config.oauth : undefined

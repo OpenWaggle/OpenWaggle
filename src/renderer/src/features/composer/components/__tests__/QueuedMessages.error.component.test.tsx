@@ -4,9 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueuedMessages } from '../QueuedMessages'
 
 const SESSION_ID = SessionId('session-queue-error')
-function noQueueError(): Error | null {
-  return null
-}
 
 interface QueueErrorItem {
   readonly id: string
@@ -18,9 +15,11 @@ interface QueueErrorItem {
 
 const queueMock = vi.hoisted(() => {
   const items: QueueErrorItem[] = []
+  // A property's declared type is not narrowed, so a test can set an error.
+  const initial: { readonly error: Error | null } = { error: null }
   return {
     snapshot: { state: 'running' as const, revision: 0, activeRunId: null, items },
-    error: noQueueError(),
+    error: initial.error,
     refresh: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
     setPaused: vi.fn().mockResolvedValue(undefined),

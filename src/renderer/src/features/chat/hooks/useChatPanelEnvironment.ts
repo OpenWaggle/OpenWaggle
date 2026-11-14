@@ -73,10 +73,6 @@ export function useChatPanelEnvironment() {
   function handleDismissInterruptedRun(runId: string, branchId: SessionBranchId) {
     const sessionId = chat.activeSessionId
     if (!sessionId) return
-    if (typeof api.dismissInterruptedSessionRun !== 'function') {
-      showToast('Update OpenWaggle to dismiss interrupted run notices.')
-      return
-    }
     void api
       .dismissInterruptedSessionRun(sessionId, runId)
       .then(() =>
@@ -103,7 +99,7 @@ export function useChatPanelEnvironment() {
     loadSessions,
     model,
     navigate,
-    openSettings() {
+    openSettings: () => {
       void navigate({ to: '/settings' })
     },
     projectPath: project.projectPath,

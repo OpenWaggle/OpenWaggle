@@ -72,10 +72,14 @@ function useSyntaxThemePickerState() {
   const removeImport = useSyntaxThemeCatalogStore((state) => state.remove)
   const [variant, setVariant] = useState<SyntaxAppearanceVariant>(activeSyntaxTheme.variant)
   const [query, setQuery] = useState('')
-  const [previewThemeId, setPreviewThemeId] = useState<SyntaxThemeId>(selections.dark)
   const selectedThemeId = selections[variant]
-
-  useEffect(() => setPreviewThemeId(selectedThemeId), [selectedThemeId])
+  const [previewThemeId, setPreviewThemeId] = useState<SyntaxThemeId>(selectedThemeId)
+  // Choosing a theme, or another variant's, previews the choice.
+  const [previewedSelection, setPreviewedSelection] = useState(selectedThemeId)
+  if (previewedSelection !== selectedThemeId) {
+    setPreviewedSelection(selectedThemeId)
+    setPreviewThemeId(selectedThemeId)
+  }
   useEffect(() => {
     void load(workingPath)
   }, [load, workingPath])

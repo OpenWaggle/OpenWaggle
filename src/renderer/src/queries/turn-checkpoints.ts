@@ -18,10 +18,10 @@ interface PendingTurnFiles {
   readonly turnIds: Set<string>
   readonly waiters: Map<
     string,
-    Array<{
+    {
       readonly resolve: (files: readonly TurnDiffFileSummary[]) => void
       readonly reject: (error: unknown) => void
-    }>
+    }[]
   >
 }
 
@@ -47,11 +47,8 @@ function flushTurnFiles(sessionId: SessionId) {
 }
 
 /** One turn's changed files, read together with every other turn asked for in the same task. */
-export function readTurnDiffFiles(
-  sessionId: SessionId,
-  turnId: string,
-): Promise<readonly TurnDiffFileSummary[]> {
-  return new Promise((resolve, reject) => {
+export function readTurnDiffFiles(sessionId: SessionId, turnId: string) {
+  return new Promise<readonly TurnDiffFileSummary[]>((resolve, reject) => {
     const key = String(sessionId)
     let pending = pendingBySession.get(key)
     if (!pending) {

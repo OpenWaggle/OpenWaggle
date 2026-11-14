@@ -34,7 +34,7 @@ export function reserveSessionWriter(input: {
   readonly controller?: AbortController
   readonly runId?: string
   readonly successorToken?: symbol
-}): ActiveSessionRunReservation {
+}) {
   const existing = activeSessionWriters.get(input.sessionId)
   const claimedSuccessor =
     existing?.released === true && existing.successor?.token === input.successorToken
@@ -82,7 +82,7 @@ export async function claimSessionWriterSuccessorAndWait(
   sessionId: SessionId,
   kind: SessionWriterKind,
   signal?: AbortSignal,
-): Promise<symbol | null> {
+) {
   const writer = activeSessionWriters.get(sessionId)
   const claimed = claimSessionWriterSuccessor(sessionId, kind)
   if (!writer || !claimed) return null
@@ -107,16 +107,14 @@ export async function claimSessionWriterSuccessorAndWait(
   return token
 }
 
-export function claimSessionWriterSuccessor(
-  sessionId: SessionId,
-  kind: SessionWriterKind,
-): ClaimedSessionWriterSuccessor | null {
+export function claimSessionWriterSuccessor(sessionId: SessionId, kind: SessionWriterKind) {
   const writer = activeSessionWriters.get(sessionId)
   if (!writer) return null
   if (writer.successor) throw new Error(`Session ${sessionId} already has a claimed successor.`)
   const token = Symbol(`${kind}:${sessionId}`)
   writer.successor = { kind, token }
-  return { token, settled: writer.settled }
+  const result: ClaimedSessionWriterSuccessor | null = { token, settled: writer.settled }
+  return result
 }
 
 export function releaseClaimedSessionWriterSuccessor(sessionId: SessionId, token: symbol) {

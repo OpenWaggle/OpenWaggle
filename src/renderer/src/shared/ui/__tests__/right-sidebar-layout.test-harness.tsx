@@ -34,15 +34,13 @@ export function installMatchMedia(matches: boolean) {
   }
 }
 
-export function renderLayout(
-  open: boolean,
-  onOpenChange: (open: boolean) => void = vi.fn(),
-): RenderResult {
-  return render(
+export function renderLayout(open: boolean, onOpenChange: (open: boolean) => void = vi.fn()) {
+  const result: RenderResult = render(
     <RightSidebarLayout {...layoutProps(open, onOpenChange)}>
       <div>Main content</div>
     </RightSidebarLayout>,
   )
+  return result
 }
 
 export function layoutProps(
@@ -66,10 +64,7 @@ export function layoutProps(
   }
 }
 
-export function installAnimationFrame(): {
-  readonly cancelAnimationFrame: MockInstance<(handle: number) => void>
-  readonly flush: () => void
-} {
+export function installAnimationFrame() {
   let pendingCallback: FrameRequestCallback | null = null
   const cancelAnimationFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
     pendingCallback = null
@@ -79,7 +74,10 @@ export function installAnimationFrame(): {
     return 1
   })
 
-  return {
+  const result: {
+    readonly cancelAnimationFrame: MockInstance<(handle: number) => void>
+    readonly flush: () => void
+  } = {
     cancelAnimationFrame,
     flush() {
       const callback = pendingCallback
@@ -88,16 +86,10 @@ export function installAnimationFrame(): {
       callback(0)
     },
   }
+  return result
 }
 
-export function prepareDockedResize(): {
-  readonly panel: HTMLDivElement
-  readonly rail: HTMLElement
-  readonly releasePointerCapture: Mock<(pointerId: number) => void>
-  readonly root: HTMLElement
-  readonly setPointerCapture: Mock<(pointerId: number) => void>
-  readonly sidebar: HTMLDivElement
-} {
+export function prepareDockedResize() {
   const rail = screen.getByRole('button', { name: 'Resize right sidebar' })
   const root = document.querySelector<HTMLElement>(
     '[data-right-sidebar-main="true"]',
@@ -123,5 +115,13 @@ export function prepareDockedResize(): {
     setPointerCapture: { configurable: true, value: setPointerCapture },
   })
 
-  return { panel, rail, releasePointerCapture, root, setPointerCapture, sidebar }
+  const result: {
+    readonly panel: HTMLDivElement
+    readonly rail: HTMLElement
+    readonly releasePointerCapture: Mock<(pointerId: number) => void>
+    readonly root: HTMLElement
+    readonly setPointerCapture: Mock<(pointerId: number) => void>
+    readonly sidebar: HTMLDivElement
+  } = { panel, rail, releasePointerCapture, root, setPointerCapture, sidebar }
+  return result
 }

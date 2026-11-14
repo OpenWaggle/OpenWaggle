@@ -10,7 +10,7 @@ const { electronApp } = vi.hoisted(() => {
 })
 vi.mock('electron', () => ({
   app: {
-    once: (event: string, listener: () => void) => electronApp.emitter?.once(event, listener),
+    on: (event: string, listener: () => void) => electronApp.emitter?.on(event, listener),
     off: (event: string, listener: () => void) => electronApp.emitter?.off(event, listener),
     exit: electronApp.exit,
   },

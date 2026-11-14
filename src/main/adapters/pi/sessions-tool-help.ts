@@ -49,7 +49,7 @@ function overview(input: HiveHelpInput) {
  */
 export function hiveHelp(input: HiveHelpInput) {
   if (input.topic === undefined || input.topic === HIVE_HELP_ACTION) return overview(input)
-  const topic = isMatching(P.string, input.topic) ? input.topic : String(input.topic)
+  const topic = isMatching(P.string, input.topic) ? input.topic : JSON.stringify(input.topic)
   const variant = input.variants.find((candidate) => variantActionName(candidate) === topic)
   if (!variant) {
     const unavailable = input.explainUnavailable?.(topic)

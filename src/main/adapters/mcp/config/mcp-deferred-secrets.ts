@@ -46,7 +46,7 @@ async function resolveMarkers(
 export async function resolveDeferredMcpSecrets(
   config: McpServerConfig,
   resolveSecret: (name: string) => Promise<string>,
-): Promise<McpServerConfig> {
+) {
   if ('url' in config) {
     const headers = await resolveMarkers(config.headers, resolveSecret)
     return headers ? { ...config, headers } : config

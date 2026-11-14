@@ -2,8 +2,6 @@ import type { LocalSessionProfileManagementResponse } from '@shared/types/local-
 import { ProfileCredentialCommitError } from './session-host/profile-credential-destination'
 
 export class AcceptedProfileCredentialRecoveryError extends Error {
-  readonly preserveStagedCredential = true
-
   constructor(input: {
     readonly operation: 'create' | 'rotate'
     readonly profileId: string

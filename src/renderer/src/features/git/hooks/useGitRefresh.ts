@@ -31,7 +31,7 @@ export function useGitRefresh({
   repositoryPath,
   refreshGitStatus,
   refreshGitBranches,
-}: UseGitRefreshOptions): void {
+}: UseGitRefreshOptions) {
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
 
   // Debounced git refresh for runtime events

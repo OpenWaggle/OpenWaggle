@@ -6,14 +6,11 @@ import type {
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import { create } from 'zustand'
-import { createRendererLogger } from '@/shared/lib/logger'
 import {
   createSessionCatalogState,
   type SessionCatalogState,
 } from './session-catalog-store-actions'
 import { createSessionWorkspaceReads } from './session-workspace-reads'
-
-const _logger = createRendererLogger('session-store')
 
 function retitleSummaries(
   summaries: readonly SessionSummary[],

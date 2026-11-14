@@ -40,7 +40,7 @@ export function Sidebar() {
     projectPath: controller.projectPath,
     narrowed: controller.narrowed,
     workerAttentionOf: (queenId: string) =>
-      queenWorkerAttention(controller.workerAttentionByQueen, String(queenId)),
+      queenWorkerAttention(controller.workerAttentionByQueen, queenId),
   }
   const actions = buildSidebarActions(controller, markUnread)
 
@@ -84,7 +84,7 @@ export function Sidebar() {
               const element = event.currentTarget
               const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
               if (remaining < SESSION_LOAD_MORE_THRESHOLD_PX) {
-                void controller.loadMoreVisibleSessions()
+                controller.loadMoreVisibleSessions()
               }
             }}
           >
@@ -147,7 +147,7 @@ function SidebarLoadMoreButton({ loadMore }: { readonly loadMore: () => void }) 
       <Button
         type="button"
         variant="unstyled"
-        onClick={() => void loadMore()}
+        onClick={() => loadMore()}
         className="min-h-8 w-full rounded-md px-2 text-left text-xs font-medium text-accent hover:bg-bg-hover"
       >
         Load more sessions

@@ -11,12 +11,12 @@ const execFileAsync = promisify(execFile)
 let repositoryPath: string | null = null
 const createdWorktrees: string[] = []
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+async function git(cwd: string, args: readonly string[]) {
   const { stdout } = await execFileAsync('git', [...args], { cwd })
   return stdout
 }
 
-async function createRepository(): Promise<string> {
+async function createRepository() {
   const repository = await mkdtemp(path.join(tmpdir(), 'openwaggle-worktree-recreate-'))
   repositoryPath = repository
   await git(repository, ['init', '--initial-branch=main'])

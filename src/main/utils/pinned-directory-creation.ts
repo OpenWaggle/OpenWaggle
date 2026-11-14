@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import { releaseValidatedChild, waitForChildExit } from './validated-child-process'
 
@@ -81,51 +82,75 @@ async function nearestExistingWindowsDirectory(targetDirectory: string) {
   }
 }
 
-async function ensureWindowsDirectoryPathPinned(input: {
-  readonly targetDirectory: string
+interface PinnedComponentCreation {
   readonly mode: number
   readonly beforeMutation?: () => Promise<void>
   readonly beforeComponentMutation?: (component: string, index: number) => Promise<void>
+}
+
+/**
+ * Creates one directory component through the helper process pinned to its parent's identity,
+ * and returns the identity of the directory it created.
+ */
+async function createPinnedComponent({
+  parentDirectory,
+  parentIdentity,
+  component,
+  index,
+  input,
+}: {
+  readonly parentDirectory: string
+  readonly parentIdentity: string
+  readonly component: string
+  readonly index: number
+  readonly input: PinnedComponentCreation
 }) {
-  const existing = await nearestExistingWindowsDirectory(input.targetDirectory)
+  const child = spawn(
+    childScriptRuntime.executable(),
+    ['-e', PINNED_DIRECTORY_CREATOR, parentIdentity, String(input.mode), component],
+    {
+      cwd: parentDirectory,
+      env: childScriptRuntime.environment(getSafeChildEnv()),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  )
+  let output = ''
+  child.stdout?.setEncoding('utf8')
+  child.stdout?.on('data', (chunk: string) => {
+    output += chunk
+  })
+  const exitCodePromise = waitForChildExit(child)
   const beforeComponentMutation = input.beforeComponentMutation
+  await releaseValidatedChild({
+    child,
+    label: 'directory creation helper',
+    ...(beforeComponentMutation
+      ? { afterValidation: () => beforeComponentMutation(component, index) }
+      : index === 0 && input.beforeMutation
+        ? { afterValidation: input.beforeMutation }
+        : {}),
+  })
+  const exitCode = await exitCodePromise
+  if (exitCode !== 0) throw new Error('Directory creation escaped its pinned parent.')
+  const expectedIdentity = output.match(/result=(\d+:\d+)$/)?.[1]
+  if (!expectedIdentity) throw new Error('Directory creation helper returned no identity.')
+  return expectedIdentity
+}
+
+async function ensureWindowsDirectoryPathPinned(
+  input: PinnedComponentCreation & { readonly targetDirectory: string },
+) {
+  const existing = await nearestExistingWindowsDirectory(input.targetDirectory)
   let currentDirectory = existing.directory
   let currentStats = existing.stats
   for (const [index, component] of existing.components.entries()) {
-    const child = spawn(
-      process.execPath,
-      [
-        '-e',
-        PINNED_DIRECTORY_CREATOR,
-        `${currentStats.dev}:${currentStats.ino}`,
-        String(input.mode),
-        component,
-      ],
-      {
-        cwd: currentDirectory,
-        env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      },
-    )
-    let output = ''
-    child.stdout?.setEncoding('utf8')
-    child.stdout?.on('data', (chunk: string) => {
-      output += chunk
+    const expectedIdentity = await createPinnedComponent({
+      parentDirectory: currentDirectory,
+      parentIdentity: `${currentStats.dev}:${currentStats.ino}`,
+      component,
+      index,
+      input,
     })
-    const exitCodePromise = waitForChildExit(child)
-    await releaseValidatedChild({
-      child,
-      label: 'directory creation helper',
-      ...(beforeComponentMutation
-        ? { afterValidation: () => beforeComponentMutation(component, index) }
-        : index === 0 && input.beforeMutation
-          ? { afterValidation: input.beforeMutation }
-          : {}),
-    })
-    const exitCode = await exitCodePromise
-    if (exitCode !== 0) throw new Error('Directory creation escaped its pinned parent.')
-    const expectedIdentity = output.match(/result=(\d+:\d+)$/)?.[1]
-    if (!expectedIdentity) throw new Error('Directory creation helper returned no identity.')
     const nextDirectory = path.join(currentDirectory, component)
     const nextStats = await fs.lstat(nextDirectory)
     if (
@@ -154,45 +179,17 @@ export async function ensureDirectoryPathPinned(input: {
   const existing = await nearestExistingDirectory(input.targetDirectory)
   let currentDirectory = existing.directory
   let currentHandle = existing.handle
-  const beforeComponentMutation = input.beforeComponentMutation
   try {
     if (existing.components.length === 0) return
     for (const [index, component] of existing.components.entries()) {
       const stats = await currentHandle.stat()
-      const child = spawn(
-        process.execPath,
-        [
-          '-e',
-          PINNED_DIRECTORY_CREATOR,
-          `${stats.dev}:${stats.ino}`,
-          String(input.mode),
-          component,
-        ],
-        {
-          cwd: currentDirectory,
-          env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
-          stdio: ['pipe', 'pipe', 'pipe'],
-        },
-      )
-      let output = ''
-      child.stdout?.setEncoding('utf8')
-      child.stdout?.on('data', (chunk: string) => {
-        output += chunk
+      const expectedIdentity = await createPinnedComponent({
+        parentDirectory: currentDirectory,
+        parentIdentity: `${stats.dev}:${stats.ino}`,
+        component,
+        index,
+        input,
       })
-      const exitCodePromise = waitForChildExit(child)
-      await releaseValidatedChild({
-        child,
-        label: 'directory creation helper',
-        ...(beforeComponentMutation
-          ? { afterValidation: () => beforeComponentMutation(component, index) }
-          : index === 0 && input.beforeMutation
-            ? { afterValidation: input.beforeMutation }
-            : {}),
-      })
-      const exitCode = await exitCodePromise
-      if (exitCode !== 0) throw new Error('Directory creation escaped its pinned parent.')
-      const expectedIdentity = output.match(/result=(\d+:\d+)$/)?.[1]
-      if (!expectedIdentity) throw new Error('Directory creation helper returned no identity.')
       const nextDirectory = path.join(currentDirectory, component)
       const nextHandle = await fs.open(nextDirectory, OPEN_DIRECTORY_NO_FOLLOW)
       const nextStats = await nextHandle.stat()

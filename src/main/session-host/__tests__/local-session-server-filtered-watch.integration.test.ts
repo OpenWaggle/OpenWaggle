@@ -9,6 +9,8 @@ import { encodeLocalSessionFrame } from '../local-session-framing'
 import { listenLocalSessionServer } from '../local-session-server'
 import {
   connectLocalSessionTestClient,
+  decodeTestServerFrame,
+  isTestServerFrame,
   sessionHostCursorFromTestFrame,
   TestFrameReader,
 } from './local-session-server-test-client'
@@ -66,10 +68,7 @@ describe('filtered Local Session watch checkpoints', () => {
     )
     const subscribed = await reader.next()
     expect(subscribed).toMatchObject({ kind: 'subscribed', requestId: 'initial-watch' })
-    if (typeof subscribed !== 'object' || subscribed === null) {
-      throw new Error('Expected a subscription frame.')
-    }
-    const subscriptionId: unknown = Reflect.get(subscribed, 'subscriptionId')
+    const { subscriptionId } = decodeTestServerFrame(subscribed)
     if (typeof subscriptionId !== 'string') throw new Error('Expected a subscription ID.')
     eventHub.publish({
       kind: 'session-state-changed',
@@ -114,13 +113,7 @@ describe('filtered Local Session watch checkpoints', () => {
       }),
     )
     let resumed = await reader.next()
-    if (
-      typeof resumed === 'object' &&
-      resumed !== null &&
-      Reflect.get(resumed, 'kind') === 'subscription-closed'
-    ) {
-      resumed = await reader.next()
-    }
+    if (isTestServerFrame(resumed, 'subscription-closed')) resumed = await reader.next()
     expect(resumed).toMatchObject({ kind: 'subscribed', requestId: 'resumed-watch' })
   })
 })

@@ -11,7 +11,7 @@ import { makeSessionQueryRuntime as makeRuntime } from './sqlite-session-query-t
 
 describe('SQLite Session semantic projection publication', () => {
   let root = ''
-  const runtimes: Array<ReturnType<typeof makeRuntime>> = []
+  const runtimes: ReturnType<typeof makeRuntime>[] = []
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-semantic-projection-race-'))

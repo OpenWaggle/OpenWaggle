@@ -1,9 +1,5 @@
 import type * as SqlClient from '@effect/sql/SqlClient'
 import * as Effect from 'effect/Effect'
-import type {
-  LocalSessionMutationAdmission,
-  LocalSessionObservationAdmission,
-} from '../application/local-session-mutation-admission'
 import { acquireLocalSessionProfileBackgroundWork } from '../application/local-session-profile-background-work'
 import { resolveSessionToolAgentCaller } from './session-tool-agent-caller'
 import { runSessionToolCallerResolution } from './session-tool-gateway-cancellation'
@@ -54,7 +50,7 @@ export async function admitSessionToolMutation(input: {
   readonly runId: string
   readonly workingDirectory: string
   readonly signal?: AbortSignal
-}): Promise<LocalSessionMutationAdmission> {
+}) {
   const profileId = await originProfileId(input.sql, input.sessionId)
   const lease = profileId
     ? acquireLocalSessionProfileBackgroundWork(profileId, { cancelOnFence: false })
@@ -75,7 +71,7 @@ export async function admitSessionToolObservation(input: {
   readonly runId: string
   readonly workingDirectory: string
   readonly signal?: AbortSignal
-}): Promise<LocalSessionObservationAdmission> {
+}) {
   const profileId = await originProfileId(input.sql, input.sessionId)
   const lease = profileId
     ? acquireLocalSessionProfileBackgroundWork(profileId, { cancelOnFence: true })

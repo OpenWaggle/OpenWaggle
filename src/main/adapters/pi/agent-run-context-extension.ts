@@ -1,6 +1,5 @@
 import type {
   ExtensionAPI,
-  ExtensionFactory,
   NormalizedBuildSystemPromptOptions,
 } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE } from '@shared/constants/run-identity'
@@ -12,6 +11,7 @@ import {
   withRunIdentities,
 } from './agent-run-identity'
 import { OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE } from './openwaggle-on-demand-tools'
+import type { SynchronousExtensionFactory } from './synchronous-extension-factory'
 
 export interface AgentRunContextExtensionInput {
   /** User-authored instructions frozen into the Session execution profile at creation time. */
@@ -57,10 +57,10 @@ function allowlistOf(
  */
 export function createAgentToolAllowlistGuard(
   input: Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'>,
-): ExtensionFactory | undefined {
+) {
   const allows = allowlistOf(input)
   if (!allows) return undefined
-  return (pi) => {
+  return ((pi) => {
     pi.on('tool_call', (event) =>
       allows(event.toolName)
         ? undefined
@@ -69,14 +69,14 @@ export function createAgentToolAllowlistGuard(
             reason: `This Session's Agent definition does not allow the tool ${event.toolName}.`,
           },
     )
-  }
+  }) satisfies SynchronousExtensionFactory | undefined
 }
 
 /** The allowlist fields of a Run's input that this extension enforces. */
 export function agentRunContextAllowlists(input: {
   readonly toolAllowlist?: readonly string[]
   readonly mcpServerAllowlist?: readonly string[]
-}): Pick<AgentRunContextExtensionInput, 'toolAllowlist' | 'mcpServerAllowlist'> {
+}) {
   return {
     ...(input.toolAllowlist ? { toolAllowlist: input.toolAllowlist } : {}),
     ...(input.mcpServerAllowlist ? { mcpServerAllowlist: input.mcpServerAllowlist } : {}),
@@ -93,6 +93,7 @@ export function agentRunContextAllowlists(input: {
  */
 function allowedToolLoadout(pi: ExtensionAPI, allows: (toolName: string) => boolean) {
   const active = pi.getActiveTools().filter(allows)
+  const activeNames = new Set(active)
   const named = pi
     .getAllTools()
     .filter(
@@ -100,7 +101,7 @@ function allowedToolLoadout(pi: ExtensionAPI, allows: (toolName: string) => bool
         tool.exposure === 'deferred' &&
         tool.namespace?.name === OPENWAGGLE_ON_DEMAND_TOOL_NAMESPACE.name &&
         allows(tool.name) &&
-        !active.includes(tool.name),
+        !activeNames.has(tool.name),
     )
     .map((tool) => tool.name)
   return [...active, ...named]
@@ -136,12 +137,10 @@ function setSection(
  * extensions have registered their tools. Intersecting with the active set prevents an Agent
  * definition from activating a tool that another policy or extension disabled.
  */
-export function createAgentRunContextExtension(
-  input: AgentRunContextExtensionInput,
-): ExtensionFactory {
+export function createAgentRunContextExtension(input: AgentRunContextExtensionInput) {
   const allows = allowlistOf(input)
   const runIdentity = input.runIdentityContext?.trim()
-  return (pi) => {
+  return ((pi) => {
     // Stored on the Run's first model request, whose messages hold the message that started the
     // Run (a prompt, a Waggle user request, or an extension command's custom message), so the
     // identity can name it; once per Run, though `before_agent_start` fires on every turn.
@@ -175,5 +174,5 @@ export function createAgentRunContextExtension(
       const messages = withRunIdentities(event.messages, ctx.sessionManager.getBranch())
       return messages ? { messages } : undefined
     })
-  }
+  }) satisfies SynchronousExtensionFactory
 }

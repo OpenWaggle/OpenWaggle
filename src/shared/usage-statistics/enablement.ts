@@ -10,10 +10,10 @@ export interface UsageStatisticsEnablementInput {
   readonly buildChannel: BuildChannel
   /** Raw environment values of the deciding process. */
   readonly env: {
-    readonly DO_NOT_TRACK?: string | undefined
-    readonly PI_TELEMETRY?: string | undefined
-    readonly CI?: string | undefined
-    readonly OPENWAGGLE_AUTOMATION?: string | undefined
+    readonly DO_NOT_TRACK?: string
+    readonly PI_TELEMETRY?: string
+    readonly CI?: string
+    readonly OPENWAGGLE_AUTOMATION?: string
   }
 }
 
@@ -52,16 +52,26 @@ function piTelemetryAllows(value: string | undefined) {
  * false word opts out. `PI_TELEMETRY` follows Pi: once set, anything other than 1, true or yes opts out.
  * `CI` is set by every common CI provider.
  */
-export function resolveUsageStatisticsEnablement(
-  input: UsageStatisticsEnablementInput,
-): UsageStatisticsEnablement {
-  if (input.buildChannel === 'dev') return { enabled: false, reason: 'dev-build' }
-  if (input.env.OPENWAGGLE_AUTOMATION === '1') return { enabled: false, reason: 'automation' }
-  if (isSet(input.env.DO_NOT_TRACK)) return { enabled: false, reason: 'do-not-track' }
-  if (!piTelemetryAllows(input.env.PI_TELEMETRY)) return { enabled: false, reason: 'pi-telemetry' }
-  if (isSet(input.env.CI)) return { enabled: false, reason: 'ci' }
-  if (!input.settingEnabled) return { enabled: false, reason: 'setting' }
-  return { enabled: true }
+export function resolveUsageStatisticsEnablement(input: UsageStatisticsEnablementInput) {
+  if (input.buildChannel === 'dev') {
+    return { enabled: false, reason: 'dev-build' } satisfies UsageStatisticsEnablement
+  }
+  if (input.env.OPENWAGGLE_AUTOMATION === '1') {
+    return { enabled: false, reason: 'automation' } satisfies UsageStatisticsEnablement
+  }
+  if (isSet(input.env.DO_NOT_TRACK)) {
+    return { enabled: false, reason: 'do-not-track' } satisfies UsageStatisticsEnablement
+  }
+  if (!piTelemetryAllows(input.env.PI_TELEMETRY)) {
+    return { enabled: false, reason: 'pi-telemetry' } satisfies UsageStatisticsEnablement
+  }
+  if (isSet(input.env.CI)) {
+    return { enabled: false, reason: 'ci' } satisfies UsageStatisticsEnablement
+  }
+  if (!input.settingEnabled) {
+    return { enabled: false, reason: 'setting' } satisfies UsageStatisticsEnablement
+  }
+  return { enabled: true } satisfies UsageStatisticsEnablement
 }
 
 /**
@@ -70,7 +80,7 @@ export function resolveUsageStatisticsEnablement(
  */
 export function resolveUsageStatisticsEnvironmentBlock(
   input: Omit<UsageStatisticsEnablementInput, 'settingEnabled'>,
-): UsageStatisticsEnvironmentBlock | null {
+) {
   const resolved = resolveUsageStatisticsEnablement({ ...input, settingEnabled: true })
   if (resolved.enabled || resolved.reason === 'setting') return null
   return resolved.reason

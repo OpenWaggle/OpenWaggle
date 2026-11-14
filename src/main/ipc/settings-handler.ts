@@ -80,7 +80,7 @@ function registerSettingsUtilityHandlers() {
   hostHandle('settings:test-api-key')
 }
 
-export function registerSettingsHandlers(): void {
+export function registerSettingsHandlers() {
   registerSettingsCrudHandlers()
   registerTreePreferenceHandlers()
   registerSettingsUtilityHandlers()

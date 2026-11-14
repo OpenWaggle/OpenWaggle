@@ -26,8 +26,8 @@ function services(change: SessionThinkingLevelChange = CHANGED) {
   const setModel = vi.fn(() => Effect.succeed(change))
   const setThinkingLevel = vi.fn(() => Effect.succeed(change))
   let defaultLevel: ThinkingLevel = 'medium'
-  const setDefault = vi.fn(
-    (level: ThinkingLevel): Effect.Effect<void, Error> =>
+  const setDefault = vi.fn<(level: ThinkingLevel) => Effect.Effect<void, Error>>(
+    (level: ThinkingLevel) =>
       Effect.sync(() => {
         defaultLevel = level
       }),
@@ -66,7 +66,7 @@ function run<A>(
   fixture: ReturnType<typeof services>,
 ) {
   const effect = fixture.provide(dispatchHostBackedSessionGuiOperation(channel, fromAny(args)))
-  return Effect.runPromise(fromAny<Effect.Effect<A, unknown, never>, typeof effect>(effect))
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof effect>(effect))
 }
 
 describe('sessions:set-model', () => {

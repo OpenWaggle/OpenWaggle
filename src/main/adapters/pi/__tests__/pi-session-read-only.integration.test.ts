@@ -133,9 +133,8 @@ describe('Reading a discovered Pi session', () => {
     const { source, id } = await sourceSession(format)
     const before = await fs.readFile(source, 'utf8')
     const lastNode = (await sessionDetail(id))?.messages.at(-1)?.id
-    const { forkSession } = await import(
-      '../../../application/host-ui-session-lifecycle-operations'
-    )
+    const { forkSession } =
+      await import('../../../application/host-ui-session-lifecycle-operations')
 
     const fork = await run(forkSession([id, FAKE_PROVIDER_MODEL, String(lastNode)], 'at'))
 
@@ -144,8 +143,8 @@ describe('Reading a discovered Pi session', () => {
     if (!forkFile) throw new Error('The fork has no Pi file.')
     expect(forkFile).not.toBe(source)
     expect(path.dirname(forkFile)).toBe(path.dirname(source))
-    const [header] = (await fs.readFile(forkFile, 'utf8')).split('\n')
-    expect(JSON.parse(String(header))).toMatchObject({ type: 'session', parentSession: source })
+    const header = (await fs.readFile(forkFile, 'utf8')).split('\n').at(0) ?? ''
+    expect(JSON.parse(header)).toMatchObject({ type: 'session', parentSession: source })
   })
 })
 

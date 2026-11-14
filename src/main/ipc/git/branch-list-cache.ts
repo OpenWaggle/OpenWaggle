@@ -6,7 +6,7 @@ import { joinPendingGitRead, type PendingGitRead } from './pending-read'
 const pendingLists = new Map<string, PendingGitRead<GitBranchListResult>>()
 
 /** Join concurrent readers only; completed lists are always refreshed on the next request. */
-export function readGitBranchList(projectPath: string): Promise<GitBranchListResult> {
+export function readGitBranchList(projectPath: string) {
   const existing = joinPendingGitRead(pendingLists.get(projectPath))
   if (existing) return existing
   const pending = Promise.resolve().then(() => listGitBranches(projectPath))
@@ -18,7 +18,7 @@ export function readGitBranchList(projectPath: string): Promise<GitBranchListRes
   return pending
 }
 
-export function invalidateGitBranchListReads(): void {
+export function invalidateGitBranchListReads() {
   // Linked worktrees share branch refs even when their filesystem paths are unrelated.
   pendingLists.clear()
 }

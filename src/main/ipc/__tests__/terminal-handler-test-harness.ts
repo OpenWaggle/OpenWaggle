@@ -33,35 +33,29 @@ type ServiceMocks = Readonly<
   >
 >
 
-const mocks = vi.hoisted(
-  (): {
-    readonly typedHandle: GenericMock
-    readonly typedOn: GenericMock
-    readonly service: ServiceMocks
-  } => ({
-    typedHandle: vi.fn<(...args: unknown[]) => unknown>(),
-    typedOn: vi.fn<(...args: unknown[]) => unknown>(),
-    service: {
-      getActivitySnapshot: vi.fn<(...args: unknown[]) => unknown>(),
-      open: vi.fn<(...args: unknown[]) => unknown>(),
-      write: vi.fn<(...args: unknown[]) => unknown>(),
-      sendInputNow: vi.fn<(...args: unknown[]) => unknown>(),
-      acknowledgeOutput: vi.fn<(...args: unknown[]) => unknown>(),
-      migrateOwner: vi.fn<(...args: unknown[]) => unknown>(),
-      resize: vi.fn<(...args: unknown[]) => unknown>(),
-      clear: vi.fn<(...args: unknown[]) => unknown>(),
-      restart: vi.fn<(...args: unknown[]) => unknown>(),
-      assessClose: vi.fn<(...args: unknown[]) => unknown>(),
-      close: vi.fn<(...args: unknown[]) => unknown>(),
-      closeAllForOwner: vi.fn<(...args: unknown[]) => unknown>(),
-      closeAllUnderPath: vi.fn<(...args: unknown[]) => unknown>(),
-      attachSurface: vi.fn<(...args: unknown[]) => unknown>(),
-      detachTerminal: vi.fn<(...args: unknown[]) => unknown>(),
-      detachSurface: vi.fn<(...args: unknown[]) => unknown>(),
-      closeAll: vi.fn<(...args: unknown[]) => unknown>(),
-    },
-  }),
-)
+const mocks = vi.hoisted(() => ({
+  typedHandle: vi.fn<(...args: unknown[]) => unknown>(),
+  typedOn: vi.fn<(...args: unknown[]) => unknown>(),
+  service: {
+    getActivitySnapshot: vi.fn<(...args: unknown[]) => unknown>(),
+    open: vi.fn<(...args: unknown[]) => unknown>(),
+    write: vi.fn<(...args: unknown[]) => unknown>(),
+    sendInputNow: vi.fn<(...args: unknown[]) => unknown>(),
+    acknowledgeOutput: vi.fn<(...args: unknown[]) => unknown>(),
+    migrateOwner: vi.fn<(...args: unknown[]) => unknown>(),
+    resize: vi.fn<(...args: unknown[]) => unknown>(),
+    clear: vi.fn<(...args: unknown[]) => unknown>(),
+    restart: vi.fn<(...args: unknown[]) => unknown>(),
+    assessClose: vi.fn<(...args: unknown[]) => unknown>(),
+    close: vi.fn<(...args: unknown[]) => unknown>(),
+    closeAllForOwner: vi.fn<(...args: unknown[]) => unknown>(),
+    closeAllUnderPath: vi.fn<(...args: unknown[]) => unknown>(),
+    attachSurface: vi.fn<(...args: unknown[]) => unknown>(),
+    detachTerminal: vi.fn<(...args: unknown[]) => unknown>(),
+    detachSurface: vi.fn<(...args: unknown[]) => unknown>(),
+    closeAll: vi.fn<(...args: unknown[]) => unknown>(),
+  },
+}))
 
 export const typedHandleMock: GenericMock = mocks.typedHandle
 export const typedOnMock: GenericMock = mocks.typedOn

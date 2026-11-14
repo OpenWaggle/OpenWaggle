@@ -53,7 +53,7 @@ describe('session archive time migration', () => {
     try {
       for (const statement of SESSION_ARCHIVE_TIME_MIGRATION.statements) database.exec(statement)
       const indexes = database
-        .prepare<[], Record<string, unknown>>(
+        .prepare<[], { readonly name: unknown; readonly sql: unknown }>(
           "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name LIKE '%archived_at'",
         )
         .all()

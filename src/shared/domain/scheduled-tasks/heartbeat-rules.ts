@@ -1,8 +1,4 @@
-import type {
-  HeartbeatRunOutcome,
-  HeartbeatSettingsInput,
-} from '@shared/types/scheduled-task-heartbeat'
-import { HEARTBEAT_IDLE_PAUSE_DEFAULT } from '@shared/types/scheduled-task-heartbeat'
+import { uncheckedFields } from '../../utils/object-shape'
 
 /**
  * Every Heartbeat needs a way to finish (#388): a Stop condition, an end date, a run limit, or an
@@ -24,15 +20,6 @@ export function heartbeatHasStopCondition(input: {
 
 export const HEARTBEAT_STOP_CONDITION_REQUIRED_MESSAGE =
   'A Heartbeat needs a way to finish: set stopWhen (the outcome after which it stops), endsAt, maxRuns, or indefinite: true.'
-
-/** The settings a Heartbeat input names, with the defaults a new Heartbeat gets. */
-export function heartbeatSettingsDefaults(input: HeartbeatSettingsInput | undefined) {
-  return {
-    stopWhen: input?.stopWhen?.trim() || null,
-    indefinite: input?.indefinite ?? false,
-    idlePauseAfter: input?.idlePauseAfter ?? HEARTBEAT_IDLE_PAUSE_DEFAULT,
-  }
-}
 
 /** Tools that only read: using nothing else leaves a Run without a reported outcome idle. */
 export const HEARTBEAT_READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
@@ -75,13 +62,14 @@ const READ_ONLY_TOOL_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
 
 export interface HeartbeatToolUse {
   readonly name: string
-  readonly args: Readonly<Record<string, unknown>>
+  readonly args: object
 }
 
 function isReadOnlyToolUse(use: HeartbeatToolUse) {
   if (HEARTBEAT_READ_ONLY_TOOLS.has(use.name)) return true
   const actions = READ_ONLY_TOOL_ACTIONS[use.name]
-  const action = use.args.action
+  // A read-only query names its `action` among the tool's arguments.
+  const { action } = uncheckedFields<{ readonly action: string }>(use.args)
   return actions !== undefined && typeof action === 'string' && actions.has(action)
 }
 
@@ -90,8 +78,8 @@ function isReadOnlyToolUse(use: HeartbeatToolUse) {
  * it used any tool other than a read-only query, `idle` otherwise. A shell command always counts
  * as acting, since its effect cannot be known; a Wake check is how a read-only command stays idle.
  */
-export function inferHeartbeatRunOutcome(uses: readonly HeartbeatToolUse[]): HeartbeatRunOutcome {
-  return uses.every(isReadOnlyToolUse) ? 'idle' : 'acted'
+export function inferHeartbeatRunOutcome(uses: readonly HeartbeatToolUse[]) {
+  return uses.every(isReadOnlyToolUse) ? ('idle' as const) : ('acted' as const)
 }
 
 /** The Auto-pause message for `idleRuns` consecutive idle runs. */

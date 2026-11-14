@@ -1,5 +1,5 @@
 import { hostHandle } from './typed-ipc'
 
-export function registerProjectActionHandlers(): void {
+export function registerProjectActionHandlers() {
   hostHandle('project-actions:manage')
 }

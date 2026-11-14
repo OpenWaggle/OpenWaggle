@@ -11,6 +11,12 @@ vi.mock('electron', () => ({
     isEncryptionAvailable: () => true,
     encryptString: (value: string) => Buffer.from(`sealed:${value}`),
     decryptString: (value: Buffer) => value.toString().replace(/^sealed:/, ''),
+    isAsyncEncryptionAvailable: async () => true,
+    encryptStringAsync: async (value: string) => Buffer.from(`sealed:${value}`),
+    decryptStringAsync: async (value: Buffer) => ({
+      result: value.toString().replace(/^sealed:/, ''),
+      shouldReEncrypt: false,
+    }),
   },
 }))
 vi.mock('../credentials/mcp-build-state-paths', () => ({

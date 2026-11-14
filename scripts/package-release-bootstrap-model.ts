@@ -1,11 +1,10 @@
-export type JsonObject = {
-  readonly [key: string]: unknown
-}
+import { Schema } from '@shared/schema'
+
+export type JsonObject = Readonly<Record<string, unknown>>
 
 export const BOOTSTRAP_VERSION = '0.0.0-bootstrap.0'
 export const BOOTSTRAP_TAG = 'bootstrap'
-export const DEPRECATION_MESSAGE =
-  'Namespace bootstrap placeholder; use a released version.'
+export const DEPRECATION_MESSAGE = 'Namespace bootstrap placeholder; use a released version.'
 export const NPM_ENVIRONMENT = 'npm'
 export const PACKAGE_RELEASE_WORKFLOW = 'package-release.yml'
 export const REPOSITORY = 'OpenWaggle/OpenWaggle'
@@ -61,9 +60,10 @@ function isUnknownArray(value: unknown): value is unknown[] {
   return Array.isArray(value)
 }
 
-export function parseJson(value: string, label: string): unknown {
+export function parseJson(value: string, label: string) {
   try {
-    return JSON.parse(value)
+    const parsed: unknown = JSON.parse(value)
+    return parsed
   } catch (error) {
     throw new Error(`${label} returned invalid JSON: ${String(error)}`, { cause: error })
   }
@@ -151,23 +151,29 @@ export function createRulesetPayload() {
   }
 }
 
-function rulesetRule(value: JsonObject, type: string) {
-  if (!isUnknownArray(value.rules)) return undefined
-  return value.rules.find((rule) => isJsonObject(rule) && rule.type === type)
+/** A ruleset rule this module reads: its `type` and, when it has them, its `parameters`. */
+const rulesetRuleSchema = Schema.Struct({
+  type: Schema.String,
+  parameters: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+const rulesetRulesSchema = Schema.Struct({
+  rules: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+const isRulesetRule = Schema.is(rulesetRuleSchema)
+
+function rulesetRuleParameters(rules: unknown, type: string) {
+  if (!isUnknownArray(rules)) return undefined
+  const parameters = rules.filter(isRulesetRule).find((rule) => rule.type === type)?.parameters
+  return isJsonObject(parameters) ? parameters : undefined
 }
 
 export function createRulesetUpgradePayload(value: unknown) {
-  if (!isJsonObject(value)) {
+  if (!isJsonObject(value) || !Schema.is(rulesetRulesSchema)(value)) {
     throw new Error('GitHub managed ruleset must be an object before it can be upgraded.')
   }
-  const pullRequestRule = rulesetRule(value, 'pull_request')
-  const statusRule = rulesetRule(value, 'required_status_checks')
-  if (
-    !isJsonObject(pullRequestRule) ||
-    !isJsonObject(pullRequestRule.parameters) ||
-    !isJsonObject(statusRule) ||
-    !isJsonObject(statusRule.parameters)
-  ) {
+  const pullRequestParameters = rulesetRuleParameters(value.rules, 'pull_request')
+  const statusParameters = rulesetRuleParameters(value.rules, 'required_status_checks')
+  if (pullRequestParameters === undefined || statusParameters === undefined) {
     throw new Error('GitHub managed ruleset is missing required rule parameters.')
   }
 
@@ -177,12 +183,12 @@ export function createRulesetUpgradePayload(value: unknown) {
       { type: 'deletion' },
       { type: 'non_fast_forward' },
       {
-        parameters: { ...pullRequestRule.parameters },
+        parameters: { ...pullRequestParameters },
         type: 'pull_request',
       },
       {
         parameters: {
-          ...statusRule.parameters,
+          ...statusParameters,
           required_status_checks: REQUIRED_CHECK_CONTEXTS.map((context) => ({ context })),
         },
         type: 'required_status_checks',
@@ -191,44 +197,45 @@ export function createRulesetUpgradePayload(value: unknown) {
   }
 }
 
-function stringArray(value: unknown) {
-  return isUnknownArray(value) && value.every((item) => typeof item === 'string')
-    ? value
-    : undefined
-}
+const trustConfigurationSchema = Schema.Struct({
+  type: Schema.Literal('github'),
+  repository: Schema.Literal(REPOSITORY),
+  file: Schema.Literal(PACKAGE_RELEASE_WORKFLOW),
+  environment: Schema.Literal(NPM_ENVIRONMENT),
+  permissions: Schema.Tuple(Schema.Literal('createPackage')),
+})
 
-export function isCompatibleTrustConfiguration(value: unknown) {
-  if (!isJsonObject(value)) return false
-  const permissions = stringArray(value.permissions)
-  return (
-    value.type === 'github' &&
-    value.repository === REPOSITORY &&
-    value.file === PACKAGE_RELEASE_WORKFLOW &&
-    value.environment === NPM_ENVIRONMENT &&
-    permissions?.length === 1 &&
-    permissions[0] === 'createPackage'
-  )
+export const isCompatibleTrustConfiguration = Schema.is(trustConfigurationSchema)
+
+/** The npm bootstrap record fields the compatibility check reads. */
+const bootstrapRecordSchema = Schema.Struct({
+  name: Schema.String,
+  version: Schema.Literal(BOOTSTRAP_VERSION),
+  openwaggleNamespaceBootstrap: Schema.Literal(true),
+  dist: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  files: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  directories: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  deprecated: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+const distMetadataSchema = Schema.Struct({
+  fileCount: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
+function distFileCountOf(dist: unknown) {
+  return isJsonObject(dist) && Schema.is(distMetadataSchema)(dist) ? dist.fileCount : undefined
 }
 
 export function isCompatibleBootstrapRecord(value: unknown, packageName: string) {
   if (!isJsonObject(value)) return false
-  if (
-    value.name !== packageName ||
-    value.version !== BOOTSTRAP_VERSION ||
-    value.openwaggleNamespaceBootstrap !== true
-  ) {
-    return false
-  }
+  const manifest = value
+  if (!Schema.is(bootstrapRecordSchema)(value) || value.name !== packageName) return false
 
   const hasDistMetadata = value.dist !== undefined
-  const distFileCount = isJsonObject(value.dist) ? value.dist.fileCount : undefined
+  const distFileCount = distFileCountOf(value.dist)
   const hasCompatibleDistMetadata = !hasDistMetadata || distFileCount === 1
   const manifestHasNoFiles =
-    isUnknownArray(value.files) &&
-    value.files.length === 0 &&
-    hasCompatibleDistMetadata
-  const registryMetadataHasOnlyManifest =
-    value.files === undefined && distFileCount === 1
+    isUnknownArray(value.files) && value.files.length === 0 && hasCompatibleDistMetadata
+  const registryMetadataHasOnlyManifest = value.files === undefined && distFileCount === 1
   const hasCompatibleDirectories =
     value.directories === undefined ||
     (isJsonObject(value.directories) && Object.keys(value.directories).length === 0)
@@ -236,24 +243,36 @@ export function isCompatibleBootstrapRecord(value: unknown, packageName: string)
   return (
     (manifestHasNoFiles || registryMetadataHasOnlyManifest) &&
     hasCompatibleDirectories &&
-    BOOTSTRAP_FORBIDDEN_FIELDS.every((field) => value[field] === undefined)
+    BOOTSTRAP_FORBIDDEN_FIELDS.every((field) => manifest[field] === undefined)
   )
 }
+
+const deprecationSchema = Schema.Struct({
+  deprecated: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
 
 export function isCompatibleBootstrapMetadata(value: unknown, packageName: string) {
   return (
     isCompatibleBootstrapRecord(value, packageName) &&
-    isJsonObject(value) &&
+    Schema.is(deprecationSchema)(value) &&
     value.deprecated === DEPRECATION_MESSAGE
   )
 }
 
 export function needsBootstrapDeprecation(value: unknown) {
-  return isJsonObject(value) && value.deprecated === undefined
+  return (
+    isJsonObject(value) && Schema.is(deprecationSchema)(value) && value.deprecated === undefined
+  )
 }
 
+/** The npm dist-tags the bootstrap owns: `bootstrap`, and `latest` when npm added it. */
+const bootstrapTagsSchema = Schema.Struct({
+  bootstrap: Schema.Literal(BOOTSTRAP_VERSION),
+  latest: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
 export function hasCompatibleTags(value: unknown) {
-  if (!isJsonObject(value) || value.bootstrap !== BOOTSTRAP_VERSION) return false
+  if (!isJsonObject(value) || !Schema.is(bootstrapTagsSchema)(value)) return false
   const tagCount = Object.keys(value).length
   return (
     tagCount === 1 ||
@@ -264,8 +283,6 @@ export function hasCompatibleTags(value: unknown) {
 export function isPublicAccess(value: string, packageName: string) {
   const parsed = parseJson(value.trim(), 'npm access get status')
   return (
-    isJsonObject(parsed) &&
-    Object.keys(parsed).length === 1 &&
-    parsed[packageName] === 'public'
+    isJsonObject(parsed) && Object.keys(parsed).length === 1 && parsed[packageName] === 'public'
   )
 }

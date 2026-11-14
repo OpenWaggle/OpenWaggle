@@ -1,3 +1,5 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { lenientArray } from '@shared/schemas/lenient'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -17,7 +19,6 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
-import { isRecord } from '@shared/utils/validation'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { Type } from 'typebox'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -28,13 +29,13 @@ const SILENT_SERVER = "require('node:readline').createInterface({ input: process
 /** A stdio MCP server that exits before answering, so it fails to connect. */
 const BROKEN_SERVER = 'process.exit(1)'
 
-const cleanups: Array<() => Promise<void> | void> = []
+const cleanups: (() => Promise<void> | void)[] = []
 
 afterEach(async () => {
   while (cleanups.length > 0) await cleanups.pop()?.()
 })
 
-function mcpExtension(name = 'slow', script = SILENT_SERVER): ExtensionFactory {
+function mcpExtension(name = 'slow', script = SILENT_SERVER) {
   return createMcpExtension({
     loadConfig: () => ({
       servers: [
@@ -121,12 +122,15 @@ async function firstPrompt(
 }
 
 /** The text of every tool result the model was given in the Session. */
+const toolResultMessageSchema = Schema.Struct({
+  role: Schema.Literal('toolResult'),
+  content: lenientArray(Schema.Struct({ text: Schema.String })),
+})
+
 function toolResultTexts(session: { readonly messages: readonly unknown[] }) {
   return session.messages.flatMap((message) =>
-    isRecord(message) && message.role === 'toolResult' && Array.isArray(message.content)
-      ? message.content.flatMap((part: unknown) =>
-          isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
-        )
+    Schema.is(toolResultMessageSchema)(message)
+      ? decodeUnknownOrThrow(toolResultMessageSchema, message).content.map((part) => part.text)
       : [],
   )
 }

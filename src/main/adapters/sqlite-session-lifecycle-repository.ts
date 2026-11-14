@@ -154,11 +154,15 @@ function execute(
         const outcome = yield* lifecycleOutcome(sql, input, {
           workspaceId: workspace.id,
           authorityOriginCallerId: authorityOrigin.callerId,
-          runId,
-          parentSessionId: target.parentSessionId,
-          parentRunId: target.parentRunId,
-          hiveRootSessionId: target.hiveRootSessionId,
-          depth: target.depth,
+          ...(runId === undefined ? {} : { runId }),
+          ...(target.parentSessionId === undefined
+            ? {}
+            : { parentSessionId: target.parentSessionId }),
+          ...(target.parentRunId === undefined ? {} : { parentRunId: target.parentRunId }),
+          ...(target.hiveRootSessionId === undefined
+            ? {}
+            : { hiveRootSessionId: target.hiveRootSessionId }),
+          ...(target.depth === undefined ? {} : { depth: target.depth }),
         })
         yield* recordAgentMadeSession(sql, {
           operation: outcome.operation,

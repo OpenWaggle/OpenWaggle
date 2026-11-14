@@ -1,17 +1,19 @@
 import { LOCAL_HOST_CONTRACT_VERSION } from '@shared/types/local-host'
 import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { fromAny } from '@total-typescript/shoehorn'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  startLocalSessionHost: vi.fn<(input: unknown) => Promise<unknown>>(async () => ({})),
+  startLocalSessionHost: vi.fn<(input: StartLocalSessionHostInput) => Promise<unknown>>(
+    async () => ({}),
+  ),
   interruptAllSessionRuns: Symbol('interruptAllSessionRuns effect'),
 }))
 
 vi.mock('../local-session-host-runtime', () => ({
-  startLocalSessionHost: (input: unknown) => mocks.startLocalSessionHost(input),
+  startLocalSessionHost: (input: StartLocalSessionHostInput) => mocks.startLocalSessionHost(input),
 }))
 vi.mock('../local-user-credential', () => ({
   ensureLocalUserCredential: async () => 'local-user-credential',
@@ -20,6 +22,7 @@ vi.mock('../../application/session-run-interruption', () => ({
   interruptAllSessionRuns: () => mocks.interruptAllSessionRuns,
 }))
 
+import type { StartLocalSessionHostInput } from '../local-session-host-runtime'
 import type { LocalSessionHostPaths } from '../local-session-paths'
 import { startAppSessionHost } from '../session-host-bootstrap'
 import { readSessionHostUpgradeBlockers } from '../session-host-upgrade-blockers'
@@ -38,7 +41,7 @@ const paths: LocalSessionHostPaths = {
 describe('Session Host bootstrap', () => {
   it('interrupts every Run through the app runtime when a drain reaches its deadline', async () => {
     const ranEffects: unknown[] = []
-    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> => {
+    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>) => {
       ranEffects.push(effect)
       // The first effect reads the settings; nothing else needs a value here.
       return fromAny<A, unknown>(ranEffects.length === 1 ? DEFAULT_SETTINGS : undefined)
@@ -51,9 +54,8 @@ describe('Session Host bootstrap', () => {
       stopOwnedServices: async () => undefined,
     })
     const input = mocks.startLocalSessionHost.mock.calls[0]?.[0]
-    const interrupt = Reflect.get(Object(input), 'interruptRunsAtDrainDeadline')
-    expect(interrupt).toBeTypeOf('function')
-    await Reflect.apply(interrupt, undefined, [])
+    expect(input?.interruptRunsAtDrainDeadline).toBeTypeOf('function')
+    await input?.interruptRunsAtDrainDeadline?.()
 
     expect(ranEffects.at(-1)).toBe(mocks.interruptAllSessionRuns)
     expect(Effect.isEffect(ranEffects[0])).toBe(true)
@@ -69,10 +71,10 @@ describe('Session Host bootstrap', () => {
       stopOwnedServices: async () => undefined,
     })
     const input = mocks.startLocalSessionHost.mock.calls[0]?.[0]
-    const dispatch = Reflect.get(Object(input), 'dispatch')
+    if (!input) throw new Error('The Host did not start.')
 
-    const result = await Reflect.apply(dispatch, undefined, [
-      {
+    const result = await input.dispatch(
+      fromPartial({
         caller: { callerId: 'gui:local-user' },
         negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION,
         payload: {
@@ -84,8 +86,8 @@ describe('Session Host bootstrap', () => {
           },
         },
         requestHostStop: () => ({ hostInstanceId: 'host-1', runningActions: 0 }),
-      },
-    ])
+      }),
+    )
 
     // macOS counts the Host until this process exits, which is after its socket closes.
     expect(result).toMatchObject({ response: { processId: process.pid } })
@@ -101,7 +103,7 @@ describe('Session Host bootstrap', () => {
       blockingOperations: [{ operationId: '1', operation: 'message', targetScope: 'session-a' }],
     }
     const ranEffects: unknown[] = []
-    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> => {
+    const runEffect = async <A, E, R>(effect: Effect.Effect<A, E, R>) => {
       ranEffects.push(effect)
       return fromAny<A, unknown>(
         effect === readSessionHostUpgradeBlockers ? blockers : DEFAULT_SETTINGS,
@@ -116,11 +118,10 @@ describe('Session Host bootstrap', () => {
     const input = mocks.startLocalSessionHost.mock.calls[0]?.[0]
 
     // The paths above do not exist: a second connection to the file would fail here.
-    await expect(
-      Reflect.apply(Reflect.get(Object(input), 'describeUpgradeBlockers'), undefined, []),
-    ).resolves.toEqual(blockers)
-    const stop = await Reflect.apply(Reflect.get(Object(input), 'dispatch'), undefined, [
-      {
+    if (!input) throw new Error('The Host did not start.')
+    await expect(input.describeUpgradeBlockers?.()).resolves.toEqual(blockers)
+    const stop = await input.dispatch(
+      fromPartial({
         caller: { callerId: 'local-user:cli' },
         negotiatedRevision: LOCAL_SESSION_CURRENT_REVISION,
         payload: {
@@ -128,8 +129,8 @@ describe('Session Host bootstrap', () => {
           request: { contractVersion: LOCAL_HOST_CONTRACT_VERSION, operation: 'stop' },
         },
         requestHostStop: () => ({ hostInstanceId: 'host-1', runningActions: 0 }),
-      },
-    ])
+      }),
+    )
 
     expect(stop).toMatchObject({ response: { blockingRuns: 2 } })
     expect(ranEffects.filter((effect) => effect === readSessionHostUpgradeBlockers)).toHaveLength(2)

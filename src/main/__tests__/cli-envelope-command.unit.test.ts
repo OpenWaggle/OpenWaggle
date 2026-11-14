@@ -43,12 +43,12 @@ type StatusDependencies = NonNullable<Parameters<typeof runStatusCli>[1]>
 
 function envelopeCommand(text: string | undefined) {
   const envelope: unknown = JSON.parse(text ?? 'null')
-  return typeof envelope === 'object' && envelope !== null
-    ? Reflect.get(envelope, 'command')
+  return typeof envelope === 'object' && envelope !== null && 'command' in envelope
+    ? envelope.command
     : undefined
 }
 
-function statusDependencies(output: string[]): StatusDependencies {
+function statusDependencies(output: string[]) {
   return {
     version: () => '1.2.3',
     now: () => 0,
@@ -59,7 +59,7 @@ function statusDependencies(output: string[]): StatusDependencies {
     writeStdout: async (text) => {
       output.push(text)
     },
-  }
+  } satisfies StatusDependencies
 }
 
 beforeEach(() => {

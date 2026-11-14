@@ -117,7 +117,7 @@ function navigateToMainBranchAfterArchive(deps: SidebarBranchActionDeps, session
 
 export function createSidebarBranchActions(deps: SidebarBranchActionDeps) {
   return {
-    archive(sessionId: string, branch: SessionBranch) {
+    archive: (sessionId: string, branch: SessionBranch) => {
       const targetSessionId = SessionId(sessionId)
       if (branch.isMain) {
         deps.archiveSession(targetSessionId)
@@ -137,7 +137,7 @@ export function createSidebarBranchActions(deps: SidebarBranchActionDeps) {
           deps.showToast(`Failed to archive branch: ${errorMessage(error)}`)
         })
     },
-    rename(sessionId: string, branch: SessionBranch, name: string) {
+    rename: (sessionId: string, branch: SessionBranch, name: string) => {
       const targetSessionId = SessionId(sessionId)
       void api
         .renameSessionBranch(targetSessionId, branch.id, name)
@@ -146,10 +146,10 @@ export function createSidebarBranchActions(deps: SidebarBranchActionDeps) {
           deps.showToast(`Failed to rename branch: ${errorMessage(error)}`)
         })
     },
-    select(sessionId: string, branch: SessionBranch) {
+    select: (sessionId: string, branch: SessionBranch) => {
       void switchSessionBranch(deps, sessionId, branch)
     },
-    toggle(sessionId: SessionId, collapsed: boolean) {
+    toggle: (sessionId: SessionId, collapsed: boolean) => {
       void api
         .updateSessionTreeUiState(sessionId, { branchesSidebarCollapsed: collapsed })
         .then(() => deps.refreshAfterSessionMutation(sessionId))

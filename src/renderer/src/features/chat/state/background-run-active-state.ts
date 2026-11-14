@@ -39,21 +39,6 @@ export function withUnannouncedRunNotice(
   return { unannouncedRunNotices: notices }
 }
 
-/**
- * A Run streams in a Session this renderer holds no Run for: its `agent_start` never arrived (a
- * resync lost it). The Session is busy, and the notice makes the chat showing it hydrate it again
- * as running, from its reconnect buffer; it otherwise showed the Session idle, and empty, until
- * the Run settled. It is no activity change: a restore in flight still restores the Run's
- * compaction status into its snapshot.
- */
-export function withUnannouncedRun(
-  state: ActiveRunState & { readonly unannouncedRunNotices: Map<SessionId, number> },
-  id: SessionId,
-  model?: SupportedModelId,
-) {
-  return { ...addActiveRunToState(state, id, model), ...withUnannouncedRunNotice(state, id) }
-}
-
 export function removeActiveRunFromState(state: ActiveRunState, id: SessionId) {
   if (!state.activeRunIds.has(id) && !state.runModelBySessionId.has(id)) return state
   const activeRunIds = new Set(state.activeRunIds)

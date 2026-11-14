@@ -37,7 +37,7 @@ const logger = createLogger('usage-statistics')
 
 const lastKnownSettingSchema = Schema.Struct({ usageStatisticsEnabled: Schema.Boolean })
 
-function decodeLastKnownSetting(value: unknown): boolean | null {
+function decodeLastKnownSetting(value: unknown) {
   return decodeUnknownOrThrow(lastKnownSettingSchema, value).usageStatisticsEnabled
 }
 
@@ -46,7 +46,7 @@ export function lastKnownSettingPath(userDataDirectory: string) {
 }
 
 /** The saved Setting; `null` when the file is missing, unreadable or corrupt. */
-function readSaved(filePath: string): boolean | null {
+function readSaved(filePath: string) {
   return readUsageStatisticsJsonFile({
     filePath,
     label: LAST_KNOWN_SETTING_FILE_NAME,
@@ -78,7 +78,7 @@ function removeStaleOn(filePath: string) {
  * and the write is retried with backoff and once more when the process exits. Returns the
  * function that stops it.
  */
-export function recordLastKnownUsageStatisticsSetting(userDataDirectory: string): () => void {
+export function recordLastKnownUsageStatisticsSetting(userDataDirectory: string) {
   const filePath = lastKnownSettingPath(userDataDirectory)
   removeStaleUsageStatisticsTemporaryFiles(filePath, LAST_KNOWN_SETTING_FILE_NAME)
   let saved = readSaved(filePath)
@@ -133,7 +133,7 @@ export function recordLastKnownUsageStatisticsSetting(userDataDirectory: string)
 export function usageStatisticsSettingWithoutSettings(
   userDataDirectory: string,
   pathExists: (target: string) => boolean = existsSync,
-): boolean | undefined {
+) {
   const saved = readSaved(lastKnownSettingPath(userDataDirectory))
   if (saved !== null) return saved
   const neverKeptAStore =

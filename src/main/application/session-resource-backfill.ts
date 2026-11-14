@@ -64,10 +64,10 @@ function createBackfillCaptureState(
   retryUnavailableResourceId: string | undefined,
   workingPath: string | null,
   sessionId: string,
-): BackfillCaptureState {
+) {
   const occurrenceIds = capturedOccurrenceIds(resources)
   for (const id of knownOccurrenceIds) occurrenceIds.add(id)
-  return {
+  const state: BackfillCaptureState = {
     attachments: {
       budget: { bytes: 0, count: 0 },
       completedOccurrences: progress.completedAttachmentOccurrences,
@@ -101,6 +101,7 @@ function createBackfillCaptureState(
       progressed: false,
     },
   }
+  return state
 }
 
 function captureBackfilledMessages(
@@ -221,7 +222,4 @@ export function captureProjectedSessionResources(input: CaptureProjectedSessionR
   )
 }
 
-export {
-  ATTACHMENT_BACKFILL_LIMITS,
-  advanceAttachmentBackfillBudget,
-} from './session-resource-backfill-budget'
+export { ATTACHMENT_BACKFILL_LIMITS } from './session-resource-backfill-budget'

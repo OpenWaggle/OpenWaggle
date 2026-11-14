@@ -237,7 +237,7 @@ export async function mount(context) {
 }
 ```
 
-Install a compatible SDK version and bundle the helper code into your extension. The first-party fixtures in this repository use the internal `@shared/extension-ui` alias instead. An extension you distribute must not depend on that alias. Whether your extension runs still depends only on the mount context and the SDK capabilities.
+Install a compatible SDK version and bundle the helper code into your extension. An extension you distribute must not depend on internal aliases from an OpenWaggle checkout. Whether your extension runs still depends only on the mount context and the SDK capabilities.
 
 For install commands, entry points, and more import examples, see [Packages](/docs/packages/overview), in particular [`@openwaggle/extension-sdk`](/docs/packages/extension-sdk) and [`@openwaggle/extension-react`](/docs/packages/extension-react).
 
@@ -464,7 +464,7 @@ The GitHub Issues Overview fixture exercises the extension lifecycle and the SDK
 Development fixtures live in `fixtures/extensions/`. They are for tests, demos, and local QA, and never ship in the app. To copy the fixture packages into the current checkout's `.openwaggle/extensions/` folder for QA, run:
 
 ```bash
-pnpm extension:qa:install
+bun run extension:qa:install
 ```
 
 This is a development helper, not a packaging step.
@@ -474,7 +474,7 @@ This is a development helper, not a packaging step.
 From an OpenWaggle checkout, run the service and Settings component tests for the extension host:
 
 ```bash
-pnpm test:unit && pnpm test:integration && pnpm test:component
+bun run test:unit && bun run test:integration && bun run test:component
 ```
 
 They cover discovery, trust, enabling, reloading, storage through the SDK, teardown, and the Settings controls. Component tests do not prove that a packaged Electron iframe loads and draws, so check that separately in the real app.
@@ -486,13 +486,13 @@ This uses the visible debug app. Agents must not run it unless the maintainer ap
 1. Install the fixture:
 
    ```bash
-   pnpm extension:qa:install openwaggle-github-issues-overview
+   bun run extension:qa:install openwaggle-github-issues-overview
    ```
 
 2. Start the visible app with the Chrome DevTools Protocol:
 
    ```bash
-   pnpm dev:debug:headed
+   bun run dev:debug:headed
    ```
 
 3. Check that DevTools answers:
@@ -518,13 +518,13 @@ Agents read these docs, and the rest of the installed docs, with the `openwaggle
 - `list` and `search` return topic ids and details, with OpenWaggle topics first.
 - `read` returns one topic's Markdown, in pages, like Pi's `read` tool.
 - The tool includes docs only from extensions that the session's runs load: trusted, enabled, reloaded, and not turned off for the session's project. It reads an extension doc only while the file still sits inside the package and still matches the hash recorded when OpenWaggle found it.
-- When the docs bundle loads, the tool's prompt names its folder. When it does not load, in a development checkout without `pnpm docs:generate` or in a damaged install, the tool returns an error that says so, and the run continues.
+- When the docs bundle loads, the tool's prompt names its folder. When it does not load, in a development checkout without `bun run docs:generate` or in a damaged install, the tool returns an error that says so, and the run continues.
 
 Extension code can look up the same topics with `context.sdk.openWaggle.docs.discover(scope, input)` and `context.sdk.openWaggle.docs.resolveTopic(scope, input)`, if the manifest declares `openwaggle.docs` with that method and scope. Both return a topic's details, not its content. The [manifest reference](/docs/extending/extension-manifest#docs-lookup) shows what they return.
 
 ### Where the installed docs come from
 
-These website pages are the only source of OpenWaggle's docs. `pnpm docs:generate` builds `build/openwaggle-docs` from `website/src/content/docs/**` and the installed Pi package docs, and packaged builds ship that bundle. Do not keep separate hand-written copies for agents. If the installed docs are wrong, fix the build step or the page.
+These website pages are the only source of OpenWaggle's docs. `bun run docs:generate` builds `build/openwaggle-docs` from `website/src/content/docs/**` and the installed Pi package docs, and packaged builds ship that bundle. Do not keep separate hand-written copies for agents. If the installed docs are wrong, fix the build step or the page.
 
 The bundle has a root `README.md` that says what it contains and where it came from, and a topic index that maps common questions to paths, for example extensions, tools, interactions, sessions, settings, providers, MCP, Pi runtime, and QA fixtures. OpenWaggle docs and Pi docs sit in separate, predictable groups. A tool that only has file access can use the index to find its way.
 

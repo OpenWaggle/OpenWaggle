@@ -1,7 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
-import { parseJsonUnknown } from '@shared/schema'
+import { parseJsonUnknown, Schema } from '@shared/schema'
 import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
+import { isObjectValue } from '@shared/utils/object-shape'
+import { Option } from 'effect'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import type { PiProjectionBase } from '../../../store/session-details/pi-projection-base'
 import { markRetainedSnapshotNode } from '../../../store/session-details/retained-snapshot-nodes'
@@ -28,17 +30,13 @@ function parsePiEntryTimestamp(timestamp: string) {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function isAssistantEntry(entry: SessionEntry): entry is PiAssistantMessageEntry {
   return entry.type === 'message' && entry.message.role === 'assistant'
 }
 
 function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
   const parsed = parseJsonUnknown(rawMetadataJson)
-  const metadata = isRecord(parsed) ? parsed : {}
+  const metadata = isObjectValue(parsed) ? parsed : {}
   return JSON.stringify({ ...metadata, waggle })
 }
 
@@ -46,13 +44,13 @@ function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
 function mergeMetadataJsonWithContextOmission(rawMetadataJson: string, omitted: boolean) {
   if (!omitted) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), omittedFromContext: true })
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), omittedFromContext: true })
 }
 
 function mergeMetadataJsonWithDurableText(rawMetadataJson: string, digest: string | null) {
   if (!digest) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  const metadata = isRecord(parsed) ? parsed : {}
+  const metadata = isObjectValue(parsed) ? parsed : {}
   return JSON.stringify({ ...metadata, durableTextSha256: digest })
 }
 
@@ -63,21 +61,29 @@ function mergeMetadataJsonWithScheduledTask(
 ) {
   if (!scheduledTask) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), scheduledTask })
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), scheduledTask })
 }
 
 /** The Session's model selection when a response was made, which a virtual model routed. */
 function mergeMetadataJsonWithSelectedModel(rawMetadataJson: string, selectedModel: string | null) {
   if (!selectedModel) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  return JSON.stringify({ ...(isRecord(parsed) ? parsed : {}), selectedModel })
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), selectedModel })
 }
+
+/** Message metadata JSON written by earlier runs; OpenWaggle's own fields sit under `openWaggle`. */
+const decodeOpenWaggleMetadata = Schema.decodeUnknownOption(
+  Schema.Struct({ openWaggle: Schema.optionalWith(Schema.Unknown, { exact: true }) }),
+)
+
+const decodeBoundaryData = Schema.decodeUnknownOption(Schema.Struct({ runId: Schema.String }))
 
 function mergeMetadataJsonWithRun(rawMetadataJson: string, runId: string | null) {
   if (!runId) return rawMetadataJson
   const parsed = parseJsonUnknown(rawMetadataJson)
-  const metadata = isRecord(parsed) ? parsed : {}
-  const existingOpenWaggle = isRecord(metadata.openWaggle) ? metadata.openWaggle : {}
+  const metadata = isObjectValue(parsed) ? parsed : {}
+  const stored = Option.getOrUndefined(decodeOpenWaggleMetadata(metadata))?.openWaggle
+  const existingOpenWaggle = isObjectValue(stored) ? stored : {}
   return JSON.stringify({
     ...metadata,
     openWaggle: { ...existingOpenWaggle, runId },
@@ -88,7 +94,7 @@ function boundaryRunId(entry: SessionEntry) {
   if (entry.type !== 'custom' || entry.customType !== OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
     return null
   }
-  return isRecord(entry.data) && typeof entry.data.runId === 'string' ? entry.data.runId : null
+  return Option.getOrUndefined(decodeBoundaryData(entry.data))?.runId ?? null
 }
 
 function runIdForEntry(input: {
@@ -119,26 +125,20 @@ function userDisplayProjection(entry: SessionEntry, entryById: ReadonlyMap<strin
 }
 
 /** The entry with the ids it names expressed as node ids, for the content the projection keeps. */
-function withNodeReferences(entry: SessionEntry, nodeIds: PiEntryNodeIds): SessionEntry {
+function withNodeReferences(entry: SessionEntry, nodeIds: PiEntryNodeIds) {
   return matchBy(entry, 'type')
-    .with(
-      'compaction',
-      (compaction): SessionEntry => ({
-        ...compaction,
-        firstKeptEntryId: nodeIds.toNodeId(compaction.firstKeptEntryId),
-      }),
-    )
-    .with(
-      'branch_summary',
-      (summary): SessionEntry => ({
-        ...summary,
-        fromId: nodeIds.toNodeId(summary.fromId),
-      }),
-    )
-    .with(
-      'label',
-      (label): SessionEntry => ({ ...label, targetId: nodeIds.toNodeId(label.targetId) }),
-    )
+    .with('compaction', (compaction) => ({
+      ...compaction,
+      firstKeptEntryId: nodeIds.toNodeId(compaction.firstKeptEntryId),
+    }))
+    .with('branch_summary', (summary) => ({
+      ...summary,
+      fromId: nodeIds.toNodeId(summary.fromId),
+    }))
+    .with('label', (label) => ({
+      ...label,
+      targetId: nodeIds.toNodeId(label.targetId),
+    }))
     .otherwise((other) => other)
 }
 
@@ -154,7 +154,7 @@ interface PiEntryProjectionInput {
   readonly waggleTurnOf: ReturnType<typeof createWaggleTurnMetadataResolver>
 }
 
-function projectPiEntry(input: PiEntryProjectionInput): ProjectedSessionNodeInput {
+function projectPiEntry(input: PiEntryProjectionInput) {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const displayProjection = userDisplayProjection(input.entry, input.entryById)
   const projection = projectionForPiEntry(withNodeReferences(input.entry, input.nodeIds), {
@@ -162,7 +162,7 @@ function projectPiEntry(input: PiEntryProjectionInput): ProjectedSessionNodeInpu
   })
   const waggleMetadata = isAssistantEntry(input.entry) ? input.waggleTurnOf(input.entry) : null
 
-  return {
+  const result: ProjectedSessionNodeInput = {
     id: input.nodeIds.toNodeId(input.entry.id),
     parentId: input.entry.parentId === null ? null : input.nodeIds.toNodeId(input.entry.parentId),
     piEntryType: input.entry.type,
@@ -191,6 +191,7 @@ function projectPiEntry(input: PiEntryProjectionInput): ProjectedSessionNodeInpu
     pathDepth: input.pathDepth,
     createdOrder: input.createdOrder,
   }
+  return result
 }
 
 function getPiEntryDepth(input: {
@@ -228,7 +229,7 @@ function retainedPiEntryNode(
   input: PiEntryProjectionInput,
   stored: Pick<ProjectedSessionNodeInput, 'kind' | 'role'>,
   revision: number,
-): ProjectedSessionNodeInput {
+) {
   let projected: ProjectedSessionNodeInput | undefined
   const full = () => {
     projected ??= projectPiEntry(input)

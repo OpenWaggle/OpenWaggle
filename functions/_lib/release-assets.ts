@@ -56,44 +56,75 @@ const INSTALLER_KINDS: readonly (readonly [RegExp, ReleaseAssetKind, ReleaseAsse
   [/\.appimage$/iu, 'appimage', 'linux'],
 ]
 
-function assetArch(name: string): ReleaseAssetArch {
-  return ARCH_PATTERNS.find(([, pattern]) => pattern.test(name))?.[0] ?? 'none'
+function assetArch(name: string) {
+  const arch: ReleaseAssetArch =
+    ARCH_PATTERNS.find(([, pattern]) => pattern.test(name))?.[0] ?? 'none'
+  return arch
 }
 
-function channelName(name: string): ReleaseChannel {
+function channelName(name: string) {
   const lowered = name.toLowerCase()
-  if (lowered === 'rc' || lowered === 'beta' || lowered === 'alpha') return lowered
-  return 'stable'
+  if (lowered === 'rc' || lowered === 'beta' || lowered === 'alpha') {
+    const channel: ReleaseChannel = lowered
+    return channel
+  }
+  const channel: ReleaseChannel = 'stable'
+  return channel
 }
 
 /** The build channel of a release from its tag: `v1.0.0-beta.4` is `beta`, `v1.0.0` `stable`. */
-export function releaseChannel(tag: string): ReleaseChannel {
-  return channelName(PRERELEASE_CHANNEL.exec(tag)?.groups?.channel ?? '')
+export function releaseChannel(tag: string) {
+  const { channel } = PRERELEASE_CHANNEL.exec(tag)?.groups ?? {}
+  const result: ReleaseChannel = channelName(channel ?? '')
+  return result
 }
 
-function updateFeedClass(groups: Readonly<Record<string, string | undefined>>): ReleaseAssetClass {
-  const platform = groups.platform?.toLowerCase()
-  return {
+function updateFeedClass(groups: Readonly<Record<string, string | undefined>>) {
+  const { platform: platformName, arch, feed } = groups
+  const platform = platformName?.toLowerCase()
+  const result: ReleaseAssetClass = {
     kind: 'update_check',
     platform: platform === undefined ? 'win32' : (FEED_PLATFORMS.get(platform) ?? 'none'),
-    arch: assetArch(groups.arch ?? ''),
-    feedChannel: channelName(groups.feed ?? ''),
+    arch: assetArch(arch ?? ''),
+    feedChannel: channelName(feed ?? ''),
   }
+  return result
 }
 
 /** Classifies an asset by name, or returns `undefined` for assets that are not downloads. */
-export function classifyReleaseAsset(name: string): ReleaseAssetClass | undefined {
+export function classifyReleaseAsset(name: string) {
   if (IGNORED_ASSETS.some((pattern) => pattern.test(name))) return undefined
   const feed = UPDATE_FEED.exec(name)?.groups
-  if (feed !== undefined) return updateFeedClass(feed)
-  if (CHECKSUMS.test(name)) return { kind: 'sha256sums', platform: 'none', arch: 'none' }
+  if (feed !== undefined) {
+    const result: ReleaseAssetClass | undefined = updateFeedClass(feed)
+    return result
+  }
+  if (CHECKSUMS.test(name)) {
+    const result: ReleaseAssetClass | undefined = {
+      kind: 'sha256sums',
+      platform: 'none',
+      arch: 'none',
+    }
+    return result
+  }
   const installer = INSTALLER_KINDS.find(([pattern]) => pattern.test(name))
   if (installer !== undefined) {
     const [, kind, platform] = installer
-    return { kind, platform, arch: assetArch(name) }
+    const result: ReleaseAssetClass | undefined = { kind, platform, arch: assetArch(name) }
+    return result
   }
   if (ZIP_ARCHIVE.test(name) && !NON_MAC_ARCHIVE.test(name)) {
-    return { kind: 'mac_zip', platform: 'darwin', arch: assetArch(name) }
+    const result: ReleaseAssetClass | undefined = {
+      kind: 'mac_zip',
+      platform: 'darwin',
+      arch: assetArch(name),
+    }
+    return result
   }
-  return { kind: 'other', platform: 'none', arch: assetArch(name) }
+  const result: ReleaseAssetClass | undefined = {
+    kind: 'other',
+    platform: 'none',
+    arch: assetArch(name),
+  }
+  return result
 }

@@ -101,3 +101,15 @@ describe('imported env and header values, as Pi will read them', () => {
     ])
   })
 })
+
+describe('an imported transport type Pi cannot run', () => {
+  // A non-string type was warned about as `type [object Object]` before it was serialized.
+  it.each([
+    ['websocket', 'type websocket is not supported and was not imported.'],
+    [{ kind: 'ws' }, 'type {"kind":"ws"} is not supported and was not imported.'],
+  ])('names the type %j in its warning', (type, warning) => {
+    const normalized = normalizeImportedEntry('claude-code', 'db', { command: 'db-mcp', type })
+
+    expect(normalized?.warnings).toContain(warning)
+  })
+})

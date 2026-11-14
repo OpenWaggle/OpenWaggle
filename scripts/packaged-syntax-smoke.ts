@@ -47,9 +47,7 @@ async function main() {
       .waitFor({ state: 'visible', timeout: STARTUP_TIMEOUT_MS })
     const previewLanguage = page.getByRole('combobox', { name: 'Preview language' })
     await page
-      .locator(
-        '[aria-label="TypeScript syntax theme preview"][data-syntax-status="highlighted"]',
-      )
+      .locator('[aria-label="TypeScript syntax theme preview"][data-syntax-status="highlighted"]')
       .waitFor({ state: 'visible', timeout: STARTUP_TIMEOUT_MS })
     await previewLanguage.selectOption('json')
     await page

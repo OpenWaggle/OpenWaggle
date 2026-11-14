@@ -30,9 +30,8 @@ vi.mock('../terminal-process-kernel-api', () => ({
   signalTerminalProcessIdentity: probes.signalTerminalProcessIdentity,
 }))
 
-const { forceClosePty, forceValidatedTree, refreshAndConfirmExit, signalTree } = await import(
-  '../terminal-process-control'
-)
+const { forceClosePty, forceValidatedTree, refreshAndConfirmExit, signalTree } =
+  await import('../terminal-process-control')
 const { shutdownLiveTerminal } = await import('../terminal-process-shutdown')
 
 describe('terminal forced shutdown proof', () => {
@@ -128,7 +127,7 @@ describe('terminal forced shutdown proof', () => {
   it('fails closed when node-pty exposes no descriptor-only POSIX close', () => {
     const subject = makeSubject('stubborn-flood')
     for (const closeDescriptor of [null, {}, 42]) {
-      Reflect.set(subject.live.pty, 'closeDescriptor', closeDescriptor)
+      Object.assign(subject.live.pty, { closeDescriptor: closeDescriptor })
 
       expect(forceClosePty(subject.live)).toBe(false)
     }

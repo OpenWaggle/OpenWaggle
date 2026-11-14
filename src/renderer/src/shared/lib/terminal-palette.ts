@@ -3,11 +3,7 @@ import {
   normalizeTerminalPaletteColor,
   type TerminalPaletteRole,
 } from '@shared/types/appearance-preferences'
-import {
-  bundledSyntaxTheme,
-  type SyntaxAppearanceVariant,
-  type SyntaxThemeSelections,
-} from '@shared/types/syntax'
+import { bundledSyntaxTheme, type SyntaxThemeSelections } from '@shared/types/syntax'
 import type { SyntaxThemeResource } from '@shared/types/syntax-resources'
 import { useAppearancePreferencesRuntimeStore } from './appearance-preferences-runtime'
 import { useSyntaxThemeRuntimeStore } from './syntax/syntax-theme-runtime'
@@ -54,11 +50,11 @@ interface ResolveTerminalPaletteInput {
   readonly fallback: TerminalPalette
 }
 
-function appearanceVariant(appearance: string): SyntaxAppearanceVariant {
-  if (appearance === 'light') return 'light'
-  if (appearance === 'high-contrast-light') return 'high-contrast-light'
-  if (appearance === 'high-contrast-dark') return 'high-contrast-dark'
-  return 'dark'
+function appearanceVariant(appearance: string) {
+  if (appearance === 'light') return 'light' as const
+  if (appearance === 'high-contrast-light') return 'high-contrast-light' as const
+  if (appearance === 'high-contrast-dark') return 'high-contrast-dark' as const
+  return 'dark' as const
 }
 
 function activeTheme(input: ResolveTerminalPaletteInput) {
@@ -106,16 +102,14 @@ function resolveRole(
   return { color: input.fallback[role], source: 'appearance' as const }
 }
 
-export function resolveTerminalPalette(
-  input: ResolveTerminalPaletteInput,
-): TerminalPaletteResolution {
+export function resolveTerminalPalette(input: ResolveTerminalPaletteInput) {
   const theme = resolveThemePalette(input)
   const background = resolveRole('background', input, theme.palette)
   const foreground = resolveRole('foreground', input, theme.palette)
   const cursor = resolveRole('cursor', input, theme.palette)
   const selection = resolveRole('selection', input, theme.palette)
   const scrollbar = resolveRole('scrollbar', input, theme.palette)
-  return {
+  const resolution: TerminalPaletteResolution = {
     palette: {
       background: background.color,
       foreground: foreground.color,
@@ -132,6 +126,7 @@ export function resolveTerminalPalette(
     },
     themeColors: theme.colors,
   }
+  return resolution
 }
 
 function colorWithOpacity(color: string, opacity: number) {
@@ -155,7 +150,7 @@ export function readTerminalPaletteFallback(styles = getComputedStyle(document.d
   } satisfies TerminalPalette
 }
 
-export function readTerminalPalette(): TerminalPaletteResolution {
+export function readTerminalPalette() {
   const syntax = useSyntaxThemeRuntimeStore.getState()
   return resolveTerminalPalette({
     appearance: document.documentElement.getAttribute('data-theme') ?? 'dark',

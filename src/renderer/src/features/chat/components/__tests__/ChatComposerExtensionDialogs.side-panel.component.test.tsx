@@ -24,8 +24,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-function sidePanelEntry(kind: string): ExtensionContributionRegistryEntry {
-  return {
+function sidePanelEntry(kind: string) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
     extensionVersion: '1.0.0',
@@ -57,13 +57,17 @@ function sidePanelEntry(kind: string): ExtensionContributionRegistryEntry {
     },
     diagnostics: [],
   }
+  return entry
 }
 
-function sidePanelRegistry(kind: string): ExtensionContributionRegistryView {
-  return { projectPaths: [PROJECT_PATH], entries: [sidePanelEntry(kind)] }
+function sidePanelRegistry(kind: string) {
+  return {
+    projectPaths: [PROJECT_PATH],
+    entries: [sidePanelEntry(kind)],
+  } satisfies ExtensionContributionRegistryView
 }
 
-function pendingInteraction(): AgentLoopInteraction {
+function pendingInteraction() {
   return {
     interactionId: 'interaction-1',
     sessionId: SessionId('session-1'),
@@ -74,7 +78,7 @@ function pendingInteraction(): AgentLoopInteraction {
     title: 'Approve action?',
     message: 'The extension wants to proceed.',
     purpose: 'user-input',
-  }
+  } satisfies AgentLoopInteraction
 }
 
 function extensionFrame() {
@@ -98,7 +102,7 @@ function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
 }
 
 function extensionFrameId(frame: HTMLIFrameElement) {
-  const frameId = frame.dataset.extensionFrameId
+  const frameId = frame.getAttribute('data-extension-frame-id')
   if (!frameId) {
     throw new Error('Expected extension side panel iframe id.')
   }

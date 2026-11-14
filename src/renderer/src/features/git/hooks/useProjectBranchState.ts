@@ -16,33 +16,50 @@ function resolveProjectBranchState(input: {
   readonly repositoryPath: RepositoryPath | null
   readonly isLoading: boolean
   readonly error: string | null
-}): ProjectBranchState {
+}) {
   if (!input.projectPath) {
-    return { names: [], currentBranch: null, status: 'project-required' }
+    const state: ProjectBranchState = {
+      names: [],
+      currentBranch: null,
+      status: 'project-required',
+    }
+    return state
   }
   if (input.repositoryPath !== input.projectPath) {
-    return { names: [], currentBranch: null, status: 'loading' }
+    const state: ProjectBranchState = { names: [], currentBranch: null, status: 'loading' }
+    return state
   }
-  if (input.error) return { names: [], currentBranch: null, status: 'error' }
+  if (input.error) {
+    const state: ProjectBranchState = { names: [], currentBranch: null, status: 'error' }
+    return state
+  }
   if (!input.branches && input.isLoading) {
-    return { names: [], currentBranch: null, status: 'loading' }
+    const state: ProjectBranchState = { names: [], currentBranch: null, status: 'loading' }
+    return state
   }
 
   const names =
     input.branches?.branches.flatMap((branch) => (branch.isRemote ? [] : [branch.name])) ?? []
   const currentBranch = input.branches?.currentBranch ?? null
-  return {
+  const state: ProjectBranchState = {
     names,
     currentBranch,
     status: currentBranch || (input.branches?.branches.length ?? 0) > 0 ? 'ready' : 'empty',
   }
+  return state
 }
 
 /** Project-keyed view of the global repository branch snapshot. */
-export function useProjectBranchState(projectPath: string | null): ProjectBranchState {
+export function useProjectBranchState(projectPath: string | null) {
   const branches = useGitStore((state) => state.branches)
   const repositoryPath = useGitStore((state) => state.branchesRepositoryPath)
   const isLoading = useGitStore((state) => state.isLoadingBranches)
   const error = useGitStore((state) => state.branchesError)
-  return resolveProjectBranchState({ projectPath, branches, repositoryPath, isLoading, error })
+  return resolveProjectBranchState({
+    projectPath,
+    branches,
+    repositoryPath,
+    isLoading,
+    error,
+  })
 }

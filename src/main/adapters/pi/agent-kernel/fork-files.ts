@@ -65,7 +65,7 @@ export async function writeForkBeforeItStarts(
   sessionManager: SessionManager,
   sourceFile: string,
   beforeWritingFork: ForkAgentKernelSessionInput['beforeWritingFork'],
-): Promise<WrittenFork & { readonly sessionManager: SessionManager }> {
+) {
   const fork = forkFileFor(sessionManager, sourceFile)
   if (beforeWritingFork) await Effect.runPromise(beforeWritingFork(fork.sessionFile))
   const sourceEntryIdByNodeId = await writeRekeyedForkedSession(fork.sessionFile, fork.lines)

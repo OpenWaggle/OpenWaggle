@@ -18,7 +18,7 @@ export function useSessionRowDescription(input: {
   readonly projectLabel: string
   readonly stateLabel: string | null
   readonly hasInterruptedRun: boolean
-}): string | undefined {
+}) {
   const gitBranch = useSessionGitBranch(input.session)
   const gitIndicator = useSessionGitIndicator(input.session)
   const terminalCount = useRunningTerminalCount(String(input.session.id))

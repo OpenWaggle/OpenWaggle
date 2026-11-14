@@ -2,8 +2,8 @@ import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { describe, expect, it } from 'vitest'
 import { launchStepAnnouncement, launchStepViews } from '../worktree-launch-steps'
 
-function launch(overrides: Partial<WorktreeLaunchSnapshot>): WorktreeLaunchSnapshot {
-  return {
+function launch(overrides: Partial<WorktreeLaunchSnapshot>) {
+  const snapshot: WorktreeLaunchSnapshot = {
     status: 'running',
     stage: 'fetching-base',
     startedAt: 1,
@@ -20,6 +20,7 @@ function launch(overrides: Partial<WorktreeLaunchSnapshot>): WorktreeLaunchSnaps
     ],
     ...overrides,
   }
+  return snapshot
 }
 
 const states = (value: WorktreeLaunchSnapshot) =>
@@ -77,7 +78,14 @@ describe('launchStepViews', () => {
   })
 
   it('leaves unlabelled snapshots from an older Host to the legacy presentation', () => {
-    expect(launchStepViews(launch({ steps: undefined }))).toBeNull()
+    const unlabelled: WorktreeLaunchSnapshot = {
+      status: 'running',
+      stage: 'fetching-base',
+      startedAt: 1,
+      updatedAt: 1,
+      details: [],
+    }
+    expect(launchStepViews(unlabelled)).toBeNull()
   })
 
   it('announces every step running in parallel', () => {

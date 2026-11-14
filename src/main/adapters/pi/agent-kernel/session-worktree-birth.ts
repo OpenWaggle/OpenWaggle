@@ -262,7 +262,7 @@ async function ensureSessionWorktreeProjectPathUnlocked(
   session: SessionDetail,
   workspace: BoundWorkspaceResource,
   options: SessionWorktreeBirthOptions,
-): Promise<string> {
+) {
   const primaryPath = requireSessionProjectPath(session)
   const recordedPath = session.worktreePath?.trim()
   const existing =

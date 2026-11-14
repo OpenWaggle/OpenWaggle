@@ -34,6 +34,7 @@ import {
   type LiveQaLifecycleState,
   runLiveQaProfileLifecycle,
 } from './live-session-orchestration-lifecycle'
+import { scriptEnv } from '../support/env'
 
 const DEFAULT_MODEL = 'openai-codex/gpt-5.6-sol'
 const DEFAULT_TIMEOUT_MS = 300_000
@@ -41,10 +42,7 @@ const LIST_LIMIT = 20
 const DISABLED_QA_SKILL = 'herdr-orchestration'
 const DETACHED_HOST_SURVIVAL_DELAY_MS = 10_000
 
-async function launchLiveGui(
-  executable: string,
-  environment: Record<string, string>,
-) {
+async function launchLiveGui(executable: string, environment: Record<string, string>) {
   const debugPort = await reserveDebugPort()
   const automationIdentity = randomUUID()
   const gui = await launchGui(
@@ -112,118 +110,119 @@ async function runLiveQaScenario(input: {
   readonly userDataRoot: string
   readonly state: LiveQaLifecycleState
 }) {
-      const { executable, state, userDataRoot } = input
-      const env = childEnvironment(userDataRoot)
-      const cliExecutable = await prepareLiveQaCliExecutable({
-        executable,
-        workingDirectory: userDataRoot,
-      })
-      const projectPath = process.cwd()
-      const model = process.env.OPENWAGGLE_LIVE_MODEL?.trim() || DEFAULT_MODEL
-      const timeoutMs = Number(process.env.OPENWAGGLE_LIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS)
-      const expectedPackage = await readPackageIdentity(projectPath)
-      await waitForHost(cliExecutable, env)
-      await new Promise((resolve) => setTimeout(resolve, DETACHED_HOST_SURVIVAL_DELAY_MS))
-      await waitForHost(cliExecutable, env)
-      await disableProjectSkillForQa({
-        userDataRoot,
-        projectPath,
-        skillId: DISABLED_QA_SKILL,
-      })
-      let guiLaunch = await launchLiveGui(executable, env)
-      let { automationIdentity, debugPort, gui } = guiLaunch
-      state.gui = gui
-      state.guiLogs.push(gui.logs)
-    await waitForHost(cliExecutable, env)
-    await waitForLiveGui(debugPort, timeoutMs, automationIdentity)
-    const launch = await runJsonCli(cliExecutable, env, [
-      'hive',
-      'launch',
-      projectPath,
-      '--title',
-      'Packaged live Queen Worker QA',
-      '--text',
-      'Use the native hive tool to spawn exactly one Worker in the shared parent workspace. Do not use any external orchestration skill. Ask the Worker to inspect package.json and report the package name and version without modifying files. Wait for it, read its report, then answer with its Session ID, package name, and version. Do not inspect package.json yourself.',
-      '--model',
-      model,
-      '--thinking',
-      'low',
-      '--yolo',
-      '--interaction-timeout-ms',
-      String(timeoutMs),
-      '--workspace',
-      'current',
-    ])
-    const queenSessionId = cliOutcome(launch).sessionId
-    if (typeof queenSessionId !== 'string') throw new Error('Launch omitted Queen Session ID.')
-    await stopChild(gui.child)
-    await waitForHost(cliExecutable, env)
-    await waitForIdle(cliExecutable, env, queenSessionId, timeoutMs)
-    const list = await runJsonCli(cliExecutable, env, [
-      'hive',
-      'list',
-      '--all',
-      '--limit',
-      String(LIST_LIMIT),
-    ])
-    const workerSessionId = findWorker(list, queenSessionId)
-    const queenTranscript = await readTranscript(cliExecutable, env, queenSessionId)
-    if (transcriptInvokedSkill(queenTranscript, DISABLED_QA_SKILL)) {
-      throw new Error(`Queen transcript unexpectedly used disabled skill ${DISABLED_QA_SKILL}.`)
+  const { executable, state, userDataRoot } = input
+  const env = childEnvironment(userDataRoot)
+  const cliExecutable = await prepareLiveQaCliExecutable({
+    executable,
+    workingDirectory: userDataRoot,
+  })
+  const projectPath = process.cwd()
+  const liveEnv = scriptEnv()
+  const model = liveEnv.OPENWAGGLE_LIVE_MODEL?.trim() || DEFAULT_MODEL
+  const timeoutMs = Number(liveEnv.OPENWAGGLE_LIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS)
+  const expectedPackage = await readPackageIdentity(projectPath)
+  await waitForHost(cliExecutable, env)
+  await new Promise((resolve) => setTimeout(resolve, DETACHED_HOST_SURVIVAL_DELAY_MS))
+  await waitForHost(cliExecutable, env)
+  await disableProjectSkillForQa({
+    userDataRoot,
+    projectPath,
+    skillId: DISABLED_QA_SKILL,
+  })
+  let guiLaunch = await launchLiveGui(executable, env)
+  let { automationIdentity, debugPort, gui } = guiLaunch
+  state.gui = gui
+  state.guiLogs.push(gui.logs)
+  await waitForHost(cliExecutable, env)
+  await waitForLiveGui(debugPort, timeoutMs, automationIdentity)
+  const launch = await runJsonCli(cliExecutable, env, [
+    'hive',
+    'launch',
+    projectPath,
+    '--title',
+    'Packaged live Queen Worker QA',
+    '--text',
+    'Use the native hive tool to spawn exactly one Worker in the shared parent workspace. Do not use any external orchestration skill. Ask the Worker to inspect package.json and report the package name and version without modifying files. Wait for it, read its report, then answer with its Session ID, package name, and version. Do not inspect package.json yourself.',
+    '--model',
+    model,
+    '--thinking',
+    'low',
+    '--yolo',
+    '--interaction-timeout-ms',
+    String(timeoutMs),
+    '--workspace',
+    'current',
+  ])
+  const queenSessionId = cliOutcome(launch).sessionId
+  if (typeof queenSessionId !== 'string') throw new Error('Launch omitted Queen Session ID.')
+  await stopChild(gui.child)
+  await waitForHost(cliExecutable, env)
+  await waitForIdle(cliExecutable, env, queenSessionId, timeoutMs)
+  const list = await runJsonCli(cliExecutable, env, [
+    'hive',
+    'list',
+    '--all',
+    '--limit',
+    String(LIST_LIMIT),
+  ])
+  const workerSessionId = findWorker(list, queenSessionId)
+  const queenTranscript = await readTranscript(cliExecutable, env, queenSessionId)
+  if (transcriptInvokedSkill(queenTranscript, DISABLED_QA_SKILL)) {
+    throw new Error(`Queen transcript unexpectedly used disabled skill ${DISABLED_QA_SKILL}.`)
+  }
+  if (!transcriptInvokedSessionsSpawn(queenTranscript)) {
+    throw new Error('Queen transcript omitted a native sessions spawn tool call.')
+  }
+  for (const expected of [workerSessionId, expectedPackage.name, expectedPackage.version]) {
+    if (!queenTranscript.includes(expected)) {
+      throw new Error(`Queen transcript omitted ${JSON.stringify(expected)}.`)
     }
-    if (!transcriptInvokedSessionsSpawn(queenTranscript)) {
-      throw new Error('Queen transcript omitted a native sessions spawn tool call.')
-    }
-    for (const expected of [workerSessionId, expectedPackage.name, expectedPackage.version]) {
-      if (!queenTranscript.includes(String(expected))) {
-        throw new Error(`Queen transcript omitted ${JSON.stringify(expected)}.`)
-      }
-    }
-    await verifyExternalMcp({
-      executable: cliExecutable,
-      env,
-      projectPath,
+  }
+  await verifyExternalMcp({
+    executable: cliExecutable,
+    env,
+    projectPath,
+    queenSessionId,
+    workerSessionId,
+    timeoutMs,
+  })
+  const workerTranscript = await readTranscript(cliExecutable, env, workerSessionId)
+  if (!workerTranscript.includes('EXTERNAL-MCP-OK')) {
+    throw new Error('Worker transcript omitted the external MCP reply.')
+  }
+  const exported = await runProcess(
+    cliExecutable,
+    ['hive', 'export', queenSessionId, '--format', 'markdown', '--scope', 'tree'],
+    env,
+  )
+  if (!exported.stdout.includes(workerSessionId)) {
+    throw new Error('Markdown tree export omitted the Worker Session ID.')
+  }
+  guiLaunch = await launchLiveGui(executable, env)
+  automationIdentity = guiLaunch.automationIdentity
+  debugPort = guiLaunch.debugPort
+  gui = guiLaunch.gui
+  state.gui = gui
+  state.guiLogs.push(gui.logs)
+  const screenshotPath = await verifyLiveHiveGui({
+    debugPort,
+    queenTitle: 'Packaged live Queen Worker QA',
+    timeoutMs,
+    automationIdentity,
+  })
+  state.passed = true
+  console.log(
+    JSON.stringify({
+      passed: state.passed,
       queenSessionId,
       workerSessionId,
-      timeoutMs,
-    })
-    const workerTranscript = await readTranscript(cliExecutable, env, workerSessionId)
-    if (!workerTranscript.includes('EXTERNAL-MCP-OK')) {
-      throw new Error('Worker transcript omitted the external MCP reply.')
-    }
-    const exported = await runProcess(
-      cliExecutable,
-      ['hive', 'export', queenSessionId, '--format', 'markdown', '--scope', 'tree'],
-      env,
-    )
-    if (!exported.stdout.includes(workerSessionId)) {
-      throw new Error('Markdown tree export omitted the Worker Session ID.')
-    }
-    guiLaunch = await launchLiveGui(executable, env)
-    automationIdentity = guiLaunch.automationIdentity
-    debugPort = guiLaunch.debugPort
-    gui = guiLaunch.gui
-    state.gui = gui
-    state.guiLogs.push(gui.logs)
-    const screenshotPath = await verifyLiveHiveGui({
-      debugPort,
-      queenTitle: 'Packaged live Queen Worker QA',
-      timeoutMs,
-      automationIdentity,
-    })
-    state.passed = true
-    console.log(
-      JSON.stringify({
-        passed: state.passed,
-        queenSessionId,
-        workerSessionId,
-        model,
-        package: expectedPackage.name,
-        version: expectedPackage.version,
-        spawnProvenance: 'pi-native-hive-tool',
-        screenshotPath,
-      }),
-    )
+      model,
+      package: expectedPackage.name,
+      version: expectedPackage.version,
+      spawnProvenance: 'pi-native-hive-tool',
+      screenshotPath,
+    }),
+  )
 }
 
 async function main() {

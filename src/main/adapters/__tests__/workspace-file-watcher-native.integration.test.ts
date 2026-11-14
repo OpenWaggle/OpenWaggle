@@ -11,13 +11,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { WorkspaceFilesChangedEvent } from '@shared/types/workspace-files'
 import { fromPartial } from '@total-typescript/shoehorn'
-import type { WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../filesystem-workspace-file-service', () => ({
   invalidateWorkspaceFileIndex: vi.fn(),
 }))
 
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 import { unwatchWorkspaceFiles, watchWorkspaceFiles } from '../workspace-file-watcher'
 import { WorkspaceGitIgnoreFilter } from '../workspace-git-ignore-filter'
 
@@ -41,7 +41,7 @@ describe.skipIf(process.platform === 'linux')('native recursive workspace watche
   it('reports changes in one recursive watcher, without paths git ignores', async () => {
     const root = repository()
     const events: WorkspaceFilesChangedEvent[] = []
-    const subscriber = fromPartial<WebContents>({
+    const subscriber = fromPartial<RendererSurface>({
       id: 1,
       isDestroyed: () => false,
       once: vi.fn(),
@@ -58,8 +58,9 @@ describe.skipIf(process.platform === 'linux')('native recursive workspace watche
     writeFileSync(path.join(root, 'src', 'index.ts'), 'x')
     await vi.waitFor(
       () => {
-        if (!events.some((event) => event.paths.includes('src/index.ts')))
+        if (!events.some((event) => event.paths.includes('src/index.ts'))) {
           throw new Error('waiting')
+        }
       },
       { timeout: 5_000, interval: 50 },
     )
@@ -77,7 +78,7 @@ describe.skipIf(process.platform === 'linux')('native recursive workspace watche
 
 function recordingSubscriber(id: number) {
   const events: WorkspaceFilesChangedEvent[] = []
-  const subscriber = fromPartial<WebContents>({
+  const subscriber = fromPartial<RendererSurface>({
     id,
     isDestroyed: () => false,
     once: vi.fn(),

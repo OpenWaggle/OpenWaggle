@@ -1,8 +1,9 @@
 import { decodeUnknownOrThrow } from '@shared/schema'
 import type { GitWorkingTreeMutationResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
-import type { IpcMainInvokeEvent, MessageBoxOptions } from 'electron'
 import { browserWindowFromWebContents, showMessageBox } from '../../desktop-ui'
+import type { MessageBoxRequest } from '../../ports/desktop-shell/dialogs'
+import type { IpcInvocation } from '../../ports/desktop-shell/ipc-transport'
 import { resolveRepositoryRoot } from '../../services/git/repository-root'
 import { typedHandle } from '../typed-ipc'
 import { withGitMutationLock } from './mutation-lock'
@@ -49,7 +50,7 @@ function workingTreeActionHandler(
     })
 }
 
-function revertWorkingTreeHandler(event: IpcMainInvokeEvent, rawPath: unknown) {
+function revertWorkingTreeHandler(event: IpcInvocation, rawPath: unknown) {
   return Effect.gen(function* () {
     const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     return yield* withGitMutationLock(
@@ -64,7 +65,7 @@ function revertWorkingTreeHandler(event: IpcMainInvokeEvent, rawPath: unknown) {
           cancelId: 0,
           message: 'Revert all changes?',
           detail: revertAllDetail(projectPath, repositoryRoot),
-        } satisfies MessageBoxOptions
+        } satisfies MessageBoxRequest
         const confirmation = yield* Effect.promise(() => showMessageBox(ownerWindow, dialogOptions))
         if (confirmation.response !== 1) {
           return {
@@ -83,7 +84,7 @@ function revertWorkingTreeHandler(event: IpcMainInvokeEvent, rawPath: unknown) {
   })
 }
 
-export function registerGitWorkingTreeHandlers(): void {
+export function registerGitWorkingTreeHandlers() {
   typedHandle('git:working-tree:stage-all', workingTreeActionHandler(stageAllGitChanges))
   typedHandle('git:working-tree:revert-all', revertWorkingTreeHandler)
 }

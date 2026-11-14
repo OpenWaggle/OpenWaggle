@@ -38,7 +38,7 @@ export function captureBackfilledLinks(input: {
         actor: input.actor,
         activity: input.activity,
         ...(input.label !== undefined ? { label: input.label } : {}),
-        displayOrder: input.displayOrders?.[localIndex],
+        displayOrder: input.displayOrders?.[localIndex] ?? null,
         createdAt: input.createdAt,
         branchId: input.branchId,
       }

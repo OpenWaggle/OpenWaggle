@@ -64,7 +64,7 @@ export function persistedUserMessageAliases(
 export function expandedTurnKeysWithAliases(
   expanded: ReadonlySet<string>,
   aliases: ReadonlyMap<string, string>,
-): ReadonlySet<string> {
+) {
   if (aliases.size === 0 || expanded.size === 0) return expanded
   let next: Set<string> | null = null
   for (const [persistedId, liveId] of aliases) {

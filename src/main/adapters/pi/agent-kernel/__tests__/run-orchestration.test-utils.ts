@@ -1,7 +1,7 @@
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { isRecord } from '@shared/utils/validation'
+import { Schema } from '@shared/schema'
 import { vi } from 'vitest'
 
 interface AgentEndEvent {
@@ -108,21 +108,23 @@ export const SESSION_ID = SessionId('session-1')
 export const PRIMARY_MODEL = SupportedModelId('openai/gpt-5.5')
 export const SECONDARY_MODEL = SupportedModelId('anthropic/claude-sonnet-4')
 
-export function modelFromReference(modelReference: string): FakeModel {
+export function modelFromReference(modelReference: string) {
   const [provider = 'openai', id = 'gpt-5.5'] = modelReference.split('/')
-  return {
+  const model: FakeModel = {
     id,
     provider,
     input: ['text', 'image'],
     availableThinkingLevels: ['off', 'medium', 'high'],
   }
+  return model
 }
 
 export function payload(
   text = 'Review the architecture',
   overrides: Partial<HydratedAgentSendPayload> = {},
-): HydratedAgentSendPayload {
-  return { text, attachments: [], ...overrides }
+) {
+  const result: HydratedAgentSendPayload = { text, attachments: [], ...overrides }
+  return result
 }
 
 export function sessionDetail() {
@@ -149,13 +151,13 @@ export function assistantMessage(text: string) {
   }
 }
 
-function shouldTriggerTurn(options: unknown) {
-  return isRecord(options) && options.triggerTurn === true
+const triggerTurnOptionsSchema = Schema.Struct({ triggerTurn: Schema.Literal(true) })
+
+export function shouldTriggerTurn(options: unknown) {
+  return Schema.is(triggerTurnOptionsSchema)(options)
 }
 
-export function createFakePi(
-  recordMessage: (message: unknown) => void = () => undefined,
-): FakePiHarness {
+export function createFakePi(recordMessage: (message: unknown) => void = () => undefined) {
   const handlers = new Map<string, AgentEndHandler>()
   // Pi settles a turn after its agent_end, once no retry or continuation follows; the Waggle
   // loop advances on that.
@@ -182,19 +184,20 @@ export function createFakePi(
     }),
     setModel: vi.fn(async () => true),
   }
-  return {
+  const harness: FakePiHarness = {
     pi,
     getAgentEndHandler: () => (handlers.size > 0 ? agentEndHandler : null),
     modelRegistry,
   }
+  return harness
 }
 
 export function createFakeSession(
   agentEndHandler: () => AgentEndHandler | null,
   messages: unknown[] = [],
-): FakeRunSession {
+) {
   const unsubscribe = vi.fn()
-  return {
+  const session: FakeRunSession = {
     sessionId: 'pi-session-1',
     sessionFile: '/repo/.pi/session.jsonl',
     agent: {
@@ -235,10 +238,11 @@ export function createFakeSession(
     sendUserMessage: vi.fn(async () => undefined),
     subscribe: vi.fn(() => unsubscribe),
   }
+  return session
 }
 
-export function waggleConfig(): WaggleConfig {
-  return {
+export function waggleConfig() {
+  const config: WaggleConfig = {
     mode: 'sequential',
     agents: [
       {
@@ -256,4 +260,5 @@ export function waggleConfig(): WaggleConfig {
     ],
     stop: { primary: 'consensus', maxTurnsSafety: 4 },
   }
+  return config
 }

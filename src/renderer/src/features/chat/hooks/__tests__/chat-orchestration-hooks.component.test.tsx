@@ -79,11 +79,12 @@ function emitAgentEvent(event: AgentEventPayload['event']) {
   requireAgentEventHandler()({ sessionId: SESSION_ID, event })
 }
 
-function payload(text: string): AgentSendPayload {
-  return { text, attachments: [] }
+function payload(text: string) {
+  const result: AgentSendPayload = { text, attachments: [] }
+  return result
 }
 
-function waggleConfig(): WaggleConfig {
+function waggleConfig() {
   return {
     mode: 'sequential',
     agents: [
@@ -101,10 +102,10 @@ function waggleConfig(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: 4 },
-  }
+  } satisfies WaggleConfig
 }
 
-function wagglePreset(): WagglePreset {
+function wagglePreset() {
   return {
     id: WagglePresetId('review'),
     name: 'Review',
@@ -113,10 +114,10 @@ function wagglePreset(): WagglePreset {
     isBuiltIn: false,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies WagglePreset
 }
 
-function wagglePayload(text: string): AgentSendPayload {
+function wagglePayload(text: string) {
   const preset = wagglePreset()
   return {
     ...payload(text),
@@ -126,7 +127,7 @@ function wagglePayload(text: string): AgentSendPayload {
       source: 'user',
       config: preset.config,
     },
-  }
+  } satisfies AgentSendPayload
 }
 
 function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}) {

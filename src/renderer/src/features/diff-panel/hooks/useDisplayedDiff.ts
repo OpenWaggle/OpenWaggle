@@ -1,7 +1,7 @@
 import type { SessionId, WorkingPath } from '@shared/types/brand'
 import type { DiffScopeSelection } from '@/features/diff-panel/state/diff-scope-store'
 import { useDiffPanelDiffs } from './useDiffPanelDiffs'
-import { useTurnDiffFiles } from './useSessionTurns'
+import { useTurnDiffFiles } from './useTurnDiffFiles'
 
 /**
  * The diff currently on screen, whichever scope is active.

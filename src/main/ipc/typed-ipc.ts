@@ -11,12 +11,13 @@ import * as Cause from 'effect/Cause'
 import type { Effect as EffectType } from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import * as Option from 'effect/Option'
-import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain } from 'electron'
 import { invokeConfiguredHostUiRaw } from '../application/gui-session-command-router'
 import { DatabaseBootstrapError, DatabaseQueryError, type ValidationIssuesError } from '../errors'
+import { ipcMainTransport } from '../desktop-shell/ipc-transport'
 import { isGuiBackendGateHeld, waitForGuiBackend } from '../gui-backend-gate'
 import { type GuiServices, runGuiEffect, runGuiEffectExit } from '../gui-runtime'
 import { createLogger } from '../logger'
+import type { IpcInvocation } from '../ports/desktop-shell/ipc-transport'
 import { GatedSenderGoneError, rememberGatedSender } from './gated-ipc-sender'
 
 const logger = createLogger('ipc')
@@ -27,44 +28,46 @@ type MaybeVoid<T> = T extends undefined ? ImplicitVoid : T
 
 /**
  * Generic IPC handler type — accepts the event + channel-specific args.
- * Used internally by typedHandle/safeHandle to bridge Electron's untyped
- * ipcMain to our typed channel maps.
+ * Used internally by typedHandle/safeHandle to bridge the desktop shell's IPC transport to our
+ * typed channel maps.
  */
 type IpcHandler<C extends IpcInvokeChannel> = (
-  event: IpcMainInvokeEvent,
+  event: IpcInvocation,
   ...args: IpcInvokeArgs<C>
-) => unknown | Promise<unknown>
+) => unknown
 
 type EffectIpcHandler<C extends IpcInvokeChannel> = (
-  event: IpcMainInvokeEvent,
+  event: IpcInvocation,
   ...args: IpcInvokeArgs<C>
 ) => EffectType<MaybeVoid<IpcInvokeReturn<C>>, unknown, GuiServices>
 
-function isObjectWithUnknownValues(value: unknown): value is { readonly [key: string]: unknown } {
-  return typeof value === 'object' && value !== null
+function hasTag(error: unknown, tag: string): error is object & { readonly _tag: unknown } {
+  return typeof error === 'object' && error !== null && '_tag' in error && error._tag === tag
 }
 
 function isValidationIssuesError(error: unknown): error is ValidationIssuesError {
-  if (!isObjectWithUnknownValues(error) || error._tag !== 'ValidationIssuesError') {
-    return false
-  }
-
-  return Array.isArray(error.issues) && error.issues.every((issue) => typeof issue === 'string')
+  return (
+    hasTag(error, 'ValidationIssuesError') &&
+    'issues' in error &&
+    Array.isArray(error.issues) &&
+    error.issues.every((issue) => typeof issue === 'string')
+  )
 }
 
 function isDatabaseBootstrapTaggedError(error: unknown): error is DatabaseBootstrapError {
   return (
-    isObjectWithUnknownValues(error) &&
-    error._tag === 'DatabaseBootstrapError' &&
+    hasTag(error, 'DatabaseBootstrapError') &&
+    'stage' in error &&
     typeof error.stage === 'string' &&
+    'message' in error &&
     typeof error.message === 'string'
   )
 }
 
 function isDatabaseQueryTaggedError(error: unknown): error is DatabaseQueryError {
   return (
-    isObjectWithUnknownValues(error) &&
-    error._tag === 'DatabaseQueryError' &&
+    hasTag(error, 'DatabaseQueryError') &&
+    'operation' in error &&
     typeof error.operation === 'string'
   )
 }
@@ -73,7 +76,7 @@ function toReadableIssues(issues: readonly string[]) {
   return issues.join('; ')
 }
 
-export function toIpcError(channel: IpcInvokeChannel, error: unknown): Error {
+export function toIpcError(channel: IpcInvokeChannel, error: unknown) {
   if (isValidationIssuesError(error)) {
     const readable = toReadableIssues(error.issues)
     logger.warn(`Validation failed on "${channel}"`, { issues: readable })
@@ -139,12 +142,12 @@ const GUI_BACKEND_GATE_EXEMPT_SEND_CHANNELS: ReadonlySet<IpcSendChannel> = new S
 ])
 
 /**
- * Type-safe wrapper around `ipcMain.handle()`.
+ * Type-safe wrapper around the IPC transport's `handle`.
  * Internal — all public handlers should use the Effect-based `typedHandle`.
  */
 function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>) {
   const gated = !GUI_BACKEND_GATE_EXEMPT_CHANNELS.has(channel)
-  ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: IpcInvokeArgs<C>) => {
+  ipcMainTransport.handle(channel, async (event, ...args) => {
     if (gated && isGuiBackendGateHeld()) {
       const senderStillThere = rememberGatedSender(event)
       await waitForGuiBackend()
@@ -154,10 +157,7 @@ function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C
   })
 }
 
-export function typedHandle<C extends IpcInvokeChannel>(
-  channel: C,
-  handler: EffectIpcHandler<C>,
-): void {
+export function typedHandle<C extends IpcInvokeChannel>(channel: C, handler: EffectIpcHandler<C>) {
   relayingHandle(channel, handler)
 }
 
@@ -166,17 +166,21 @@ export function typedHandle<C extends IpcInvokeChannel>(
  * window relays to the renderer unchanged, as `hostHandle` does for a whole channel.
  */
 export class RelayedHostResult {
-  constructor(readonly value: unknown) {}
+  readonly value: unknown
+
+  constructor(value: unknown) {
+    this.value = value
+  }
 }
 
 /** `typedHandle` for window-side orchestration that may relay part of its work to the Host. */
 export function relayingHandle<C extends IpcInvokeChannel>(
   channel: C,
   handler: (
-    event: IpcMainInvokeEvent,
+    event: IpcInvocation,
     ...args: IpcInvokeArgs<C>
   ) => EffectType<MaybeVoid<IpcInvokeReturn<C>> | RelayedHostResult, unknown, GuiServices>,
-): void {
+) {
   rawHandle(channel, async (event, ...args) => {
     const exit = await runGuiEffectExit(handler(event, ...args))
 
@@ -215,7 +219,7 @@ export function hostHandle<C extends HostBackedGuiChannel>(
   channel: C,
   options: {
     readonly prepareRemoteArgs?: (
-      event: IpcMainInvokeEvent,
+      event: IpcInvocation,
       ...args: IpcInvokeArgs<C>
     ) => readonly unknown[] | Promise<readonly unknown[]>
     /** Runs after the Session Host handled the call; a failure is logged, never returned. */
@@ -224,7 +228,7 @@ export function hostHandle<C extends HostBackedGuiChannel>(
       ...args: IpcInvokeArgs<C>
     ) => EffectType<void, unknown, GuiServices>
   } = {},
-): void {
+) {
   if (!HOST_BACKED_GUI_CHANNELS.some((candidate) => candidate === channel)) {
     throw new Error(`Host-backed IPC channel is not declared: ${channel}`)
   }
@@ -247,15 +251,15 @@ export function hostHandle<C extends HostBackedGuiChannel>(
 }
 
 /**
- * Type-safe wrapper around `ipcMain.on()`.
+ * Type-safe wrapper around the IPC transport's `on`.
  * Internal — all public listeners should use the Effect-based `typedOn`.
  */
 function rawOn<C extends IpcSendChannel>(
   channel: C,
-  listener: (event: IpcMainEvent, ...args: IpcSendArgs<C>) => void,
+  listener: (event: IpcInvocation, ...args: IpcSendArgs<C>) => void,
 ) {
   const gated = !GUI_BACKEND_GATE_EXEMPT_SEND_CHANNELS.has(channel)
-  ipcMain.on(channel, (event: IpcMainEvent, ...args: IpcSendArgs<C>) => {
+  ipcMainTransport.on(channel, (event, ...args) => {
     if (!gated || !isGuiBackendGateHeld()) {
       listener(event, ...args)
       return
@@ -268,16 +272,13 @@ function rawOn<C extends IpcSendChannel>(
 }
 
 type EffectIpcOnHandler<C extends IpcSendChannel> = (
-  event: IpcMainEvent,
+  event: IpcInvocation,
   ...args: IpcSendArgs<C>
 ) => EffectType<void, unknown, GuiServices>
 
-export function typedOn<C extends IpcSendChannel>(
-  channel: C,
-  handler: EffectIpcOnHandler<C>,
-): void {
+export function typedOn<C extends IpcSendChannel>(channel: C, handler: EffectIpcOnHandler<C>) {
   rawOn(channel, (event, ...args) => {
-    runGuiEffect(handler(event, ...args)).catch((err) => {
+    runGuiEffect(handler(event, ...args)).catch((err: unknown) => {
       logger.error(`Unhandled error in "${channel}" listener`, {
         error: err instanceof Error ? err.message : String(err),
       })

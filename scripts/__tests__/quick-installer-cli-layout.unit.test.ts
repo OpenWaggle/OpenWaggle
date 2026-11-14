@@ -44,7 +44,7 @@ mv() {
   command mv "$@"
 }
 `
-    : ''
+      : ''
   const script = `${cliTargetGuard(input.source)}\n${moveOverride}install_cli_shim_atomically "$1" "$2" "$3" "$4"`
   return execFileAsync('bash', [
     '-c',
@@ -102,7 +102,9 @@ describe('quick installer CLI layout', () => {
         ).rejects.toMatchObject({ code: 1 })
 
         const targetStats = await fs.lstat(target)
-        if (kind === 'file') await expect(fs.readFile(target, 'utf8')).resolves.toContain('unrelated')
+        if (kind === 'file') {
+          await expect(fs.readFile(target, 'utf8')).resolves.toContain('unrelated')
+        }
         if (kind === 'symlink') {
           expect(targetStats.isSymbolicLink()).toBe(true)
           await expect(fs.readlink(target)).resolves.toBe(unrelatedTarget)
@@ -197,7 +199,10 @@ describe('quick installer CLI layout', () => {
     const replacement = path.join(root, 'replacement')
     const legacyExecutable = '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle'
     try {
-      await fs.writeFile(target, '#!/bin/sh\n# Managed by OpenWaggle. Configure from Settings > Agent access.\n')
+      await fs.writeFile(
+        target,
+        '#!/bin/sh\n# Managed by OpenWaggle. Configure from Settings > Agent access.\n',
+      )
       await fs.writeFile(replacement, 'managed replacement')
       await expect(
         installShim({ source, replacement, target, platform: 'mac', legacyReference: '' }),

@@ -16,14 +16,15 @@ import { useSidebarState } from './useSidebarState'
  * is pinned, otherwise its project group. A neighbour is picked inside that section so removing a
  * session never jumps the reader into another project.
  */
-function visibleSectionSessionIds(state: ReturnType<typeof useSidebarState>): readonly SessionId[] {
+function visibleSectionSessionIds(state: ReturnType<typeof useSidebarState>) {
   const activeId = String(useChatStore.getState().activeSessionId ?? '')
   const pinned = state.pinnedRows.map((row) => row.session.id)
   if (pinned.some((id) => String(id) === activeId)) return pinned
   const group = state.sessionGroups.projects.find((candidate) =>
     candidate.sessions.some((session) => String(session.id) === activeId),
   )
-  return group ? group.sessions.map((session) => session.id) : []
+  const result: readonly SessionId[] = group ? group.sessions.map((session) => session.id) : []
+  return result
 }
 
 function createDomainActions(
@@ -43,7 +44,7 @@ function createDomainActions(
         useChatStore
           .getState()
           .sessions.some((session) => String(session.id) === String(id) && !session.archived),
-      selectSession(id: SessionId) {
+      selectSession: (id: SessionId) => {
         clearTransientDraftContext()
         useChatStore.getState().setActiveSession(id)
         void state.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
@@ -62,7 +63,7 @@ function createDomainActions(
     refreshSessionWorkspace: state.sessions.refreshSessionWorkspace,
     selectedModel: state.preferences.selectedModel,
     showToast: state.showToast,
-    togglePin(sessionId: SessionId) {
+    togglePin: (sessionId: SessionId) => {
       const store = usePinnedSessionsStore.getState()
       const isPinned = store.pins.some((pin) => String(pin.sessionId) === String(sessionId))
       void (isPinned ? store.unpinSession(sessionId) : store.pinSession(sessionId))
@@ -84,7 +85,7 @@ function createDomainActions(
     activeSessionId: state.activeSessionId ? String(state.activeSessionId) : null,
     clearTransientDraftContext,
     displayProjectName: state.displayProjectName,
-    expandProject(path) {
+    expandProject: (path) => {
       state.setProjectExpanded(path, true)
     },
     loadChatSessions: state.chat.loadSessions,
@@ -123,17 +124,17 @@ function buildControllerOutput(
     handleArchiveSession: actions.session.archive,
     handleCloneSession: actions.session.clone,
     handleDeleteSession: actions.session.delete,
-    handleNewSession() {
+    handleNewSession: () => {
       clearTransientDraftContext()
       state.chat.startDraftSession(state.project.projectPath)
       void state.navigate({ to: '/' })
     },
     handleOpenProject: actions.project.openProject,
     handleOpenProjectInFinder: actions.project.openInFinder,
-    handleOpenSettings() {
+    handleOpenSettings: () => {
       void state.navigate({ to: '/settings' })
     },
-    handleOpenUsageCost() {
+    handleOpenUsageCost: () => {
       void state.navigate({ to: '/usage' })
     },
     handleRemoveProject: actions.project.remove,
@@ -144,7 +145,7 @@ function buildControllerOutput(
     handleSelectSession: actions.session.select,
     handleToggleBranches: actions.branch.toggle,
     handleTogglePinnedSession: actions.session.togglePin,
-    handleToggleProjectCollapsed(path: string) {
+    handleToggleProjectCollapsed: (path: string) => {
       state.toggleProjectExpanded(path)
     },
     /**
@@ -152,7 +153,7 @@ function buildControllerOutput(
      * drop expresses "between these two" rather than an index the main process would have
      * to reinterpret.
      */
-    handleReorderPinnedSession(sessionId: SessionId, targetIndex: number) {
+    handleReorderPinnedSession: (sessionId: SessionId, targetIndex: number) => {
       const neighbours = resolvePinnedDropNeighbours(
         state.pinnedRows,
         String(sessionId),

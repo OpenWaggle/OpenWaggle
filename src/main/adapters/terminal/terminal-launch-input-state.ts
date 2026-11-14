@@ -11,14 +11,15 @@ interface TerminalLaunchInputContext {
   readonly inFlightOpens: ReadonlyMap<TerminalKey, unknown>
 }
 
-function emptyPendingTerminalInput(): PendingTerminalInput {
-  return {
+function emptyPendingTerminalInput() {
+  const input: PendingTerminalInput = {
     parts: [],
     bytes: 0,
     inputGeneration: null,
     lastInputReceipt: null,
     projectAction: null,
   }
+  return input
 }
 
 /**
@@ -48,8 +49,7 @@ export function discardEmptyPendingLaunchState(
 ) {
   const pending = context.pendingInputByKey.get(key)
   if (
-    pending !== undefined &&
-    pending.parts.length === 0 &&
+    pending?.parts.length === 0 &&
     pending.bytes === 0 &&
     pending.projectAction === null &&
     !context.inFlightOpens.has(key) &&

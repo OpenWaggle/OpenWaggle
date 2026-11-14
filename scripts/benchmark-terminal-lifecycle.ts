@@ -31,15 +31,15 @@ export interface TerminalLifecycleBenchmarkContext {
   readonly service: BenchmarkTerminalService
 }
 
-function assertGate(condition: boolean, message: string): asserts condition {
+export function assertGate(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(`Terminal benchmark gate failed: ${message}`)
 }
 
-function delay(milliseconds: number) {
+export function delay(milliseconds: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
 }
 
-async function waitUntil(description: string, predicate: () => boolean) {
+export async function waitUntil(description: string, predicate: () => boolean) {
   const deadline = performance.now() + OUTPUT_TIMEOUT_MS
   while (!predicate()) {
     if (performance.now() >= deadline) throw new Error(`Timed out waiting for ${description}.`)
@@ -99,10 +99,7 @@ function isProcessAlive(pid: number) {
   }
 }
 
-async function openFloodTerminal(
-  context: TerminalLifecycleBenchmarkContext,
-  terminalId: string,
-) {
+async function openFloodTerminal(context: TerminalLifecycleBenchmarkContext, terminalId: string) {
   context.events.length = 0
   await Effect.runPromise(
     context.service.open({
@@ -127,15 +124,12 @@ export async function runCloseUnderFloodGate(context: TerminalLifecycleBenchmark
   await waitUntil('active output flood before close', () => {
     const output = outputForTerminal(context.events, FLOOD_CLOSE_TERMINAL_ID)
     return (
-      Buffer.byteLength(output, 'utf8') >= FLOOD_STARTED_BYTES &&
-      output.includes(FLOOD_PID_MARKER)
+      Buffer.byteLength(output, 'utf8') >= FLOOD_STARTED_BYTES && output.includes(FLOOD_PID_MARKER)
     )
   })
   const floodPid = extractFloodPid(outputForTerminal(context.events, FLOOD_CLOSE_TERMINAL_ID))
   const startedAt = performance.now()
-  await Effect.runPromise(
-    context.service.close(context.ownerKey, FLOOD_CLOSE_TERMINAL_ID, false),
-  )
+  await Effect.runPromise(context.service.close(context.ownerKey, FLOOD_CLOSE_TERMINAL_ID, false))
   const elapsedMs = performance.now() - startedAt
   assertGate(
     elapsedMs <= LIFECYCLE_UNDER_FLOOD_MAX_MS,
@@ -280,7 +274,10 @@ export async function runRestartUnderFloodGate(context: TerminalLifecycleBenchma
     snapshot.outputGeneration > flood.outputGeneration,
     `restart kept stale output generation ${flood.outputGeneration}`,
   )
-  assertGate(!isProcessAlive(flood.floodPid), `flood child process ${flood.floodPid} survived restart`)
+  assertGate(
+    !isProcessAlive(flood.floodPid),
+    `flood child process ${flood.floodPid} survived restart`,
+  )
 
   const key = terminalKeyOf(context.ownerKey, FLOOD_RESTART_TERMINAL_ID)
   await waitUntil('the replacement shell to attach after restart', () => {

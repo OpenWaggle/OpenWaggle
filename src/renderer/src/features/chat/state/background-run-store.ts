@@ -12,7 +12,6 @@ import {
   addActiveRunToState,
   mergeRestoredRunModels,
   removeActiveRunFromState,
-  withUnannouncedRun,
 } from './background-run-active-state'
 import {
   captureActivityRevisions,
@@ -39,7 +38,7 @@ import {
   withRunRenderMessages,
   withSettledRunRenderSnapshot,
 } from './background-run-render-state'
-import { withUnannouncedRunRenderSnapshot } from './background-run-unannounced-run'
+import { withUnannouncedRunNoticed } from './background-run-unannounced-run'
 
 export interface FirstSendRecovery {
   readonly payload: AgentSendPayload
@@ -213,10 +212,11 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
     set((state) => addActiveRunToState(state, id, model))
   },
 
+  // No activity change: a restore in flight still restores the Run's compaction status.
   noteUnannouncedRun(id: SessionId, startedAt: number, model?: SupportedModelId) {
     set((state) => ({
-      ...withUnannouncedRun(state, id, model),
-      ...withUnannouncedRunRenderSnapshot(state, id, startedAt),
+      ...addActiveRunToState(state, id, model),
+      ...withUnannouncedRunNoticed(state, id, startedAt),
     }))
   },
 

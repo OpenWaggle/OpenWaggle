@@ -38,18 +38,16 @@ function endpointCodeLocation(file: string) {
 }
 
 /** Parses V8 stack lines into Sentry frames, oldest call first as Sentry expects. */
-export function stackFrames(stack: string | undefined): StackFrame[] {
+export function stackFrames(stack: string | undefined) {
   const frames: StackFrame[] = []
   for (const line of (stack ?? '').split('\n')) {
-    const groups = STACK_FRAME.exec(line)?.groups
-    if (groups?.file === undefined || groups.line === undefined || groups.column === undefined) {
-      continue
-    }
+    const { fn, file, line: lineNumber, column } = STACK_FRAME.exec(line)?.groups ?? {}
+    if (file === undefined || lineNumber === undefined || column === undefined) continue
     frames.push({
-      function: groups.fn ?? '<anonymous>',
-      filename: endpointCodeLocation(groups.file),
-      lineno: Number(groups.line),
-      colno: Number(groups.column),
+      function: fn ?? '<anonymous>',
+      filename: endpointCodeLocation(file),
+      lineno: Number(lineNumber),
+      colno: Number(column),
       in_app: true,
     })
   }

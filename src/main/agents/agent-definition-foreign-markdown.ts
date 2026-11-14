@@ -70,8 +70,15 @@ function mapped(
   sourceValue: unknown,
   mappedValue: unknown,
   detail = 'Mapped directly.',
-): AgentDefinitionImportFieldPlan {
-  return { sourceField, targetField, disposition: 'mapped', detail, sourceValue, mappedValue }
+) {
+  return {
+    sourceField,
+    targetField,
+    disposition: 'mapped',
+    detail,
+    sourceValue,
+    mappedValue,
+  } satisfies AgentDefinitionImportFieldPlan
 }
 
 function dropped(sourceField: string, _sourceValue: unknown, detail: string) {
@@ -82,6 +89,12 @@ function dropped(sourceField: string, _sourceValue: unknown, detail: string) {
   } satisfies AgentDefinitionImportFieldPlan
 }
 
+/** The front-matter members read by name; the rest are read by the key lists below. */
+interface ForeignAgentMetadataFields {
+  readonly name?: unknown
+  readonly isolation?: unknown
+}
+
 function mapIdentity(input: {
   readonly metadata: Readonly<Record<string, unknown>>
   readonly sourcePath: string
@@ -89,14 +102,13 @@ function mapIdentity(input: {
   readonly fields: AgentDefinitionImportFieldPlan[]
   readonly diagnostics: string[]
 }) {
-  const name = normalizedName(input.metadata.name, input.sourcePath)
+  const metadata: ForeignAgentMetadataFields = input.metadata
+  const name = normalizedName(metadata.name, input.sourcePath)
   if (!name) {
     input.diagnostics.push('A valid target Agent name could not be derived.')
     return {}
   }
-  input.fields.push(
-    mapped(input.metadata.name ? 'name' : '$filename', 'name', input.metadata.name, name),
-  )
+  input.fields.push(mapped(metadata.name ? 'name' : '$filename', 'name', metadata.name, name))
   const source = stringValue(input.metadata, ['description', 'summary'])
   const description = source?.value ?? `Imported ${input.sourceTool} Agent ${name}.`
   input.fields.push(
@@ -167,12 +179,13 @@ function mapOptionalMetadata(
         : dropped(reasoningSource.key, reasoningSource.value, 'Unsupported reasoning value.'),
     )
   }
-  const workspace = metadata.isolation === 'worktree' ? ('new-worktree' as const) : undefined
-  if (metadata.isolation !== undefined) {
+  const { isolation }: ForeignAgentMetadataFields = metadata
+  const workspace = isolation === 'worktree' ? ('new-worktree' as const) : undefined
+  if (isolation !== undefined) {
     fields.push(
       workspace
-        ? mapped('isolation', 'workspace', metadata.isolation, workspace)
-        : dropped('isolation', metadata.isolation, 'Unsupported isolation mode.'),
+        ? mapped('isolation', 'workspace', isolation, workspace)
+        : dropped('isolation', isolation, 'Unsupported isolation mode.'),
     )
   }
   return { model, reasoning, workspace }
@@ -202,7 +215,7 @@ export function mapForeignMarkdownAgent(input: {
   readonly sourceTool: Exclude<AgentDefinitionImportSource, 'openwaggle' | 'codex'>
   readonly sourcePath: string
   readonly markdown: string
-}): ForeignMarkdownMapping {
+}) {
   const { metadata, body } = split(input.markdown)
   const fields: AgentDefinitionImportFieldPlan[] = []
   const diagnostics: string[] = []
@@ -210,7 +223,7 @@ export function mapForeignMarkdownAgent(input: {
   const instructions = mapInstructions({ metadata, body, fields, diagnostics })
   const { model, reasoning, workspace } = mapOptionalMetadata(metadata, fields)
   dropForeignCapabilities(metadata, fields)
-  return {
+  const mapping: ForeignMarkdownMapping = {
     ...(name && description && instructions
       ? {
           document: {
@@ -227,4 +240,5 @@ export function mapForeignMarkdownAgent(input: {
     fields,
     diagnostics,
   }
+  return mapping
 }

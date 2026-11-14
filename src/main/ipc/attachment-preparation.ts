@@ -4,6 +4,7 @@ import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { PreparedAttachment } from '@shared/types/agent'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
 import {
   DOCX_MIME_TYPE,
@@ -68,7 +69,7 @@ function guessMimeType(filePath: string) {
     .otherwise(() => null)
 }
 
-async function prepareAttachment(filePath: string): Promise<PreparedAttachment> {
+async function prepareAttachment(filePath: string) {
   const stats = await fs.stat(filePath)
   if (!stats.isFile()) {
     throw new Error(`Not a file: ${filePath}`)
@@ -100,10 +101,10 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
     sizeBytes: stats.size,
     contentSha256: contentSha256(buffer),
     extractedText,
-  }
+  } satisfies PreparedAttachment
 }
 
-export async function prepareRegisteredAttachment(filePath: string): Promise<PreparedAttachment> {
+export async function prepareRegisteredAttachment(filePath: string) {
   const attachment = await prepareAttachment(filePath)
   await rememberPreparedAttachment(attachment, filePath)
   return attachment
@@ -130,7 +131,7 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   readonly bytes: Uint8Array
   readonly fileName: string
   readonly mimeType: string
-}): Promise<PreparedAttachment> {
+}) {
   if (input.bytes.byteLength > ATTACHMENT.MAX_SIZE_BYTES) {
     throw new Error(
       `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(input.fileName)}`,
@@ -143,8 +144,10 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
   const buffer = Buffer.from(input.bytes)
   const kind = 'image'
-  const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
-  const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
+  const [extractedText, tempAttachmentsDir] = await allInOrder([
+    extractAttachmentText({ kind, mimeType, buffer, attachmentName }),
+    ensureTempAttachmentsDirectory(),
+  ])
   const filePath = path.join(tempAttachmentsDir, `resource-${randomUUID()}${extension}`)
   await fs.writeFile(filePath, buffer, { flag: 'wx', mode: PRIVATE_ATTACHMENT_FILE_MODE })
 
@@ -168,9 +171,7 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   }
 }
 
-export async function discardRegisteredImageAttachment(
-  attachment: PreparedAttachment,
-): Promise<void> {
+export async function discardRegisteredImageAttachment(attachment: PreparedAttachment) {
   if (attachment.origin !== 'session-resource') {
     throw new Error('Only an undelivered Session resource attachment can be discarded.')
   }

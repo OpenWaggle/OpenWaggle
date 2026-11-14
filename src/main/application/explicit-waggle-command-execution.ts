@@ -1,8 +1,5 @@
-import type {
-  AgentSendPayload,
-  AgentSendReport,
-  HydratedAgentSendPayload,
-} from '@shared/types/agent'
+import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
+import type { WaggleSendReport } from '@shared/types/local-session-waggle'
 import { RunId, type SessionId, type SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Data from 'effect/Data'
@@ -51,10 +48,8 @@ class ExplicitWaggleRefusal extends Data.TaggedError('ExplicitWaggleRefusal')<{
   readonly message: string
 }> {}
 
-export function reportRefusedExplicitWaggle<E, R>(
-  effect: Effect.Effect<AgentSendReport, E, R>,
-): Effect.Effect<AgentSendReport, E, R> {
-  return effect.pipe(
+export function reportRefusedExplicitWaggle<E, R>(effect: Effect.Effect<WaggleSendReport, E, R>) {
+  const result: Effect.Effect<WaggleSendReport, E, R> = effect.pipe(
     Effect.catchIf(
       (error): error is E & ExplicitWaggleRefusal => error instanceof ExplicitWaggleRefusal,
       (refusal) =>
@@ -62,9 +57,10 @@ export function reportRefusedExplicitWaggle<E, R>(
           outcome: 'refused',
           message: refusal.message,
           code: refusal.code,
-        } satisfies AgentSendReport),
+        } satisfies WaggleSendReport),
     ),
   )
+  return result
 }
 
 interface ExplicitWaggleRunContext {

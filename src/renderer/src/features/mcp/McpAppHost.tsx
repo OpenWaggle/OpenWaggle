@@ -1,6 +1,6 @@
 import type { McpAppDescriptor, McpAppToolCallResult, McpJsonValue } from '@shared/types/mcp'
 import { ShieldAlert, X } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { setComposerTextValue } from '@/features/chat/lib'
 import { Button } from '@/shared/ui/Button'
 import { StructuredPayload } from '@/shared/ui/StructuredPayload'
@@ -14,6 +14,17 @@ import { useMcpAppResource } from './use-mcp-app-resource'
 interface FrameLoad {
   readonly url: string
   readonly count: number
+  /** Read on load, not from a ref during render: the bridge talks to this window. */
+  readonly contentWindow: Window | null
+}
+
+function nextFrameLoad(url: string, frame: HTMLIFrameElement) {
+  const { contentWindow } = frame
+  return (load: FrameLoad | null) => ({
+    url,
+    count: (load?.count ?? 0) + 1,
+    contentWindow,
+  })
 }
 
 /** The current load of the frame's document: 0 until it loads, so one that never loads stalls. */
@@ -41,7 +52,6 @@ export function McpAppHost({
 }) {
   const { resource, error: resourceError } = useMcpAppResource(descriptor, projectPath, sessionId)
   const { frameUrl, error: frameError } = useMcpAppFrameRegistration(resource)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
   // State, not a ref: the container mounts once the document is registered; observe it then.
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const layout = useMcpAppFrameLayout(container)
@@ -53,12 +63,13 @@ export function McpAppHost({
   const [stagedContext, setStagedContext] = useState<unknown>(null)
   const [closed, setClosed] = useState(false)
   const bridgeInput = useMemo(() => {
-    const contentWindow = iframeRef.current?.contentWindow
+    const contentWindow = frameLoad?.contentWindow
     // A stalled App's frame is removed, so its bridge goes with it.
     const ready = frameUrl !== null && frameLoad?.url === frameUrl && !stalled
     if (!resource || !ready || !contentWindow) return null
     return {
       contentWindow,
+      documentLoad: frameLoad.count,
       descriptor,
       projectPath,
       sessionId,
@@ -128,7 +139,6 @@ export function McpAppHost({
       )}
       {frame.state !== 'stalled' && (
         <iframe
-          ref={iframeRef}
           title={`${descriptor.toolTitle} MCP App`}
           // Same-origin with its own `frame-<id>` origin only, never with OpenWaggle: Apps read
           // cookies and IndexedDB, which an opaque origin refuses (ADR 0053).
@@ -137,7 +147,7 @@ export function McpAppHost({
           src={frameUrl}
           className="block w-full border-0 bg-bg"
           style={{ height: frame.frameHeight }}
-          onLoad={() => setFrameLoad((load) => ({ url: frameUrl, count: (load?.count ?? 0) + 1 }))}
+          onLoad={(event) => setFrameLoad(nextFrameLoad(frameUrl, event.currentTarget))}
         />
       )}
       {stagedContext !== null && (

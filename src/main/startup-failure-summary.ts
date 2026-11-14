@@ -60,14 +60,18 @@ const STARTUP_ERROR_TYPES: ReadonlySet<string> = new Set([
   'SettingsStoreReadError',
 ])
 
+/** A named fact of the summary, left out when its value is missing or malformed. */
+type Fact = readonly [string, string | undefined]
+
 const MAX_CAUSE_DEPTH = 4
 const GENERIC_ERROR_TYPE = 'Error'
 const STAGE = /^[a-z][a-z0-9-]{0,39}$/u
 const SIGNAL = /^SIG[A-Z0-9]{1,10}$/u
 const INTEGER = /^-?\d{1,10}$/u
 
-function property(error: Error, key: string): unknown {
-  return Reflect.get(error, key)
+function property(error: Error, key: string) {
+  const value: unknown = Reflect.get(error, key)
+  return value
 }
 
 function safeInteger(value: unknown) {
@@ -87,19 +91,21 @@ function typeName(error: Error) {
     : GENERIC_ERROR_TYPE
 }
 
-function helperFacts(error: Error): ReadonlyArray<readonly [string, string | undefined]> {
-  if (!WINDOWS_HELPER_ERROR_TYPES.has(error.name)) return []
-  return [
-    ['stage', matching(property(error, 'stage'), STAGE)],
-    ['exit', safeInteger(property(error, 'exitCode'))],
-    ['signal', matching(property(error, 'signalCode'), SIGNAL)],
-    ['win32', safeInteger(property(error, 'win32Code'))],
-  ]
+function helperFacts(error: Error) {
+  const facts: readonly Fact[] = WINDOWS_HELPER_ERROR_TYPES.has(error.name)
+    ? [
+        ['stage', matching(property(error, 'stage'), STAGE)],
+        ['exit', safeInteger(property(error, 'exitCode'))],
+        ['signal', matching(property(error, 'signalCode'), SIGNAL)],
+        ['win32', safeInteger(property(error, 'win32Code'))],
+      ]
+    : []
+  return facts
 }
 
 function errorFacts(error: Error) {
   const facts = [typeName(error)]
-  const named: ReadonlyArray<readonly [string, string | undefined]> = [
+  const named: readonly Fact[] = [
     ['code', matching(property(error, 'code'), NODE_ERROR_CODE_PATTERN)],
     ...helperFacts(error),
   ]
@@ -112,9 +118,11 @@ function errorFacts(error: Error) {
 /** The error and its causes, outermost first; `failure` is how a restart wrapper keeps its cause. */
 function errorChain(error: unknown) {
   const chain: Error[] = []
+  const seen = new Set<Error>()
   let current: unknown = error
-  while (current instanceof Error && chain.length < MAX_CAUSE_DEPTH && !chain.includes(current)) {
+  while (current instanceof Error && chain.length < MAX_CAUSE_DEPTH && !seen.has(current)) {
     chain.push(current)
+    seen.add(current)
     current = current.cause ?? property(current, 'failure')
   }
   return chain

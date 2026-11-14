@@ -15,8 +15,8 @@ import { SessionControlOperationJournal } from '../../ports/session-control-oper
 import { steerSessionRun } from '../session-control-steering-service'
 import { noUndeliveredSteers } from './agent-steering-test-layer'
 
-function queued(index: number): SessionControlFollowUp {
-  return {
+function queued(index: number) {
+  const result: SessionControlFollowUp = {
     id: FollowUpId(`follow-up-${index}`),
     deliveryState: 'pending',
     intent: {
@@ -27,6 +27,7 @@ function queued(index: number): SessionControlFollowUp {
       idempotencyKey: `queued-${index}`,
     },
   }
+  return result
 }
 
 function steerWithQueue(queueLength: number, result: AgentSteeringResult) {

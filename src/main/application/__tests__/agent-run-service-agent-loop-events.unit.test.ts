@@ -152,7 +152,7 @@ function agentLoopNode(input: {
   readonly parentId: string | null
   readonly event: AgentTransportCustomEvent
   readonly createdOrder: number
-}): SessionNode {
+}) {
   return {
     id: SessionNodeId(input.id),
     sessionId,
@@ -170,7 +170,7 @@ function agentLoopNode(input: {
     metadataJson: JSON.stringify({
       customType: OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE,
     }),
-  }
+  } satisfies SessionNode
 }
 
 describe('executeAgentRun agent-loop event durability', () => {

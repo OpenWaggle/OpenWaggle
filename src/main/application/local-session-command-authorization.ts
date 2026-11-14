@@ -16,6 +16,8 @@ import {
   authorizeTargetForCaller,
   derivedAuthorityForTarget,
   type LocalSessionAuthorizationTarget,
+  projectAuthorizationTarget,
+  sessionAuthorizationTarget,
 } from './local-session-derived-authority'
 import { authorizeInterruptDescendantTargets } from './local-session-descendant-authorization'
 import { authorizeRunInputReach } from './local-session-run-input-reach'
@@ -134,15 +136,16 @@ function requestsForbiddenCeilingMutation(
   return command.operation === 'steer' || command.operation === 'promote'
 }
 
-function requestedCeilings(
-  caller: LocalSessionCallerIdentity,
-  target: unknown,
-): readonly (string | undefined)[] {
+function requestedCeilings(caller: LocalSessionCallerIdentity, target: unknown) {
   const targetCeiling = targetAuthorizationCeiling(target)
   const derivedCeiling = isAuthorizationTarget(target)
     ? derivedAuthorityForTarget(caller, target)?.authorizationCeiling
     : undefined
-  return [caller.profileAuthority?.authorizationCeiling, targetCeiling, derivedCeiling]
+  return [
+    caller.profileAuthority?.authorizationCeiling,
+    targetCeiling,
+    derivedCeiling,
+  ] satisfies readonly (string | undefined)[]
 }
 
 function authorizeCeiling(
@@ -173,9 +176,9 @@ function resolveQueryTarget(
 ) {
   return Effect.gen(function* () {
     const query = payload.request.query
-    if (query.operation === 'delegations-list') return { projectPath: query.projectPath }
+    if (query.operation === 'delegations-list') return projectAuthorizationTarget(query.projectPath)
     if (query.operation === 'delegations-conflicts') {
-      if (!query.delegationId) return { projectPath: query.projectPath }
+      if (!query.delegationId) return projectAuthorizationTarget(query.projectPath)
       const repository = yield* SessionAuthorizationTargetRepository
       return yield* repository.resolveDelegation(query.delegationId)
     }
@@ -184,9 +187,9 @@ function resolveQueryTarget(
       return yield* repository.resolveDelegation(query.delegationId)
     }
     if (query.operation === 'list' || query.operation === 'search') {
-      return { projectPath: query.projectPath }
+      return projectAuthorizationTarget(query.projectPath)
     }
-    if (query.operation === 'wait') return { sessionId: query.targets[0]?.sessionId }
+    if (query.operation === 'wait') return sessionAuthorizationTarget(query.targets[0]?.sessionId)
     const repository = yield* SessionAuthorizationTargetRepository
     return yield* repository.resolve(query.sessionId)
   })
@@ -206,7 +209,7 @@ function resolveAuthorizationTarget(payload: AuthorizedLocalSessionCommandPayloa
     if (payload.request.command.operation === 'spawn') {
       return yield* repository.resolve(payload.request.command.parentSessionId)
     }
-    return { projectPath: payload.request.command.projectPath }
+    return projectAuthorizationTarget(payload.request.command.projectPath)
   })
 }
 
@@ -272,8 +275,9 @@ export function authorizeLocalSessionCommand(input: {
     if (
       payload.contract === 'session-query-v2' &&
       (yield* authorizeWaitTargets(input.caller, payload))
-    )
+    ) {
       return
+    }
     yield* authorizeDelegationFilterTargets(input.caller, payload)
     if (isUnscopedSessionDiscovery(payload)) return
     if (

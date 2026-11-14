@@ -1,4 +1,3 @@
-import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
 import { describe, expect, it } from 'vitest'
 import {
   buildTurnDiffTree,
@@ -11,7 +10,7 @@ import {
   summarizeTurnDiffStats,
 } from '../changed-files-presentation'
 
-function file(path: string, additions = 10, deletions = 2): TurnDiffFileSummary {
+function file(path: string, additions = 10, deletions = 2) {
   return { path, additions, deletions }
 }
 

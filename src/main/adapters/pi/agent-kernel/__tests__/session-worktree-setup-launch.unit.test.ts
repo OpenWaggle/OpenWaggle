@@ -32,17 +32,21 @@ const {
     stdout: 'main\n',
     stderr: '',
   })),
-  createGitWorktreeMock: vi.fn(
-    async (): Promise<GitWorktreeMutationResult> => ({ ok: true, message: 'ok', path: '/wt' }),
-  ),
+  createGitWorktreeMock: vi.fn<() => Promise<GitWorktreeMutationResult>>(async () => ({
+    ok: true,
+    message: 'ok',
+    path: '/wt',
+  })),
   setSessionWorktreeMock: vi.fn(async () => undefined),
 }))
 
 vi.mock('node:fs', () => ({ existsSync: existsSyncMock }))
 vi.mock('../../../git/run-git', () => ({ runGit: runGitMock }))
 vi.mock('../session-branch-freshness', () => ({
-  resolveFreshWorktreeBaseRef: vi.fn(
-    async (workspace: { readonly worktreeBaseRef?: string | null }): Promise<string | null> =>
+  resolveFreshWorktreeBaseRef: vi.fn<
+    (workspace: { readonly worktreeBaseRef?: string | null }) => Promise<string | null>
+  >(
+    async (workspace: { readonly worktreeBaseRef?: string | null }) =>
       workspace.worktreeBaseRef ?? 'main',
   ),
 }))

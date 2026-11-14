@@ -78,8 +78,8 @@ async function moveWithMenu(text: string, direction: 'Move up' | 'Move down') {
 }
 
 function renderedOrder() {
-  return [...document.querySelectorAll<HTMLElement>('[data-qa="queued-message-row"]')].map(
-    (row) => row.dataset.followUpId,
+  return [...document.querySelectorAll<HTMLElement>('[data-qa="queued-message-row"]')].map((row) =>
+    row.getAttribute('data-follow-up-id'),
   )
 }
 
@@ -119,13 +119,13 @@ function blurWhenFocusedNodeMoves() {
 
 /** The rendered order at each moment a grip is focused. */
 function recordOrderWhenGripFocused() {
-  const orders: (string | undefined)[][] = []
+  const orders: (string | null)[][] = []
   const focus = HTMLElement.prototype.focus
   vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
     this: HTMLElement,
     options?: FocusOptions,
   ) {
-    if (this.dataset.qa === 'queued-message-grip') orders.push(renderedOrder())
+    if (this.getAttribute('data-qa') === 'queued-message-grip') orders.push(renderedOrder())
     focus.call(this, options)
   })
   return orders

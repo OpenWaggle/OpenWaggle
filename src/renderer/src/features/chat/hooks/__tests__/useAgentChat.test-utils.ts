@@ -29,9 +29,9 @@ const {
   pendingInteractionsBySessionId,
   runCompletedHandlers,
 } = vi.hoisted(() => {
-  const agentEventHandlers: Array<(payload: unknown) => void> = []
+  const agentEventHandlers: ((payload: unknown) => void)[] = []
   const pendingInteractionsBySessionId = new Map<string, readonly unknown[]>()
-  const runCompletedHandlers: Array<(payload: unknown) => void> = []
+  const runCompletedHandlers: ((payload: unknown) => void)[] = []
   const runRenderSnapshots = new Map<
     string,
     { readonly messages: readonly unknown[]; compactionStatus: unknown; updatedAt: number }
@@ -52,7 +52,7 @@ const {
     runRenderSnapshots.set(String(sessionId), { ...existing, compactionStatus })
   })
   const hasActiveRunMock = vi.fn((_id: SessionId) => false)
-  const firstSendRecoveryCalls: Array<readonly [SessionId, unknown]> = []
+  const firstSendRecoveryCalls: (readonly [SessionId, unknown])[] = []
   const setFirstSendRecoveryMock = vi.fn((id: SessionId, recovery: unknown) => {
     firstSendRecoveryCalls.push([id, recovery])
   })
@@ -97,15 +97,15 @@ const {
         return () => {}
       }),
       onSessionHostResyncRequired: vi.fn((_handler: () => void) => () => {}),
-      getBackgroundRun: vi.fn(async (): Promise<BackgroundRunSnapshot | null> => null),
-      getSessionDetail: vi.fn(async (): Promise<SessionDetail | null> => null),
+      getBackgroundRun: vi.fn<() => Promise<BackgroundRunSnapshot | null>>(async () => null),
+      getSessionDetail: vi.fn<() => Promise<SessionDetail | null>>(async () => null),
       /*
        * Both send channels report what became of the run. A harness that resolved with nothing described an
        * IPC contract that no longer exists, and the code under test would have read a refusal as a success.
        */
-      sendMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
-      sendWaggleMessage: vi.fn(async (): Promise<AgentSendReport> => DELIVERED_REPORT),
-      cancelAgent: vi.fn(async (): Promise<void> => undefined),
+      sendMessage: vi.fn<() => Promise<AgentSendReport>>(async () => DELIVERED_REPORT),
+      sendWaggleMessage: vi.fn<() => Promise<AgentSendReport>>(async () => DELIVERED_REPORT),
+      cancelAgent: vi.fn<() => Promise<void>>(async () => undefined),
       querySessionControl: vi.fn(
         async (request: {
           readonly requestId: string
@@ -141,8 +141,8 @@ const {
   }
 })
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: apiMock,
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi(apiMock),
 }))
 
 vi.mock('@/features/chat/state/background-run-store', () => ({

@@ -74,7 +74,7 @@ function numberPart(parts: readonly Intl.DateTimeFormatPart[], type: Intl.DateTi
 }
 
 /** The wall-clock time `epochMs` shows in `timeZone`. */
-export function zonedDateTime(epochMs: number, timeZone: string): ZonedDateTime {
+export function zonedDateTime(epochMs: number, timeZone: string) {
   const parts = formatterFor(timeZone).formatToParts(new Date(epochMs))
   const year = numberPart(parts, 'year')
   const month = numberPart(parts, 'month')
@@ -82,7 +82,15 @@ export function zonedDateTime(epochMs: number, timeZone: string): ZonedDateTime 
   const hour = numberPart(parts, 'hour') % MIDNIGHT_HOUR
   const minute = numberPart(parts, 'minute')
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay()
-  return { year, month, day, hour, minute, weekday: weekday === SUNDAY ? ISO_SUNDAY : weekday }
+  const time: ZonedDateTime = {
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    weekday: weekday === SUNDAY ? ISO_SUNDAY : weekday,
+  }
+  return time
 }
 
 /** `timeZone`'s offset from UTC at `epochMs`, in milliseconds. */
@@ -155,7 +163,7 @@ export function zonedEpoch(local: LocalDate, hour: number, minute: number, timeZ
 }
 
 /** The calendar date `days` after `date` (negative goes back). */
-export function addDays(date: LocalDate, days: number): LocalDate {
+export function addDays(date: LocalDate, days: number) {
   const shifted = new Date(Date.UTC(date.year, date.month - 1, date.day) + days * DAY_MS)
   return {
     year: shifted.getUTCFullYear(),
@@ -195,7 +203,7 @@ export function daysInMonth(year: number, month: number) {
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
 
-export function localDateOf(epochMs: number, timeZone: string): LocalDate {
+export function localDateOf(epochMs: number, timeZone: string) {
   const zoned = zonedDateTime(epochMs, timeZone)
   return { year: zoned.year, month: zoned.month, day: zoned.day }
 }

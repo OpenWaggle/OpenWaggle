@@ -1,7 +1,6 @@
 import type { IncomingRequest } from './cloudflare'
 import type { StatisticsDependencies } from './dependencies'
 import type { StatisticsEnvironment } from './environment'
-import type { PostHogEvent } from './posthog'
 import {
   type RequestSummary,
   requestEvent,
@@ -33,7 +32,7 @@ export function elapsed(context: RouteContext) {
 export function pendingRequestEvent(
   context: RouteContext,
   summary: RequestSummary & { readonly status: number },
-): PostHogEvent {
+) {
   const record = requestRecord(context.path, summary, elapsed(context))
   return requestEvent(record, context.dependencies.now())
 }

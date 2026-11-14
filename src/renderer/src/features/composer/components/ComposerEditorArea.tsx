@@ -26,8 +26,8 @@ export function ComposerEditorArea({
     <div className="relative px-4 py-4">
       <LexicalComposerEditor
         onSubmit={onSubmit}
-        onEscape={onEscape}
-        disabled={disabled}
+        {...(onEscape === undefined ? {} : { onEscape })}
+        {...(disabled === undefined ? {} : { disabled })}
         placeholder={placeholder ?? getDefaultPlaceholder(isLoading)}
         editorRef={editorRef}
         checkAndConvertPaste={checkAndConvertPaste}

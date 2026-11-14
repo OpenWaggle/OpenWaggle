@@ -43,7 +43,7 @@ function isRetryingAttemptEnd(event: AgentTransportEvent) {
  * When a background run completes, updates only the affected session's
  * metadata in the sidebar (timestamp) instead of reloading the full list.
  */
-export function useBackgroundRunMonitor(): void {
+export function useBackgroundRunMonitor() {
   const applyAgentLoopEvent = useAgentLoopEventStore((s) => s.applyEvent)
   const addActiveRun = useBackgroundRunStore((s) => s.addActiveRun)
   const applyRunRenderEvent = useBackgroundRunStore((s) => s.applyRunRenderEvent)

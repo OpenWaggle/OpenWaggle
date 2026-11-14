@@ -61,6 +61,10 @@ export const SESSION_HOST_REFUSAL_KINDS = {
   // Only the Delegation's parent, or only its Worker, may do this.
   parent_required: 'authorization',
   worker_required: 'authorization',
+  // A revision request, a reopen, or a task change that sends a submitted Worker back to work
+  // sends it the feedback as the reviewer's Follow-up, so a reviewer that may not message that
+  // Worker cannot send it back to work (#454).
+  worker_message_denied: 'authorization',
   follow_up_adopt_requires_desktop_user: 'authorization',
   follow_up_edit_requires_desktop_user: 'authorization',
   // The caller's own authority changed since it was granted, for example its parent's grant.
@@ -167,6 +171,9 @@ export const SESSION_HOST_REFUSAL_KINDS = {
   delegation_not_amendable: 'conflict',
   delegation_not_cancellable: 'conflict',
   delegation_not_contributable: 'conflict',
+  // A Worker Run that started before its parent asked for a revision may not submit while that
+  // request waits for the Worker's next Run (#454).
+  delegation_revision_pending: 'conflict',
   delegation_not_reviewable: 'conflict',
   delegation_operation_invalid: 'conflict',
   delegation_terminal: 'conflict',
@@ -218,6 +225,6 @@ export function isSessionHostRefusalCode(value: string): value is SessionHostRef
  * The kind of a code that reached the Session Host's error frame from a thrown failure. A code
  * that is not in the table is an unexpected failure, `internal`.
  */
-export function sessionHostErrorKindForThrownCode(code: string): SessionHostErrorKind {
-  return isSessionHostRefusalCode(code) ? SESSION_HOST_REFUSAL_KINDS[code] : 'internal'
+export function sessionHostErrorKindForThrownCode(code: string) {
+  return isSessionHostRefusalCode(code) ? SESSION_HOST_REFUSAL_KINDS[code] : ('internal' as const)
 }

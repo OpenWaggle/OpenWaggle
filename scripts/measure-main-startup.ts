@@ -77,7 +77,7 @@ function readOptionalNumberOption(args: readonly string[], optionName: string) {
   return match ? parsePositiveInteger(match.slice(prefix.length), optionName) : null
 }
 
-function readCliOptions(): CliOptions {
+function readCliOptions() {
   const args = process.argv.slice(CLI_ARGS_START_INDEX)
   return {
     runs: readNumberOption(args, OPTION_RUNS, DEFAULT_RUNS),
@@ -117,7 +117,7 @@ function appendRecentLines(lines: string[], chunk: Buffer) {
   }
 }
 
-function parseStartupTiming(line: string): StartupTiming | null {
+function parseStartupTiming(line: string) {
   const match = line.match(STARTUP_TIMING_PATTERN)
   const label = match?.[FIRST_CAPTURE_GROUP]
   const elapsed = match?.[SECOND_CAPTURE_GROUP]
@@ -134,7 +134,7 @@ function collectStartupTimings(lines: readonly string[]) {
   })
 }
 
-function createElectronEnv(userDataDir: string): NodeJS.ProcessEnv {
+function createElectronEnv(userDataDir: string) {
   return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
     OPENWAGGLE_AUTOMATION: '1',
@@ -144,7 +144,7 @@ function createElectronEnv(userDataDir: string): NodeJS.ProcessEnv {
 }
 
 function spawnElectronDev(port: number, userDataDir: string) {
-  // electron-vite dev through this Node: spawning `pnpm` fails on Windows (a `.cmd` shim).
+  // electron-vite dev on Node with no ELECTRON_RUN_AS_NODE, the same way on every OS.
   const invocation = electronDevInvocation(
     'vite',
     ['--', `--remote-debugging-port=${port}`, `--${STARTUP_TIMINGS_SWITCH}`],
@@ -250,7 +250,7 @@ async function closeBrowser(browser: Browser | null) {
   await Promise.race([browser.close(), delay(BROWSER_CLOSE_TIMEOUT_MS)]).catch(() => undefined)
 }
 
-async function measureRun(run: number, options: CliOptions): Promise<StartupRunResult> {
+async function measureRun(run: number, options: CliOptions) {
   const port = options.port ?? (await findFreePort())
   const userDataDir = await mkdtemp(path.join(tmpdir(), TEMP_DIR_PREFIX))
   const recentOutputLines: string[] = []

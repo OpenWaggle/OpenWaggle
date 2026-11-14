@@ -11,15 +11,15 @@ import type { Effect as EffectType } from 'effect/Effect'
  */
 export interface TerminalEventSinkShape {
   /** Deliver one runtime event and return the number of surfaces reached. */
-  readonly emit: (payload: TerminalEventPayload) => EffectType<number, never>
+  readonly emit: (payload: TerminalEventPayload) => EffectType<number>
   /** Register a surface (e.g. a WebContents id) as watching one terminal. */
-  readonly attach: (terminalKey: TerminalKey, surfaceId: number) => EffectType<void, never>
+  readonly attach: (terminalKey: TerminalKey, surfaceId: number) => EffectType<void>
   /** Drop one watcher and report whether the terminal has no watchers left. */
-  readonly detach: (terminalKey: TerminalKey, surfaceId: number) => EffectType<boolean, never>
+  readonly detach: (terminalKey: TerminalKey, surfaceId: number) => EffectType<boolean>
   /** Move every watcher to a rekeyed terminal, merging with destination watchers. */
-  readonly move: (fromKey: TerminalKey, toKey: TerminalKey) => EffectType<void, never>
+  readonly move: (fromKey: TerminalKey, toKey: TerminalKey) => EffectType<void>
   /** Drop a dead window and return terminal keys that lost their last watcher. */
-  readonly detachSurface: (surfaceId: number) => EffectType<readonly TerminalKey[], never>
+  readonly detachSurface: (surfaceId: number) => EffectType<readonly TerminalKey[]>
 }
 
 export class TerminalEventSink extends Context.Tag('@openwaggle/TerminalEventSink')<

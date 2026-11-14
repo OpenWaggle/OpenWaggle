@@ -34,7 +34,7 @@ function systemError(code: string, syscall?: string) {
   })
 }
 
-function failingWith(error: unknown): UsageStatisticsFetch {
+function failingWith(error: unknown) {
   return async () => {
     throw error
   }

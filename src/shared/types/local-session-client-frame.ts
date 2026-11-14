@@ -1,19 +1,4 @@
-import type { SessionHostEventCursor } from './session-host-event'
+import type { SchemaType } from '@shared/schema'
+import type { localSessionClientFrameSchema } from '@shared/schemas/local-session-protocol'
 
-export type LocalSessionClientFrame =
-  | {
-      readonly kind: 'command'
-      readonly requestId: string
-      readonly payload: unknown
-    }
-  | {
-      readonly kind: 'subscribe'
-      readonly requestId: string
-      readonly after?: SessionHostEventCursor
-      readonly sessionIds?: readonly string[]
-    }
-  | {
-      readonly kind: 'unsubscribe'
-      readonly requestId: string
-      readonly subscriptionId: string
-    }
+export type LocalSessionClientFrame = SchemaType<typeof localSessionClientFrameSchema>

@@ -1,7 +1,6 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import { SessionId } from '@shared/types/brand'
-import type { GitRunStackedActionOptions, GitRunStackedActionResult } from '@shared/types/git'
-import { GIT_STACKED_ACTIONS } from '@shared/types/git'
+import { gitRunStackedActionOptionsSchema } from '@shared/schemas/git-requests'
+import type { GitRunStackedActionResult } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { resolvePrimaryRemote, resolvePrimaryRemoteUrl } from '../../services/git/primary-remote'
 import { resolveRepositoryRoot } from '../../services/git/repository-root'
@@ -16,7 +15,6 @@ import { typedHandle } from '../typed-ipc'
 import { listGitBranchNames } from './branch-list'
 import { createGitBranch } from './branch-mutations'
 import { commitGit } from './commit-handler'
-import { selectedGitPathsSchema } from './commit-path-contract'
 import { resolveDefaultRef } from './default-ref'
 import { withGitMutationLock } from './mutation-lock'
 import {
@@ -61,24 +59,8 @@ function releaseActiveOperation(operationId: string | undefined, token: ActiveGi
   if (activeGitOperations.get(key) === token) activeGitOperations.delete(key)
 }
 
-const stackedActionOptionsSchema = Schema.Struct({
-  action: Schema.Literal(...GIT_STACKED_ACTIONS),
-  operationId: Schema.optional(Schema.String),
-  sessionId: Schema.optional(Schema.String),
-  commitMessage: Schema.optional(Schema.String),
-  createFeatureBranch: Schema.optional(Schema.Boolean),
-  featureBranchName: Schema.optional(Schema.String),
-  exactFeatureBranchName: Schema.optional(Schema.Boolean),
-  baseRef: Schema.optional(Schema.String),
-  changeRequestTitle: Schema.optional(Schema.String),
-  changeRequestBody: Schema.optional(Schema.String),
-  draft: Schema.optional(Schema.Boolean),
-  paths: Schema.optional(selectedGitPathsSchema),
-  includeUnstaged: Schema.optional(Schema.Boolean),
-})
-
-function createStackedActionDeps(): StackedActionDeps {
-  return {
+function createStackedActionDeps() {
+  const deps: StackedActionDeps = {
     hasWorkingTreeChanges: async (projectPath) => {
       const result = await runGit(projectPath, [...GIT_RAW_PATHS, 'status', '--porcelain=v1', '-z'])
       if (result.code !== 0) {
@@ -92,7 +74,7 @@ function createStackedActionDeps(): StackedActionDeps {
     createBranch: async (projectPath, name, baseRef) => {
       const result = await createGitBranch(projectPath, {
         name,
-        startPoint: baseRef,
+        ...(baseRef === undefined ? {} : { startPoint: baseRef }),
         checkout: true,
       })
       return { ok: result.ok, message: result.message }
@@ -114,7 +96,7 @@ function createStackedActionDeps(): StackedActionDeps {
         message,
         amend: false,
         paths: [...selected],
-        includeUnstaged,
+        ...(includeUnstaged === undefined ? {} : { includeUnstaged }),
       })
     },
     push: (projectPath) => pushCurrentBranch(projectPath),
@@ -159,16 +141,18 @@ function createStackedActionDeps(): StackedActionDeps {
       resolveLiveRemoteUrlRepository(path, url, sourceControlSettingsAccess()),
     buildChangeRequestFallbackUrl,
   }
+  return deps
 }
 
-function approvedPushDestination(target: GitPinnedPushTarget | null): GitPushDestination | null {
+function approvedPushDestination(target: GitPinnedPushTarget | null) {
   if (!target) return null
-  return {
+  const destination: GitPushDestination | null = {
     remote: target.remote,
     branch: target.branch,
     remoteUrl: target.pushUrls.length === 1 ? (target.pushUrls[0] ?? null) : null,
     multiplePushUrls: target.pushUrls.length > 1,
   }
+  return destination
 }
 
 function registerGitStackedActionCancelHandler() {
@@ -183,18 +167,13 @@ function registerGitStackedActionCancelHandler() {
   )
 }
 
-export function registerGitStackedActionHandlers(): void {
+export function registerGitStackedActionHandlers() {
   const deps = createStackedActionDeps()
   registerGitStackedActionCancelHandler()
   typedHandle('git:stacked-action:run', (event, rawPath: unknown, rawOptions: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      const decodedOptions = decodeUnknownOrThrow(stackedActionOptionsSchema, rawOptions)
-      const options = {
-        ...decodedOptions,
-        sessionId:
-          decodedOptions.sessionId === undefined ? undefined : SessionId(decodedOptions.sessionId),
-      } satisfies GitRunStackedActionOptions
+      const options = decodeUnknownOrThrow(gitRunStackedActionOptionsSchema, rawOptions)
       const operation = registerActiveOperation(event.sender.id, options.operationId)
       return yield* withGitMutationLock(
         projectPath,

@@ -10,10 +10,10 @@ import type {
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import type { WebContents } from 'electron'
 import { type Mock, vi } from 'vitest'
 import type * as GuiSessionCommandRouter from '../../application/gui-session-command-router'
 import { SessionResourceRepositoryError } from '../../errors'
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
 import {
   type PendingSessionOutput,
   SessionOutputRetryRepository,
@@ -264,7 +264,7 @@ const TestLayer = Layer.mergeAll(
 function runRegisteredHandler(registrations: Mock, channel: string, args: readonly unknown[]) {
   const handler = registrations.mock.calls.find((call) => call[0] === channel)?.[1]
   if (typeof handler !== 'function') throw new Error(`Missing handler for ${channel}`)
-  const event = { sender: fromPartial<WebContents>(handlerSender) }
+  const event = { sender: fromPartial<RendererSurface>(handlerSender) }
   return Effect.runPromise(Effect.provide(handler(event, ...args), TestLayer))
 }
 

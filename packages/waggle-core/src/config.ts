@@ -49,57 +49,64 @@ export type WaggleValidationResult<T> =
   | { readonly success: true; readonly value: T }
   | { readonly success: false; readonly issues: readonly string[] }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+/** The declared fields of `T`, each still unchecked: what a parser reads before it validates. */
+type UncheckedFields<T> = { readonly [K in keyof T]?: unknown }
+
+function valid<T>(value: T) {
+  return { success: true, value } as const
+}
+
+function invalid(issues: readonly string[]) {
+  return { success: false, issues } as const
+}
+
+function isObjectValue(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function literalValue<T extends string>(
-  value: unknown,
-  allowedValues: readonly T[],
-  path: string,
-): WaggleValidationResult<T> {
+function literalValue<T extends string>(value: unknown, allowedValues: readonly T[], path: string) {
   if (typeof value !== 'string') {
-    return { success: false, issues: [`${path} must be a string.`] }
+    return invalid([`${path} must be a string.`])
   }
 
   for (const allowed of allowedValues) {
     if (value === allowed) {
-      return { success: true, value: allowed }
+      return valid(allowed)
     }
   }
 
-  return { success: false, issues: [`${path} must be one of: ${allowedValues.join(', ')}.`] }
+  return invalid([`${path} must be one of: ${allowedValues.join(', ')}.`])
 }
 
-function stringValue(value: unknown, path: string): WaggleValidationResult<string> {
+function stringValue(value: unknown, path: string) {
   if (typeof value !== 'string') {
-    return { success: false, issues: [`${path} must be a string.`] }
+    return invalid([`${path} must be a string.`])
   }
 
-  return { success: true, value }
+  return valid(value)
 }
 
-function booleanValue(value: unknown, path: string): WaggleValidationResult<boolean> {
+function booleanValue(value: unknown, path: string) {
   if (typeof value !== 'boolean') {
-    return { success: false, issues: [`${path} must be a boolean.`] }
+    return invalid([`${path} must be a boolean.`])
   }
 
-  return { success: true, value }
+  return valid(value)
 }
 
-function timestampValue(value: unknown, path: string): WaggleValidationResult<number> {
+function timestampValue(value: unknown, path: string) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < MIN_TIMESTAMP) {
-    return { success: false, issues: [`${path} must be a non-negative finite number.`] }
+    return invalid([`${path} must be a non-negative finite number.`])
   }
 
-  return { success: true, value }
+  return valid(value)
 }
 
 function collectIssues(results: readonly WaggleValidationResult<unknown>[]) {
   return results.flatMap((result) => (result.success ? [] : result.issues))
 }
 
-export function isWaggleInheritedModel(model: string) {
+export function isWaggleInheritedModel(model: string): model is typeof WAGGLE_INHERIT_MODEL {
   return model === WAGGLE_INHERIT_MODEL
 }
 
@@ -112,7 +119,7 @@ export function isProviderQualifiedWaggleModel(model: string) {
   )
 }
 
-function modelValue(value: unknown, path: string): WaggleValidationResult<string> {
+function modelValue(value: unknown, path: string) {
   const model = stringValue(value, path)
   if (!model.success) return model
 
@@ -120,21 +127,19 @@ function modelValue(value: unknown, path: string): WaggleValidationResult<string
     return model
   }
 
-  return {
-    success: false,
-    issues: [`${path} must be ${WAGGLE_INHERIT_MODEL} or a provider/model id.`],
-  }
+  return invalid([`${path} must be ${WAGGLE_INHERIT_MODEL} or a provider/model id.`])
 }
 
-function parseAgentSlot(value: unknown, path: string): WaggleValidationResult<WaggleAgentSlot> {
-  if (!isRecord(value)) {
-    return { success: false, issues: [`${path} must be an object.`] }
+function parseAgentSlot(value: unknown, path: string) {
+  if (!isObjectValue(value)) {
+    return invalid([`${path} must be an object.`])
   }
 
-  const label = stringValue(value.label, `${path}.label`)
-  const model = modelValue(value.model, `${path}.model`)
-  const roleDescription = stringValue(value.roleDescription, `${path}.roleDescription`)
-  const color = literalValue(value.color, WAGGLE_AGENT_COLORS, `${path}.color`)
+  const fields: UncheckedFields<WaggleAgentSlot> = value
+  const label = stringValue(fields.label, `${path}.label`)
+  const model = modelValue(fields.model, `${path}.model`)
+  const roleDescription = stringValue(fields.roleDescription, `${path}.roleDescription`)
+  const color = literalValue(fields.color, WAGGLE_AGENT_COLORS, `${path}.color`)
   const issues = collectIssues([label, model, roleDescription, color])
   if (
     issues.length > 0 ||
@@ -143,114 +148,100 @@ function parseAgentSlot(value: unknown, path: string): WaggleValidationResult<Wa
     !roleDescription.success ||
     !color.success
   ) {
-    return { success: false, issues }
+    return invalid(issues)
   }
 
-  return {
-    success: true,
-    value: {
-      label: label.value,
-      model: model.value,
-      roleDescription: roleDescription.value,
-      color: color.value,
-    },
-  }
+  return valid({
+    label: label.value,
+    model: model.value,
+    roleDescription: roleDescription.value,
+    color: color.value,
+  })
 }
 
-function parseMaxTurnsSafety(value: unknown): WaggleValidationResult<number> {
+function parseMaxTurnsSafety(value: unknown) {
   if (
     typeof value !== 'number' ||
     !Number.isInteger(value) ||
     value < MIN_WAGGLE_MAX_TURNS_SAFETY ||
     value > MAX_WAGGLE_MAX_TURNS_SAFETY
   ) {
-    return {
-      success: false,
-      issues: [
-        `stop.maxTurnsSafety must be an integer from ${String(MIN_WAGGLE_MAX_TURNS_SAFETY)} to ${String(MAX_WAGGLE_MAX_TURNS_SAFETY)}.`,
-      ],
-    }
+    return invalid([
+      `stop.maxTurnsSafety must be an integer from ${String(MIN_WAGGLE_MAX_TURNS_SAFETY)} to ${String(MAX_WAGGLE_MAX_TURNS_SAFETY)}.`,
+    ])
   }
 
-  return { success: true, value }
+  return valid(value)
 }
 
-function parseStopConfig(value: unknown): WaggleValidationResult<WaggleStopConfig> {
-  if (!isRecord(value)) {
-    return { success: false, issues: ['stop must be an object.'] }
+function parseStopConfig(value: unknown) {
+  if (!isObjectValue(value)) {
+    return invalid(['stop must be an object.'])
   }
 
-  const primary = literalValue(value.primary, WAGGLE_STOP_CONDITIONS, 'stop.primary')
-  const maxTurnsSafety = parseMaxTurnsSafety(value.maxTurnsSafety)
+  const fields: UncheckedFields<WaggleStopConfig> = value
+  const primary = literalValue(fields.primary, WAGGLE_STOP_CONDITIONS, 'stop.primary')
+  const maxTurnsSafety = parseMaxTurnsSafety(fields.maxTurnsSafety)
   const issues = collectIssues([primary, maxTurnsSafety])
   if (issues.length > 0 || !primary.success || !maxTurnsSafety.success) {
-    return { success: false, issues }
+    return invalid(issues)
   }
 
-  return {
-    success: true,
-    value: {
-      primary: primary.value,
-      maxTurnsSafety: maxTurnsSafety.value,
-    },
-  }
+  return valid({
+    primary: primary.value,
+    maxTurnsSafety: maxTurnsSafety.value,
+  })
 }
 
-function parseAgentTuple(
-  value: unknown,
-): WaggleValidationResult<readonly [WaggleAgentSlot, WaggleAgentSlot]> {
+function parseAgentTuple(value: unknown) {
   if (!Array.isArray(value) || value.length !== WAGGLE_AGENT_COUNT) {
-    return {
-      success: false,
-      issues: [`agents must contain exactly ${String(WAGGLE_AGENT_COUNT)} agent slots.`],
-    }
+    return invalid([`agents must contain exactly ${String(WAGGLE_AGENT_COUNT)} agent slots.`])
   }
 
   const first = parseAgentSlot(value[FIRST_AGENT_INDEX], 'agents[0]')
   const second = parseAgentSlot(value[SECOND_AGENT_INDEX], 'agents[1]')
   const issues = collectIssues([first, second])
   if (issues.length > 0 || !first.success || !second.success) {
-    return { success: false, issues }
+    return invalid(issues)
   }
 
-  return { success: true, value: [first.value, second.value] }
+  return valid<readonly [WaggleAgentSlot, WaggleAgentSlot]>([first.value, second.value])
 }
 
-export function parseWaggleConfig(value: unknown): WaggleValidationResult<WaggleConfig> {
-  if (!isRecord(value)) {
-    return { success: false, issues: ['config must be an object.'] }
+function waggleConfigValidation(value: unknown) {
+  if (!isObjectValue(value)) {
+    return invalid(['config must be an object.'])
   }
 
-  const mode = literalValue(value.mode, WAGGLE_COLLABORATION_MODES, 'mode')
-  const agents = parseAgentTuple(value.agents)
-  const stop = parseStopConfig(value.stop)
+  const fields: UncheckedFields<WaggleConfig> = value
+  const mode = literalValue(fields.mode, WAGGLE_COLLABORATION_MODES, 'mode')
+  const agents = parseAgentTuple(fields.agents)
+  const stop = parseStopConfig(fields.stop)
   const issues = collectIssues([mode, agents, stop])
   if (issues.length > 0 || !mode.success || !agents.success || !stop.success) {
-    return { success: false, issues }
+    return invalid(issues)
   }
 
-  return {
-    success: true,
-    value: {
-      mode: mode.value,
-      agents: agents.value,
-      stop: stop.value,
-    },
-  }
+  return valid({
+    mode: mode.value,
+    agents: agents.value,
+    stop: stop.value,
+  })
 }
 
-export function parseWagglePreset(value: unknown): WaggleValidationResult<WagglePreset> {
-  if (!isRecord(value)) {
-    return { success: false, issues: ['preset must be an object.'] }
+function wagglePresetValidation(value: unknown) {
+  if (!isObjectValue(value)) {
+    return invalid(['preset must be an object.'])
   }
 
-  const id = stringValue(value.id, 'id')
-  const name = stringValue(value.name, 'name')
-  const description = stringValue(value.description, 'description')
-  const config = parseWaggleConfig(value.config)
-  const isBuiltIn = booleanValue(value.isBuiltIn, 'isBuiltIn')
-  const createdAt = timestampValue(value.createdAt, 'createdAt')
-  const updatedAt = timestampValue(value.updatedAt, 'updatedAt')
+  const fields: UncheckedFields<WagglePreset> = value
+  const id = stringValue(fields.id, 'id')
+  const name = stringValue(fields.name, 'name')
+  const description = stringValue(fields.description, 'description')
+  const config = waggleConfigValidation(fields.config)
+  const isBuiltIn = booleanValue(fields.isBuiltIn, 'isBuiltIn')
+  const createdAt = timestampValue(fields.createdAt, 'createdAt')
+  const updatedAt = timestampValue(fields.updatedAt, 'updatedAt')
   const issues = collectIssues([id, name, description, config, isBuiltIn, createdAt, updatedAt])
 
   if (
@@ -263,19 +254,27 @@ export function parseWagglePreset(value: unknown): WaggleValidationResult<Waggle
     !createdAt.success ||
     !updatedAt.success
   ) {
-    return { success: false, issues }
+    return invalid(issues)
   }
 
-  return {
-    success: true,
-    value: {
-      id: id.value,
-      name: name.value,
-      description: description.value,
-      config: config.value,
-      isBuiltIn: isBuiltIn.value,
-      createdAt: createdAt.value,
-      updatedAt: updatedAt.value,
-    },
-  }
+  return valid({
+    id: id.value,
+    name: name.value,
+    description: description.value,
+    config: config.value,
+    isBuiltIn: isBuiltIn.value,
+    createdAt: createdAt.value,
+    updatedAt: updatedAt.value,
+  })
+}
+
+/* A typed result, so declarations name `WaggleValidationResult` instead of spelling out its union. */
+export function parseWaggleConfig(value: unknown) {
+  const result: WaggleValidationResult<WaggleConfig> = waggleConfigValidation(value)
+  return result
+}
+
+export function parseWagglePreset(value: unknown) {
+  const result: WaggleValidationResult<WagglePreset> = wagglePresetValidation(value)
+  return result
 }

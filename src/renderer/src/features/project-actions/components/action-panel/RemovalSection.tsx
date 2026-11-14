@@ -12,7 +12,7 @@ export function RemovalSection(props: {
   readonly busy: boolean
   readonly onConfirm: () => void
 }) {
-  const confirm = useInlineConfirm()
+  const { safeChoiceRef, triggerRef, ...confirm } = useInlineConfirm()
   return (
     <section aria-label={props.label} className="border-t border-border pt-5">
       {confirm.confirming ? (
@@ -25,7 +25,7 @@ export function RemovalSection(props: {
               {props.confirmLabel}
             </Button>
             <Button
-              ref={confirm.safeChoiceRef}
+              ref={safeChoiceRef}
               variant="secondary"
               disabled={props.busy}
               onClick={confirm.backOut}
@@ -36,7 +36,7 @@ export function RemovalSection(props: {
         </div>
       ) : (
         <Button
-          ref={confirm.triggerRef}
+          ref={triggerRef}
           variant="ghost"
           className="px-0 text-error-text"
           onClick={confirm.ask}

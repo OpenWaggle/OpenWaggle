@@ -14,8 +14,8 @@ export const TITLE = 'Sidebar remodel with a fairly long session title'
 export const qa = (name: string) => [...document.querySelectorAll(`[data-qa="${name}"]`)]
 export const qaOne = (name: string) => document.querySelector(`[data-qa="${name}"]`)
 
-export function status(overrides: Partial<GitStatusSummary> = {}): GitStatusSummary {
-  return {
+export function status(overrides: Partial<GitStatusSummary> = {}) {
+  const summary: GitStatusSummary = {
     branch: 'main',
     additions: 0,
     deletions: 0,
@@ -26,10 +26,11 @@ export function status(overrides: Partial<GitStatusSummary> = {}): GitStatusSumm
     behind: 0,
     ...overrides,
   }
+  return summary
 }
 
-export function branch(id: string, overrides: Partial<SessionBranch> = {}): SessionBranch {
-  return {
+export function branch(id: string, overrides: Partial<SessionBranch> = {}) {
+  const result: SessionBranch = {
     id: SessionBranchId(id),
     sessionId: SESSION_ID,
     sourceNodeId: null,
@@ -40,10 +41,11 @@ export function branch(id: string, overrides: Partial<SessionBranch> = {}): Sess
     updatedAt: 0,
     ...overrides,
   }
+  return result
 }
 
-export function session(extra: Partial<SessionSummary> = {}): SessionSummary {
-  return {
+export function session(extra: Partial<SessionSummary> = {}) {
+  const summary: SessionSummary = {
     id: SESSION_ID,
     title: TITLE,
     projectPath: PROJECT,
@@ -51,10 +53,11 @@ export function session(extra: Partial<SessionSummary> = {}): SessionSummary {
     updatedAt: Date.now() - 4 * 60 * 60 * 1000,
     ...extra,
   }
+  return summary
 }
 
-export function actions(): SidebarSessionActions {
-  return {
+export function actions() {
+  const result: SidebarSessionActions = {
     select: vi.fn(),
     delete: vi.fn(),
     archive: vi.fn(),
@@ -62,15 +65,14 @@ export function actions(): SidebarSessionActions {
     togglePin: vi.fn(),
     clone: vi.fn(),
   }
+  return result
 }
 
-export function renderRow(
-  target: SessionSummary = session(),
-  extra: Record<string, unknown> = {},
-): RenderResult {
-  return render(
+export function renderRow(target: SessionSummary = session(), extra: Record<string, unknown> = {}) {
+  const result: RenderResult = render(
     <ul>
       <SessionListItem session={target} actions={actions()} {...extra} />
     </ul>,
   )
+  return result
 }

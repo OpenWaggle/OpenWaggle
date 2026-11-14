@@ -1,9 +1,8 @@
-import { safeDecodeUnknown } from '@shared/schema'
+import { safeDecodeUnknown, Schema } from '@shared/schema'
 import { mcpConfigValueSchema } from '@shared/schemas/mcp'
 import type { JsonObject } from '@shared/types/json'
 import type { McpAppDescriptor, McpAppToolCallResult, McpJsonValue } from '@shared/types/mcp'
 import { normalizeToolResultPayload } from '@shared/utils/tool-result-state'
-import { isRecord } from '@shared/utils/validation'
 
 export interface McpAppLaunch {
   readonly descriptor: McpAppDescriptor
@@ -11,63 +10,36 @@ export interface McpAppLaunch {
   readonly initialResult: McpAppToolCallResult
 }
 
-function string(value: unknown) {
-  return typeof value === 'string' ? value : null
-}
+const nonEmptyString = Schema.String.pipe(Schema.minLength(1))
 
-function descriptor(value: unknown): McpAppDescriptor | null {
-  if (!isRecord(value)) return null
-  const serverInstanceId = string(value.serverInstanceId)
-  const serverLabel = string(value.serverLabel)
-  const serverConfigHash = string(value.serverConfigHash)
-  const toolHandle = string(value.toolHandle)
-  const toolName = string(value.toolName)
-  const toolTitle = string(value.toolTitle)
-  const resourceUri = string(value.resourceUri)
-  if (
-    !serverInstanceId ||
-    !serverLabel ||
-    !serverConfigHash ||
-    !toolHandle ||
-    !toolName ||
-    !toolTitle ||
-    !resourceUri
-  ) {
-    return null
-  }
-  return {
-    serverInstanceId,
-    serverLabel,
-    serverConfigHash,
-    toolHandle,
-    toolName,
-    toolTitle,
-    resourceUri,
-  }
-}
+const mcpAppDescriptorSchema: Schema.Schema<McpAppDescriptor> = Schema.Struct({
+  serverInstanceId: nonEmptyString,
+  serverLabel: nonEmptyString,
+  serverConfigHash: nonEmptyString,
+  toolHandle: nonEmptyString,
+  toolName: nonEmptyString,
+  toolTitle: nonEmptyString,
+  resourceUri: nonEmptyString,
+})
+
+/** The `details.mcpApp` OpenWaggle's MCP layer adds to a Pi MCP tool result. */
+const mcpAppToolResultPayloadSchema = Schema.Struct({
+  details: Schema.Struct({
+    mcpApp: Schema.Struct({
+      descriptor: mcpAppDescriptorSchema,
+      toolResult: Schema.Struct({
+        content: mcpConfigValueSchema,
+        structuredContent: Schema.optionalWith(mcpConfigValueSchema, { exact: true }),
+        // Only `true` marks an error result.
+        isError: Schema.optionalWith(Schema.Unknown, { exact: true }),
+      }),
+    }),
+  }),
+})
 
 function json(value: unknown) {
   const decoded = safeDecodeUnknown(mcpConfigValueSchema, value)
   return decoded.success ? decoded.data : null
-}
-
-function result(value: unknown, app: McpAppDescriptor): McpAppToolCallResult | null {
-  if (!isRecord(value)) return null
-  const content = json(value.content)
-  if (content === null) return null
-  const structuredContent =
-    value.structuredContent === undefined ? undefined : json(value.structuredContent)
-  if (value.structuredContent !== undefined && structuredContent === null) return null
-  return {
-    content,
-    ...(structuredContent === undefined ? {} : { structuredContent }),
-    isError: value.isError === true,
-    attribution: {
-      serverInstanceId: app.serverInstanceId,
-      serverLabel: app.serverLabel,
-      toolName: app.toolName,
-    },
-  }
 }
 
 function argumentsFromToolCall(args: JsonObject) {
@@ -79,15 +51,28 @@ function argumentsFromToolCall(args: JsonObject) {
  * The MCP App a tool result opens. OpenWaggle's MCP layer adds `details.mcpApp` to the result of
  * a Pi MCP tool (`mcp__<server>__<tool>`) whose tool names a `ui://` resource.
  */
-export function getMcpAppLaunch(content: unknown, args: JsonObject): McpAppLaunch | null {
-  const payload = normalizeToolResultPayload(content)
-  if (!isRecord(payload) || !isRecord(payload.details) || !isRecord(payload.details.mcpApp)) {
-    return null
+export function getMcpAppLaunch(content: unknown, args: JsonObject) {
+  const decoded = safeDecodeUnknown(
+    mcpAppToolResultPayloadSchema,
+    normalizeToolResultPayload(content),
+  )
+  if (!decoded.success) return null
+  const { descriptor, toolResult } = decoded.data.details.mcpApp
+  const launch: McpAppLaunch | null = {
+    descriptor,
+    initialArguments: argumentsFromToolCall(args),
+    initialResult: {
+      content: toolResult.content,
+      ...(toolResult.structuredContent === undefined
+        ? {}
+        : { structuredContent: toolResult.structuredContent }),
+      isError: toolResult.isError === true,
+      attribution: {
+        serverInstanceId: descriptor.serverInstanceId,
+        serverLabel: descriptor.serverLabel,
+        toolName: descriptor.toolName,
+      },
+    },
   }
-  const mcpApp = payload.details.mcpApp
-  const app = descriptor(mcpApp.descriptor)
-  if (!app) return null
-  const initialResult = result(mcpApp.toolResult, app)
-  if (!initialResult) return null
-  return { descriptor: app, initialArguments: argumentsFromToolCall(args), initialResult }
+  return launch
 }

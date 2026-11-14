@@ -41,7 +41,7 @@ export function registerBrowserPreviewRecordingTools(input: RegistrationInput) {
       approved({
         operation: 'start browser preview recording',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () =>
           runBrowserPreviewEffect(input.service.startRecording(input.scope, params), signal),
@@ -58,7 +58,7 @@ export function registerBrowserPreviewRecordingTools(input: RegistrationInput) {
       approved({
         operation: 'stop browser preview recording',
         params,
-        signal,
+        ...(signal === undefined ? {} : { signal }),
         ctx,
         execute: () =>
           runBrowserPreviewEffect(input.service.stopRecording(input.scope, params), signal),

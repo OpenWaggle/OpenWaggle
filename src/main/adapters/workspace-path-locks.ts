@@ -41,7 +41,7 @@ function grantPathLock(request: PendingPathLock) {
 }
 
 function drainPathLocks() {
-  for (let index = 0; index < pendingPathLocks.length; ) {
+  for (let index = 0; index < pendingPathLocks.length;) {
     const request = pendingPathLocks[index]
     if (!request || conflictsWithActive(request.paths)) {
       index += 1

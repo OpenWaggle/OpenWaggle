@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import type * as SqlClient from '@effect/sql/SqlClient'
 import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
 import type { SessionQueryRequest } from '@shared/types/session-query'
@@ -14,14 +15,10 @@ type TurnsRequest = SessionQueryRequest & {
 }
 
 export function readTurns(sql: SqlClient.SqlClient, request: TurnsRequest) {
-  const cursor = decodeSessionQueryCursor(request.query.cursor)
-  if (cursor === 'invalid') return Effect.succeed(invalidSessionQueryCursor(request))
-  const runCursor =
-    cursor && typeof cursor.createdAt === 'number' && typeof cursor.runId === 'string'
-      ? { createdAt: cursor.createdAt, runId: cursor.runId }
-      : cursor
-        ? 'invalid'
-        : null
+  const runCursor = decodeSessionQueryCursor(
+    request.query.cursor,
+    Schema.Struct({ createdAt: Schema.Number, runId: Schema.String }),
+  )
   if (runCursor === 'invalid') return Effect.succeed(invalidSessionQueryCursor(request))
   return Effect.gen(function* () {
     const sessions = yield* sql<{ readonly found: number }>`

@@ -3,7 +3,7 @@
  * migration never writes (Pi files and `.mcp.json`); OpenWaggle's global file
  * is re-read because the run may already have migrated it.
  */
-import { isRecord } from '@shared/utils/validation'
+import { mcpConfigServerMaps } from '../mcp-config-server-maps'
 import {
   type EntryMigrationContext,
   type McpLayerServers,
@@ -36,18 +36,22 @@ type JsonObject = Record<string, unknown>
 
 /** Pi reads only `mcpServers`. */
 function piServers(config: JsonObject | undefined) {
-  return config && isRecord(config.mcpServers) ? config.mcpServers : {}
+  return mcpConfigServerMaps(config).mcpServers ?? {}
 }
 
 export class McpFileSources {
   private readonly cache = new Map<string, Promise<JsonObject | undefined>>()
 
-  constructor(
-    private readonly fs: McpMigrationFs,
-    readonly homeDir: string,
-    /** Pi's agent directory (PI_CODING_AGENT_DIR), where its global mcp.json is. */
-    readonly piAgentDir: string,
-  ) {}
+  private readonly fs: McpMigrationFs
+  readonly homeDir: string
+  /** Pi's agent directory (PI_CODING_AGENT_DIR), where its global mcp.json is. */
+  readonly piAgentDir: string
+
+  constructor(fs: McpMigrationFs, homeDir: string, piAgentDir: string) {
+    this.fs = fs
+    this.homeDir = homeDir
+    this.piAgentDir = piAgentDir
+  }
 
   /** A file the migration only reads. Throws when it exists but is not a JSON object. */
   readOnlyConfig(filePath: string) {
@@ -90,10 +94,11 @@ function finish(
   document: JsonDocument,
   servers: JsonObject,
   changes: readonly McpServerMigrationChange[],
-): FileComputation {
+) {
   const value = document.value
-  const usesAlias = !isRecord(value.mcpServers) && isRecord(value.servers)
-  if (!isRecord(value.mcpServers) && !usesAlias && Object.keys(servers).length === 0) {
+  const maps = mcpConfigServerMaps(value)
+  const usesAlias = maps.mcpServers === undefined && maps.servers !== undefined
+  if (maps.mcpServers === undefined && !usesAlias && Object.keys(servers).length === 0) {
     return { text: undefined, changes }
   }
   const nextValue = withTopLevelKey(
@@ -120,10 +125,11 @@ export interface FileComputationInput {
   readonly preserveEnablement: boolean
 }
 
-export async function computeGlobalFile(input: FileComputationInput): Promise<FileComputation> {
+export async function computeGlobalFile(input: FileComputationInput) {
   const paths = globalMcpPaths(input.sources.homeDir, input.sources.piAgentDir)
   if (input.original === undefined && !input.preserveEnablement) {
-    return { text: undefined, changes: [] }
+    const computation: FileComputation = { text: undefined, changes: [] }
+    return computation
   }
   const document = documentFor(paths.openwaggleGlobal, input.original)
   const piGlobal = await input.sources.readOnlyConfig(paths.piGlobal)
@@ -178,7 +184,7 @@ async function projectLayers(sources: McpFileSources, projectPath: string) {
 
 export async function computeProjectFile(
   input: FileComputationInput & { readonly projectPath: string },
-): Promise<FileComputation> {
+) {
   const projectFile = projectMcpPaths(input.projectPath).openwaggle
   const document = documentFor(projectFile, input.original)
   const { lowerLayers, livePiConfigs, oldLayers } = await projectLayers(

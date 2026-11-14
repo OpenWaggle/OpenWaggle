@@ -19,7 +19,7 @@ export function isBackfillableAttachmentSize(byteLength: number) {
 export function advanceAttachmentBackfillBudget(
   current: BackfillAttachmentBudget,
   byteLength: number,
-): BackfillAttachmentBudget | null {
+) {
   if (
     !isBackfillableAttachmentSize(byteLength) ||
     current.count >= ATTACHMENT_BACKFILL_LIMITS.maxCount ||

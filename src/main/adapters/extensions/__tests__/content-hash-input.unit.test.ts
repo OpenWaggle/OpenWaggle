@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { getManifestContentHashInput } from '../content-hash-input'
 
@@ -7,9 +8,9 @@ describe('getManifestContentHashInput', () => {
       getManifestContentHashInput({
         builtArtifacts: ['dist/index.js'],
         contributions: {
-          toolRenderers: [{ entry: 'dist/tool.js' }],
-          customMessageRenderers: [{ entry: 'dist/custom-message.js' }],
-          interactionRenderers: [{ entry: 'dist/interaction.js' }],
+          toolRenderers: [fromPartial({ entry: 'dist/tool.js' })],
+          customMessageRenderers: [fromPartial({ entry: 'dist/custom-message.js' })],
+          interactionRenderers: [fromPartial({ entry: 'dist/interaction.js' })],
         },
       }),
     ).toEqual({

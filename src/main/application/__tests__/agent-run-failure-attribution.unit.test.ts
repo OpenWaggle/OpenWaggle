@@ -32,38 +32,31 @@ describe('attributing an agent run failure', () => {
     expect(outcome).toMatchObject({ outcome: 'error', transportEmitted: true })
   })
 
-  it('does not mark a failure raised before the agent saw the message', async () => {
+  /*
+   * A run whose signal was already aborted returns from the kernel without prompting at all, so "the kernel
+   * returned" was never the same as "the agent has the message". Marking it anyway meant that if persisting
+   * such a run then failed, the caller was told the message was delivered and discarded the review.
+   */
+  it.each([
+    { label: 'raised before the agent saw the message', error: 'this session has no worktree' },
+    {
+      label: 'of a run cancelled before its prompt',
+      error: 'database is locked',
+      reachedAgent: false,
+    },
+  ])('does not mark a failure $label', async ({ error, reachedAgent }) => {
     const outcome = await Effect.runPromise(
       recoverAgentRunFailure({
-        error: new Error('this session has no worktree'),
+        error: new Error(error),
         signal,
         sessionId: SessionId('session-1'),
         runId: 'run-1',
         model: SupportedModelId('claude-sonnet-4-5'),
+        ...(reachedAgent === undefined ? {} : { reachedAgent }),
       }),
     )
 
     expect(outcome).toMatchObject({ outcome: 'error' })
-    expect(outcome).not.toHaveProperty('transportEmitted')
-  })
-
-  it('does not mark a run that was cancelled before its prompt', async () => {
-    /*
-     * A run whose signal was already aborted returns from the kernel without prompting at all, so "the kernel
-     * returned" was never the same as "the agent has the message". Marking it anyway meant that if persisting
-     * such a run then failed, the caller was told the message was delivered and discarded the review.
-     */
-    const outcome = await Effect.runPromise(
-      recoverAgentRunFailure({
-        error: new Error('database is locked'),
-        signal,
-        sessionId: SessionId('session-1'),
-        runId: 'run-1',
-        model: SupportedModelId('claude-sonnet-4-5'),
-        reachedAgent: false,
-      }),
-    )
-
     expect(outcome).not.toHaveProperty('transportEmitted')
   })
 })

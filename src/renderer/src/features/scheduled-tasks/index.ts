@@ -17,10 +17,7 @@ export {
   type ScheduledTasksPanelTitle,
   useScheduledTasksPanelTitle,
 } from './hooks/useScheduledTasksPanelTitle'
-export {
-  useOpenScheduledTask,
-  useShowScheduledTasks,
-} from './hooks/useShowScheduledTasks'
+export { useOpenScheduledTask, useShowScheduledTasks } from './hooks/useShowScheduledTasks'
 export { describeSchedule } from './lib/schedule-presets'
 export {
   heartbeatSummaryText,

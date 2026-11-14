@@ -19,14 +19,14 @@ const EMPTY_CONTEXT = {
   modelPickerOpen: false,
 }
 
-function action(id: string): ProjectAction {
+function action(id: string) {
   return {
     id,
     name: id,
     command: `pnpm ${id}`,
     icon: 'play',
     runOnWorktreeCreate: false,
-  }
+  } satisfies ProjectAction
 }
 
 describe('project action shortcut conditions', () => {

@@ -38,7 +38,7 @@ export function beginGeneratedImageCaptureAttempt(current: GeneratedImageCapture
 export function advanceGeneratedImageCaptureBudget(
   current: GeneratedImageCaptureBudget,
   byteLength: number,
-): GeneratedImageCaptureBudget | null {
+) {
   if (
     !Number.isSafeInteger(byteLength) ||
     byteLength <= 0 ||
@@ -63,11 +63,7 @@ export function prepareGeneratedImageForCapture(
   current: GeneratedImageCaptureBudget,
   image: GeneratedImageInput,
   validate: GeneratedImageValidator = validatedImageBytes,
-): {
-  readonly budget: GeneratedImageCaptureBudget
-  readonly byteBudgetExceeded: boolean
-  readonly image: ValidatedSessionResourceImage | null
-} | null {
+) {
   const attemptedBudget = beginGeneratedImageCaptureAttempt(current)
   if (!attemptedBudget) return null
   const decodedByteLength = imageBase64DecodedByteLength(image.data, image.mimeType)
@@ -81,15 +77,27 @@ export function prepareGeneratedImageForCapture(
         decodedByteLength !== null &&
         current.bytes > GENERATED_IMAGE_CAPTURE_LIMITS.maxBytes - decodedByteLength,
       image: null,
+    } satisfies {
+      readonly budget: GeneratedImageCaptureBudget
+      readonly byteBudgetExceeded: boolean
+      readonly image: ValidatedSessionResourceImage | null
     }
   }
   const validatedImage = validate(image.data, image.mimeType)
   if (!validatedImage) {
-    return { budget: attemptedBudget, byteBudgetExceeded: false, image: null }
+    return { budget: attemptedBudget, byteBudgetExceeded: false, image: null } satisfies {
+      readonly budget: GeneratedImageCaptureBudget
+      readonly byteBudgetExceeded: boolean
+      readonly image: ValidatedSessionResourceImage | null
+    }
   }
   const budget = advanceGeneratedImageCaptureBudget(
     attemptedBudget,
     validatedImage.bytes.byteLength,
   )
-  return budget ? { budget, byteBudgetExceeded: false, image: validatedImage } : null
+  return (budget ? { budget, byteBudgetExceeded: false, image: validatedImage } : null) satisfies {
+    readonly budget: GeneratedImageCaptureBudget
+    readonly byteBudgetExceeded: boolean
+    readonly image: ValidatedSessionResourceImage | null
+  } | null
 }

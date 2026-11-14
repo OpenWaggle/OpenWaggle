@@ -1,9 +1,5 @@
 import { decodeUnknownExactOrThrow, Schema } from '@shared/schema'
-import {
-  DESKTOP_SERVICE_LIMITS,
-  type DesktopServiceRequest,
-  type DesktopServiceResponse,
-} from '@shared/types/desktop-service'
+import { DESKTOP_SERVICE_LIMITS } from '@shared/types/desktop-service'
 import { desktopBrowserCommandSchema, desktopBrowserResultSchema } from './desktop-browser-service'
 import {
   DESKTOP_FENCE_IDENTIFIER_LENGTH,
@@ -85,7 +81,7 @@ export const desktopServiceRequestSchema = Schema.Union(
         commandId: id,
         outcome: Schema.Literal('failure'),
         message: Schema.String.pipe(Schema.maxLength(DESKTOP_SERVICE_LIMITS.errorLength)),
-        uncertain: Schema.optional(Schema.Boolean),
+        uncertain: Schema.optionalWith(Schema.Boolean, { exact: true }),
       }),
     ),
   }),
@@ -138,7 +134,7 @@ export const desktopServiceResponseSchema = Schema.Union(
   }),
 )
 
-export function decodeDesktopServiceRequest(value: unknown): DesktopServiceRequest {
+export function decodeDesktopServiceRequest(value: unknown) {
   try {
     return decodeUnknownExactOrThrow(desktopServiceRequestSchema, value)
   } catch {
@@ -146,7 +142,7 @@ export function decodeDesktopServiceRequest(value: unknown): DesktopServiceReque
   }
 }
 
-export function decodeDesktopServiceResponse(value: unknown): DesktopServiceResponse {
+export function decodeDesktopServiceResponse(value: unknown) {
   try {
     return decodeUnknownExactOrThrow(desktopServiceResponseSchema, value)
   } catch {

@@ -8,11 +8,6 @@ interface SessionPhaseState {
   runStatus: 'idle' | 'running'
 }
 
-interface PhaseChangeResult {
-  readonly changed: boolean
-  readonly phase: AgentPhaseState | null
-}
-
 const states = new Map<string, SessionPhaseState>()
 
 function getState(sessionId: SessionId) {
@@ -53,7 +48,7 @@ export function updatePhaseFromTransportEvent(
   sessionId: SessionId,
   event: AgentTransportEvent,
   now: number,
-): PhaseChangeResult {
+) {
   const state = getState(sessionId)
 
   return matchBy(event, 'type')
@@ -107,11 +102,11 @@ export function updatePhaseFromTransportEvent(
     .exhaustive()
 }
 
-export function resetPhaseForSession(sessionId: SessionId): PhaseChangeResult {
+export function resetPhaseForSession(sessionId: SessionId) {
   return clearPhase(sessionId)
 }
 
-export function getPhaseForSession(sessionId: SessionId): AgentPhaseState | null {
+export function getPhaseForSession(sessionId: SessionId) {
   const state = states.get(String(sessionId))
   return state?.current ?? null
 }

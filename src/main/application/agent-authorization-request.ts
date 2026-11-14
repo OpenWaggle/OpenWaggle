@@ -70,7 +70,7 @@ async function persistDecision(input: {
  * event is emitted, so an auto-granted call leaves no transcript entry at all, and an existing
  * grant short-circuits before a prompt, so a kept approval is not asked again.
  */
-export async function requestAuthorization(input: AuthorizationRequestInput): Promise<boolean> {
+export async function requestAuthorization(input: AuthorizationRequestInput) {
   const mode = await input.resolveAuthorizationMode()
   if (mode === 'yolo') return true
 

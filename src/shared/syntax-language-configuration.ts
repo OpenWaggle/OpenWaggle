@@ -3,12 +3,9 @@ import type {
   SyntaxLanguageConfiguration,
   SyntaxLanguagePair,
 } from './types/syntax-resources'
+import { isObjectValue } from './utils/object-shape'
 
 const PAIR_LENGTH = 2
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function isPair(value: unknown): value is SyntaxLanguagePair {
   return (
@@ -21,10 +18,13 @@ function isPair(value: unknown): value is SyntaxLanguagePair {
 
 function isAutoClosingPair(value: unknown): value is SyntaxLanguageAutoClosingPair {
   return (
-    isRecord(value) &&
+    isObjectValue(value) &&
+    'open' in value &&
     typeof value.open === 'string' &&
+    'close' in value &&
     typeof value.close === 'string' &&
-    (value.notIn === undefined ||
+    (!('notIn' in value) ||
+      value.notIn === undefined ||
       (Array.isArray(value.notIn) &&
         value.notIn.every(
           (entry) => entry === 'string' || entry === 'comment' || entry === 'regex',
@@ -43,22 +43,32 @@ function isOptionalAutoClosingPairList(value: unknown) {
 function isOptionalComments(value: unknown) {
   if (value === undefined) return true
   return (
-    isRecord(value) &&
-    (value.lineComment === undefined || typeof value.lineComment === 'string') &&
-    (value.blockComment === undefined || isPair(value.blockComment))
+    isObjectValue(value) &&
+    (!('lineComment' in value) ||
+      value.lineComment === undefined ||
+      typeof value.lineComment === 'string') &&
+    (!('blockComment' in value) || value.blockComment === undefined || isPair(value.blockComment))
   )
 }
 
 export function isSyntaxLanguageConfiguration(
   value: unknown,
 ): value is SyntaxLanguageConfiguration {
-  if (!isRecord(value)) return false
+  if (!isObjectValue(value)) return false
   return (
-    isOptionalComments(value.comments) &&
-    isOptionalPairList(value.brackets) &&
-    isOptionalAutoClosingPairList(value.autoClosingPairs) &&
-    isOptionalAutoClosingPairList(value.surroundingPairs) &&
-    isOptionalPairList(value.colorizedBracketPairs) &&
-    (value.autoCloseBefore === undefined || typeof value.autoCloseBefore === 'string')
+    isOptionalComments('comments' in value ? value.comments : undefined) &&
+    isOptionalPairList('brackets' in value ? value.brackets : undefined) &&
+    isOptionalAutoClosingPairList(
+      'autoClosingPairs' in value ? value.autoClosingPairs : undefined,
+    ) &&
+    isOptionalAutoClosingPairList(
+      'surroundingPairs' in value ? value.surroundingPairs : undefined,
+    ) &&
+    isOptionalPairList(
+      'colorizedBracketPairs' in value ? value.colorizedBracketPairs : undefined,
+    ) &&
+    (!('autoCloseBefore' in value) ||
+      value.autoCloseBefore === undefined ||
+      typeof value.autoCloseBefore === 'string')
   )
 }

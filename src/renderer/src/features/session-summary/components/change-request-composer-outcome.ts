@@ -52,19 +52,19 @@ function withCommitOutput(message: string, result: GitRunStackedActionResult) {
   return result.commitOutput?.ok === false ? `${message} ${result.commitOutput.message}` : message
 }
 
-export function resolveChangeRequestComposerOutcome(
-  result: GitRunStackedActionResult,
-): ChangeRequestComposerOutcome {
+export function resolveChangeRequestComposerOutcome(result: GitRunStackedActionResult) {
   if (!result.ok) {
     return {
       kind: 'failed',
       branchName: result.branch?.name ?? null,
       fallbackUrl: result.fallbackUrl ?? null,
       message: withCommitOutput(result.message, result),
-    }
+    } satisfies ChangeRequestComposerOutcome
   }
   const commitOutputMessage = result.commitOutput?.ok === false ? result.commitOutput.message : null
-  if (!result.changeRequest) return { kind: 'completed', commitOutputMessage }
+  if (!result.changeRequest) {
+    return { kind: 'completed', commitOutputMessage } satisfies ChangeRequestComposerOutcome
+  }
   const request = { title: result.changeRequest.title, url: result.changeRequest.url }
   if (result.changeRequestOutput?.ok === false) {
     return {
@@ -72,7 +72,11 @@ export function resolveChangeRequestComposerOutcome(
       request,
       retryPersisted: result.changeRequestOutput.retryPersisted,
       message: withCommitOutput(result.changeRequestOutput.message, result),
-    }
+    } satisfies ChangeRequestComposerOutcome
   }
-  return { kind: 'created-request', request, commitOutputMessage }
+  return {
+    kind: 'created-request',
+    request,
+    commitOutputMessage,
+  } satisfies ChangeRequestComposerOutcome
 }

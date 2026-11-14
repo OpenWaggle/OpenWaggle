@@ -47,7 +47,7 @@ const gitLayer = Layer.succeed(
   }),
 )
 
-function usage(overrides: Partial<WorktreeUsage> = {}): WorktreeUsage {
+function usage(overrides: Partial<WorktreeUsage> = {}) {
   return {
     path: WORKTREE,
     sessions: [
@@ -70,7 +70,7 @@ function usage(overrides: Partial<WorktreeUsage> = {}): WorktreeUsage {
     ],
     blockers: [{ kind: 'session', message: 'Archive that Session first.' }],
     ...overrides,
-  }
+  } satisfies WorktreeUsage
 }
 
 /** The mocked operations need only Git's worktree list. */
@@ -86,7 +86,7 @@ function run(
     ...flags,
   }).pipe(Effect.provide(gitLayer))
   return Effect.runPromise(
-    fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, unknown, never>, typeof provided>(
+    fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, unknown>, typeof provided>(
       provided,
     ),
   )

@@ -17,16 +17,13 @@
  * timeout, a network failure) the job warns and sends the rest. Collecting fails the snapshot only
  * when releases cannot be read, or when GitHub answers in a shape it no longer recognises.
  *
- * Usage: `pnpm exec tsx scripts/usage-stats-snapshot.ts [--dry-run]`
+ * Usage: `bun scripts/usage-stats-snapshot.ts [--dry-run]`
  */
 import { pathToFileURL } from 'node:url'
 import { isMatching, P } from '@diegogbrisa/ts-match'
 import {
-  type SnapshotDailyCount,
   type SnapshotNpmPackage,
-  type SnapshotPopularEntry,
   type SnapshotRelease,
-  type SnapshotTraffic,
   USAGE_STATS_SNAPSHOT_SCHEMA_VERSION,
   type UsageStatsSnapshot,
 } from '../functions/_lib/snapshot-contract'
@@ -39,6 +36,7 @@ import {
   type SnapshotJobOptions,
 } from './usage-stats-snapshot-endpoint'
 import { getJson, type JsonRead, readOptionalJson } from './usage-stats-snapshot-reads'
+import { namedGroups } from '@shared/utils/regex-named-groups'
 
 export const SNAPSHOT_REPOSITORY = 'OpenWaggle/OpenWaggle'
 export const SNAPSHOT_NPM_PACKAGES = [
@@ -70,7 +68,7 @@ const isReferrers = isMatching(P.array({ referrer: P.string, count: P.number, un
 const isPaths = isMatching(P.array({ path: P.string, count: P.number, uniques: P.number }))
 const isNpmRange = isMatching({ downloads: P.array({ day: P.string, downloads: P.number }) })
 
-function githubHeaders(token: string | undefined): Record<string, string> {
+function githubHeaders(token: string | undefined) {
   return {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
@@ -81,7 +79,7 @@ function githubHeaders(token: string | undefined): Record<string, string> {
 
 function nextPage(link: string | null) {
   for (const part of link?.split(',') ?? []) {
-    const url = NEXT_PAGE_LINK.exec(part)?.groups?.url
+    const url = namedGroups(NEXT_PAGE_LINK.exec(part), ['url'])?.url
     if (url !== undefined) return url
   }
   return undefined
@@ -92,7 +90,7 @@ function nextPage(link: string | null) {
  * workflow's own token: the traffic token is never needed for public data, so an expired one
  * cannot stop the snapshot.
  */
-export async function collectReleases(options: SnapshotJobOptions): Promise<SnapshotRelease[]> {
+export async function collectReleases(options: SnapshotJobOptions) {
   const token = configured(options.env.GITHUB_TOKEN)
   const releases: SnapshotRelease[] = []
   let url: string | undefined =
@@ -112,26 +110,31 @@ export async function collectReleases(options: SnapshotJobOptions): Promise<Snap
     url = nextPage(response.headers.get('Link'))
   }
   if (url !== undefined) {
-    options.log(`::warning::Stopped reading GitHub releases after ${String(MAX_RELEASE_PAGES)} pages.`)
+    options.log(
+      `::warning::Stopped reading GitHub releases after ${String(MAX_RELEASE_PAGES)} pages.`,
+    )
   }
   return releases
 }
 
 function dailyCounts(days: readonly { timestamp: string; count: number; uniques: number }[]) {
-  return days.map(
-    (day): SnapshotDailyCount => ({
-      day: day.timestamp.slice(0, ISO_DAY_LENGTH),
-      count: day.count,
-      uniques: day.uniques,
-    }),
-  )
+  return days.map((day) => ({
+    day: day.timestamp.slice(0, ISO_DAY_LENGTH),
+    count: day.count,
+    uniques: day.uniques,
+  }))
 }
 
 function popular(entries: readonly { name: string; count: number; uniques: number }[]) {
-  return entries.map(({ name, count, uniques }): SnapshotPopularEntry => ({ name, count, uniques }))
+  return entries.map(({ name, count, uniques }) => ({ name, count, uniques }))
 }
 
-const TRAFFIC_PATHS = ['views?per=day', 'clones?per=day', 'popular/referrers', 'popular/paths'] as const
+const TRAFFIC_PATHS = [
+  'views?per=day',
+  'clones?per=day',
+  'popular/referrers',
+  'popular/paths',
+] as const
 const HTTP_UNAUTHORIZED = 401
 const HTTP_FORBIDDEN = 403
 
@@ -147,7 +150,7 @@ function trafficStatusWarning(status: number) {
  * cannot serve them (an error status, a timeout, a network failure). The 14-day lists refill on
  * the next run. An answer of an unexpected shape still fails the snapshot: the API changed.
  */
-export async function collectTraffic(options: SnapshotJobOptions): Promise<SnapshotTraffic | null> {
+export async function collectTraffic(options: SnapshotJobOptions) {
   const token = configured(options.env.STATS_GITHUB_TOKEN)
   if (token === undefined) {
     options.log('STATS_GITHUB_TOKEN is not set; the snapshot carries no repository traffic.')
@@ -161,7 +164,9 @@ export async function collectTraffic(options: SnapshotJobOptions): Promise<Snaps
   const bodies: unknown[] = []
   for (const read of reads) {
     if (read.failure !== undefined) {
-      options.log(`::warning::GitHub traffic could not be read (${read.failure}); the snapshot carries no traffic.`)
+      options.log(
+        `::warning::GitHub traffic could not be read (${read.failure}); the snapshot carries no traffic.`,
+      )
       return null
     }
     if (!read.response.ok) {
@@ -186,7 +191,7 @@ export async function collectTraffic(options: SnapshotJobOptions): Promise<Snaps
 }
 
 /** One package's daily downloads, or why it is skipped. */
-function npmDays(read: JsonRead): { readonly days: SnapshotNpmPackage['days'] } | { readonly skipped: string } {
+function npmDays(read: JsonRead) {
   if (read.failure !== undefined) return { skipped: `could not be read (${read.failure})` }
   if (!read.response.ok) return { skipped: `answered ${String(read.response.status)}` }
   if (!isNpmRange(read.body)) return { skipped: 'returned an unexpected shape' }
@@ -200,7 +205,7 @@ function npmDays(read: JsonRead): { readonly days: SnapshotNpmPackage['days'] } 
  * The endpoint keeps what it already forwarded for a skipped package, and the next snapshot's
  * month-long range catches up on an outage shorter than that month.
  */
-export async function collectNpmDownloads(options: SnapshotJobOptions): Promise<SnapshotNpmPackage[]> {
+export async function collectNpmDownloads(options: SnapshotJobOptions) {
   const packages: SnapshotNpmPackage[] = []
   for (const name of SNAPSHOT_NPM_PACKAGES) {
     const read = await readOptionalJson(options, `${NPM_DOWNLOADS_API}/${name}`, {
@@ -216,18 +221,26 @@ export async function collectNpmDownloads(options: SnapshotJobOptions): Promise<
   return packages
 }
 
-export async function collectUsageStatsSnapshot(options: SnapshotJobOptions): Promise<UsageStatsSnapshot> {
+export async function collectUsageStatsSnapshot(options: SnapshotJobOptions) {
   const [releases, traffic, npm] = await Promise.all([
     collectReleases(options),
     collectTraffic(options),
     collectNpmDownloads(options),
   ])
-  return { schema: USAGE_STATS_SNAPSHOT_SCHEMA_VERSION, releases, traffic, npm }
+  return {
+    schema: USAGE_STATS_SNAPSHOT_SCHEMA_VERSION,
+    releases,
+    traffic,
+    npm,
+  } satisfies UsageStatsSnapshot
 }
 
 function summary(snapshot: UsageStatsSnapshot) {
   const assets = snapshot.releases.reduce((total, release) => total + release.assets.length, 0)
-  const traffic = snapshot.traffic === null ? 'no traffic' : `${String(snapshot.traffic.views.length)} traffic days`
+  const traffic =
+    snapshot.traffic === null
+      ? 'no traffic'
+      : `${String(snapshot.traffic.views.length)} traffic days`
   return `Collected ${String(snapshot.releases.length)} releases with ${String(assets)} downloaded assets, ${traffic}, ${String(snapshot.npm.length)} npm packages.`
 }
 
@@ -250,10 +263,14 @@ function failureMessage(step: string, error: unknown) {
  * Sends the snapshot, then flushes the buffered app statistics whether or not the snapshot
  * succeeded, since they do not depend on it; fails when either step failed.
  */
-export async function runUsageStatsSnapshot(options: SnapshotJobOptions & { readonly dryRun: boolean }) {
+export async function runUsageStatsSnapshot(
+  options: SnapshotJobOptions & { readonly dryRun: boolean },
+) {
   const token = configured(options.env.STATS_SNAPSHOT_TOKEN)
   if (token === undefined && !options.dryRun) {
-    options.log('::notice::STATS_SNAPSHOT_TOKEN is not set; skipping the usage statistics snapshot.')
+    options.log(
+      '::notice::STATS_SNAPSHOT_TOKEN is not set; skipping the usage statistics snapshot.',
+    )
     return
   }
   if (options.dryRun || token === undefined) {

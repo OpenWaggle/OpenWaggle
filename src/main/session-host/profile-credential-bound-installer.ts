@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { CliError } from '../cli-error'
+import { childScriptRuntime } from '../desktop-shell/child-runtime'
 import { getSafeChildEnv } from '../env'
 import {
   abortValidatedChild,
@@ -88,14 +89,14 @@ process.stdin.resume();
 `
 
 export class ProfileCredentialInstallerRecoveryError extends Error {
-  constructor(
-    readonly recoveryLocations: readonly string[],
-    options?: ErrorOptions,
-  ) {
+  readonly recoveryLocations: readonly string[]
+
+  constructor(recoveryLocations: readonly string[], options?: ErrorOptions) {
     super(
       `Credential installation did not finish. Protected installer artifacts may remain at ${recoveryLocations.join(' and ')}.`,
       options,
     )
+    this.recoveryLocations = recoveryLocations
     this.name = 'ProfileCredentialInstallerRecoveryError'
   }
 }
@@ -105,7 +106,7 @@ export function profileCredentialInstallerFailure(input: {
   readonly directory: string
   readonly pendingName: string
   readonly displacedName: string
-}): Error | null {
+}) {
   if (input.exitCode === 0) return null
   const pendingPath = path.join(input.directory, input.pendingName)
   const displacedPath = path.join(input.directory, input.displacedName)
@@ -151,7 +152,7 @@ export async function installCredentialInBoundDirectory(input: {
     }
     await input.beforeSpawn?.()
     const child = spawn(
-      process.execPath,
+      childScriptRuntime.executable(),
       [
         '-e',
         CREDENTIAL_INSTALLER,
@@ -165,7 +166,7 @@ export async function installCredentialInBoundDirectory(input: {
       ],
       {
         cwd: input.directory,
-        env: { ...getSafeChildEnv(), ELECTRON_RUN_AS_NODE: '1' },
+        env: childScriptRuntime.environment(getSafeChildEnv()),
         stdio: ['pipe', 'pipe', 'pipe', input.sourceHandle.fd],
       },
     )

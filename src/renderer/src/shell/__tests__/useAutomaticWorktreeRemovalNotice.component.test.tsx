@@ -19,19 +19,21 @@ vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
 
 const MEGABYTE = 1024 * 1024
 
+const REMOVED_A = {
+  path: '/wt/a',
+  projectPath: '/repo',
+  branch: 'a',
+  sessionTitles: ['A'],
+  reclaimableBytes: MEGABYTE,
+}
+
 const RUN: AutomaticWorktreeRemovalRun = {
   id: 'run-1',
   startedAt: 1,
   finishedAt: 2,
   archivedDays: 30,
   removed: [
-    {
-      path: '/wt/a',
-      projectPath: '/repo',
-      branch: 'a',
-      sessionTitles: ['A'],
-      reclaimableBytes: MEGABYTE,
-    },
+    REMOVED_A,
     {
       path: '/wt/b',
       projectPath: '/repo',
@@ -85,7 +87,7 @@ it('sums every run not yet announced, and claims them with the newest', async ()
   const newer: AutomaticWorktreeRemovalRun = {
     ...RUN,
     id: 'run-2',
-    removed: [{ ...RUN.removed[0], path: '/wt/c', reclaimableBytes: MEGABYTE }],
+    removed: [{ ...REMOVED_A, path: '/wt/c' }],
   }
   getLog.mockResolvedValue({
     lastCheckedAt: 2,

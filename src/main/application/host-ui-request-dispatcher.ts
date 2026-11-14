@@ -120,19 +120,22 @@ function dispatchHostUiChannel(
     if (
       negotiatedRevision !== undefined &&
       negotiatedRevision < LOCAL_SESSION_NATIVE_ACTIONS_REVISION
-    )
+    ) {
       return invalidHostUiInput(
         `Native Project Actions require Local Session protocol revision ${LOCAL_SESSION_NATIVE_ACTIONS_REVISION}.`,
       )
+    }
     return oneInput(args, manageProjectActions)
   }
-  if (isHostBackedSessionGuiChannel(channel))
+  if (isHostBackedSessionGuiChannel(channel)) {
     return dispatchHostBackedSessionGuiOperation(channel, args)
+  }
   if (isHostUiSourceControlChannel(channel)) {
     return dispatchHostUiSourceControlOperation(channel, args, negotiatedRevision)
   }
-  if (McpHostUi.isMcpHostUiChannel(channel))
+  if (McpHostUi.isMcpHostUiChannel(channel)) {
     return McpHostUi.dispatchMcpHostUiOperation(channel, args)
+  }
   if (isSettingsChannel(channel)) {
     return dispatchSettingsOperation(channel, args)
   }

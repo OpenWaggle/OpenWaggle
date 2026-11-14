@@ -30,11 +30,12 @@ describe('Session scratch sweep at Host startup', () => {
 
   it('removes the directories of archived and deleted Sessions only', async () => {
     const root = sessionScratchRoot(temporaryDirectory)
-    const [active, archived, deleted] = await Promise.all(
-      ['session-active', 'session-archived', 'session-deleted'].map((id) =>
-        prepareSessionScratchDirectory(id, root),
-      ),
-    )
+    const prepare = (id: string) => prepareSessionScratchDirectory(id, root)
+    const [active, archived, deleted] = await Promise.all([
+      prepare('session-active'),
+      prepare('session-archived'),
+      prepare('session-deleted'),
+    ])
     const database = SqliteClient.layer({
       filename: path.join(temporaryDirectory, 'catalog.sqlite'),
       prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,

@@ -14,10 +14,6 @@ import type {
 import type { Effect as EffectType } from 'effect/Effect'
 import * as Effect from 'effect/Effect'
 import type { ExtensionPackageScope } from '../extensions/types'
-import type {
-  ExtensionStorageKey,
-  ExtensionStorageKeyListInput,
-} from '../ports/extension-storage-repository'
 import { auditedFailure, auditedSuccess } from './extension-capability-broker-audit'
 import { getScopeProjectPath } from './extension-capability-broker-model'
 import {
@@ -40,7 +36,7 @@ function storageFailureMessage(cause: unknown) {
 function storageScopeFromSelector(
   selector: ExtensionStorageScopeSelector,
   invocation: ExtensionInvokeInput,
-): ExtensionStorageScope | null {
+) {
   if (selector === OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND) {
     return { kind: OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND }
   }
@@ -55,7 +51,7 @@ function storageKey(input: {
   readonly storageKind: ExtensionStorageKind
   readonly storageScope: ExtensionStorageScope
   readonly key: string
-}): ExtensionStorageKey {
+}) {
   return {
     extensionId: input.invocation.extensionId,
     packageScope: input.packageScope,
@@ -70,7 +66,7 @@ function storageKeyListInput(input: {
   readonly packageScope: ExtensionPackageScope
   readonly storageKind: ExtensionStorageKind
   readonly storageScope: ExtensionStorageScope
-}): ExtensionStorageKeyListInput {
+}) {
   return {
     extensionId: input.invocation.extensionId,
     packageScope: input.packageScope,

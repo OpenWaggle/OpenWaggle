@@ -30,11 +30,27 @@ export interface ProjectConfig {
 
 export type ParsedProjectSettingsFile = SchemaType<typeof projectSettingsFileSchema>
 
+type SettingsAuthorizationGrant = NonNullable<
+  ParsedProjectSettingsFile['authorizationGrants']
+>[number]
+
 const EMPTY_CONFIG: ProjectConfig = {}
 
-function parseProjectPreferences(
-  settings: ParsedProjectSettingsFile | null,
-): ProjectPreferences | undefined {
+/** A grant as the domain types it: a `resource` the file leaves out stays absent. */
+export function scopedAuthorizationGrant(grant: SettingsAuthorizationGrant) {
+  const { resource, ...rest } = grant
+  return resource === undefined ? rest : { ...rest, resource }
+}
+
+function parseSessionHostPolicy(policy: NonNullable<ParsedProjectSettingsFile['sessionHost']>) {
+  const { multiAgentEnabled, parentConcurrencyLimit } = policy
+  return {
+    ...(multiAgentEnabled === undefined ? {} : { multiAgentEnabled }),
+    ...(parentConcurrencyLimit === undefined ? {} : { parentConcurrencyLimit }),
+  }
+}
+
+function parseProjectPreferences(settings: ParsedProjectSettingsFile | null) {
   const model = settings?.preferences?.model
   const authorizationMode = settings?.preferences?.authorizationMode
   if (!model && !authorizationMode) return undefined
@@ -44,14 +60,14 @@ function parseProjectPreferences(
   }
 }
 
-export function parseProjectConfig(settings: ParsedProjectSettingsFile | null): ProjectConfig {
+export function parseProjectConfig(settings: ParsedProjectSettingsFile | null) {
   if (settings === null) return EMPTY_CONFIG
   const preferences = parseProjectPreferences(settings)
-  const grants = settings.authorizationGrants ?? []
+  const grants = (settings.authorizationGrants ?? []).map(scopedAuthorizationGrant)
   const actions = settings.actions ?? []
   const config: ProjectConfig = {
     ...(preferences ? { preferences } : {}),
-    ...(settings.sessionHost ? { sessionHost: settings.sessionHost } : {}),
+    ...(settings.sessionHost ? { sessionHost: parseSessionHostPolicy(settings.sessionHost) } : {}),
     ...(grants.length > 0 ? { authorizationGrants: grants } : {}),
     ...(settings.pi ? { pi: settings.pi } : {}),
     ...(actions.length > 0 ? { actions } : {}),

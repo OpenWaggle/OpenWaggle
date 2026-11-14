@@ -11,7 +11,7 @@ import { queuedMessageEditStashKey } from '../state/queued-message-edit-store'
 const EMPTY_DRAFT: ComposerScopedDraft = { input: '', attachments: [], wagglePreset: null }
 
 /** A queued attachment as a composer chip. It already exists on the Host, so only its id travels. */
-function hostAttachment(descriptor: SessionFollowUpAttachmentDescriptor): PreparedAttachment {
+function hostAttachment(descriptor: SessionFollowUpAttachmentDescriptor) {
   return {
     id: descriptor.id,
     kind: descriptor.kind,
@@ -21,11 +21,11 @@ function hostAttachment(descriptor: SessionFollowUpAttachmentDescriptor): Prepar
     sizeBytes: descriptor.sizeBytes,
     path: '',
     extractedText: '',
-  }
+  } satisfies PreparedAttachment
 }
 
 /** The queued Waggle invocation as the composer's Waggle chip. */
-function wagglePresetFromInvocation(waggle: WaggleInvocation): WagglePreset {
+function wagglePresetFromInvocation(waggle: WaggleInvocation) {
   return {
     id: WagglePresetId(waggle.presetId),
     name: waggle.presetName,
@@ -34,11 +34,11 @@ function wagglePresetFromInvocation(waggle: WaggleInvocation): WagglePreset {
     isBuiltIn: false,
     createdAt: 0,
     updatedAt: 0,
-  }
+  } satisfies WagglePreset
 }
 
 /** The composer draft that edits `item`. */
-export function queuedMessageDraft(item: SessionFollowUpQueueItem): ComposerScopedDraft {
+export function queuedMessageDraft(item: SessionFollowUpQueueItem) {
   return {
     input: item.text,
     attachments: item.attachments.map(hostAttachment),
@@ -51,17 +51,19 @@ export function queuedMessageDraft(item: SessionFollowUpQueueItem): ComposerScop
  * source and config are unchanged), the chosen preset when the user picked another, none when
  * the chip was removed.
  */
-export function editedWaggle(
-  preset: WagglePreset | null,
-  queued: WaggleInvocation | undefined,
-): WaggleInvocation | undefined {
+export function editedWaggle(preset: WagglePreset | null, queued: WaggleInvocation | undefined) {
   if (!preset) return undefined
-  if (queued && queued.presetId === String(preset.id)) return queued
-  return { presetId: preset.id, presetName: preset.name, source: 'user', config: preset.config }
+  if (queued?.presetId === String(preset.id)) return queued
+  return {
+    presetId: preset.id,
+    presetName: preset.name,
+    source: 'user',
+    config: preset.config,
+  } satisfies WaggleInvocation
 }
 
 /** Reads a draft, committing Lexical's batched edits first when it is the visible one. */
-export function readComposerDraft(contextKey: string): ComposerScopedDraft {
+export function readComposerDraft(contextKey: string) {
   const visible = useComposerStore.getState()
   if (visible.activeDraftContextKey !== contextKey) {
     return visible.scopedDrafts[contextKey] ?? EMPTY_DRAFT
@@ -108,7 +110,7 @@ export function stashDraftAndLoad(
  * Reads the set-aside draft. Clear the stash only after the draft is written back, so its
  * attachments stay owned throughout.
  */
-export function readStashedDraft(sessionId: string): ComposerScopedDraft {
+export function readStashedDraft(sessionId: string) {
   return (
     useComposerStore.getState().getScopedDraft(queuedMessageEditStashKey(sessionId)) ?? EMPTY_DRAFT
   )

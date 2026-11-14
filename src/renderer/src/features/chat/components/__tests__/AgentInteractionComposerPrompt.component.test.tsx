@@ -6,7 +6,7 @@ import { AgentInteractionComposerPrompt } from '../AgentInteractionComposerPromp
 
 const SESSION_ID = SessionId('session-1')
 
-function authorizationRequest(id = 'auth-1'): AgentLoopInteraction {
+function authorizationRequest(id = 'auth-1') {
   return {
     interactionId: id,
     sessionId: SESSION_ID,
@@ -23,10 +23,10 @@ function authorizationRequest(id = 'auth-1'): AgentLoopInteraction {
       capability: 'mcp.tool-call',
       resource: 'list_issues',
     },
-  }
+  } satisfies AgentLoopInteraction
 }
 
-function customRequest(id = 'custom-1'): AgentLoopInteraction {
+function customRequest(id = 'custom-1') {
   return {
     interactionId: id,
     sessionId: SESSION_ID,
@@ -36,7 +36,7 @@ function customRequest(id = 'custom-1'): AgentLoopInteraction {
     createdAt: 1,
     customType: 'pi-tui-custom',
     renderer: { kind: 'pi-tui-custom', supported: false },
-  }
+  } satisfies AgentLoopInteraction
 }
 
 /**

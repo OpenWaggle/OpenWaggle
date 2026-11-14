@@ -29,7 +29,7 @@ export function budgetWith(
   return new LocalSessionOutboundByteBudget(options.capacity ?? CAPACITY, {
     capacityWaitMs: options.capacityWaitMs ?? CAPACITY_WAIT_MS,
     evictionReleaseWaitMs: EVICTION_RELEASE_WAIT_MS,
-    maxWaitMs: options.maxWaitMs,
+    ...(options.maxWaitMs === undefined ? {} : { maxWaitMs: options.maxWaitMs }),
     // Fake timers move Date, not performance.now().
     now: () => Date.now(),
   })
@@ -62,7 +62,7 @@ export type TestOwner = LocalSessionOutboundOwner & {
 }
 
 /** An owner whose eviction releases the frames it holds, as closing its socket does. */
-export function evictableOwner(options: { readonly releasesOnEvict?: boolean } = {}): TestOwner {
+export function evictableOwner(options: { readonly releasesOnEvict?: boolean } = {}) {
   const leases: LocalSessionOutboundLease[] = []
   const owner: TestOwner = {
     evictions: 0,

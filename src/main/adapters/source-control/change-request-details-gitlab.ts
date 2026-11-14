@@ -2,36 +2,90 @@ import type {
   ChangeRequestCheckStatus,
   ChangeRequestMergeability,
   ChangeRequestReviewDecision,
-  ChangeRequestState,
   VcsChangeRequestCheck,
   VcsChangeRequestDetails,
   VcsChangeRequestFile,
 } from '@shared/types/git'
+import type { UncheckedFields } from '@shared/types/unchecked-fields'
+import { uncheckedFields } from '@shared/utils/object-shape'
 import {
   asNumericCount,
   asObject,
   asString,
   boundedObjects,
   CHANGE_REQUEST_MERGE_METHODS,
+  changeRequestMergeBlocker,
   MAX_CHANGE_REQUEST_ITEMS,
 } from './change-request-parse-shared'
 import { mapGlabMergeRequest } from './change-request-summary-parse'
 
-function mapPipelineStatus(value: unknown): ChangeRequestCheckStatus {
-  const status = asString(value)?.toLowerCase()
-  if (status === 'success' || status === 'passed') return 'passed'
-  if (status === 'failed') return 'failed'
-  if (status === 'canceled' || status === 'cancelled') return 'cancelled'
-  if (status === 'skipped' || status === 'manual') return 'skipped'
-  if (status === 'created' || status === 'waiting_for_resource' || status === 'preparing') {
-    return 'pending'
-  }
-  if (status === 'pending' || status === 'running' || status === 'scheduled') return 'pending'
-  return 'unknown'
+/** The `glab mr view -F json --comments` fields lifecycle detail reads; each is checked where read. */
+interface GlabMergeRequestDetails {
+  readonly iid: number | string
+  readonly diff_stats: readonly GlabFileStats[]
+  readonly changes: readonly GlabFileStats[]
+  readonly has_conflicts: boolean
+  readonly detailed_merge_status: string
+  readonly merge_status: string
+  readonly approved: boolean
+  readonly approvals_left: number | string
+  readonly head_pipeline: GlabPipeline
+  readonly discussions: readonly { readonly resolved: boolean }[]
+  readonly sha: string
+  readonly author: { readonly username: string; readonly name: string }
+  readonly changes_count: number | string
+  readonly user_notes_count: number | string
 }
 
-function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
-  return boundedObjects(value).flatMap((record) => {
+interface GlabFileStats {
+  readonly path: string
+  readonly new_path: string
+  readonly additions: number | string
+  readonly deletions: number | string
+}
+
+interface GlabPipeline {
+  readonly name: string
+  readonly ref: string
+  readonly status: string
+  readonly web_url: string
+}
+
+type GlabFields = UncheckedFields<GlabMergeRequestDetails>
+
+function mapPipelineStatus(value: unknown) {
+  const status = asString(value)?.toLowerCase()
+  if (status === 'success' || status === 'passed') {
+    const result: ChangeRequestCheckStatus = 'passed'
+    return result
+  }
+  if (status === 'failed') {
+    const result: ChangeRequestCheckStatus = 'failed'
+    return result
+  }
+  if (status === 'canceled' || status === 'cancelled') {
+    const result: ChangeRequestCheckStatus = 'cancelled'
+    return result
+  }
+  if (status === 'skipped' || status === 'manual') {
+    const result: ChangeRequestCheckStatus = 'skipped'
+    return result
+  }
+  if (status === 'created' || status === 'waiting_for_resource' || status === 'preparing') {
+    const result: ChangeRequestCheckStatus = 'pending'
+    return result
+  }
+  if (status === 'pending' || status === 'running' || status === 'scheduled') {
+    const result: ChangeRequestCheckStatus = 'pending'
+    return result
+  }
+  const result: ChangeRequestCheckStatus = 'unknown'
+  return result
+}
+
+function mapFiles(value: unknown) {
+  const file: readonly VcsChangeRequestFile[] = boundedObjects(value).flatMap((entry) => {
+    const record: UncheckedFields<GlabFileStats> = entry
     const path = asString(record.path) ?? asString(record.new_path)
     if (!path) return []
     return [
@@ -42,74 +96,73 @@ function mapFiles(value: unknown): readonly VcsChangeRequestFile[] {
       },
     ]
   })
+  return file
 }
 
-function mapMergeability(record: ReturnType<typeof asObject>): ChangeRequestMergeability {
-  if (!record) return 'unknown'
-  if (record.has_conflicts === true) return 'conflicting'
+function mapMergeability(record: GlabFields) {
+  if (record.has_conflicts === true) {
+    const mergeability: ChangeRequestMergeability = 'conflicting'
+    return mergeability
+  }
   const status = (
     asString(record.detailed_merge_status) ?? asString(record.merge_status)
   )?.toLowerCase()
-  if (status === 'conflict' || status === 'cannot_be_merged') return 'conflicting'
-  if (status === 'mergeable' || status === 'can_be_merged') return 'mergeable'
-  if (status === 'unchecked' || !status) return 'unknown'
-  return 'blocked'
+  if (status === 'conflict' || status === 'cannot_be_merged') {
+    const mergeability: ChangeRequestMergeability = 'conflicting'
+    return mergeability
+  }
+  if (status === 'mergeable' || status === 'can_be_merged') {
+    const mergeability: ChangeRequestMergeability = 'mergeable'
+    return mergeability
+  }
+  if (status === 'unchecked' || !status) {
+    const mergeability: ChangeRequestMergeability = 'unknown'
+    return mergeability
+  }
+  const mergeability: ChangeRequestMergeability = 'blocked'
+  return mergeability
 }
 
-function mapReviewDecision(record: ReturnType<typeof asObject>): ChangeRequestReviewDecision {
-  if (!record) return 'unknown'
-  if (record.approved === true || asNumericCount(record.approvals_left) === 0) return 'approved'
-  if ((asNumericCount(record.approvals_left) ?? 0) > 0) return 'review-required'
-  return 'none'
+function mapReviewDecision(record: GlabFields) {
+  if (record.approved === true || asNumericCount(record.approvals_left) === 0) {
+    const decision: ChangeRequestReviewDecision = 'approved'
+    return decision
+  }
+  if ((asNumericCount(record.approvals_left) ?? 0) > 0) {
+    const decision: ChangeRequestReviewDecision = 'review-required'
+    return decision
+  }
+  const decision: ChangeRequestReviewDecision = 'none'
+  return decision
 }
 
-function mergeReason(input: {
-  readonly state: ChangeRequestState
-  readonly headCommit: string | null
-  readonly checks: readonly VcsChangeRequestCheck[]
-  readonly reviewDecision: ChangeRequestReviewDecision
-  readonly mergeability: ChangeRequestMergeability
-}) {
-  if (input.state === 'draft') return 'Mark this merge request ready for review before merging.'
-  if (input.state !== 'open') return 'Only an open merge request can be merged.'
-  if (!input.headCommit) return 'The head commit is unavailable. Refresh before merging.'
-  if (input.mergeability === 'conflicting') return 'Resolve merge conflicts before merging.'
-  if (input.mergeability === 'unknown') return 'Mergeability is still being calculated.'
-  if (input.reviewDecision === 'changes-requested') {
-    return 'Resolve requested review changes before merging.'
+function pipelineChecks(record: GlabFields) {
+  const object = asObject(record.head_pipeline)
+  if (!object) {
+    const check: readonly VcsChangeRequestCheck[] = []
+    return check
   }
-  if (input.reviewDecision === 'review-required') return 'Required review approval is missing.'
-  if (input.checks.some((check) => check.status === 'failed' || check.status === 'cancelled')) {
-    return 'Fix failing checks before merging.'
-  }
-  if (input.checks.some((check) => check.status === 'pending')) {
-    return 'Wait for all checks to finish before merging.'
-  }
-  if (input.mergeability === 'blocked') return 'Repository rules currently block this merge.'
-  return null
-}
-
-function pipelineChecks(record: ReturnType<typeof asObject>): readonly VcsChangeRequestCheck[] {
-  const pipeline = asObject(record?.head_pipeline)
-  if (!pipeline) return []
-  return [
+  const pipeline: UncheckedFields<GlabPipeline> = object
+  const check: readonly VcsChangeRequestCheck[] = [
     {
       name: asString(pipeline.name) ?? asString(pipeline.ref) ?? 'Pipeline',
       status: mapPipelineStatus(pipeline.status),
       url: asString(pipeline.web_url),
     },
   ]
+  return check
 }
 
-function discussionCounts(record: ReturnType<typeof asObject>) {
-  const discussions = boundedObjects(record?.discussions)
+function discussionCounts(record: GlabFields) {
+  const discussions = boundedObjects(record.discussions)
   const complete =
-    Array.isArray(record?.discussions) && record.discussions.length < MAX_CHANGE_REQUEST_ITEMS
+    Array.isArray(record.discussions) && record.discussions.length < MAX_CHANGE_REQUEST_ITEMS
   if (!complete) return { reviewThreadsCount: null, unresolvedReviewThreadsCount: null }
   return {
     reviewThreadsCount: discussions.length,
-    unresolvedReviewThreadsCount: discussions.filter((discussion) => discussion.resolved !== true)
-      .length,
+    unresolvedReviewThreadsCount: discussions.filter(
+      (discussion) => uncheckedFields<{ readonly resolved: boolean }>(discussion).resolved !== true,
+    ).length,
   }
 }
 
@@ -123,29 +176,35 @@ function fileTotals(files: readonly VcsChangeRequestFile[]) {
 }
 
 /** Map one bounded `glab mr view -F json --comments` response into lifecycle detail. */
-export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetails | null {
-  const record = asObject(raw)
+export function mapGlabMergeRequestDetails(raw: unknown) {
+  const object = asObject(raw)
   const summary = mapGlabMergeRequest(raw)
-  const reference = asNumericCount(record?.iid)
-  if (!record || !summary || reference === null) return null
+  if (!object || !summary) return null
+  const record: GlabFields = object
+  const reference = asNumericCount(record.iid)
+  if (reference === null) return null
   const files = mapFiles(record.diff_stats ?? record.changes)
   const fallbackTotals = fileTotals(files)
   const checks = pipelineChecks(record)
   const reviewDecision = mapReviewDecision(record)
   const mergeability = mapMergeability(record)
   const headCommit = asString(record.sha)
-  const reason = mergeReason({
+  const reason = changeRequestMergeBlocker({
+    noun: 'merge request',
     state: summary.state,
     headCommit,
     checks,
     reviewDecision,
     mergeability,
+    rulesBlocked: false,
   })
-  return {
+  const details: VcsChangeRequestDetails | null = {
     ...summary,
     reference: String(reference),
     headCommit,
-    author: asString(asObject(record.author)?.username) ?? asString(asObject(record.author)?.name),
+    author:
+      asString(uncheckedFields<GlabMergeRequestDetails['author']>(record.author).username) ??
+      asString(uncheckedFields<GlabMergeRequestDetails['author']>(record.author).name),
     changedFiles: asNumericCount(record.changes_count) ?? fallbackTotals.changedFiles,
     additions: fallbackTotals.additions,
     deletions: fallbackTotals.deletions,
@@ -158,4 +217,5 @@ export function mapGlabMergeRequestDetails(raw: unknown): VcsChangeRequestDetail
     ...discussionCounts(record),
     merge: { allowed: reason === null, reason, methods: CHANGE_REQUEST_MERGE_METHODS },
   }
+  return details
 }

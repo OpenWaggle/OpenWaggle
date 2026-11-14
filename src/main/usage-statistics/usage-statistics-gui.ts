@@ -1,4 +1,5 @@
-import { app } from 'electron'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
 import {
   configureUsageStatisticsGuiRecorder,
   flushUsageStatisticsSync,
@@ -12,11 +13,11 @@ let quitFlushRegistered = false
  * its IPC surface is registered, which is after Settings were hydrated from the Session Host.
  * Observations still waiting for their debounced write are saved when the app quits.
  */
-export function startGuiUsageStatistics(): void {
-  configureUsageStatisticsGuiRecorder({ userDataDirectory: app.getPath('userData') })
+export function startGuiUsageStatistics() {
+  configureUsageStatisticsGuiRecorder({ userDataDirectory: appPaths.userData() })
   if (!quitFlushRegistered) {
     quitFlushRegistered = true
-    app.on('will-quit', flushUsageStatisticsSync)
+    appLifecycle.onWillQuit(flushUsageStatisticsSync)
   }
   recordUsageStatistics({ kind: 'app-opened' })
 }

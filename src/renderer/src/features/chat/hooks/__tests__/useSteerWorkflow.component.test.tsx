@@ -36,8 +36,8 @@ function setup() {
       setReceipt: vi.fn(),
       setDeliveryState: vi.fn(),
     })),
-    promoteFollowUp: vi.fn(
-      async (_id: string): Promise<SessionControlSteeringReceipt> => ({
+    promoteFollowUp: vi.fn<(_id: string) => Promise<SessionControlSteeringReceipt>>(
+      async (_id: string) => ({
         delivery: 'queued',
         durableTextSha256: 'a'.repeat(64),
         minimumCreatedOrder: 1,

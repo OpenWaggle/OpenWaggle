@@ -61,7 +61,7 @@ export function useDiffPanelGitActions({
     setIsActionRunning(true)
     void executeGitAction(
       workingPath,
-      api.revertAllGitChanges,
+      (path) => api.revertAllGitChanges(path),
       'Failed to revert working-tree changes.',
     ).finally(() => {
       setIsActionRunning(false)
@@ -74,7 +74,7 @@ export function useDiffPanelGitActions({
     setIsActionRunning(true)
     void executeGitAction(
       workingPath,
-      api.stageAllGitChanges,
+      (path) => api.stageAllGitChanges(path),
       'Failed to stage working-tree changes.',
     ).finally(() => {
       setIsActionRunning(false)

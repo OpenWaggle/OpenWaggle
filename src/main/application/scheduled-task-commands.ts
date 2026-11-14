@@ -5,9 +5,7 @@ import {
   SCHEDULED_TASKS_CONTRACT_VERSION,
   type ScheduledTasksOutcome,
   type ScheduledTasksRequest,
-  type ScheduledTasksResponse,
 } from '@shared/types/scheduled-task'
-import type { SessionCapability } from '@shared/types/session-capability'
 import * as Effect from 'effect/Effect'
 import { authorizeSessionCapabilities } from '../domain/session-control/session-capability-authorization'
 import {
@@ -31,12 +29,12 @@ const DEFAULT_RUN_PAGE = 20
 
 type Command = ScheduledTasksRequest['command']
 
-function requiredCapability(command: Command): SessionCapability {
+function requiredCapability(command: Command) {
   return command.operation === 'list' ||
     command.operation === 'read' ||
     command.operation === 'runs'
-    ? 'schedules:read'
-    : 'schedules:manage'
+    ? ('schedules:read' as const)
+    : ('schedules:manage' as const)
 }
 
 function visible(principal: ScheduledTaskPrincipal, record: ScheduledTaskRecord) {
@@ -175,7 +173,7 @@ export function executeScheduledTasksRequest(input: {
 }) {
   return Effect.gen(function* () {
     const { request } = input
-    const respond = (outcome: ScheduledTasksOutcome): ScheduledTasksResponse => ({
+    const respond = (outcome: ScheduledTasksOutcome) => ({
       contractVersion: SCHEDULED_TASKS_CONTRACT_VERSION,
       requestId: request.requestId,
       operation: request.command.operation,

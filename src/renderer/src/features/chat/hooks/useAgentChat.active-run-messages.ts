@@ -1,5 +1,4 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { AgentCompactionStatus } from '../lib/compaction-lifecycle'
 import { reconnectedRunScope } from '../lib/reconnect-run-scope'
 import { withoutSavedRunAnswers } from '../lib/saved-run-answers'
 import {
@@ -29,7 +28,7 @@ import type { SessionHydrationContext, SessionHydrationInput } from './useAgentC
 export function activeRunHydrationMessages(
   input: SessionHydrationInput,
   context: SessionHydrationContext,
-): { readonly messages: UIMessage[]; readonly compactionStatus: AgentCompactionStatus | null } {
+) {
   const cachedMessages = input.cachedRenderMessages
   const placed = cachedMessages ? placeCachedRunMessages(input, cachedMessages, context) : null
   if (placed) {
@@ -131,22 +130,20 @@ function noticedRunStartOrder(
   noticed: readonly UIMessage[],
   persistedMessages: readonly UIMessage[],
 ) {
-  const first = noticed[0]
-  const firstOrder = first?.role === 'user' ? first.metadata?.sessionNodeCreatedOrder : undefined
+  const firstOrder = userRowOrder(noticed[0])
   if (firstOrder !== undefined) return firstOrder
-  const noticedOrders = new Set(
-    noticed.flatMap((message) => {
-      const order = message.metadata?.sessionNodeCreatedOrder
-      return message.role === 'user' && order !== undefined ? [order] : []
-    }),
-  )
+  const noticedOrders = new Set(noticed.map(userRowOrder))
   let fromOrder: number | undefined
   for (const message of persistedMessages) {
-    const order = message.metadata?.sessionNodeCreatedOrder
-    if (message.role !== 'user' || order === undefined || noticedOrders.has(order)) continue
+    const order = userRowOrder(message)
+    if (order === undefined || noticedOrders.has(order)) continue
     fromOrder = Math.max(fromOrder ?? order, order)
   }
   return fromOrder
+}
+
+function userRowOrder(message: UIMessage | undefined) {
+  return message?.role === 'user' ? message.metadata?.sessionNodeCreatedOrder : undefined
 }
 
 /**

@@ -68,20 +68,20 @@ function extensionFrame() {
 }
 
 function extensionFrameId(frame: HTMLIFrameElement) {
-  const frameId = frame.dataset.extensionFrameId
+  const frameId = frame.getAttribute('data-extension-frame-id')
   if (!frameId) {
     throw new Error('Expected extension module iframe id.')
   }
   return frameId
 }
 
-function equivalentEntry(): ExtensionContributionRegistryEntry {
+function equivalentEntry() {
   return {
     ...ENTRY,
     diagnostics: [...ENTRY.diagnostics],
     eligibility: { ...ENTRY.eligibility },
     projectPaths: [...ENTRY.projectPaths],
-  }
+  } satisfies ExtensionContributionRegistryEntry
 }
 
 function dispatchResizeFromWindow(frameId: string, height: number) {

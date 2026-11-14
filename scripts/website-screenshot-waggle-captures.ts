@@ -140,13 +140,15 @@ const TURN_PATTERN = /This is turn (\d+) of the collaboration/
 export const WAGGLE_SCENARIO: ModelScenario = {
   match: WAGGLE_PROMPT,
   title: WAGGLE_THREAD_TITLE,
-  replies: (request): ScriptedReply => {
+  replies: (request) => {
     const turn = Number(TURN_PATTERN.exec(lastUserText(request))?.[1] ?? '0')
     const text = WAGGLE_TURNS[turn] ?? 'Nothing to add.'
     const inputTokens = WAGGLE_INPUT_TOKENS + turn * WAGGLE_TOKENS_PER_TURN
-    return turn === HELD_WAGGLE_TURN
-      ? { kind: 'hold', text, inputTokens }
-      : { kind: 'text', text, inputTokens }
+    return (
+      turn === HELD_WAGGLE_TURN
+        ? { kind: 'hold', text, inputTokens }
+        : { kind: 'text', text, inputTokens }
+    ) satisfies ScriptedReply
   },
 }
 

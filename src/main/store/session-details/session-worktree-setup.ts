@@ -8,17 +8,13 @@ import {
   type ClaimedSessionWorktreeSetup,
   hydrateSetupDispatch,
   type PendingSessionWorktreeSetup,
-  type SessionWorktreeSetupDispatch,
   type SessionWorktreeSetupRow,
 } from './session-worktree-setup-record'
 
 export type {
-  AcceptedSessionWorktreeSetup,
   ClaimedSessionWorktreeSetup,
   PendingSessionWorktreeSetup,
-  SessionWorktreeSetupDispatch,
 } from './session-worktree-setup-record'
-
 interface SessionWorktreeBindingRow {
   readonly worktree_path: string | null
 }
@@ -48,10 +44,7 @@ function replacePendingSetup(
 }
 
 /** Start a new setup-dispatch generation, including before Git mutates the filesystem. */
-export async function resetSessionWorktreeSetup(
-  id: SessionId,
-  worktreePath: string,
-): Promise<PendingSessionWorktreeSetup> {
+export async function resetSessionWorktreeSetup(id: SessionId, worktreePath: string) {
   const generation = randomUUID()
   await runStoreEffect(
     Effect.gen(function* () {
@@ -59,7 +52,7 @@ export async function resetSessionWorktreeSetup(
       yield* replacePendingSetup(sql, id, worktreePath, generation)
     }),
   )
-  return { worktreePath, generation, state: 'pending' }
+  return { worktreePath, generation, state: 'pending' } satisfies PendingSessionWorktreeSetup
 }
 
 /**
@@ -68,10 +61,7 @@ export async function resetSessionWorktreeSetup(
  * The renderer supplies both values during manual recreation. The conditional insert keeps an
  * arbitrary session id from marking another path for automatic command execution.
  */
-export async function resetRecordedSessionWorktreeSetup(
-  id: SessionId,
-  worktreePath: string,
-): Promise<PendingSessionWorktreeSetup | null> {
+export async function resetRecordedSessionWorktreeSetup(id: SessionId, worktreePath: string) {
   const generation = randomUUID()
   return runStoreEffect(
     Effect.gen(function* () {
@@ -106,10 +96,7 @@ export async function resetRecordedSessionWorktreeSetup(
  * persisted binding distinguishes that harmless stale copy from a crash between Git creation and
  * recording the path, so an already completed generation never runs twice.
  */
-export async function adoptSessionWorktreeForSetup(
-  id: SessionId,
-  worktreePath: string,
-): Promise<PendingSessionWorktreeSetup | null> {
+export async function adoptSessionWorktreeForSetup(id: SessionId, worktreePath: string) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -161,16 +148,12 @@ export async function adoptSessionWorktreeForSetup(
   )
 }
 
-export async function getPendingSessionWorktreeSetup(
-  id: SessionId,
-): Promise<PendingSessionWorktreeSetup | null> {
+export async function getPendingSessionWorktreeSetup(id: SessionId) {
   const dispatch = await getSessionWorktreeSetupDispatch(id)
   return dispatch?.state === 'pending' ? dispatch : null
 }
 
-export async function getSessionWorktreeSetupDispatch(
-  id: SessionId,
-): Promise<SessionWorktreeSetupDispatch | null> {
+export async function getSessionWorktreeSetupDispatch(id: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -195,7 +178,7 @@ export async function getSessionWorktreeSetupDispatch(
 export async function claimSessionWorktreeSetup(
   id: SessionId,
   pending: PendingSessionWorktreeSetup,
-): Promise<ClaimedSessionWorktreeSetup | null> {
+) {
   const claimToken = randomUUID()
   const updatedAt = Date.now()
   return runStoreEffect(
@@ -234,7 +217,7 @@ export async function claimSessionWorktreeSetup(
 export async function releaseSessionWorktreeSetupClaim(
   id: SessionId,
   claim: ClaimedSessionWorktreeSetup,
-): Promise<void> {
+) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -258,7 +241,7 @@ export async function releaseSessionWorktreeSetupClaim(
 export async function completeSessionWorktreeSetup(
   id: SessionId,
   claim: ClaimedSessionWorktreeSetup,
-): Promise<void> {
+) {
   const acceptedAt = Date.now()
   await runStoreEffect(
     Effect.gen(function* () {

@@ -48,7 +48,7 @@ const EMPTY_PLACEMENT: AgentLoopCardPlacement = {
 function agentLoopCards(
   customMessages: readonly AgentTransportCustomEvent[],
   interactionEvents: readonly AgentInteractionEvent[],
-): AgentLoopCard[] {
+) {
   const cards: AgentLoopCard[] = [
     ...customMessages.map((event) => ({
       row: { type: 'agent-loop-custom-message' as const, event },
@@ -62,7 +62,8 @@ function agentLoopCards(
     })),
   ]
   // Stable, so cards recorded in the same millisecond keep their recorded order.
-  return cards.sort((left, right) => left.timestamp - right.timestamp)
+  const card: AgentLoopCard[] = cards.sort((left, right) => left.timestamp - right.timestamp)
+  return card
 }
 
 function messageIndexById(messages: readonly UIMessage[]) {
@@ -70,7 +71,7 @@ function messageIndexById(messages: readonly UIMessage[]) {
   for (const [index, message] of messages.entries()) {
     indexById.set(message.id, index)
     const nodeId = message.metadata?.sessionNodeId
-    if (nodeId !== undefined) indexById.set(String(nodeId), index)
+    if (nodeId !== undefined) indexById.set(nodeId, index)
   }
   return indexById
 }
@@ -96,11 +97,15 @@ export function placeAgentLoopCards(input: {
   readonly customMessages: readonly AgentTransportCustomEvent[]
   readonly interactionEvents: readonly AgentInteractionEvent[]
   readonly anchorMessageIdByEventKey?: ReadonlyMap<string, string>
-}): AgentLoopCardPlacement {
+}) {
   const cards = agentLoopCards(input.customMessages, input.interactionEvents)
   if (cards.length === 0) return EMPTY_PLACEMENT
   if (input.messages.length === 0) {
-    return { afterMessageIndex: new Map(), withoutMessages: cards.map((card) => card.row) }
+    const placement: AgentLoopCardPlacement = {
+      afterMessageIndex: new Map(),
+      withoutMessages: cards.map((card) => card.row),
+    }
+    return placement
   }
 
   const lastIndex = input.messages.length - 1
@@ -115,5 +120,6 @@ export function placeAgentLoopCards(input: {
     if (placed) placed.push(card.row)
     else afterMessageIndex.set(index, [card.row])
   }
-  return { afterMessageIndex, withoutMessages: [] }
+  const placement: AgentLoopCardPlacement = { afterMessageIndex, withoutMessages: [] }
+  return placement
 }

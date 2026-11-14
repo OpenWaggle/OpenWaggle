@@ -138,7 +138,7 @@ const layer = Layer.mergeAll(
 function inventory() {
   const provided = listWorktreeInventory(NOW).pipe(Effect.provide(layer))
   return Effect.runPromise(
-    fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, Error, never>, typeof provided>(
+    fromAny<Effect.Effect<Effect.Effect.Success<typeof provided>, Error>, typeof provided>(
       provided,
     ),
   )

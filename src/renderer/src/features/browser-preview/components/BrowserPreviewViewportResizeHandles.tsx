@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react'
+import type { KeyboardEvent, PointerEvent } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { BrowserPreviewDeviceLayout } from '../lib/browser-preview-device-layout'
@@ -71,10 +71,7 @@ const EDGE_BUTTON_CLASS =
 const EDGE_GRIP_CLASS =
   'pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-text-muted/70 transition-colors duration-150 group-hover:text-text-primary group-focus-visible:text-text-primary'
 
-function handleStyle(
-  definition: HandleDefinition,
-  layout: BrowserPreviewDeviceLayout,
-): CSSProperties {
+function handleStyle(definition: HandleDefinition, layout: BrowserPreviewDeviceLayout) {
   const left = layout.x
   const top = layout.y
   const right = left + layout.width

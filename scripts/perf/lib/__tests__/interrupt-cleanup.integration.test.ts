@@ -3,13 +3,13 @@ import { existsSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { bunExecutable } from '../../../support/node-runtime'
 
 /**
  * R6 P2-4, end to end: Ctrl-C on a harness reaches only its own process group, so the harness
  * itself must stop the app it launched in another group and remove its throwaway profile.
  */
 const HARNESS = path.join(import.meta.dirname, 'fixtures', 'interrupted-harness.ts')
-const TSX = path.join(import.meta.dirname, '..', '..', '..', '..', 'node_modules', '.bin', 'tsx')
 const SIGINT_EXIT_CODE = 130
 const TEST_TIMEOUT_MS = 60_000
 
@@ -35,7 +35,7 @@ describe.skipIf(process.platform === 'win32')('an interrupted perf harness', () 
   it(
     'stops the app group it launched and removes its profile',
     async () => {
-      const harness = spawn(TSX, [HARNESS], { stdio: ['ignore', 'pipe', 'pipe'] })
+      const harness = spawn(bunExecutable(), [HARNESS], { stdio: ['ignore', 'pipe', 'pipe'] })
       const started = await new Promise<{ pid: number; root: string }>((resolve, reject) => {
         let output = ''
         harness.stdout.on('data', (chunk: Buffer) => {
@@ -43,13 +43,17 @@ describe.skipIf(process.platform === 'win32')('an interrupted perf harness', () 
           const line = output.split('\n').find((candidate) => candidate.startsWith('{'))
           if (line) resolve(JSON.parse(line))
         })
-        harness.once('exit', (code) => reject(new Error(`harness exited early with ${String(code)}`)))
+        harness.once('exit', (code) =>
+          reject(new Error(`harness exited early with ${String(code)}`)),
+        )
       })
       leftovers.push(started)
       expect(isAlive(started.pid)).toBe(true)
       expect(existsSync(started.root)).toBe(true)
 
-      const exited = new Promise<number | null>((resolve) => harness.once('exit', (code) => resolve(code)))
+      const exited = new Promise<number | null>((resolve) =>
+        harness.once('exit', (code) => resolve(code)),
+      )
       harness.kill('SIGINT')
 
       expect(await exited).toBe(SIGINT_EXIT_CODE)
