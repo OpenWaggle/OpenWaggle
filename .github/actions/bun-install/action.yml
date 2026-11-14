@@ -60,6 +60,17 @@ runs:
     # Electron 43 downloads its binary the first time anything requires `electron`, with no
     # retry. A single 504 from GitHub's release CDN failed a whole job mid-check, and parallel
     # test workers can each start that download. Fetch it once here, with retries.
+    # Saved by CI on main, so every pull request's first run (and the Performance Gate's) starts
+    # with the Electron download. electron/get checks each download against its SHASUMS.
+    - name: Restore the Electron download cache
+      if: ${{ inputs.electron-binary == 'true' && inputs.package-cache == 'true' }}
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+      with:
+        path: ~/.cache/electron
+        key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          electron-${{ runner.os }}-${{ runner.arch }}-
+
     - name: Fetch the Electron binary
       if: ${{ inputs.electron-binary == 'true' }}
       shell: bash

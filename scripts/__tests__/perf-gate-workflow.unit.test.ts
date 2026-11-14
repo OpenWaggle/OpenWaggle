@@ -79,4 +79,25 @@ describe('Performance Gate workflows', () => {
     expect(gate?.if).not.toContain('always()')
     expect(gate?.steps.filter((step) => step.if?.includes('always()'))).toEqual([])
   })
+
+  it('restores the caches CI saves on main, under the same keys', () => {
+    const action = fs.readFileSync(
+      path.join(process.cwd(), '.github/actions/bun-install/action.yml'),
+      'utf8',
+    )
+    const timings = fs.readFileSync(
+      path.join(process.cwd(), '.github/workflows/perf-gate.yml'),
+      'utf8',
+    )
+
+    for (const prefix of [
+      'bun-install-${{ runner.os }}-${{ runner.arch }}-',
+      'electron-${{ runner.os }}-${{ runner.arch }}-',
+    ]) {
+      expect(action).toContain(`key: ${prefix}\${{ hashFiles('bun.lock') }}`)
+      expect(timings).toContain(`key: ${prefix}\${{ hashFiles('head/bun.lock') }}`)
+    }
+    expect(timings).not.toContain('perf-gate-bun-')
+    expect(timings).not.toContain('perf-gate-electron-')
+  })
 })
