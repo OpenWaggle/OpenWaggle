@@ -25,8 +25,9 @@
 #
 # A push to a throwaway bench/perf-gate-* branch runs the same jobs; performance/perf-gate/bench.json
 # on that branch may name the base and head refs and the pair count, for example base-vs-base
-# noise runs. Repository standards fail that file on any branch not named bench/*
-# (scripts/standards/bench-file.ts), so push a bench from a local bench/* branch.
+# noise runs. Repository standards fail that file on any branch but bench/perf-gate-* and
+# bench/electron-best-*, and in any pull request or merge group run (scripts/standards/bench-file.ts),
+# so push a bench from a local bench branch and never open a pull request from it.
 name: Performance Gate
 
 on:

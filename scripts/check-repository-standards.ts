@@ -18,7 +18,7 @@ import {
 } from './standards/agent-memory'
 import { collectRepositoryAdrNumberingViolations } from './standards/adr-numbering'
 import { collectAstroRawButtonViolations } from './standards/astro-raw-buttons'
-import { BENCH_FILE, collectBenchFileViolations, currentBranch } from './standards/bench-file'
+import { BENCH_FILE, benchContext, collectBenchFileViolations } from './standards/bench-file'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'
 import {
@@ -223,7 +223,7 @@ const CROSS_FILE_RULES: readonly CrossFileRule[] = [
   },
   {
     trigger: (file) => file === BENCH_FILE,
-    collect: ({ present }) => collectBenchFileViolations(present, currentBranch()),
+    collect: ({ present }) => collectBenchFileViolations(present, benchContext()),
   },
 ]
 
