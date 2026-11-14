@@ -8,7 +8,10 @@ import {
   publishSessionHostEvent,
   subscribeSemanticDiscoverySourceChangesAfter,
 } from '../session-host/session-host-events'
-import { defaultSessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
+import {
+  defaultSessionEmbeddingModel,
+  type MultilingualE5SessionEmbeddingModel,
+} from './multilingual-e5-session-embedding-model'
 import { modelUnavailableCause } from './semantic-discovery-model-readiness'
 import { SqliteSessionSemanticProjection } from './sqlite-session-semantic-projection'
 import { SqliteSessionTranscriptSemanticProjection } from './sqlite-session-transcript-semantic-projection'
@@ -141,6 +144,20 @@ function transcriptProjectionLoop(
   )
 }
 
+/**
+ * Scoped: a model download a readiness read starts takes the Host's `semantic-preparation` hold,
+ * as a batch does, so a Host without a window does not exit partway through it (ADR 0057).
+ */
+export function holdModelDownloads(
+  model: Pick<MultilingualE5SessionEmbeddingModel, 'holdDownloadsWith'>,
+  acquireHold: () => () => void,
+) {
+  return Effect.acquireRelease(
+    Effect.sync(() => model.holdDownloadsWith(acquireHold)),
+    (release) => Effect.sync(release),
+  )
+}
+
 export const runSessionSemanticDiscoveryBackground = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
   const projection = new SqliteSessionSemanticProjection(
@@ -152,6 +169,9 @@ export const runSessionSemanticDiscoveryBackground = Effect.gen(function* () {
   const transcriptProjection = new SqliteSessionTranscriptSemanticProjection(
     sql,
     defaultSessionEmbeddingModel,
+  )
+  yield* holdModelDownloads(defaultSessionEmbeddingModel, () =>
+    getSessionHostEventRuntime().liveness.acquire('semantic-preparation'),
   )
   // Download progress and failures of the model, fetched on first use, reach clients as readiness.
   yield* Effect.acquireRelease(

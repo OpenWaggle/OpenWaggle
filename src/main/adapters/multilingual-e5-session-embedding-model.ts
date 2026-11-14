@@ -87,6 +87,7 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
   #runtimeOptions: SessionEmbeddingRuntimeOptions = {}
   #files: SessionEmbeddingModelFiles | null = null
   #used = false
+  #holdDownload: (() => () => void) | null = null
   readonly #process: SessionEmbeddingProcess
 
   constructor(options: ConstructorParameters<typeof SessionEmbeddingProcess>[1] = {}) {
@@ -116,6 +117,32 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
     this.#files = files
   }
 
+  /**
+   * How a download `availability()` starts keeps its process running: the Session Host passes its
+   * `semantic-preparation` hold (ADR 0057), so a Host with no window does not reach idle grace and
+   * exit partway through. Returns the undo.
+   */
+  holdDownloadsWith(hold: () => () => void) {
+    this.#holdDownload = hold
+    return () => {
+      if (this.#holdDownload === hold) this.#holdDownload = null
+    }
+  }
+
+  #downloadInBackground(files: SessionEmbeddingModelFiles) {
+    let release: () => void = () => undefined
+    try {
+      release = this.#holdDownload?.() ?? release
+    } catch {
+      // The Host is stopping and takes no new work; a later launch downloads it.
+      return
+    }
+    files
+      .ensure()
+      .catch(() => undefined)
+      .finally(release)
+  }
+
   readonly availability = async () => {
     const files = this.#files
     if (files === null || this.#runtimeOptions.localModelPath !== undefined) {
@@ -128,7 +155,7 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
       // An install whose index was prepared before the model was fetched on first use, or one that
       // only searches, never embeds, so reading the state starts the download. `ensure()` refuses
       // a retry before `retryAt`, and a download in progress is shared.
-      files.ensure().catch(() => undefined)
+      this.#downloadInBackground(files)
     }
     return current
   }

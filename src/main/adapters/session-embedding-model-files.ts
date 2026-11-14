@@ -14,10 +14,14 @@
  * and a long outage costs a request every half hour. A copy bundled with the app (an older package, or a build that still ships it) is used
  * when present, without a download.
  */
-import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { matchBy } from '@diegogbrisa/ts-match'
+import {
+  downloadModelFile,
+  fileHashMatches,
+  removeStaleDownloads,
+} from './session-embedding-model-download'
 
 export interface SessionEmbeddingModelFile {
   readonly path: string
@@ -56,8 +60,6 @@ const VERIFIED_MANIFEST = 'openwaggle-model-manifest.json'
 /** Progress is reported at most this often (bytes), so listeners are not called per chunk. */
 const PROGRESS_STEP_BYTES = 4 * 1024 * 1024
 const JSON_INDENT = 2
-const HTTP_OK_MINIMUM = 200
-const HTTP_OK_MAXIMUM = 299
 
 /** Network failures Node's and Bun's fetch report, and DNS or socket codes under them. */
 const OFFLINE_CODES = new Set([
@@ -248,9 +250,14 @@ export class SessionEmbeddingModelFiles {
     }
     this.#set({ state: 'downloading', receivedBytes, totalBytes })
     try {
+      // Partial files a killed download left; this is the only download, as `ensure` shares it.
+      await removeStaleDownloads(directory)
       for (const file of this.#options.files) {
         const target = path.join(directory, file.path)
-        if ((await fileSize(target)) === file.bytes && (await this.#hashMatches(target, file))) {
+        if (
+          (await fileSize(target)) === file.bytes &&
+          (await fileHashMatches(target, file.sha256))
+        ) {
           progress(file.bytes)
           continue
         }
@@ -276,52 +283,16 @@ export class SessionEmbeddingModelFiles {
     return root
   }
 
-  async #hashMatches(filePath: string, file: SessionEmbeddingModelFile) {
-    const hash = createHash('sha256')
-    const stream = (await fs.open(filePath)).createReadStream()
-    for await (const chunk of stream) {
-      if (chunk instanceof Uint8Array) hash.update(chunk)
-    }
-    return hash.digest('hex') === file.sha256
-  }
-
-  async #fetchFile(
-    file: SessionEmbeddingModelFile,
-    target: string,
-    progress: (bytes: number) => void,
-  ) {
+  #fetchFile(file: SessionEmbeddingModelFile, target: string, progress: (bytes: number) => void) {
     const encoded = file.path.split('/').map(encodeURIComponent).join('/')
     const host = this.#options.host ?? SESSION_EMBEDDING_MODEL_HOST
-    const url = `${host}/${this.#options.modelId}/resolve/${this.#options.revision}/${encoded}`
-    const response = await (this.#options.fetch ?? fetch)(url)
-    if (response.status < HTTP_OK_MINIMUM || response.status > HTTP_OK_MAXIMUM) {
-      throw new Error(`${file.path}: HTTP ${String(response.status)}`)
-    }
-    if (response.body === null) throw new Error(`${file.path}: empty response`)
-    await fs.mkdir(path.dirname(target), { recursive: true })
-    const partial = `${target}.${randomUUID()}.download`
-    const hash = createHash('sha256')
-    try {
-      const reader = response.body.getReader()
-      const handle = await fs.open(partial, 'w')
-      try {
-        while (true) {
-          const chunk = await reader.read()
-          if (chunk.done) break
-          hash.update(chunk.value)
-          progress(chunk.value.byteLength)
-          await handle.write(chunk.value)
-        }
-      } finally {
-        await handle.close()
-      }
-      const actual = hash.digest('hex')
-      if (actual !== file.sha256) {
-        throw new Error(`${file.path} failed its integrity check (SHA-256 ${actual})`)
-      }
-      await fs.rename(partial, target)
-    } finally {
-      await fs.rm(partial, { force: true })
-    }
+    return downloadModelFile({
+      url: `${host}/${this.#options.modelId}/resolve/${this.#options.revision}/${encoded}`,
+      path: file.path,
+      sha256: file.sha256,
+      target,
+      fetch: this.#options.fetch ?? fetch,
+      progress,
+    })
   }
 }
