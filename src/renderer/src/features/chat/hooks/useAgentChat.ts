@@ -65,6 +65,9 @@ export function useAgentChat(
   )
   const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)
   const activityRestoreRevision = useBackgroundRunStore((state) => state.activityRestoreRevision)
+  const unannouncedRunNotice = useBackgroundRunStore((state) =>
+    sessionId ? (state.unannouncedRunNotices.get(sessionId) ?? 0) : 0,
+  )
   const getRunRenderSnapshot = useBackgroundRunStore((state) => state.getRunRenderSnapshot)
   const setRunRenderMessages = useBackgroundRunStore((state) => state.setRunRenderMessages)
   const setRunCompactionStatus = useBackgroundRunStore((state) => state.setRunCompactionStatus)
@@ -260,6 +263,7 @@ export function useAgentChat(
     isSessionIdle,
     optimisticUserMessages,
     hasActiveRun,
+    unannouncedRunNotice,
     activityRestoreRevision,
     getRunRenderSnapshot,
     removeMatchedOptimisticUserMessages,

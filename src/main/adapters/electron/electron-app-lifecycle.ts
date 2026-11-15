@@ -1,7 +1,30 @@
 import { app, autoUpdater } from 'electron'
 import type { AppLifecycleShape } from '../../ports/desktop-shell/app-lifecycle'
 import type { CancellableShellEvent } from '../../ports/desktop-shell/shell-events'
+import { addChromiumFeature } from './chromium-feature-switch'
 import { electronBootShell } from './electron-boot-shell'
+
+/**
+ * Chromium switches for a windowless process (the Session Host). It draws nothing and makes few
+ * requests through Chromium, yet Chromium starts a GPU process (software compositing) and a
+ * network service process for it, about 90 MB resident and two processes on macOS. Both run in
+ * the process itself instead (`--in-process-gpu`, and `NetworkServiceInProcess2` added to any
+ * `--enable-features` already given); a crash there was already the Host's own.
+ */
+export const WINDOWLESS_PROCESS_SWITCHES = {
+  inProcessGpu: 'in-process-gpu',
+  networkServiceInProcess: 'NetworkServiceInProcess2',
+} as const
+
+function runWindowless() {
+  app.disableHardwareAcceleration()
+  electronBootShell.commandLine.appendSwitch(WINDOWLESS_PROCESS_SWITCHES.inProcessGpu)
+  addChromiumFeature(
+    electronBootShell.commandLine,
+    'enable-features',
+    WINDOWLESS_PROCESS_SWITCHES.networkServiceInProcess,
+  )
+}
 
 function subscribe(
   add: (handler: () => void) => void,
@@ -53,5 +76,5 @@ export const electronAppLifecycle: AppLifecycleShape = {
       listener,
     ),
   commandLine: electronBootShell.commandLine,
-  disableHardwareAcceleration: () => app.disableHardwareAcceleration(),
+  disableHardwareAcceleration: runWindowless,
 }

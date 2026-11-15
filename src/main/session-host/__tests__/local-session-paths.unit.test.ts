@@ -190,21 +190,17 @@ describe('Local Session Host paths', () => {
     expect(unresolved.endpoint).toBe('')
     expect(first.endpoint).toBe(second.endpoint)
     expect(first.endpoint).toMatch(/^\\\\\.\\pipe\\openwaggle-[A-Za-z0-9_-]{43}-session-host$/)
-    expect(secureUserOnly).toHaveBeenCalledTimes(5)
-    expect(secureUserOnly).toHaveBeenNthCalledWith(1, [
-      { kind: 'directory', path: first.stateRoot },
-    ])
-    expect(secureUserOnly).toHaveBeenNthCalledWith(2, [
-      { kind: 'file', path: expect.stringContaining('.endpoint.capability.') },
-    ])
-    expect(secureUserOnly).toHaveBeenNthCalledWith(3, [
-      { kind: 'file', path: first.endpointCapabilityPath },
-    ])
-    expect(secureUserOnly).toHaveBeenNthCalledWith(4, [
-      { kind: 'directory', path: first.stateRoot },
-    ])
-    expect(secureUserOnly).toHaveBeenNthCalledWith(5, [
-      { kind: 'file', path: first.endpointCapabilityPath },
+    // The first launch creates the capability; a later one secures it with the directory, in one run.
+    expect(secureUserOnly.mock.calls).toEqual([
+      [[{ kind: 'directory', path: first.stateRoot }]],
+      [[{ kind: 'file', path: expect.stringContaining('.endpoint.capability.') }]],
+      [[{ kind: 'file', path: first.endpointCapabilityPath }]],
+      [
+        [
+          { kind: 'directory', path: first.stateRoot },
+          { kind: 'file', path: first.endpointCapabilityPath },
+        ],
+      ],
     ])
     const capabilityPath = first.endpointCapabilityPath
     if (!capabilityPath) throw new Error('Expected a Windows endpoint capability path.')

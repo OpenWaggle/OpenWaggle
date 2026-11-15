@@ -21,6 +21,8 @@ import {
 import type { CheckGate, CheckStep } from './step-model'
 import { EXTENSION_SDK_TYPES_STEP } from './extension-sdk-types-step'
 import { NO_CHEATING_STEP } from './no-cheating-step'
+import { PERF_BUDGETS_STEP } from './perf-budgets-step'
+import { RENDERER_BUNDLE_STEP } from './renderer-bundle-step'
 import { TEST_STEPS } from './test-steps'
 
 export const STEPS: readonly CheckStep[] = [
@@ -196,19 +198,8 @@ export const STEPS: readonly CheckStep[] = [
     findings: 'generic',
     hint: 'bun run check:waggle-dead-code',
   },
-  {
-    id: 'renderer-bundle',
-    summary: 'electron-vite build, then the syntax, main-bundle and CSP budgets',
-    commands: [
-      [...packageBin('electron-vite', 'electron-vite'), 'build', '--logLevel', 'warn'],
-      bunScript('scripts/check-syntax-bundle.ts'),
-      bunScript('scripts/check-main-bundle.ts'),
-      bunScript('scripts/check-renderer-csp.ts'),
-    ],
-    inputs: ['src/**', 'packages/*/src/**', 'electron.vite.config.ts', 'scripts/vite/**'],
-    findings: 'generic',
-    hint: 'bun run check:renderer-bundle',
-  },
+  RENDERER_BUNDLE_STEP,
+  PERF_BUDGETS_STEP,
   {
     id: 'pi-main-bundle-smoke',
     summary: 'Pi bundled into the main chunk runs under Node and Electron as Node',
@@ -272,6 +263,7 @@ const STATIC_STEPS = [
   'react-doctor',
   'waggle-dead-code',
   'renderer-bundle',
+  'perf-budgets',
   'pi-main-bundle-smoke',
   'package-release-validate',
   'api-snapshots',

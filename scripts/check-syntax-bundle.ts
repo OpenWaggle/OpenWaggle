@@ -1,151 +1,32 @@
+/**
+ * The renderer build's shape: no legacy editor assets, no deferred code-rendering asset in what
+ * `index.html` loads at boot, exactly one syntax worker, focused editor and editor worker, and a
+ * chunk for every chat surface source. Its sizes (the entry, the initial graph, the chat surface,
+ * the workers) are budgets in performance/perf-budgets.json, which the `perf-budgets` step checks
+ * (scripts/perf-gate/build-metrics.ts); this prints them for reference and fails on none.
+ */
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { lazySurfaceChunkFiles, parseRendererManifest } from './renderer-chunk-graph'
-import { namedGroups } from '@shared/utils/regex-named-groups'
+import {
+  chatSurfaceSources,
+  DEFERRED_RENDERER_ASSETS,
+  deferredRendererAsset,
+  initialRendererScripts,
+  lazySurfaceChunkFiles,
+  parseRendererManifest,
+} from './renderer-chunk-graph'
 
-const KIBIBYTE = 1024
-const ASSETS_DIRECTORY = path.resolve('out/renderer/assets')
-const RENDERER_MANIFEST = path.resolve('out/renderer/.vite/manifest.json')
-// Minified (B4). Unminified, the entry was 694 KB and the initial graph 4.4 MiB; minified 1.92 MiB,
-// then 1.59 MiB after the lazy feature surfaces (B8).
-const MAX_INITIAL_RENDERER_BYTES = 384 * KIBIBYTE
-/**
- * A ratchet on what boot loads: the entry plus every chunk `index.html` preloads, set at the
- * measured 1,733,432 bytes rounded up to 16 KiB (November 2026). Unlike the entry budget it does not
- * move when Rolldown regroups the same modules between the entry and its preloaded chunks.
- */
-const MAX_INITIAL_RENDERER_GRAPH_BYTES = 1_696 * KIBIBYTE
-/**
- * The chat surface: what the welcome and Session routes load right after the shell renders, before
- * the composer or a transcript appears (renderer-load.md, B8). It was 2.7 MB unminified and
- * 1.07 MiB minified when this budget was added, and 743 KiB once the chat surface moved into the
- * route chunk and its heavy panels became lazy (B1, B8); only the `index.html` graph was budgeted
- * before. The budget keeps about 30% headroom over the last measurement.
- */
-const MAX_CHAT_SURFACE_GRAPH_BYTES = 960 * KIBIBYTE
-const CHAT_SURFACE_SOURCES: readonly RegExp[] = [
-  /^src\/routes\/_chat\.index\.tsx\?tsr-split=component$/u,
-  /^src\/routes\/sessions\.\$sessionId\.tsx\?tsr-split=component$/u,
-]
-/** A chunk of its own before B1 moved the surface into the route chunks; counted if it is one again. */
-const OPTIONAL_CHAT_SURFACE_SOURCES: readonly RegExp[] = [
-  /^src\/routes\/-chat-route-surface\.tsx$/u,
-]
-// Minified (B4); unminified they were 391, 408 and 428 KiB.
-const MAX_SYNTAX_WORKER_BYTES = 320 * KIBIBYTE
-const MAX_FOCUSED_EDITOR_BYTES = 320 * KIBIBYTE
-const MAX_FOCUSED_EDITOR_WORKER_BYTES = 320 * KIBIBYTE
+const RENDERER_DIRECTORY = path.resolve('out/renderer')
+const ASSETS_DIRECTORY = path.join(RENDERER_DIRECTORY, 'assets')
+const RENDERER_MANIFEST = path.join(RENDERER_DIRECTORY, '.vite/manifest.json')
 const FORBIDDEN_INITIAL_ASSET_PATTERN =
   /(?:ChatDiffPane|DiffBlock|FocusedSourceEditor|pierre-syntax-runtime|syntax\.worker|worker-)/u
 
-interface AssetBudget {
-  readonly label: string
-  readonly pattern: RegExp
-  readonly maximumBytes: number
-}
-
-const ASSET_BUDGETS: readonly AssetBudget[] = [
-  {
-    label: 'syntax worker',
-    pattern: /^syntax\.worker-[^.]+\.js$/u,
-    maximumBytes: MAX_SYNTAX_WORKER_BYTES,
-  },
-  {
-    label: 'focused editor',
-    pattern: /^FocusedSourceEditor-[^.]+\.js$/u,
-    maximumBytes: MAX_FOCUSED_EDITOR_BYTES,
-  },
-  {
-    label: 'focused editor worker',
-    pattern: /^worker-[^.]+\.js$/u,
-    maximumBytes: MAX_FOCUSED_EDITOR_WORKER_BYTES,
-  },
-]
-
-async function matchingAsset(budget: AssetBudget, assets: readonly string[]) {
-  const matches = assets.filter((asset) => budget.pattern.test(asset))
-  if (matches.length !== 1) {
-    throw new Error(`Expected one ${budget.label} asset, found ${String(matches.length)}.`)
-  }
-  const asset = matches[0]
-  if (!asset) throw new Error(`Missing ${budget.label} asset.`)
-  const stats = await fs.stat(path.join(ASSETS_DIRECTORY, asset))
-  if (stats.size > budget.maximumBytes) {
-    throw new Error(
-      `${budget.label} is ${String(stats.size)} bytes; budget is ${String(budget.maximumBytes)} bytes.`,
-    )
-  }
-  return { asset, bytes: stats.size }
-}
-
-async function initialRendererAssets() {
-  const html = await fs.readFile(path.resolve('out/renderer/index.html'), 'utf8')
-  const entry = namedGroups(html.match(/<script[^>]+src="\.\/assets\/(?<asset>[^"]+\.js)"/u), [
-    'asset',
-  ])?.asset
-  if (!entry) throw new Error('Could not resolve the initial renderer asset from index.html.')
-  const preloadPattern =
-    /<link[^>]+rel="modulepreload"[^>]+href="\.\/assets\/(?<asset>[^"]+\.js)"/gu
-  const assets = [
-    entry,
-    ...[...html.matchAll(preloadPattern)].flatMap(
-      (match) => namedGroups(match, ['asset'])?.asset ?? [],
-    ),
-  ]
-  const uniqueAssets = [...new Set(assets)]
-  const forbiddenInitialAssets = uniqueAssets.filter((asset) =>
-    FORBIDDEN_INITIAL_ASSET_PATTERN.test(asset),
-  )
-  if (forbiddenInitialAssets.length > 0) {
-    throw new Error(
-      `Deferred code-rendering assets entered the initial graph: ${forbiddenInitialAssets.join(', ')}`,
-    )
-  }
-  const measurements = await Promise.all(
-    uniqueAssets.map(async (asset) => ({
-      asset,
-      bytes: (await fs.stat(path.join(ASSETS_DIRECTORY, asset))).size,
-    })),
-  )
-  const entryBytes = measurements.find(({ asset }) => asset === entry)?.bytes
-  if (entryBytes === undefined) throw new Error('Could not measure the initial renderer entry.')
-  if (entryBytes > MAX_INITIAL_RENDERER_BYTES) {
-    throw new Error(
-      `initial renderer is ${String(entryBytes)} bytes; budget is ${String(MAX_INITIAL_RENDERER_BYTES)} bytes.`,
-    )
-  }
-  const totalBytes = measurements.reduce((total, measurement) => total + measurement.bytes, 0)
-  if (totalBytes > MAX_INITIAL_RENDERER_GRAPH_BYTES) {
-    throw new Error(
-      `initial renderer graph is ${String(totalBytes)} bytes; budget is ${String(MAX_INITIAL_RENDERER_GRAPH_BYTES)} bytes. The budget only goes down: defer the new code with lazy() where its surface opens instead of raising it.`,
-    )
-  }
-  return {
-    initialFiles: new Set(uniqueAssets.map((asset) => `assets/${asset}`)),
-    measurements: [...measurements, { asset: 'initial-renderer-graph-total', bytes: totalBytes }],
-  }
-}
-
-async function chatSurfaceGraph(initialFiles: ReadonlySet<string>) {
-  const manifest = parseRendererManifest(JSON.parse(await fs.readFile(RENDERER_MANIFEST, 'utf8')))
-  const optional = OPTIONAL_CHAT_SURFACE_SOURCES.filter((pattern) =>
-    Object.keys(manifest).some((key) => pattern.test(key)),
-  )
-  const files = lazySurfaceChunkFiles(
-    manifest,
-    [...CHAT_SURFACE_SOURCES, ...optional],
-    initialFiles,
-  )
+async function bytesOf(directory: string, files: readonly string[]) {
   const sizes = await Promise.all(
-    files.map(async (file) => (await fs.stat(path.resolve('out/renderer', file))).size),
+    files.map(async (file) => (await fs.stat(path.join(directory, file))).size),
   )
-  const totalBytes = sizes.reduce((total, bytes) => total + bytes, 0)
-  if (totalBytes > MAX_CHAT_SURFACE_GRAPH_BYTES) {
-    throw new Error(
-      `chat surface graph is ${String(totalBytes)} bytes in ${String(files.length)} chunks; budget is ${String(MAX_CHAT_SURFACE_GRAPH_BYTES)} bytes.`,
-    )
-  }
-  return { asset: 'chat-surface-graph-total', bytes: totalBytes }
+  return sizes.reduce((total, size) => total + size, 0)
 }
 
 async function main() {
@@ -154,15 +35,31 @@ async function main() {
   if (legacyAssets.length > 0) {
     throw new Error(`Legacy editor assets found: ${legacyAssets.join(', ')}`)
   }
-  const initial = await initialRendererAssets()
-  const measurements = [
-    ...initial.measurements,
-    await chatSurfaceGraph(initial.initialFiles),
-    ...(await Promise.all(ASSET_BUDGETS.map((budget) => matchingAsset(budget, assets)))),
-  ]
-  process.stdout.write(
-    `${measurements.map(({ asset, bytes }) => `${asset}: ${String(bytes)} bytes`).join('\n')}\n`,
+  const initial = initialRendererScripts(
+    await fs.readFile(path.join(RENDERER_DIRECTORY, 'index.html'), 'utf8'),
   )
+  const forbidden = initial.assets.filter((asset) => FORBIDDEN_INITIAL_ASSET_PATTERN.test(asset))
+  if (forbidden.length > 0) {
+    throw new Error(
+      `Deferred code-rendering assets entered the initial graph: ${forbidden.join(', ')}`,
+    )
+  }
+  const manifest = parseRendererManifest(JSON.parse(await fs.readFile(RENDERER_MANIFEST, 'utf8')))
+  const chatSurface = lazySurfaceChunkFiles(
+    manifest,
+    chatSurfaceSources(manifest),
+    new Set(initial.assets.map((asset) => `assets/${asset}`)),
+  )
+  const lines = [
+    `renderer.initial.entry.bytes: ${String(await bytesOf(ASSETS_DIRECTORY, [initial.entry]))} (${initial.entry})`,
+    `renderer.initial.bytes: ${String(await bytesOf(ASSETS_DIRECTORY, initial.assets))} in ${String(initial.assets.length)} scripts`,
+    `renderer.chat-surface.bytes: ${String(await bytesOf(RENDERER_DIRECTORY, chatSurface))} in ${String(chatSurface.length)} chunks`,
+  ]
+  for (const deferred of DEFERRED_RENDERER_ASSETS) {
+    const asset = deferredRendererAsset(assets, deferred)
+    lines.push(`${deferred.metric}: ${String(await bytesOf(ASSETS_DIRECTORY, [asset]))} (${asset})`)
+  }
+  process.stdout.write(`${lines.join('\n')}\n`)
 }
 
 void main().catch((error: unknown) => {

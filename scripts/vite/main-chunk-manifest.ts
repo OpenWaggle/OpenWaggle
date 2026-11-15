@@ -25,7 +25,7 @@ function sourceModule(root: string, id: string) {
 
 /**
  * Records which chunk holds which source modules, so the main bundle's per-process budgets
- * (scripts/check-main-bundle.ts) can name the chunks the GUI, the Session Host and a CLI command
+ * (`main.startup.*.bytes`, scripts/perf-gate/build-metrics.ts) can name the chunks the GUI, the Session Host and a CLI command
  * load at startup by their source entry rather than by a content-hashed file name.
  */
 export function mainChunkManifestPlugin() {

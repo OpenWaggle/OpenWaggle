@@ -44,4 +44,11 @@ describe('DMG signing and notarization', () => {
     if (typeof signDmg !== 'function') return
     expect(await Reflect.apply(signDmg, unsignedTarget, ['/tmp/unsigned.dmg'])).toBe(false)
   })
+
+  it('makes the maximum-compression DMG an LZMA image (ULMO), not bzip2', () => {
+    const source = fs.readFileSync(dmgBuilderRequire().resolve('dmg-builder/out/dmg'), 'utf8')
+    expect(config.compression).toBe('maximum')
+    expect(source).toContain('packager.compression === "maximum" ? "ULMO" : "UDZO"')
+    expect(source).not.toContain('"UDBZ"')
+  })
 })

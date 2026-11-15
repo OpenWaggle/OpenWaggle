@@ -9,7 +9,7 @@ import {
 } from './workspace-panel-store'
 
 // Every surface below renders only once the Right panel shows it, so none is in the eager shell
-// graph (renderer-load B8; scripts/check-syntax-bundle.ts budgets the initial graph).
+// graph (renderer-load B8; renderer.initial.bytes in performance/perf-budgets.json).
 const LazyAllPanelsSurface = lazy(() =>
   import('./right-panel/AllPanelsSurface').then((module) => ({
     default: module.AllPanelsSurface,

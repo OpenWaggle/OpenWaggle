@@ -166,4 +166,20 @@ describe('Windows user-only security helper', () => {
     expect(script).not.toContain('ace.AccessMask != GENERIC_ALL')
     expect(script).toContain('VerifyDescriptor(new RawSecurityDescriptor(binary, 0), expectedUser)')
   })
+
+  it('imports the Utility module first and compiles the pipe helper only for a batch with a pipe', () => {
+    const { script } = windowsUserOnlySecurityCommandForTests()
+    // The module-qualified lookup imports the Utility module before ConvertFrom-Json needs it.
+    const resolve = script.indexOf("Get-Command -Name 'Microsoft.PowerShell.Utility\\Add-Type'")
+    const readInput = script.indexOf("Write-SecurityStage 'read-input'")
+    expect(resolve).toBeGreaterThan(-1)
+    expect(readInput).toBeGreaterThan(resolve)
+    const pipeCheck = script.indexOf('if ($pipeTargets -gt 0) {')
+    const compile = script.indexOf('& $compiler -TypeDefinition $source -Language CSharp')
+    expect(readInput).toBeGreaterThan(-1)
+    expect(pipeCheck).toBeGreaterThan(readInput)
+    expect(compile).toBeGreaterThan(pipeCheck)
+    expect(script.match(/Add-Type/gu)).toHaveLength(1)
+    expect(script).toContain("if ($target.kind -eq 'pipe') { $pipeTargets += 1 }")
+  })
 })

@@ -122,6 +122,15 @@ async function writeProtectedWindowsEndpointCapability(
   }
 }
 
+async function windowsCapabilityFileExists(capabilityPath: string) {
+  try {
+    return (await fs.lstat(capabilityPath)).isFile()
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) return false
+    throw error
+  }
+}
+
 async function ensureWindowsEndpointCapability(
   capabilityPath: string,
   secureUserOnly: WindowsUserOnlySecurity,
@@ -195,10 +204,19 @@ export async function prepareLocalSessionHostPaths(
     }
     await fs.mkdir(paths.stateRoot, { recursive: true, mode: OWNER_DIRECTORY_MODE })
     await fs.chmod(paths.stateRoot, OWNER_DIRECTORY_MODE)
-    await secureUserOnly([{ kind: 'directory', path: paths.stateRoot }])
+    // Each helper run is a PowerShell process, so one run secures the directory and, on every
+    // launch after the first, the capability file already in it, before either is read.
+    const existing = await windowsCapabilityFileExists(capabilityPath)
+    if (existing) await fs.chmod(capabilityPath, OWNER_FILE_MODE)
+    await secureUserOnly([
+      { kind: 'directory', path: paths.stateRoot },
+      ...(existing ? [{ kind: 'file' as const, path: capabilityPath }] : []),
+    ])
     const capability = await ensureWindowsEndpointCapability(capabilityPath, secureUserOnly)
-    await fs.chmod(capabilityPath, OWNER_FILE_MODE)
-    await secureUserOnly([{ kind: 'file', path: capabilityPath }])
+    if (!existing) {
+      await fs.chmod(capabilityPath, OWNER_FILE_MODE)
+      await secureUserOnly([{ kind: 'file', path: capabilityPath }])
+    }
     return withWindowsEndpoint(paths, capability)
   }
   await prepareUnixOwnerDirectory(paths.stateRoot, 'Local Session state directory')

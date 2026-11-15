@@ -8,6 +8,7 @@ import {
 } from '../domain/session-semantic-discovery-storage-policy'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import { decodeFloat32Vector } from './session-flat-vector-index'
+import { cannotBecomeFresh, discoverySnapshotUsable } from './semantic-discovery-model-readiness'
 import {
   type SemanticIndexRefresh,
   SessionSemanticIndexSnapshotCache,
@@ -142,10 +143,7 @@ export class SqliteSessionSemanticSearch {
   }
 
   usable(readiness: SemanticDiscoveryReadiness) {
-    return (
-      (readiness.snapshotRevision ?? 0) > 0 &&
-      readiness.modelRevision === this.model.metadata.revision
-    )
+    return discoverySnapshotUsable(readiness, this.model.metadata.revision)
   }
 
   fresh(readiness: SemanticDiscoveryReadiness) {
@@ -157,7 +155,7 @@ export class SqliteSessionSemanticSearch {
   }
 
   waitForFresh(initial: SemanticDiscoveryReadiness, timeoutMs: number) {
-    if (this.fresh(initial) || timeoutMs <= 0 || initial.status === 'failed') {
+    if (this.fresh(initial) || timeoutMs <= 0 || cannotBecomeFresh(initial)) {
       return Effect.succeed(initial)
     }
     const deadline = Date.now() + timeoutMs
@@ -305,7 +303,7 @@ export class SqliteSessionSemanticSearch {
     return this.readiness().pipe(
       Effect.flatMap((readiness) => {
         const remainingMs = deadline - Date.now()
-        if (this.fresh(readiness) || readiness.status === 'failed' || remainingMs <= 0) {
+        if (this.fresh(readiness) || cannotBecomeFresh(readiness) || remainingMs <= 0) {
           return Effect.succeed(readiness)
         }
         return Effect.sleep(Math.min(FRESHNESS_POLL_INTERVAL_MS, remainingMs)).pipe(

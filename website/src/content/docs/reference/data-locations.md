@@ -39,7 +39,8 @@ Set `OPENWAGGLE_USER_DATA_DIR` to use another folder. The desktop app, the Sessi
 | `action-logs/` | Output of project actions |
 | `preparation/` | Worktree setup and other preparation state, for each workspace |
 | `worktree-removal/` | A record of the last 20 automatic worktree removals |
-| `models/` | The speech model for voice input, downloaded on first use |
+| `models/transformers/` | The speech model for voice input, downloaded on first use |
+| `models/session-embedding/<revision>/` | The session search model, about 135 MB, downloaded on first use. Each file is checked against its pinned SHA-256 hash when it is downloaded. Each model revision has its own folder |
 | `syntax-resources/` | Syntax themes and grammars you imported in **Settings > Appearance** |
 | `usage-statistics/` | Usage statistics recorded today and not yet sent. See [When statistics are sent](/docs/configuration/usage-statistics#when-statistics-are-sent). Also `last-known-setting.json`, the **Share anonymous usage statistics and error reports** value the Session Host last loaded. See [Error reports](/docs/configuration/usage-statistics#error-reports) |
 | `session-data/` | The window's browser profile: local storage, cookies and cache |

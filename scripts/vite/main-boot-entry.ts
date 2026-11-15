@@ -38,13 +38,17 @@ export function mainBootEntryPlugin() {
           outDir,
           emptyOutDir: false,
           copyPublicDir: false,
-          minify: false,
+          // Every process compiles it from source before the compile cache exists, so it is
+          // minified as the main bundle is, names kept, with its hidden map beside it (never shipped).
+          minify: true,
+          sourcemap: 'hidden',
           rolldownOptions: {
             external: ['electron'],
             output: {
               format: 'cjs',
               entryFileNames: MAIN_BOOT_FILE_NAME,
               codeSplitting: false,
+              keepNames: true,
             },
           },
         },

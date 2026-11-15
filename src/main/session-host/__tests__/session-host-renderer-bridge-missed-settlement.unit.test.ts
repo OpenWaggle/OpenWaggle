@@ -1,4 +1,4 @@
-import type { BackgroundRunSnapshot } from '@shared/types/background-run'
+import type { BackgroundRunSnapshot, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -221,4 +221,76 @@ describe('Session Host renderer bridge missed settlements', () => {
 
     expect(lifecycle()).toEqual([{ started: 'run-Y' }])
   })
+
+  /*
+   * A Session launched into a new worktree streams launch progress before its Run starts, and the
+   * bridge keeps a buffer for it that names no Run. When the resync's gap held the Run's start,
+   * the renderer never learned the Run was active: the chat showed nothing until it settled.
+   */
+  it('announces a Run whose start the resync lost after the worktree launch began', () => {
+    relayLaunchProgress()
+
+    reconcileRemoteRunSnapshots([snapshot('run-1')])
+    // The same Run found again is not announced twice.
+    reconcileRemoteRunSnapshots([snapshot('run-1')])
+
+    expect(lifecycle()).toEqual([{ started: 'run-1' }])
+  })
+
+  // Its start is still to come and arrives live: announcing it now would end the first send's
+  // "Starting session" while the worktree is still being made.
+  it('does not announce a Run whose worktree launch is still running', () => {
+    relayLaunchProgress()
+
+    reconcileRemoteRunSnapshots([{ ...snapshot('run-1'), worktreeLaunch: runningLaunch() }])
+
+    expect(lifecycle()).toEqual([])
+  })
+
+  it.each(['complete', 'failed'] as const)(
+    'announces a Run whose start the resync lost once its launch is %s',
+    (status) => {
+      relayLaunchProgress()
+
+      reconcileRemoteRunSnapshots([
+        { ...snapshot('run-1'), worktreeLaunch: { ...runningLaunch(), status } },
+      ])
+
+      expect(lifecycle()).toEqual([{ started: 'run-1' }])
+    },
+  )
+
+  it('does not announce a launch an older Host names no Run for', () => {
+    relayLaunchProgress()
+
+    reconcileRemoteRunSnapshots([snapshot()])
+
+    expect(lifecycle()).toEqual([])
+  })
 })
+
+function relayLaunchProgress() {
+  relaySessionHostEvent({
+    cursor: { hostInstanceId: 'remote-host', sequence: 1 },
+    timestamp: 1,
+    payload: {
+      kind: 'session-worktree-launch',
+      sessionId: SESSION_ID,
+      model: MODEL,
+      mode: 'classic',
+      event: { type: 'progress', progress: { stage: 'checking-out-files', details: [] } },
+    },
+  })
+  broadcastToWindowsMock.mockClear()
+}
+
+function runningLaunch() {
+  const launch: WorktreeLaunchSnapshot = {
+    status: 'running',
+    stage: 'checking-out-files',
+    startedAt: 1,
+    updatedAt: 1,
+    details: [],
+  }
+  return launch
+}

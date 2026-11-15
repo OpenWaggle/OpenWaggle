@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  MAIN_PROCESS_BUDGETS,
-  parseMainChunkManifest,
-  processStartupChunks,
-} from '../main-bundle-graph'
+import { MAIN_PROCESSES, parseMainChunkManifest, processStartupChunks } from '../main-bundle-graph'
 
 function chunk(
   file: string,
@@ -55,14 +51,14 @@ describe('processStartupChunks', () => {
   })
 })
 
-describe('MAIN_PROCESS_BUDGETS', () => {
-  it('budgets the desktop app, the Session Host and the CLI commands agents run most', () => {
-    expect(MAIN_PROCESS_BUDGETS.map((budget) => budget.label)).toEqual([
-      'desktop app (GUI)',
-      'Session Host',
-      'openwaggle hive',
-      'openwaggle run',
-      'openwaggle mcp',
+describe('MAIN_PROCESSES', () => {
+  it('names a budget metric for the desktop app, the Session Host and the CLI commands agents run most', () => {
+    expect(MAIN_PROCESSES.map((process) => [process.label, process.metric])).toEqual([
+      ['desktop app (GUI)', 'main.startup.gui.bytes'],
+      ['Session Host', 'main.startup.session-host.bytes'],
+      ['openwaggle hive', 'main.startup.hive.bytes'],
+      ['openwaggle run', 'main.startup.run.bytes'],
+      ['openwaggle mcp', 'main.startup.mcp.bytes'],
     ])
   })
 })

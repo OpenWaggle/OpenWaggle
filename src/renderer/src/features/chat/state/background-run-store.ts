@@ -38,6 +38,7 @@ import {
   withRunRenderMessages,
   withSettledRunRenderSnapshot,
 } from './background-run-render-state'
+import { withUnannouncedRunNoticed } from './background-run-unannounced-run'
 
 export interface FirstSendRecovery {
   readonly payload: AgentSendPayload
@@ -54,7 +55,10 @@ interface BackgroundRunState {
   firstSendRecoveryBySessionId: Map<SessionId, FirstSendRecovery>
   /** Counts restores of the activity in progress when the renderer started (`initialize`). */
   activityRestoreRevision: number
+  /** Per Session, the Runs learned of from what they streamed, their start lost. */
+  unannouncedRunNotices: Map<SessionId, number>
   addActiveRun: (id: SessionId, model?: SupportedModelId) => void
+  noteUnannouncedRun: (id: SessionId, startedAt: number, model?: SupportedModelId) => void
   removeActiveRun: (id: SessionId) => void
   hasActiveRun: (id: SessionId) => boolean
   getRunRenderSnapshot: (id: SessionId) => RunRenderSnapshot | null
@@ -62,8 +66,8 @@ interface BackgroundRunState {
   setRunCompactionStatus: (id: SessionId, status: AgentCompactionStatus | null) => void
   applyRunRenderEvent: (id: SessionId, event: AgentTransportEvent) => void
   clearRunRenderSnapshot: (id: SessionId) => void
-  /** A Run settled: the snapshot holds it, so the next Run's start reseeds it. */
-  noteRunRenderSnapshotRunSettled: (id: SessionId, runId: string | undefined) => void
+  /** A Run settled: the snapshot holds it (`rowsOnly`: rows before an unannounced Run's). */
+  noteRunRenderSnapshotRunSettled: (id: SessionId, runId?: string, rowsOnly?: boolean) => void
   /** The settled Run's Session refreshed: drops the snapshot unless a later Run seeded it. */
   clearSettledRunRenderSnapshot: (id: SessionId) => void
   getWorktreeLaunch: (id: SessionId) => WorktreeLaunchSnapshot | null
@@ -178,6 +182,7 @@ function initialBackgroundRunState() {
     worktreeLaunchBySessionId: new Map<SessionId, WorktreeLaunchSnapshot>(),
     firstSendRecoveryBySessionId: new Map<SessionId, FirstSendRecovery>(),
     activityRestoreRevision: 0,
+    unannouncedRunNotices: new Map<SessionId, number>(),
   }
 }
 
@@ -205,6 +210,14 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   addActiveRun(id: SessionId, model?: SupportedModelId) {
     noteActivityLifecycleChange(id)
     set((state) => addActiveRunToState(state, id, model))
+  },
+
+  // No activity change: a restore in flight still restores the Run's compaction status.
+  noteUnannouncedRun(id: SessionId, startedAt: number, model?: SupportedModelId) {
+    set((state) => ({
+      ...addActiveRunToState(state, id, model),
+      ...withUnannouncedRunNoticed(state, id, startedAt),
+    }))
   },
 
   removeActiveRun(id: SessionId) {
@@ -236,8 +249,8 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
     set((state) => withoutRunRenderSnapshot(state, id))
   },
 
-  noteRunRenderSnapshotRunSettled(id: SessionId, runId: string | undefined) {
-    set((state) => withSettledRunRenderSnapshot(state, id, runId))
+  noteRunRenderSnapshotRunSettled(id, runId, rowsOnly) {
+    set((state) => withSettledRunRenderSnapshot(state, id, runId, rowsOnly))
   },
 
   clearSettledRunRenderSnapshot(id: SessionId) {

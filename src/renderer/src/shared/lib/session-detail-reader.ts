@@ -1,6 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import type { SessionDetailCursor } from '@shared/types/session-transcript-window'
+import {
+  SESSION_DETAIL_MESSAGE_WINDOW,
+  type SessionDetailCursor,
+} from '@shared/types/session-transcript-window'
 
 /**
  * Session detail reads that move only what changed (v1 performance, D5).
@@ -23,12 +26,6 @@ import type { SessionDetailCursor } from '@shared/types/session-transcript-windo
  */
 
 type DetailRead = (id: SessionId, cursor?: SessionDetailCursor) => Promise<SessionDetail | null>
-
-/**
- * Newest messages of a Session the window holds: above the 200 path entries of the transcript's
- * first workspace page, so every message it shows at first is held, with room for a long Run.
- */
-export const SESSION_DETAIL_MESSAGE_WINDOW = 400
 
 /** Sessions whose messages are held; a long Session's messages are the chat view's anyway. */
 const MAX_HELD_SESSIONS = 8
