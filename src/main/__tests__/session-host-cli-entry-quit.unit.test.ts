@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('electron', () => ({
   app: {
+    commandLine: { appendSwitch: vi.fn(), hasSwitch: () => false, getSwitchValue: () => '' },
     exit: mocks.exit,
     getPath: vi.fn(() => '/tmp/openwaggle-profile'),
     getVersion: vi.fn(() => '1.0.0'),

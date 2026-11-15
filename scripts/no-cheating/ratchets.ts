@@ -1,10 +1,25 @@
 /**
  * Budgets, caps and ratchets that may only tighten (`budget`), and lists that may only shrink
- * (`only-shrinks`). A raised bundle, output-token, first-turn prefix or memory budget, a lowered
+ * (`only-shrinks`). A raised output-token, first-turn prefix or memory budget, a lowered
  * coverage threshold, or a new entry in an exemption list blocks with no way out but getting under
- * the limit: none of these files takes a reason in place of the fix.
+ * the limit: none of these files takes a reason in place of the fix. The Performance Gate's files
+ * (`PERF_GATE_FILES`) are the exception, judged on the pull request by the Performance Gate: the
+ * bundle sizes live there, not as constants in scripts/ (.agents/memory/performance.md).
  */
 import type { Finding, FindingKind } from './findings'
+
+/**
+ * Files the Performance Gate owns instead (.github/workflows/perf-gate.yml): the budgets file follows
+ * the measurement, so a value may go up with the code, and the timing thresholds may be retuned
+ * from new noise runs. The gate compares both with main's on the pull request: a raised budget
+ * fails until a maintainer adds its label, which a local check cannot see, and a loosened threshold
+ * is named in the report (timings are reported only). None of `BUDGETS` may match them, or a raise
+ * would fail here with no way to accept it (scripts/no-cheating/__tests__).
+ */
+export const PERF_GATE_FILES: readonly string[] = [
+  'performance/perf-budgets.json',
+  'performance/perf-gate/thresholds.json',
+]
 
 type Direction = 'higher' | 'lower'
 
@@ -29,12 +44,6 @@ export const BUDGETS: readonly Budget[] = [
     name: 'check output budget',
     files: /^scripts\/check\/output-budget\.json$/u,
     keys: /./u,
-    looser: 'higher',
-  },
-  {
-    name: 'bundle budget',
-    files: /^scripts\/(?:check-syntax-bundle|check-main-bundle|main-bundle-graph)\.ts$/u,
-    keys: /^(?:MAX_\w+|\w*BUDGET\w*|maximumBytes)$/u,
     looser: 'higher',
   },
   {

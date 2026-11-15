@@ -7,7 +7,10 @@ import {
 } from './adapters/pi/mcp/openwaggle-mcp-migration'
 import { migrateLegacyProviderCredentialsOnHostStart } from './adapters/pi/pi-legacy-provider-credentials'
 import { runSessionScratchSweepBackground } from './adapters/session-scratch-sweep-background'
-import { runSessionSemanticDiscoveryBackground } from './adapters/session-semantic-discovery-background'
+import {
+  installSessionModelDownloadHold,
+  runSessionSemanticDiscoveryBackground,
+} from './adapters/session-semantic-discovery-background'
 import { migrateLegacyProviderReferences } from './adapters/sqlite-legacy-provider-rename-migration'
 import { migrateLegacySessionCapabilityGrants } from './adapters/sqlite-legacy-session-capability-migration'
 import { migrateLegacyThinkingLevels } from './adapters/sqlite-legacy-thinking-level-migration'
@@ -40,8 +43,8 @@ export interface HostServiceOptions<R> {
 
 /**
  * Host services that must run before the Host serves its first client: the migrations every read
- * depends on, the session tool gateway, the Hive wake, Follow-up edit-hold expiry and the Title worker (a Spawn or
- * Launch asks it for a title, and a request before it is installed is dropped). Anything that can
+ * depends on, the session tool gateway, the Hive wake, Follow-up edit-hold expiry, the Title worker (a Spawn or
+ * Launch asks it for a title, and a request before it is installed is dropped) and the model download hold. Anything that can
  * wait starts once the Host listens (`startHostServicesOnceListening`, A-F8).
  */
 export function startHostBackgroundServices() {
@@ -66,6 +69,9 @@ export function startHostBackgroundServices() {
     yield* installHiveParentWake
     yield* runFollowUpEditHoldExpiryBackground
     yield* installSessionTitleWorker
+    // Before any client: its first readiness read can start the model download, which holds the
+    // Host while it runs, long before the indexers' quiet start.
+    yield* installSessionModelDownloadHold
   })
 }
 

@@ -6,10 +6,6 @@ import './apply-build-identity'
 import './restore-host-temporary-directory' // before any module caches a temp path
 import './apply-pi-package-directory' // before any Pi module reads its package.json
 import { MAC_DEV_DOCK_ICON_FILE } from '@shared/build-identity-runtime'
-import {
-  configureDefaultSessionEmbeddingModelForPackagedRuntime,
-  SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY,
-} from './adapters/multilingual-e5-session-embedding-model'
 import { registerAppQuitCleanup } from './app-quit-cleanup'
 import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
 import { applicationCliArguments } from './application-cli-arguments'
@@ -49,6 +45,7 @@ import {
 import { beginAppCliShimSetupWhen } from './services/cli-shim-startup'
 import { setAppDatabaseAccessMode } from './services/database-access-mode'
 import { configureAppStoragePaths } from './session-data'
+import { configureSessionEmbeddingModel } from './session-embedding-model-setup'
 import { hasSessionHostPrelaunch } from './session-host/session-host-prelaunch-handoff'
 import { forwardSessionLinksFromBackgroundProcess } from './session-link-forwarding'
 import { sessionLinkHost } from './session-link-host'
@@ -76,11 +73,7 @@ type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
-if (appLifecycle.isPackaged()) {
-  configureDefaultSessionEmbeddingModelForPackagedRuntime(
-    join(process.resourcesPath, SESSION_EMBEDDING_MODEL_RESOURCE_DIRECTORY),
-  )
-}
+configureSessionEmbeddingModel()
 
 const appIconPath = !appLifecycle.isPackaged()
   ? join(__dirname, '../../build/icon-dev.png')

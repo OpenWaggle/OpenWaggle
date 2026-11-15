@@ -9,6 +9,7 @@ import {
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
 import { sessionDiscoveryDocument } from './session-discovery-document'
 import { embedPassagesInBatches } from './session-embedding-batches'
+import { withModelAvailability } from './semantic-discovery-model-readiness'
 import {
   loadSessionSemanticProjectionRows,
   publishSessionSemanticProjectionBatch,
@@ -67,6 +68,12 @@ export class SqliteSessionSemanticProjection {
     }
   }
   readiness() {
+    return this.#storedReadiness().pipe(
+      Effect.flatMap((readiness) => withModelAvailability(readiness, this.model)),
+    )
+  }
+
+  #storedReadiness() {
     return Effect.gen(this, function* () {
       yield* this.#ensureProjectionStorage()
       const rows = yield* this.sql<SemanticStateRow>`

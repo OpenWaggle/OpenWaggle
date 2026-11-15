@@ -32,14 +32,35 @@ type ParserWorkerFactory = (input: {
 const PARSER_MAX_OLD_GENERATION_MB = 128
 const PARSER_MAX_YOUNG_GENERATION_MB = 32
 const PARSER_STACK_MB = 4
-const resolveParserDependency = createRequire(__filename).resolve
-const PARSER_MODULE_URLS = {
-  mammoth: pathToFileURL(resolveParserDependency('mammoth')).href,
-  jszip: pathToFileURL(resolveParserDependency('jszip')).href,
-  sharp: pathToFileURL(resolveParserDependency('sharp')).href,
-  tesseract: pathToFileURL(resolveParserDependency('tesseract.js')).href,
-  unpdf: pathToFileURL(resolveParserDependency('unpdf')).href,
-} as const
+
+interface ParserModuleUrls {
+  readonly mammoth: string
+  readonly jszip: string
+  readonly sharp: string
+  readonly tesseract: string
+  readonly unpdf: string
+}
+
+let parserModuleUrls: ParserModuleUrls | undefined
+
+/**
+ * The parsers' module URLs, resolved on the first parse rather than when this module loads: the
+ * GUI and the Host evaluate it at startup through the IPC handlers and the run handlers, and the
+ * five lookups cost each process 2-4 ms there.
+ */
+function parserModuleUrlsOnFirstUse() {
+  if (parserModuleUrls !== undefined) return parserModuleUrls
+  const resolveParserDependency = createRequire(__filename).resolve
+  const url = (name: string) => pathToFileURL(resolveParserDependency(name)).href
+  parserModuleUrls = {
+    mammoth: url('mammoth'),
+    jszip: url('jszip'),
+    sharp: url('sharp'),
+    tesseract: url('tesseract.js'),
+    unpdf: url('unpdf'),
+  }
+  return parserModuleUrls
+}
 
 const ATTACHMENT_PARSER_WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads')
@@ -131,7 +152,9 @@ async function parse() {
     }
     await fs.chmod(workerData.ocrCachePath, 0o700)
     const tesseract = await import(workerData.moduleUrls.tesseract)
-    const worker = await tesseract.createWorker('eng', undefined, {
+    // The LSTM engine (OEM.LSTM_ONLY), tesseract.js's default: the packaged app ships only the
+    // LSTM cores (scripts/packaged-runtime-packages.ts).
+    const worker = await tesseract.createWorker('eng', 1, {
       cachePath: workerData.ocrCachePath,
     })
     try {
@@ -160,7 +183,7 @@ const createParserWorker: ParserWorkerFactory = (input) =>
     eval: true,
     workerData: {
       ...input,
-      moduleUrls: PARSER_MODULE_URLS,
+      moduleUrls: parserModuleUrlsOnFirstUse(),
       maxExtractedTextChars: ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS,
       maxImagePixels: ATTACHMENT.MAX_IMAGE_PIXELS,
       maxOcrImagePixels: ATTACHMENT.MAX_OCR_IMAGE_PIXELS,

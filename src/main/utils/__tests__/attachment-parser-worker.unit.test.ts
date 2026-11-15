@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { runAttachmentParserWorker } from '../attachment-parser-worker'
 
 describe('attachment parser worker', () => {
@@ -15,6 +15,34 @@ describe('attachment parser worker', () => {
       const dependencyPosition = packageSource.indexOf(`"${packageName}"`, dependenciesStart)
       expect(dependencyPosition).toBeGreaterThan(dependenciesStart)
       expect(dependencyPosition).toBeLessThan(developmentDependenciesStart)
+    }
+  })
+
+  it('resolves the parser modules on the first parse, not when the module loads', async () => {
+    vi.resetModules()
+    const createRequire = vi.fn()
+    vi.doMock('node:module', async (importOriginal) => {
+      const original = await importOriginal<typeof import('node:module')>()
+      createRequire.mockImplementation(original.createRequire)
+      // The parser module imports only createRequire from node:module.
+      return { createRequire }
+    })
+    try {
+      const parser = await import('../attachment-parser-worker')
+      expect(createRequire).not.toHaveBeenCalled()
+      for (let parse = 0; parse < 2; parse += 1) {
+        const controller = new AbortController()
+        const parsing = parser.runAttachmentParserWorker(
+          { kind: 'pdf', buffer: Buffer.from('not-a-pdf') },
+          controller.signal,
+        )
+        controller.abort()
+        await expect(parsing).rejects.toThrow('exceeded')
+      }
+      expect(createRequire).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.doUnmock('node:module')
+      vi.resetModules()
     }
   })
 
