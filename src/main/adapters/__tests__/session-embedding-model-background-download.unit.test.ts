@@ -80,7 +80,7 @@ describe('the Session embedding model download a readiness read starts', () => {
     expect(held).toBe(0)
   })
 
-  it('starts no download when the Host refuses the hold', async () => {
+  it('starts no download when the Host refuses the hold, and the next read says why', async () => {
     const download = modelFiles('download')
     const model = new MultilingualE5SessionEmbeddingModel()
     model.useModelFiles(download.files)
@@ -91,6 +91,10 @@ describe('the Session embedding model download a readiness read starts', () => {
     expect(await model.availability()).toEqual({ state: 'missing' })
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(download.requested).toEqual([])
+    expect(await model.availability()).toMatchObject({
+      state: 'failed',
+      reason: 'The Session Host is stopping',
+    })
   })
 
   it('removes the partial files a killed download left before it downloads', async () => {
@@ -145,13 +149,18 @@ describe('the Session embedding model files hold', () => {
     expect(holds).toEqual(['taken', 'released'])
   })
 
-  it('fails ensure() with nothing fetched when the hold is refused', async () => {
+  it('reports a refused hold as a failed download with its reason, with nothing fetched', async () => {
     const download = modelFiles('download')
     download.files.holdDownloadsWith(() => {
       throw new Error('The Session Host is stopping')
     })
 
-    await expect(download.files.ensure()).rejects.toThrow('The Session Host is stopping')
+    await expect(download.files.ensure()).rejects.toThrow()
     expect(download.requested).toEqual([])
+    // Never left `missing`, which reads as a download no one started.
+    expect(download.files.availability()).toMatchObject({
+      state: 'failed',
+      reason: 'The Session Host is stopping',
+    })
   })
 })

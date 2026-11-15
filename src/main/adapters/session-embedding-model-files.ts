@@ -201,8 +201,8 @@ export class SessionEmbeddingModelFiles {
 
   /**
    * What every download takes for as long as it runs, so its process stays up (the Session Host's
-   * liveness hold). A hold that throws, as a stopping Host's does, fails `ensure()` with nothing
-   * started.
+   * liveness hold). A hold that throws, as a stopping Host's does, fails the download before it
+   * fetches anything, and readiness reports that failure and its reason.
    */
   holdDownloadsWith(hold: () => () => void) {
     this.#hold = hold
@@ -217,13 +217,9 @@ export class SessionEmbeddingModelFiles {
     if ((current.state === 'offline' || current.state === 'failed') && now < current.retryAt) {
       throw new SessionEmbeddingModelUnavailableError(current)
     }
-    if (this.#download === null) {
-      const release = this.#hold?.() ?? (() => undefined)
-      this.#download = this.#fetchAll().finally(() => {
-        this.#download = null
-        release()
-      })
-    }
+    this.#download ??= this.#fetchAll().finally(() => {
+      this.#download = null
+    })
     return this.#download
   }
 
@@ -262,8 +258,11 @@ export class SessionEmbeddingModelFiles {
       reportedAt = receivedBytes
       this.#set({ state: 'downloading', receivedBytes, totalBytes })
     }
-    this.#set({ state: 'downloading', receivedBytes, totalBytes })
+    let release: () => void = () => undefined
     try {
+      // Inside the try: a refused hold is a failure readiness reports, never a model left missing.
+      release = this.#hold?.() ?? release
+      this.#set({ state: 'downloading', receivedBytes, totalBytes })
       // Partial files a killed download left; this is the only download, as `ensure` shares it.
       await removeStaleDownloads(directory)
       for (const file of this.#options.files) {
@@ -291,6 +290,8 @@ export class SessionEmbeddingModelFiles {
         : { state: 'failed', reason, retryAt }
       this.#set(failed)
       throw new SessionEmbeddingModelUnavailableError(failed, { cause: error })
+    } finally {
+      release()
     }
     this.#resolved = root
     this.#set({ state: 'ready' })
