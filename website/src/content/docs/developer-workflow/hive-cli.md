@@ -286,7 +286,7 @@ Both modes also need the session search model, which OpenWaggle downloads on fir
 
 These statuses apply unless the index already reports `failed` or `unavailable`, which it keeps (a profile limited to discovery sees `unavailable`).
 
-Meanwhile hybrid search returns word matches, with `searchBackend: "lexical"` and the degradation reason `semantic_not_ready`. Semantic-only search fails with `semantic_not_ready`. `--require-fresh` returns at once instead of waiting for the download.
+Meanwhile hybrid search returns word matches, with `searchBackend: "lexical"` and the degradation reason `semantic_not_ready`. Semantic-only search fails with `semantic_not_ready`. `--require-fresh` waits for a missing or downloading model as it waits for the index, up to `--timeout-ms`. After a download fails it returns at once, with the reason, unless the retry is already due: then it waits for the retry.
 
 The meaning index is a local cache that OpenWaggle can rebuild. The transcript itself is the source of truth. The cache keeps these limits:
 

@@ -1,4 +1,5 @@
 import { type launchGui, stopChild } from './live-session-orchestration-support'
+import { retainedProfileDiagnostics } from './retained-profile-diagnostics'
 import { prepareQaProfileRemoval, shutdownSessionHostForQa } from './session-host-shutdown'
 
 export interface LiveQaLifecycleState {
@@ -19,6 +20,8 @@ interface LiveQaCleanupDependencies {
   readonly prepareProfileRemoval: typeof prepareQaProfileRemoval
   readonly shutdownHost: typeof shutdownSessionHostForQa
   readonly stopGui: typeof stopChild
+  /** The retained profile's logs and Host files, printed because a CI runner discards them. */
+  readonly describeProfile?: (userDataRoot: string) => Promise<string>
 }
 
 const defaultLiveQaCleanupDependencies: LiveQaCleanupDependencies = {
@@ -54,8 +57,12 @@ export async function completeLiveQaCleanup(
   }
 
   if (!input.passed || !closeSucceeded) {
+    const describeProfile = dependencies.describeProfile ?? retainedProfileDiagnostics
+    const profile = await describeProfile(input.userDataRoot).catch(
+      (error: unknown) => `The retained profile could not be described: ${String(error)}`,
+    )
     console.error(
-      `Live QA data retained at ${input.userDataRoot}\n${input.guiLogs.map((read) => read()).join('\n')}`,
+      `Live QA data retained at ${input.userDataRoot}\n${input.guiLogs.map((read) => read()).join('\n')}\n${profile}`,
     )
   }
   if (input.primaryFailure && cleanupErrors.length > 0) {

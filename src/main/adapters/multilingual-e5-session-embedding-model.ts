@@ -145,7 +145,8 @@ export class MultilingualE5SessionEmbeddingModel implements SessionEmbeddingMode
       // An install whose index was prepared before the model was fetched on first use, or one that
       // only searches, never embeds, so reading the state starts the download. `ensure()` refuses
       // a retry before `retryAt`, and a download in progress is shared.
-      // A Host that is stopping refuses the hold, so `ensure()` starts nothing then.
+      // Its failure, a refused hold included, is the files' `failed` or `offline` state with its
+      // reason, which the next read reports.
       files.ensure().catch(() => undefined)
     }
     return current
