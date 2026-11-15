@@ -98,18 +98,25 @@ describe('ChangeRequestComposer recovery', () => {
   })
 
   it('clears a failed-attempt browser fallback when request fields change', async () => {
-    runStackedGitAction.mockResolvedValue({
+    // The browser button is always rendered, disabled until a fallback URL exists. Holding the
+    // failed attempt pins the order: the button is found before the result lands, so the test
+    // must wait for it to enable instead of reading it once.
+    const attempt = Promise.withResolvers<unknown>()
+    runStackedGitAction.mockReturnValue(attempt.promise)
+    renderComposer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
+    const browserButton = await screen.findByRole('button', { name: 'Open PR in browser' })
+    expect(browserButton).toBeDisabled()
+
+    attempt.resolve({
       ok: false,
       phase: 'pr',
       code: 'change-request-failed',
       message: 'GitHub CLI is unavailable.',
       fallbackUrl: 'https://github.com/openwaggle/openwaggle/compare/main...feature?expand=1',
     })
-    renderComposer()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Create PR' }))
-    const browserButton = await screen.findByRole('button', { name: 'Open PR in browser' })
-    expect(browserButton).toBeEnabled()
+    await waitFor(() => expect(browserButton).toBeEnabled())
 
     fireEvent.change(screen.getByDisplayValue(SESSION.title), { target: { value: 'New title' } })
     expect(browserButton).toBeDisabled()
