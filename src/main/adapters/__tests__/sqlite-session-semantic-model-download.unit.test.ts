@@ -178,6 +178,9 @@ describe('Session discovery before the embedding model arrives', () => {
       model: { state: 'downloading', receivedBytes: 0, totalBytes: 135_000_000 },
       name: 'downloading',
     },
+    // The read that reports this stale failure starts the retry, which is due.
+    { model: { state: 'failed', reason: 'HTTP 503', retryAt: 1 }, name: 'failed, retry due' },
+    { model: { state: 'offline', reason: 'fetch failed', retryAt: 1 }, name: 'offline, retry due' },
   ])(
     'waits for a $name model a required-fresh search can still get, then searches semantically',
     async ({ model }) => {

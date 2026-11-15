@@ -69,11 +69,14 @@ export function discoverySnapshotUsable(readiness: SemanticDiscoveryReadiness, r
 /**
  * A readiness no wait makes fresh: a recorded failure, or a model download that failed and waits
  * to retry. A model that is missing or downloading can arrive within the wait: reading readiness
- * starts its download, so `--require-fresh` waits for it as it waits for the index.
+ * starts its download, so `--require-fresh` waits for it as it waits for the index. So can a failed
+ * one whose `retryAt` has come: that read starts the retry, though it reports the old failure.
  */
-export function cannotBecomeFresh(readiness: SemanticDiscoveryReadiness) {
-  const model = readiness.model?.state
-  return readiness.status === 'failed' || model === 'failed' || model === 'offline'
+export function cannotBecomeFresh(readiness: SemanticDiscoveryReadiness, now = Date.now()) {
+  if (readiness.status === 'failed') return true
+  const model = readiness.model
+  if (model === undefined || (model.state !== 'failed' && model.state !== 'offline')) return false
+  return model.retryAt === undefined || model.retryAt > now
 }
 
 /** The unavailable-model error under a projection failure, if that is what it was. */
