@@ -163,4 +163,40 @@ describe('the Session embedding model files hold', () => {
       reason: 'The Session Host is stopping',
     })
   })
+
+  it.each([
+    {
+      name: 'a fetch that rejects',
+      fetch: async () => {
+        throw new TypeError('fetch failed')
+      },
+      state: 'offline',
+    },
+    {
+      name: 'an HTTP 503',
+      fetch: async () => new Response(null, { status: 503 }),
+      state: 'failed',
+    },
+  ] as const)('is released when the download fails on $name', async ({ fetch, state }) => {
+    const files = new SessionEmbeddingModelFiles({
+      modelId: MODEL_ID,
+      revision: REVISION,
+      files: FILES,
+      downloadDirectory: () => path.join(root, 'download'),
+      fetch,
+    })
+    const holds: string[] = []
+    files.holdDownloadsWith(() => {
+      holds.push('taken')
+      return () => {
+        holds.push('released')
+      }
+    })
+
+    await expect(files.ensure()).rejects.toThrow()
+
+    // A hold kept after a failure would keep a windowless Host running until its next retry.
+    expect(holds).toEqual(['taken', 'released'])
+    expect(files.availability().state).toBe(state)
+  })
 })
