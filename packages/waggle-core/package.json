@@ -1,6 +1,6 @@
 {
   "name": "@openwaggle/waggle-core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Runtime-neutral Waggle policy, prompts, state, presets, and turn orchestration primitives.",
   "type": "module",
   "license": "MIT",

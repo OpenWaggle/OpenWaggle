@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/OpenWaggle/OpenWaggle/compare/waggle-core-v0.2.0...waggle-core-v0.2.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* build and test with Bun and enforce the strictest type, lint and test checks ([#453](https://github.com/OpenWaggle/OpenWaggle/issues/453)) ([901f5b0](https://github.com/OpenWaggle/OpenWaggle/commit/901f5b00dff0b1ae23cb2e036dba6dab4146b18c))
+
 ## [0.2.0](https://github.com/OpenWaggle/OpenWaggle/compare/waggle-core-v0.1.1...waggle-core-v0.2.0) (2026-11-06)
 
 
