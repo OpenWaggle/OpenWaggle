@@ -27,7 +27,10 @@ const RESTRICTED: LocalSessionProfileAuthority = {
   authorizationCeiling: 'ask-for-approval',
 }
 
-/** The model is fetched on first use (session-embedding-model-files.ts); search waits for no download. */
+/**
+ * The model is fetched on first use (session-embedding-model-files.ts): search without a wait does
+ * not wait for the download, and a required-fresh search waits for it until its timeout.
+ */
 describe('Session discovery before the embedding model arrives', () => {
   let root = ''
   const runtimes: ReturnType<typeof makeRuntime>[] = []
@@ -86,10 +89,14 @@ describe('Session discovery before the embedding model arrives', () => {
 
   /** A runtime whose index an earlier build prepared, so it would say ready without the model. */
   async function preparedRuntime(name: string, availability: SessionEmbeddingModelAvailability) {
-    const runtime = makeRuntime(path.join(root, `${name}.sqlite`), {
-      ...fakeModel,
-      availability: async () => availability,
-    })
+    return preparedRuntimeWith(name, async () => availability)
+  }
+
+  async function preparedRuntimeWith(
+    name: string,
+    availability: () => Promise<SessionEmbeddingModelAvailability>,
+  ) {
+    const runtime = makeRuntime(path.join(root, `${name}.sqlite`), { ...fakeModel, availability })
     runtimes.push(runtime)
     await runtime.runPromise(
       Effect.gen(function* () {
@@ -164,4 +171,72 @@ describe('Session discovery before the embedding model arrives', () => {
       })
     },
   )
+
+  it.each<{ readonly model: SessionEmbeddingModelAvailability; readonly name: string }>([
+    { model: { state: 'missing' }, name: 'missing' },
+    {
+      model: { state: 'downloading', receivedBytes: 0, totalBytes: 135_000_000 },
+      name: 'downloading',
+    },
+  ])(
+    'waits for a $name model a required-fresh search can still get, then searches semantically',
+    async ({ model }) => {
+      // The readiness read starts the download; it arrives within the wait.
+      let arrived = false
+      const runtime = await preparedRuntimeWith(`semantic-arrives-${model.state}`, async () =>
+        arrived ? { state: 'ready' } : model,
+      )
+      setTimeout(() => {
+        arrived = true
+      }, 30)
+
+      const result = await executeQuery(runtime, {
+        operation: 'search',
+        query: 'Validate migration',
+        mode: 'semantic',
+        requireFresh: true,
+        waitTimeoutMs: 2_000,
+        limit: 3,
+      })
+
+      expect(result.outcome).toMatchObject({
+        operation: 'search',
+        searchBackend: 'semantic',
+        semanticReadiness: { status: 'ready' },
+      })
+    },
+  )
+
+  it.each<{ readonly model: SessionEmbeddingModelAvailability; readonly name: string }>([
+    {
+      model: { state: 'failed', reason: 'HTTP 503', retryAt: Date.now() + 60_000 },
+      name: 'failed',
+    },
+    {
+      model: { state: 'offline', reason: 'fetch failed', retryAt: Date.now() + 60_000 },
+      name: 'offline',
+    },
+  ])('answers at once, with the reason, when the model download $name', async ({ model }) => {
+    const runtime = await preparedRuntime(`semantic-stopped-${model.state}`, model)
+    const startedAt = Date.now()
+
+    const result = await executeQuery(runtime, {
+      operation: 'search',
+      query: 'Validate migration',
+      mode: 'semantic',
+      requireFresh: true,
+      waitTimeoutMs: 5_000,
+      limit: 3,
+    })
+
+    expect(Date.now() - startedAt).toBeLessThan(2_000)
+    expect(result.outcome).toMatchObject({
+      operation: 'search',
+      semanticReadiness: {
+        model: { state: model.state },
+        reason: expect.stringContaining(model.reason),
+      },
+      error: { code: 'semantic_not_ready' },
+    })
+  })
 })
