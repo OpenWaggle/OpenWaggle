@@ -1,31 +1,25 @@
+/**
+ * The main build's shape: no top-level require of a lazy external, a hidden source map for every
+ * file, and a startup that loads only the externals it may. Its sizes (the boot shim, what each
+ * process loads) are budgets in performance/perf-budgets.json, which the `perf-budgets` step checks;
+ * this prints them for reference and fails on none.
+ */
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import {
-  MAIN_PROCESS_BUDGETS,
-  parseMainChunkManifest,
-  processStartupChunks,
-} from './main-bundle-graph'
+import { MAIN_PROCESSES, parseMainChunkManifest, processStartupChunks } from './main-bundle-graph'
 import { disallowedTopLevelRequires } from './main-bundle-requires'
 import { probeStartupExternals, startupExternalFailures } from './main-bundle-startup-externals'
 import { MAIN_CHUNK_MANIFEST_PATH } from './vite/main-chunk-manifest'
 
-const KIBIBYTE = 1024
 const MAIN_OUT_DIRECTORY = path.resolve('out/main')
-/**
- * The boot shim runs before V8's compile cache exists, so it is compiled from source on every
- * launch (src/main/boot.ts). It holds the compile cache setup, the `--version`/`--help` router
- * (34 KB when this budget was set) and the desktop app's Session Host prelaunch (W11, 48 KB with
- * it); anything more it imports is paid by every process.
- */
 const MAIN_BOOT_FILE = 'boot.js'
-const MAX_MAIN_BOOT_BYTES = 56 * KIBIBYTE
 
 async function fileBytes(file: string) {
   return (await fs.stat(path.join(MAIN_OUT_DIRECTORY, file))).size
 }
 
 /**
- * Every main chunk has its hidden source map (electron.vite.config.ts): the bundle is minified, so
+ * The boot shim and every main chunk have their hidden source map (electron.vite.config.ts): the bundle is minified, so
  * a field stack trace is `index.js:1:<column>` and only the map turns it back into source lines.
  */
 async function missingSourceMaps(files: readonly string[]) {
@@ -66,13 +60,10 @@ async function main() {
     MAIN_BOOT_FILE,
     ...manifest.map((entry) => entry.file),
   ])
-  failures.push(...(await missingSourceMaps(manifest.map((entry) => entry.file))))
+  failures.push(
+    ...(await missingSourceMaps([MAIN_BOOT_FILE, ...manifest.map((entry) => entry.file)])),
+  )
   const bootBytes = await fileBytes(MAIN_BOOT_FILE)
-  if (bootBytes > MAX_MAIN_BOOT_BYTES) {
-    failures.push(
-      `out/main/${MAIN_BOOT_FILE} is ${String(bootBytes)} bytes; budget is ${String(MAX_MAIN_BOOT_BYTES)} bytes.`,
-    )
-  }
   const lines = [
     `${MAIN_BOOT_FILE}: ${String(bootBytes)} bytes`,
     `${String(manifest.length)} main chunks`,
@@ -89,18 +80,13 @@ async function main() {
       ),
     )
   }
-  for (const budget of MAIN_PROCESS_BUDGETS) {
-    const chunks = processStartupChunks(manifest, budget.startupModules)
+  for (const startup of MAIN_PROCESSES) {
+    const chunks = processStartupChunks(manifest, startup.startupModules)
     const sizes = await Promise.all(chunks.map(fileBytes))
     const bytes = sizes.reduce((total, size) => total + size, 0)
     lines.push(
-      `${budget.label}: ${String(bytes)} bytes in ${String(chunks.length)} chunks at startup`,
+      `${startup.label}: ${String(bytes)} bytes in ${String(chunks.length)} chunks at startup (${startup.metric})`,
     )
-    if (bytes > budget.maximumBytes) {
-      failures.push(
-        `The ${budget.label} loads ${String(bytes)} bytes of main bundle at startup; budget is ${String(budget.maximumBytes)} bytes (scripts/main-bundle-graph.ts).`,
-      )
-    }
   }
   process.stdout.write(`${lines.join('\n')}\n`)
   if (failures.length > 0) throw new Error(failures.join('\n'))

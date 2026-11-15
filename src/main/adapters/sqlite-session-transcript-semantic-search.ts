@@ -6,6 +6,11 @@ import type { SemanticDiscoveryReadiness, SessionQuerySummary } from '@shared/ty
 import * as Effect from 'effect/Effect'
 import { SESSION_TRANSCRIPT_SEMANTIC_STORAGE_POLICY as STORAGE_POLICY } from '../domain/session-transcript-semantic-storage-policy'
 import type { SessionEmbeddingModel } from './multilingual-e5-session-embedding-model'
+import {
+  cannotBecomeFresh,
+  semanticModelReady,
+  withModelAvailability,
+} from './semantic-discovery-model-readiness'
 import { sessionSemanticQueryInferenceGate } from './session-semantic-inference-gate'
 import { SessionTranscriptSemanticIndexCache } from './session-transcript-semantic-index-cache'
 import type { DiscoverySearchRequest } from './sqlite-session-discovery-window'
@@ -155,12 +160,14 @@ export class SqliteSessionTranscriptSemanticSearch {
       if (staleSessionIds.length > 0) {
         yield* this.projection.ensureSessions(staleSessionIds, scope.operationId)
       }
-      return yield* this.projection.readiness(scope.sessionIds)
+      const readiness = yield* this.projection.readiness(scope.sessionIds)
+      return yield* withModelAvailability(readiness, this.model)
     })
   }
 
   usable(readiness: SemanticDiscoveryReadiness) {
     return (
+      semanticModelReady(readiness) &&
       (readiness.status === 'ready' ||
         (readiness.status === 'partial' && (readiness.coverage ?? 0) > 0)) &&
       readiness.modelRevision === this.model.metadata.revision &&
@@ -177,7 +184,7 @@ export class SqliteSessionTranscriptSemanticSearch {
     initial: SemanticDiscoveryReadiness,
     timeoutMs: number,
   ) {
-    if (this.fresh(initial) || timeoutMs <= 0 || initial.status === 'failed') {
+    if (this.fresh(initial) || timeoutMs <= 0 || cannotBecomeFresh(initial)) {
       return Effect.succeed(initial)
     }
     const now = Date.now()
@@ -288,7 +295,7 @@ export class SqliteSessionTranscriptSemanticSearch {
       }
       const readiness = yield* this.readiness(scope)
       const remainingMs = deadline - Date.now()
-      if (this.fresh(readiness) || readiness.status === 'failed' || remainingMs <= 0) {
+      if (this.fresh(readiness) || cannotBecomeFresh(readiness) || remainingMs <= 0) {
         return readiness
       }
       const heartbeatDelay = Math.max(1, followingHeartbeatAt - Date.now())

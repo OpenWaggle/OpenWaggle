@@ -1,8 +1,11 @@
 import { MessageId, SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import type { SessionDetailCursor } from '@shared/types/session-transcript-window'
+import {
+  SESSION_DETAIL_MESSAGE_WINDOW,
+  type SessionDetailCursor,
+} from '@shared/types/session-transcript-window'
 import { describe, expect, it, vi } from 'vitest'
-import { createSessionDetailReader, SESSION_DETAIL_MESSAGE_WINDOW } from '../session-detail-reader'
+import { createSessionDetailReader } from '../session-detail-reader'
 
 const SESSION = SessionId('session-1')
 

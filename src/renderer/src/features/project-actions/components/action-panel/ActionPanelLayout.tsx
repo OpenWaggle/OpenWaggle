@@ -5,7 +5,7 @@ import { RIGHT_PANEL_SIZING } from '@/shared/ui/right-sidebar-sizing-presets'
 import { useActionPanelStore } from '../../state/action-panel-store'
 
 // The guided editor only renders once a panel request is open, so keep it out of the eager
-// shell graph (scripts/check-syntax-bundle.ts enforces the initial renderer budget).
+// shell graph (renderer.initial.bytes in performance/perf-budgets.json).
 const LazyActionPanel = lazy(() =>
   import('./ActionPanel').then((module) => ({ default: module.ActionPanel })),
 )

@@ -51,6 +51,18 @@ index 3b16e02c0377cb327461283cf6a4e90e0cc3c6ff..0a6ac6298c375a9a6e66ee118809a6c2
      }
      computeVolumeName(arch, custom) {
          const appInfo = this.packager.appInfo;
+@@ -127,7 +134,10 @@ class DmgTarget extends app_builder_lib_1.Target {
+                 specification.format = "UDRO";
+             }
+             else {
+-                specification.format = packager.compression === "maximum" ? "UDBZ" : "UDZO";
++                // OpenWaggle patch: `maximum` makes an LZMA image (ULMO, macOS 10.15 and later), which
++                // dmgbuild and hdiutil support but the configuration schema does not list: about 18%
++                // smaller than bzip2 (UDBZ) for the app.
++                specification.format = packager.compression === "maximum" ? "ULMO" : "UDZO";
+             }
+         }
+         if (specification.contents == null) {
 diff --git a/out/dmgUtil.js b/out/dmgUtil.js
 index 490d088acde7a303001a013390dbe445fc15d5e5..bf35bfbcdb8c24be6e9c6b0fb034e1cb13fa9cfd 100644
 --- a/out/dmgUtil.js

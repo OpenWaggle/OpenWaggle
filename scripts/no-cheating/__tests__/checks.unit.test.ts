@@ -115,15 +115,12 @@ describe('lint config loosening', () => {
 
 describe('budgets and only-shrinks lists', () => {
   it('blocks a raised budget and a lowered coverage threshold, and passes the reverse', () => {
-    const budget = (value: number) => `const MAX_SYNTAX_WORKER_BYTES = ${value} * KIBIBYTE\n`
-    expect(
-      ratchetFindings('scripts/check-syntax-bundle.ts', budget(320), budget(352)).map(
-        formatFinding,
-      ),
-    ).toEqual([
-      'scripts/check-syntax-bundle.ts:1 [no-cheating/budget] bundle budget MAX_SYNTAX_WORKER_BYTES moved from 320 to 352; get under it instead',
+    const prefix = 'scripts/perf/first-turn-prefix/first-turn-prefix-budget.ts'
+    const budget = (value: number) => `export const BUDGETS = {\n  queen: ${value},\n}\n`
+    expect(ratchetFindings(prefix, budget(3_880), budget(3_900)).map(formatFinding)).toEqual([
+      `${prefix}:1 [no-cheating/budget] first-turn prefix budget queen moved from 3880 to 3900; get under it instead`,
     ])
-    expect(ratchetFindings('scripts/check-syntax-bundle.ts', budget(352), budget(320))).toEqual([])
+    expect(ratchetFindings(prefix, budget(3_900), budget(3_880))).toEqual([])
     const coverage = (lines: number) => `thresholds: {\n  lines: ${lines},\n  branches: 30,\n}\n`
     expect(ratchetFindings('vitest.config.ts', coverage(40), coverage(35))).toHaveLength(1)
     expect(ratchetFindings('vitest.config.ts', coverage(40), coverage(45))).toEqual([])

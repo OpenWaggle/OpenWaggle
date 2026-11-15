@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { prepareChromiumProfile } from '../electron-web-profile'
+import { prepareChromiumProfile, runChromiumAudioServiceInProcess } from '../electron-web-profile'
 
 const REPAIR_MARKER_FILENAME = '.openwaggle-dips-repair-v1'
 const DIPS_FILENAMES = ['DIPS', 'DIPS-wal', 'DIPS-shm'] as const
@@ -22,6 +22,7 @@ function commandLine() {
     switches,
     commandLine: {
       hasSwitch: (name: string) => switches.has(name),
+      getSwitchValue: (name: string) => switches.get(name) ?? '',
       appendSwitch: (name: string, value?: string) => {
         switches.set(name, value)
       },
@@ -56,6 +57,22 @@ describe('prepareChromiumProfile', () => {
     prepareChromiumProfile(createSessionDataDirectory(), () => undefined, line)
 
     expect(Number(switches.get('disk-cache-size'))).toBeGreaterThan(0)
+  })
+
+  it('runs the audio service in process and keeps features the command line already disables', () => {
+    const fresh = commandLine()
+    prepareChromiumProfile(createSessionDataDirectory(), () => undefined, fresh.commandLine)
+    expect(fresh.switches.get('disable-features')).toBe('AudioServiceOutOfProcess')
+
+    const given = commandLine()
+    given.switches.set('disable-features', 'Translate,AudioServiceOutOfProcess')
+    runChromiumAudioServiceInProcess(given.commandLine)
+    expect(given.switches.get('disable-features')).toBe('Translate,AudioServiceOutOfProcess')
+
+    const other = commandLine()
+    other.switches.set('disable-features', 'Translate')
+    runChromiumAudioServiceInProcess(other.commandLine)
+    expect(other.switches.get('disable-features')).toBe('Translate,AudioServiceOutOfProcess')
   })
 
   it('repairs existing Chromium DIPS files once for existing profiles', () => {
