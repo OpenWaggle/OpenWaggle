@@ -114,11 +114,9 @@ export async function prepareSelectedAttachments(projectPath: string, files: rea
 
   const [byPath, byBytes] = await Promise.all([
     selected.length === 0 ? Promise.resolve([]) : prepareAttachmentsByPath(projectPath, selected),
-    Promise.all(
-      pathlessImages.map(async ({ file, fileIndex }) =>
-        preparePathlessImage(file, fileIndex).catch(() => null),
-      ),
-    ),
+    // A file the shell does not read from bytes answers `null` and is skipped; a preparation that
+    // fails rejects, so the window shows the same error a file with a path would raise.
+    Promise.all(pathlessImages.map(({ file, fileIndex }) => preparePathlessImage(file, fileIndex))),
   ])
 
   return [...byPath, ...byBytes.filter((prepared) => prepared !== null)].sort(

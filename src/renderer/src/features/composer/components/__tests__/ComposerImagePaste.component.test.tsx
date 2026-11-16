@@ -124,7 +124,9 @@ describe('pasting an image into the composer', () => {
     expect(apiMock.prepareImageAttachment).not.toHaveBeenCalled()
   })
 
-  it('leaves a paste that carries only HTML to the editor', async () => {
+  // The composer inserts only plain text, so this guards the read: before the fix an HTML-only
+  // paste was consumed and the clipboard image attached instead.
+  it('does not read the clipboard image for a paste that carries only HTML', async () => {
     renderComposer()
 
     pasteIntoComposer({ files: [], html: '<p>pasted words</p>', text: '' })

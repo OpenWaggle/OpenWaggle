@@ -40,10 +40,10 @@ export interface UseFileAttachmentResult {
 const PASTED_IMAGE_NAME = 'pasted-image.png'
 
 /**
- * The flavours that mean a paste carries text. `text/html` counts: a paste from a rich editor can
- * set it with no `text/plain` beside it, and consuming that paste would insert nothing.
+ * The flavours that mean a paste carries text: the three the editor's own paste handler inserts,
+ * so a paste one of them serves is never consumed to read a clipboard image instead.
  */
-const PASTE_TEXT_TYPES = ['text/plain', 'text/html'] as const
+const PASTE_TEXT_TYPES = ['text/plain', 'text/html', 'text/uri-list'] as const
 
 /** The files a paste carries; a clipboard bitmap may arrive only as an item, never as a file. */
 function pastedFiles(event: ClipboardEvent) {
