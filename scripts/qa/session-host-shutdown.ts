@@ -1,11 +1,6 @@
 import fs from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
-import { LOCAL_SESSION_CURRENT_REVISION } from '../../src/shared/types/local-session-protocol'
-import {
-  LocalSessionHostUpgradePendingError,
-  openLocalSessionConnection,
-} from '../../src/main/session-host/local-session-client-connection'
 import {
   type LocalSessionHostPaths,
   refreshLocalSessionHostEndpoint,
@@ -15,12 +10,12 @@ import {
   acquireSessionHostOwnership,
   type SessionHostOwnership,
 } from '../../src/main/session-host/session-host-ownership'
+import { SESSION_HOST_EXIT_BUDGET_MS } from '../../src/main/session-host/session-host-update-stop'
+import { hasErrorCode, processExists, requestStop } from './session-host-stop'
 
 const QA_HOST_SHUTDOWN_TIMEOUT_MS = 30_000
 const QA_HOST_SHUTDOWN_POLL_INTERVAL_MS = 50
 const QA_HOST_CONNECT_TIMEOUT_MS = 250
-const QA_HOST_CLIENT_VERSION = 'qa-graceful-shutdown'
-const FUTURE_PROTOCOL_REVISION = LOCAL_SESSION_CURRENT_REVISION + 1
 const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
 const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
 const OWNERSHIP_DATABASE_SUFFIX = '.ownership.sqlite'
@@ -34,15 +29,17 @@ type WhileOwnershipHeld = (
 interface SessionHostShutdownDependencies {
   readonly resolvePaths: (userDataRoot: string) => LocalSessionHostPaths
   readonly refreshPaths: (paths: LocalSessionHostPaths) => Promise<LocalSessionHostPaths>
-  readonly requestDrain: (paths: LocalSessionHostPaths) => Promise<void>
+  /**
+   * Stops the Host and returns its process id, which the shutdown waits on: the Host releases
+   * ownership before its Chromium profile (`session-data`) closes, so only its exit frees every
+   * profile file. Undefined when the Host cannot say, as one already handing over cannot.
+   */
+  readonly requestStop: (paths: LocalSessionHostPaths) => Promise<number | undefined>
+  readonly processExists: (processId: number) => boolean
   readonly canConnect: (endpoint: string) => Promise<boolean>
   readonly tryAcquireOwnership: (databasePath: string) => Promise<SessionHostOwnership | null>
   readonly now: () => number
   readonly wait: (milliseconds: number) => Promise<void>
-}
-
-function hasErrorCode(error: unknown, code: string) {
-  return error instanceof Error && 'code' in error && error.code === code
 }
 
 function isUnavailable(error: unknown) {
@@ -125,25 +122,11 @@ function canConnect(endpoint: string) {
   })
 }
 
-async function requestDrain(paths: LocalSessionHostPaths) {
-  try {
-    const connection = await openLocalSessionConnection({
-      paths,
-      clientKind: 'internal',
-      clientVersion: QA_HOST_CLIENT_VERSION,
-      supportedRevisions: [FUTURE_PROTOCOL_REVISION],
-    })
-    connection.socket.destroy()
-    throw new Error('The Session Host unexpectedly accepted the QA shutdown revision.')
-  } catch (error) {
-    if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
-  }
-}
-
 const defaultDependencies: SessionHostShutdownDependencies = {
   resolvePaths: (userDataRoot) => resolveLocalSessionHostPaths({ userDataRoot }),
   refreshPaths: refreshLocalSessionHostEndpoint,
-  requestDrain,
+  requestStop,
+  processExists,
   canConnect,
   tryAcquireOwnership: async (databasePath) => {
     try {
@@ -155,6 +138,23 @@ const defaultDependencies: SessionHostShutdownDependencies = {
   },
   now: Date.now,
   wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+}
+
+/**
+ * The Host releases ownership before its Chromium profile closes, and on Windows a file it still
+ * holds (`session-data/Local State`) makes the removal fail with EBUSY, so the cleanup waits for
+ * its exit. Only for the Host's own exit budget: a reused process id must not hold the cleanup to
+ * its timeout, and `fs.rm`'s retries absorb what lag is left.
+ */
+async function waitForHostProcessExit(
+  processId: number | undefined,
+  dependencies: SessionHostShutdownDependencies,
+) {
+  if (processId === undefined) return
+  const deadline = dependencies.now() + SESSION_HOST_EXIT_BUDGET_MS
+  while (dependencies.processExists(processId) && dependencies.now() < deadline) {
+    await dependencies.wait(QA_HOST_SHUTDOWN_POLL_INTERVAL_MS)
+  }
 }
 
 async function runWhileOwnershipHeld(
@@ -186,8 +186,8 @@ async function runWhileOwnershipHeld(
 }
 
 /**
- * Uses the authenticated version-handoff path to drain a QA Session Host, then holds canonical
- * durable-store ownership until the caller's profile cleanup finishes.
+ * Stops a QA Session Host through the authenticated update stop, waits for its process to exit,
+ * then holds canonical durable-store ownership until the caller's profile cleanup finishes.
  */
 export async function shutdownSessionHostForQa(
   userDataRoot: string,
@@ -205,9 +205,10 @@ export async function shutdownSessionHostForQa(
 
   const basePaths = dependencies.resolvePaths(userDataRoot)
   let paths: LocalSessionHostPaths | null = null
+  let processId: number | undefined
   try {
     paths = await dependencies.refreshPaths(basePaths)
-    await dependencies.requestDrain(paths)
+    processId = await dependencies.requestStop(paths)
   } catch (error) {
     if (!isUnavailable(error)) throw error
   }
@@ -215,12 +216,15 @@ export async function shutdownSessionHostForQa(
   const deadline = dependencies.now() + timeoutMs
   while (dependencies.now() < deadline) {
     const endpointReleased = paths === null || !(await dependencies.canConnect(paths.endpoint))
-    if (endpointReleased) {
-      const ownership = await dependencies.tryAcquireOwnership(basePaths.databasePath)
-      if (ownership) {
-        await runWhileOwnershipHeld(ownership, whileOwnershipHeld)
-        return
-      }
+    const ownership = endpointReleased
+      ? await dependencies.tryAcquireOwnership(basePaths.databasePath)
+      : null
+    if (ownership) {
+      await runWhileOwnershipHeld(ownership, async (held) => {
+        await waitForHostProcessExit(processId, dependencies)
+        return whileOwnershipHeld(held)
+      })
+      return
     }
     await dependencies.wait(QA_HOST_SHUTDOWN_POLL_INTERVAL_MS)
   }

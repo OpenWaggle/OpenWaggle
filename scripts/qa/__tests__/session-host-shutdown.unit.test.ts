@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LocalSessionHostPaths } from '../../../src/main/session-host/local-session-paths'
 import type { SessionHostOwnership } from '../../../src/main/session-host/session-host-ownership'
+import { SESSION_HOST_EXIT_BUDGET_MS } from '../../../src/main/session-host/session-host-update-stop'
 import { shutdownSessionHostForQa } from '../session-host-shutdown'
 
 function paths(platform: NodeJS.Platform) {
@@ -32,7 +33,7 @@ describe('shutdownSessionHostForQa', () => {
     async (platform) => {
       const hostPaths = paths(platform)
       const releasedOwnership = ownership()
-      const requestDrain = vi.fn()
+      const requestStop = vi.fn(async () => undefined)
       const canConnect = vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false)
       const tryAcquireOwnership = vi
         .fn()
@@ -49,7 +50,8 @@ describe('shutdownSessionHostForQa', () => {
         {
           resolvePaths: () => hostPaths,
           refreshPaths: async () => hostPaths,
-          requestDrain,
+          requestStop,
+          processExists: () => false,
           canConnect,
           tryAcquireOwnership,
           now: () => now,
@@ -59,7 +61,7 @@ describe('shutdownSessionHostForQa', () => {
         },
       )
 
-      expect(requestDrain).toHaveBeenCalledWith(hostPaths)
+      expect(requestStop).toHaveBeenCalledWith(hostPaths)
       expect(canConnect).toHaveBeenCalledWith(hostPaths.endpoint)
       expect(tryAcquireOwnership).toHaveBeenCalledWith(hostPaths.databasePath)
       expect(releasedOwnership.release).toHaveBeenCalledOnce()
@@ -69,7 +71,7 @@ describe('shutdownSessionHostForQa', () => {
   it('handles a Windows Host that exited before its endpoint capability could be refreshed', async () => {
     const hostPaths = paths('win32')
     const releasedOwnership = ownership()
-    const requestDrain = vi.fn()
+    const requestStop = vi.fn(async () => undefined)
     const canConnect = vi.fn()
     const missingCapability = Object.assign(new Error('missing capability'), { code: 'ENOENT' })
 
@@ -82,7 +84,8 @@ describe('shutdownSessionHostForQa', () => {
       {
         resolvePaths: () => hostPaths,
         refreshPaths: async () => Promise.reject(missingCapability),
-        requestDrain,
+        requestStop,
+        processExists: () => false,
         canConnect,
         tryAcquireOwnership: async () => releasedOwnership,
         now: () => 0,
@@ -90,7 +93,7 @@ describe('shutdownSessionHostForQa', () => {
       },
     )
 
-    expect(requestDrain).not.toHaveBeenCalled()
+    expect(requestStop).not.toHaveBeenCalled()
     expect(canConnect).not.toHaveBeenCalled()
     expect(releasedOwnership.release).toHaveBeenCalledOnce()
   })
@@ -103,7 +106,8 @@ describe('shutdownSessionHostForQa', () => {
       shutdownSessionHostForQa('qa-profile', vi.fn(), 100, {
         resolvePaths: () => hostPaths,
         refreshPaths: async () => hostPaths,
-        requestDrain: vi.fn(),
+        requestStop: async () => undefined,
+        processExists: () => false,
         canConnect: async () => false,
         tryAcquireOwnership: async () => null,
         now: () => now,
@@ -136,7 +140,8 @@ describe('shutdownSessionHostForQa', () => {
       {
         resolvePaths: () => hostPaths,
         refreshPaths: async () => hostPaths,
-        requestDrain: vi.fn(),
+        requestStop: async () => undefined,
+        processExists: () => false,
         canConnect: async () => false,
         tryAcquireOwnership,
         now: () => 0,
@@ -159,7 +164,8 @@ describe('shutdownSessionHostForQa', () => {
       shutdownSessionHostForQa('qa-profile', async () => Promise.reject(profileFailure), 1_000, {
         resolvePaths: () => hostPaths,
         refreshPaths: async () => hostPaths,
-        requestDrain: vi.fn(),
+        requestStop: async () => undefined,
+        processExists: () => false,
         canConnect: async () => false,
         tryAcquireOwnership: async () => ({
           targetPath: hostPaths.databasePath,
@@ -171,5 +177,80 @@ describe('shutdownSessionHostForQa', () => {
     ).rejects.toMatchObject({
       errors: [profileFailure, releaseFailure],
     })
+  })
+
+  it("waits for the stopped Host's process to exit, not just its ownership release, before cleanup", async () => {
+    // On Windows the Host releases ownership and still holds its Chromium profile (session-data)
+    // for about half a second until it exits, and the removal failed with EBUSY.
+    const hostPaths = paths('win32')
+    const releasedOwnership = ownership()
+    let now = 0
+    let alive = 3
+    const events: string[] = []
+
+    await shutdownSessionHostForQa(
+      'qa-profile',
+      async () => {
+        events.push('cleanup')
+      },
+      1_000,
+      {
+        resolvePaths: () => hostPaths,
+        refreshPaths: async () => hostPaths,
+        requestStop: async () => 4242,
+        processExists: (processId) => {
+          expect(processId).toBe(4242)
+          const running = alive > 0
+          alive -= 1
+          events.push(running ? 'host running' : 'host exited')
+          return running
+        },
+        canConnect: async () => false,
+        tryAcquireOwnership: async () => releasedOwnership,
+        now: () => now,
+        wait: async (milliseconds) => {
+          now += milliseconds
+        },
+      },
+    )
+
+    expect(events).toEqual([
+      'host running',
+      'host running',
+      'host running',
+      'host exited',
+      'cleanup',
+    ])
+  })
+
+  it('removes the profile after the exit budget when the process id never disappears', async () => {
+    // A reused process id must not hold the cleanup to its timeout and fail a release job.
+    const hostPaths = paths('win32')
+    const heldOwnership = ownership()
+    let now = 0
+    const cleanedAt: number[] = []
+
+    await shutdownSessionHostForQa(
+      'qa-profile',
+      async () => {
+        cleanedAt.push(now)
+      },
+      undefined,
+      {
+        resolvePaths: () => hostPaths,
+        refreshPaths: async () => hostPaths,
+        requestStop: async () => 4242,
+        processExists: () => true,
+        canConnect: async () => false,
+        tryAcquireOwnership: async () => heldOwnership,
+        now: () => now,
+        wait: async (milliseconds) => {
+          now += milliseconds
+        },
+      },
+    )
+
+    expect(cleanedAt).toEqual([SESSION_HOST_EXIT_BUDGET_MS])
+    expect(heldOwnership.release).toHaveBeenCalledOnce()
   })
 })
