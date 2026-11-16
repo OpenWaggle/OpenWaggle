@@ -40,7 +40,7 @@ function validatePreparedAttachments(attachments: readonly PreparedAttachment[])
     if (attachment.kind === 'image') continue
     if (totalSizeBytes > ATTACHMENT.MAX_TOTAL_SIZE_BYTES - attachment.sizeBytes) {
       throw new Error(
-        `Total attachment size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / MEBIBYTE)} MB.`,
+        `Total document size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / MEBIBYTE)} MB.`,
       )
     }
     totalSizeBytes += attachment.sizeBytes

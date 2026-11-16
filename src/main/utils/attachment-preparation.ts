@@ -310,7 +310,7 @@ export async function prepareAttachmentFiles(input: {
   )
   if (totalSize > ATTACHMENT.MAX_TOTAL_SIZE_BYTES) {
     throw new Error(
-      `Total attachment size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
+      `Total document size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
     )
   }
   return await Promise.all(snapshots.map(extractAttachmentSnapshot))
