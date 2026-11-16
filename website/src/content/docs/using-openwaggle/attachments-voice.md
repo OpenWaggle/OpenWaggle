@@ -25,7 +25,7 @@ Compare this screenshot with the checkout page in our app.
 List the differences before making any changes.
 ```
 
-You can attach up to 5 files to a message. A document can be up to 8 MiB, and the documents in one message up to 20 MiB in total. An image can be up to 100 MiB, because OpenWaggle reduces it to what the model accepts before it sends anything. Nothing is sent until you send the message. With a hosted model, the attachment content in the request goes to that provider.
+You can attach up to 5 files to a message. A document can be up to 8 MiB, and the documents in one message up to 20 MiB in total. An image can be up to 100 MiB, because the agent reduces it to the size the model accepts before the request is sent. Nothing is sent until you send the message. With a hosted model, the attachment content in the request goes to that provider.
 
 You can also paste instead of picking a file. Press Ctrl+V, or Cmd+V on macOS, while an image is on the clipboard and OpenWaggle attaches it. Text on the clipboard is pasted as text. Screenshots work this way: press Win+Shift+S on Windows or Cmd+Shift+4 on macOS, then paste.
 
