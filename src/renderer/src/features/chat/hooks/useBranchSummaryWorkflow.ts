@@ -159,7 +159,9 @@ function applySummarizedBranchDraft(
     params.showToast('Your draft has too many attachments to send. Remove some before retrying.')
   }
   if (!exceedsCount && exceedsSize) {
-    params.showToast('Your draft exceeds the 20 MB attachment limit. Remove some before retrying.')
+    params.showToast(
+      "Your draft's documents exceed the 20 MB attachment limit. Remove some before retrying.",
+    )
   }
   useComposerStore.getState().clearScopedDraft(draftBranchComposerContextKey(prompt))
   setComposerTextValue(appliedDraft.input)

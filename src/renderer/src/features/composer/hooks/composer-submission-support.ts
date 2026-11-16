@@ -14,7 +14,7 @@ export function attachmentLimitReason(attachments: readonly PreparedAttachment[]
 export function attachmentLimitMessage(reason: 'count' | 'size') {
   return reason === 'count'
     ? 'Your draft has too many attachments to send. Remove some before retrying.'
-    : 'Your draft exceeds the 20 MB attachment limit. Remove some before retrying.'
+    : "Your draft's documents exceed the 20 MB attachment limit. Remove some before retrying."
 }
 
 interface SubmitBlockInput {

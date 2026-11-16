@@ -1,7 +1,6 @@
-import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
-import { exceedsAttachmentTotalBytes } from '@shared/utils/attachment-limits'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useComposerStore } from '@/features/composer/state'
@@ -196,12 +195,8 @@ export function useViewerResourceActions(
           )
           return
         }
-        if (exceedsAttachmentTotalBytes([...composer.attachments, attachment])) {
-          const maxMegabytes =
-            ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)
-          showToast(`Total attachment size exceeds ${String(maxMegabytes)} MB.`, 'error')
-          return
-        }
+        // No size check: this adds an image, and the message total counts documents only, so an
+        // image never pushes a draft past it (ADR 0068).
         composer.addAttachments([attachment])
         added = true
         showToast('Image added to chat.', 'success')
