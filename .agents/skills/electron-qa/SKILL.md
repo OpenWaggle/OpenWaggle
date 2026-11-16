@@ -29,7 +29,7 @@ Every QA run, and every other start of the built app, Session Host, or `openwagg
 
 Automation starts no MCP server that a project MCP file (`.mcp.json`, `.pi/mcp.json`, `.openwaggle/mcp.json`) defines: this repository's `.mcp.json` would run `npx -y chrome-devtools-mcp@latest` against the QA app's own CDP port. Settings still lists those servers, and a Run or connection check reports that automation left them out. To QA project MCP servers, start the app with `OPENWAGGLE_AUTOMATION_PROJECT_MCP=1 bun run dev:debug`.
 
-Stopping `bun run dev:debug` (Ctrl-C, `SIGTERM`, or the app exiting) also stops the app's detached Session Host: the launcher drains it through its version-handoff path and removes the profile only after the Host released it. A `session-host-internal` process that outlives the launcher is a bug.
+Stopping `bun run dev:debug` (Ctrl-C, `SIGTERM`, or the app exiting) also stops the app's detached Session Host: the launcher stops it through the update stop and removes the profile only after the Host's process has exited. A `session-host-internal` process that outlives the launcher is a bug.
 
 The managed hidden profile selects the current worktree but contains no fabricated sessions. Seed only the deterministic fixture required by the feature under test.
 
