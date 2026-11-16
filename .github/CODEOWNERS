@@ -1,4 +1,4 @@
-# Every change to main needs the maintainer's review. The `OpenWaggle approvals` ruleset
-# requires a code-owner approval, and only the Project Owner holds write access, so only they
-# can merge. See ADR 0067 and .agents/memory/licensing.md.
+# Routes a review request to the maintainer on every change. Only the Project Owner holds write
+# access, so only they can merge: an outside contributor's pull request cannot land without their
+# review. See ADR 0067 and .agents/memory/licensing.md.
 * @DiegoGBrisa
