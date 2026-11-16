@@ -1133,7 +1133,7 @@ _Avoid_: extension-local pending prompt
 ### CI gates
 
 **CI gate**:
-The required checks that run on every pull-request update and on the push to `main` (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, and the aggregating Package Release Gate). Once they pass, a pull request merges directly — there is no merge queue and no Electron E2E (ADR 0033).
+The required checks that run on every pull-request update and on the push to `main` (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, the aggregating Package Release Gate, and the CLA Assistant check `license/cla`). Once they pass, a pull request merges directly — there is no merge queue and no Electron E2E (ADR 0033).
 _Avoid_: Fast gate, Full gate, merge queue, post-merge CI
 
 **Nightly canary**:

@@ -205,6 +205,7 @@ describe('package release namespace bootstrap execution', () => {
                 { context: 'Unit Tests' },
                 { context: 'Integration & Component Tests' },
                 { context: 'MCP Conformance' },
+                { context: 'license/cla' },
               ],
             }),
             type: 'required_status_checks',
