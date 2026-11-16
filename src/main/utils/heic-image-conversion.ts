@@ -7,7 +7,8 @@ const BASE64_OUTPUT_BYTES = 4
 const RGBA_CHANNELS = 4
 /** Each step the encoder shrinks by when the payload still does not fit. */
 const SCALE_STEP = 0.8
-const MIN_SCALE = 0.25
+/** How far the encode may shrink: a 20000px image can still fit, and 16 steps reach this floor. */
+const MIN_SCALE = 0.05
 /** The steps from full size down to the floor, so the encode loop cannot run on. */
 const MAX_ENCODE_ATTEMPTS = 16
 
@@ -62,7 +63,7 @@ export async function encodePromptImage(image: DecodedImage) {
   const sharp = await loadSharp()
   const source = Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength)
   const longEdge = Math.max(image.width, image.height)
-  let scale = Math.min(1, PI_PROMPT_IMAGE_DEFAULTS.MAX_DIMENSION / longEdge)
+  let scale = Math.max(MIN_SCALE, Math.min(1, PI_PROMPT_IMAGE_DEFAULTS.MAX_DIMENSION / longEdge))
 
   // Each step shrinks by the same factor, so the loop is bounded by the steps left to the floor.
   for (let attempt = 0; attempt < MAX_ENCODE_ATTEMPTS; attempt += 1) {

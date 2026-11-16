@@ -89,17 +89,6 @@ async function prepareAttachment(filePath: string) {
   }
   const buffer = await fs.readFile(filePath)
   const attachmentName = path.basename(filePath)
-
-  // Pi's own decoder cannot read HEIC, so the app decodes it once and the attachment becomes the
-  // JPEG copy it wrote; nothing downstream has to know HEIC existed (ADR 0068).
-  if (isHeicImageMimeType(mimeType)) {
-    const converted = await convertHeicToAttachmentImage({
-      bytes: buffer,
-      fileName: attachmentName,
-    })
-    return prepareRegisteredImageAttachmentFromBytes(converted)
-  }
-
   const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
 
   return {
@@ -150,6 +139,17 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   }
 
   const mimeType = input.mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
+
+  // A pathless HEIC arrives as bytes, so it is decoded here the way the picker path decodes a file:
+  // everything below this line sees the JPEG the decode produced (ADR 0068).
+  if (isHeicImageMimeType(mimeType)) {
+    const converted = await convertHeicToAttachmentImage({
+      bytes: input.bytes,
+      fileName: input.fileName,
+    })
+    return prepareRegisteredImageAttachmentFromBytes(converted)
+  }
+
   const extension = imageAttachmentExtension(mimeType)
   if (!extension) throw new Error(`Unsupported Session image type: ${input.mimeType}`)
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)

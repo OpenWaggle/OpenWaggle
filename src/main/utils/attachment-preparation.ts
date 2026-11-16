@@ -48,7 +48,7 @@ export function toPublicPreparedAttachment(attachment: PreparedAttachment) {
   }
 }
 
-const ATTACHMENT_LIMIT_SENTINEL_BYTES = 1
+const ATTACHMENT_READ_CHUNK_BYTES = 64 * BYTES_PER_KIBIBYTE
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
 const OPEN_READ_NO_FOLLOW_NONBLOCKING =
   filesystemConstants.O_RDONLY |
@@ -72,18 +72,19 @@ function attachmentSizeLimitError(filePath: string, maxBytes: number) {
   )
 }
 
+/** Chunked, so the memory held is the file read, not `maxBytes` per attachment (ADR 0068). */
 async function readBoundedAttachment(handle: FileHandle, filePath: string, maxBytes: number) {
-  const buffer = Buffer.allocUnsafe(maxBytes + ATTACHMENT_LIMIT_SENTINEL_BYTES)
+  const chunks: Buffer[] = []
+  const chunk = Buffer.allocUnsafe(ATTACHMENT_READ_CHUNK_BYTES)
   let offset = 0
-  while (offset < buffer.byteLength) {
-    const result = await handle.read(buffer, offset, buffer.byteLength - offset, offset)
-    if (result.bytesRead === 0) break
-    offset += result.bytesRead
+  let readBytes = 1
+  while (readBytes > 0) {
+    readBytes = (await handle.read(chunk, 0, chunk.byteLength, offset)).bytesRead
+    offset += readBytes
+    if (offset > maxBytes) throw attachmentSizeLimitError(filePath, maxBytes)
+    chunks.push(Buffer.from(chunk.subarray(0, readBytes)))
   }
-  if (offset > maxBytes) {
-    throw attachmentSizeLimitError(filePath, maxBytes)
-  }
-  return buffer.subarray(0, offset)
+  return Buffer.concat(chunks, offset)
 }
 
 function resolveAttachmentKind(mimeType: string) {
@@ -216,8 +217,7 @@ async function readAttachmentSnapshot(
     const buffer = await readBoundedAttachment(handle, canonicalPath, maxBytes)
     const name = path.basename(canonicalPath)
 
-    // Pi's own decoder cannot read HEIC, so the app decodes it once here and the attachment
-    // becomes the JPEG copy it wrote; nothing downstream has to know HEIC existed (ADR 0068).
+    // Nothing downstream has to know HEIC existed: Pi's decoder cannot read it (ADR 0068).
     if (isHeicImageMimeType(mimeType)) {
       return await convertedHeicSnapshot({ buffer, origin, name })
     }
