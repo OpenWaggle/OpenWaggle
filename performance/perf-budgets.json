@@ -10,7 +10,7 @@
       "quantum": 8
     },
     "package.runtime.bytes": {
-      "value": 42991616,
+      "value": 42729472,
       "quantum": 262144
     },
     "main.boot.bytes": {
@@ -50,7 +50,7 @@
       "quantum": 1024
     },
     "preload.bytes": {
-      "value": 30976,
+      "value": 29952,
       "quantum": 256
     },
     "renderer.initial.entry.bytes": {
