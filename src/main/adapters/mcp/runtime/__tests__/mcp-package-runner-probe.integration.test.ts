@@ -105,6 +105,10 @@ describe('package runner probe timeout', () => {
    * An expired `npx` resolution falls back to the runner, and npm 11 rejects the root manifest's
    * `pkg>dep` override keys with "Override without name". The probe reported only "exited with
    * code 1", so the Host log showed no reason; the runner's stderr carried it.
+   *
+   * The child builds the `>` with `String.fromCharCode(62)` and sets `exitCode` instead of exiting:
+   * `windowsCommandLine` escapes a literal `>` as `^>` inside the quoted argument, and a pipe on
+   * POSIX is async, so a small write just before `process.exit` could be lost.
    */
   it("names the runner's own reason when the probe exits with a failure", async () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'ow-runner-probe-'))
@@ -116,7 +120,7 @@ describe('package runner probe timeout', () => {
         command: process.execPath,
         args: [
           '-e',
-          'process.stderr.write("npm error Override without name: a>b\\n"); process.exit(1)',
+          'process.stderr.write("npm error Override without name: a" + String.fromCharCode(62) + "b\\n"); process.exitCode = 1',
         ],
         cwd: directory,
         env: probeEnvironment(),

@@ -127,6 +127,7 @@ Load `.agents/skills/electron-runtime/SKILL.md` for child-process env, native AB
 - Direct dependencies and catalog entries are exact versions; `workspace:` and `catalog:` references pass (`docs/dependency-updates.md`, `check:repository-standards`, check `dependency-pins`).
 - A pin that is not npm's `latest`, or that something holds where it is, has a line in `DEPENDENCIES.md` (check `dependency-pins`).
 - A release-age exception in `bunfig.toml` names one exact `name@version` with its reason, and goes once that version is seven days old (`docs/dependency-updates.md`; Pi entries: check `pi-runtime`). This holds for `@diegogbrisa/ts-match` too.
+- A root `overrides` entry is written the way npm reads it: a transitive pin is the parent's object (`{"@effect/sql-sqlite-node": {"better-sqlite3": "13.0.3"}}`), never pnpm's `pkg>dep` key. npm 11 refuses a `pkg>dep` key with `Override without name`, and `npx`/`npm exec` and `npm install` then die before they start, which is how an `npx`-launched MCP server stops starting. Bun resolves both forms, so `bun install` never showed it (`check:repository-standards`: `scripts/standards/overrides-compatibility.ts`, memory: tooling, mcp).
 
 ## Git
 

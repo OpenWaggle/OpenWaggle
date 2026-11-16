@@ -41,9 +41,11 @@ The `better-sqlite3` override also keeps a single SQLite build in the Session Ho
 [One SQLite library](system-architecture.md#one-sqlite-library). `bun run check:repository-standards`
 checks their *form*: every override must be written the way npm reads it, so a transitive pin is
 the parent's object (`{"@effect/sql-sqlite-node": {"better-sqlite3": "13.0.3"}}`) and never a
-`pkg>dep` key. npm 11 rejects a `pkg>dep` key with `Override without name` and refuses every
-command in the repository, while Bun resolves the same key, so the form matters for `npx`-launched
-MCP servers and any npm command run from the repository root.
+`pkg>dep` key. npm 11 rejects a `pkg>dep` key with `Override without name`, and `npx`/`npm exec`
+and `npm install` then die before they start, while Bun resolves the same key, so the form matters
+for `npx`-launched MCP servers. A readable manifest is not an installable one: `npm install` still
+fails in the repository root for an unrelated reason, the `catalog:` protocol npm does not know,
+so this check covers the form only and nothing in CI runs npm.
 
 The Pi runtime is one matched release in the `pi-runtime` catalog. `bun run check:pi-runtime`
 checks the matched set, the patches, and the root pins of `quickjs-wasi` and Photon to the
