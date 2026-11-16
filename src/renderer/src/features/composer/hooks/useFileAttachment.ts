@@ -39,6 +39,12 @@ export interface UseFileAttachmentResult {
 /** The name a pasted clipboard image is attached under; it carries no name of its own. */
 const PASTED_IMAGE_NAME = 'pasted-image.png'
 
+/**
+ * The flavours that mean a paste carries text. `text/html` counts: a paste from a rich editor can
+ * set it with no `text/plain` beside it, and consuming that paste would insert nothing.
+ */
+const PASTE_TEXT_TYPES = ['text/plain', 'text/html'] as const
+
 /** The files a paste carries; a clipboard bitmap may arrive only as an item, never as a file. */
 function pastedFiles(event: ClipboardEvent) {
   const clipboardData = event.clipboardData
@@ -85,6 +91,34 @@ async function prepareAndAttach(
   } catch (err) {
     if (!isCurrentDraft()) return
     reportAttachmentError(err, setAttachmentError, onToast)
+  }
+}
+
+/**
+ * The clipboard read and the attachment it becomes, at module scope for the React Compiler.
+ * `isCurrentDraft` is captured by the caller before the first await.
+ */
+async function attachClipboardImageFromShell(input: {
+  readonly addAttachments: (attachments: PreparedAttachment[]) => void
+  readonly isCurrentDraft: () => boolean
+  readonly onToast: ((message: string) => void) | undefined
+  readonly setAttachmentError: (error: string | null) => void
+}) {
+  try {
+    input.setAttachmentError(null)
+    const image = await api.readClipboardImage()
+    if (!image) return
+    const attachment = await api.prepareImageAttachment(
+      image.bytes,
+      PASTED_IMAGE_NAME,
+      image.mimeType,
+    )
+    if (!input.isCurrentDraft()) return
+    input.addAttachments([attachment])
+    input.onToast?.('Attached 1 file.')
+  } catch (err) {
+    if (!input.isCurrentDraft()) return
+    reportAttachmentError(err, input.setAttachmentError, input.onToast)
   }
 }
 
@@ -166,31 +200,21 @@ export function useFileAttachment({
 
   /**
    * A clipboard image has no file and no name, so the desktop shell reads the system clipboard and
-   * its bytes become the attachment (ADR 0068).
+   * its bytes become the attachment (ADR 0068). Its own `try`/`catch` lives at module scope: value
+   * blocks inside one in the hook's scope leave the whole composer uncompiled.
    */
-  async function attachClipboardImage() {
+  function attachClipboardImage() {
     if (disabled || isAtCapacity) return
     if (!projectPath) {
       setAttachmentError('Select a project before attaching files.')
       return
     }
-    const isCurrentDraft = captureInputGuard()
-    try {
-      setAttachmentError(null)
-      const image = await api.readClipboardImage()
-      if (!image) return
-      const attachment = await api.prepareImageAttachment(
-        image.bytes,
-        PASTED_IMAGE_NAME,
-        image.mimeType,
-      )
-      if (!isCurrentDraft()) return
-      addAttachments([attachment])
-      onToast?.('Attached 1 file.')
-    } catch (err) {
-      if (!isCurrentDraft()) return
-      reportAttachmentError(err, setAttachmentError, onToast)
-    }
+    void attachClipboardImageFromShell({
+      addAttachments,
+      isCurrentDraft: captureInputGuard(),
+      onToast,
+      setAttachmentError,
+    })
   }
 
   /**
@@ -204,8 +228,11 @@ export function useFileAttachment({
       void validateAndAttach(files)
       return true
     }
-    if ((event.clipboardData?.getData('text/plain') ?? '').trim().length > 0) return false
-    void attachClipboardImage()
+    const carriesText = PASTE_TEXT_TYPES.some(
+      (type) => (event.clipboardData?.getData(type) ?? '').trim().length > 0,
+    )
+    if (carriesText) return false
+    attachClipboardImage()
     return true
   }
 

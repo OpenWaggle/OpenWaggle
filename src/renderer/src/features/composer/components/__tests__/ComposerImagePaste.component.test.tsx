@@ -46,6 +46,8 @@ function preparedImage(name = 'pasted-image.png') {
 interface ClipboardPayload {
   readonly files: readonly File[]
   readonly text: string
+  /** A rich paste can carry HTML with no `text/plain` beside it. */
+  readonly html?: string
 }
 
 /** jsdom has no ClipboardEvent, so the test gives one the shape Chromium uses. */
@@ -54,7 +56,8 @@ function pasteIntoComposer(payload: ClipboardPayload) {
   Object.defineProperty(event, 'clipboardData', {
     value: {
       files: payload.files,
-      getData: (type: string) => (type === 'text/plain' ? payload.text : ''),
+      getData: (type: string) =>
+        type === 'text/plain' ? payload.text : type === 'text/html' ? (payload.html ?? '') : '',
       items: payload.files.map((file) => ({
         getAsFile: () => file,
         kind: 'file',
@@ -117,6 +120,15 @@ describe('pasting an image into the composer', () => {
     pasteIntoComposer({ files: [], text: 'pasted words' })
 
     await waitFor(() => expect(useComposerStore.getState().input).toBe('pasted words'))
+    expect(apiMock.readClipboardImage).not.toHaveBeenCalled()
+    expect(apiMock.prepareImageAttachment).not.toHaveBeenCalled()
+  })
+
+  it('leaves a paste that carries only HTML to the editor', async () => {
+    renderComposer()
+
+    pasteIntoComposer({ files: [], html: '<p>pasted words</p>', text: '' })
+
     expect(apiMock.readClipboardImage).not.toHaveBeenCalled()
     expect(apiMock.prepareImageAttachment).not.toHaveBeenCalled()
   })
