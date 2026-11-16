@@ -1,6 +1,8 @@
+import { createRequire } from 'node:module'
+import { Worker } from 'node:worker_threads'
 import { PI_PROMPT_IMAGE_DEFAULTS } from '@shared/constants/prompt-image'
+import { TIME_UNIT } from '@shared/constants/time'
 import { loadSharp } from '../adapters/sharp-module'
-import { lazyModule } from './lazy-module'
 
 const BASE64_INPUT_BYTES = 3
 const BASE64_OUTPUT_BYTES = 4
@@ -34,15 +36,125 @@ export interface DecodedImage {
   readonly height: number
 }
 
+/** How long one decode may run before its worker is stopped; a 12 MP photo takes about 0.4 s. */
+const HEIC_DECODE_TIMEOUT_MS = 60_000
+
+interface HeicDecoderFiles {
+  /** `heic-decode`'s decoder, which takes the libheif module it runs on. */
+  readonly decoder: string
+  /** libheif's emscripten loader, without the wasm inlined as base64. */
+  readonly libheif: string
+  /** The libheif wasm binary the loader is handed, a separate replaceable file (ADR 0068). */
+  readonly wasm: string
+}
+
+let heicDecoderFiles: HeicDecoderFiles | undefined
+
+/**
+ * The decoder's files, resolved on the first decode rather than when the GUI and the Host evaluate
+ * this module at startup. `libheif-js` is resolved from `heic-decode`, which depends on it: the
+ * isolated linker does not hoist it to the project's own `node_modules`.
+ */
+function heicDecoderFilesOnFirstUse() {
+  if (heicDecoderFiles !== undefined) return heicDecoderFiles
+  const decoder = createRequire(__filename).resolve('heic-decode/lib.js')
+  const resolveFromDecoder = createRequire(decoder).resolve
+  heicDecoderFiles = {
+    decoder,
+    libheif: resolveFromDecoder('libheif-js/libheif-wasm/libheif.js'),
+    wasm: resolveFromDecoder('libheif-js/libheif-wasm/libheif.wasm'),
+  }
+  return heicDecoderFiles
+}
+
+/*
+ * libheif decodes synchronously, on whichever thread calls it: about 0.4 s for a 12 MP iPhone photo
+ * and seconds for a larger one. On the GUI's or the Session Host's main thread that stalls every
+ * IPC reply and every Run's stream, so each decode runs in a worker of its own, which also keeps a
+ * malformed file's wasm failure out of the process. The pixels come back transferred, not copied.
+ */
+const HEIC_DECODE_WORKER_SOURCE = String.raw`
+const fs = require('node:fs')
+const { parentPort, workerData } = require('node:worker_threads')
+
+async function decode() {
+  const wasmBinary = fs.readFileSync(workerData.files.wasm)
+  const libheif = require(workerData.files.libheif)({ wasmBinary })
+  const { one } = require(workerData.files.decoder)(libheif)
+  return await one({ buffer: workerData.bytes })
+}
+
+decode().then(
+  (image) => parentPort.postMessage(
+    { ok: true, width: image.width, height: image.height, data: image.data },
+    [image.data.buffer],
+  ),
+  (error) => parentPort.postMessage({
+    ok: false,
+    error: error instanceof Error ? error.message : String(error),
+  }),
+)
+`
+
+function decodedImageMessage(value: unknown) {
+  if (typeof value !== 'object' || value === null || !('ok' in value)) {
+    return 'The HEIC decoder returned an invalid response.'
+  }
+  if (value.ok === false) {
+    return 'error' in value && typeof value.error === 'string'
+      ? value.error
+      : 'The HEIC image could not be decoded.'
+  }
+  if (
+    'data' in value &&
+    value.data instanceof Uint8ClampedArray &&
+    'width' in value &&
+    typeof value.width === 'number' &&
+    'height' in value &&
+    typeof value.height === 'number'
+  ) {
+    return { data: value.data, width: value.width, height: value.height }
+  }
+  return 'The HEIC decoder returned an invalid response.'
+}
+
 /** libheif reads the format Pi's own decoder cannot (ADR 0068), with the container transform applied. */
-const loadHeicDecode = lazyModule(async () => {
-  const module = await import('heic-decode')
-  return module.default
-})
+function decodeHeicInWorker(bytes: Uint8Array) {
+  const files = heicDecoderFilesOnFirstUse()
+  return new Promise<DecodedImage>((resolve, reject) => {
+    const worker = new Worker(HEIC_DECODE_WORKER_SOURCE, {
+      eval: true,
+      workerData: { bytes, files },
+    })
+    // The first of these settles the promise; the rest are no-ops.
+    const timer = setTimeout(() => {
+      reject(
+        new Error(
+          `Decoding the HEIC image took longer than ${String(HEIC_DECODE_TIMEOUT_MS / TIME_UNIT.MILLISECONDS_PER_SECOND)} s.`,
+        ),
+      )
+      void worker.terminate()
+    }, HEIC_DECODE_TIMEOUT_MS)
+    worker.once('message', (message: unknown) => {
+      clearTimeout(timer)
+      const image = decodedImageMessage(message)
+      if (typeof image === 'string') reject(new Error(image))
+      else resolve(image)
+      void worker.terminate()
+    })
+    worker.once('error', (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+    worker.once('exit', (code) => {
+      clearTimeout(timer)
+      reject(new Error(`The HEIC decoder exited with code ${String(code)} before it answered.`))
+    })
+  })
+}
 
 async function decodeHeic(bytes: Uint8Array) {
-  const decode = await loadHeicDecode()
-  const image = await decode({ buffer: bytes })
+  const image = await decodeHeicInWorker(bytes)
   if (image.width <= 0 || image.height <= 0) {
     throw new Error('The image has no pixels to attach.')
   }

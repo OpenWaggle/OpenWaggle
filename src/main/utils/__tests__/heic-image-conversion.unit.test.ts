@@ -1,6 +1,19 @@
 import { randomFillSync } from 'node:crypto'
+import { Worker } from 'node:worker_threads'
 import { PI_PROMPT_IMAGE_DEFAULTS } from '@shared/constants/prompt-image'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// The real worker, observed: libheif decodes synchronously, so a decode on the calling thread would
+// stall the GUI's or the Session Host's event loop for as long as it runs.
+vi.mock('node:worker_threads', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:worker_threads')>()
+  return {
+    ...actual,
+    Worker: vi.fn(function (...args: ConstructorParameters<typeof actual.Worker>) {
+      return new actual.Worker(...args)
+    }),
+  }
+})
 import {
   base64ByteLength,
   convertHeicToAttachmentImage,
@@ -55,6 +68,7 @@ describe('convertHeicToAttachmentImage', () => {
 
     expect(converted.mimeType).toBe('image/jpeg')
     expect(converted.fileName).toBe('IMG_4521.jpg')
+    expect(Worker).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ eval: true }))
     expect(Array.from(converted.bytes.subarray(0, 2))).toEqual([0xff, 0xd8])
     expect(converted.bytes.byteLength).toBeGreaterThan(0)
   })
