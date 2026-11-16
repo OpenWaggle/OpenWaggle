@@ -70,8 +70,8 @@ export const UNLOADED_PACKAGES: ReadonlySet<string> = new Set(['onnxruntime-web'
  *   `libheif-wasm/libheif-bundle.js` with the wasm embedded as a base64 URI (`wasmBinary` is set,
  *   so the separate `.wasm` is not fetched). Everything else in the package stays on disk:
  *   `index.js` and the non-wasm `libheif/` build it requires, `wasm.js`, the ESM twin, the
- *   TypeScript sources and the standalone `.wasm`. What ships is what the decode loads, plus the
- *   package's own license and manifest.
+ *   TypeScript sources and the standalone `.wasm` are all pruned. What ships is what the decode
+ *   loads, plus the package's own license and manifest.
  */
 export const PACKAGE_UNLOADED_FILES: Readonly<Record<string, readonly string[]>> = {
   lucide: ['dist/esm', 'dist/umd'],

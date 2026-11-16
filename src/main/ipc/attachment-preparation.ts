@@ -4,6 +4,7 @@ import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { PreparedAttachment } from '@shared/types/agent'
+import { allInOrder } from '@shared/utils/all-in-order'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
 import { writeTempAttachment } from '../utils/attachment-temp-directory'
 import {
@@ -155,8 +156,11 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
   const buffer = Buffer.from(input.bytes)
   const kind = 'image'
-  const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
-  const filePath = await writeTempAttachment(buffer, extension, 'resource')
+  // Independent: the OCR read and the copy on disk do not wait for each other.
+  const [extractedText, filePath] = await allInOrder([
+    extractAttachmentText({ kind, mimeType, buffer, attachmentName }),
+    writeTempAttachment(buffer, extension, 'resource'),
+  ])
 
   const attachment: PreparedAttachment = {
     id: randomUUID(),

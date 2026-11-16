@@ -51,7 +51,6 @@ export async function createTempPromptPath(name: string | undefined, timestamp =
   return path.join(directory, name)
 }
 
-export { ensureTempAttachmentsDirectory }
 export async function cleanupTempAttachments() {
   const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
   const entries = await fs.readdir(tempAttachmentsDir)
