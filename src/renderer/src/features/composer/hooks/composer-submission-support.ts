@@ -1,17 +1,13 @@
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
+import { exceedsAttachmentTotalBytes } from '@shared/utils/attachment-limits'
 import { useComposerStore } from '../state/composer-store'
 
 const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
 
 export function attachmentLimitReason(attachments: readonly PreparedAttachment[]) {
   if (attachments.length > ATTACHMENT.MAX_COUNT) return 'count' as const
-  if (
-    attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
-    ATTACHMENT.MAX_TOTAL_SIZE_BYTES
-  ) {
-    return 'size' as const
-  }
+  if (exceedsAttachmentTotalBytes(attachments)) return 'size' as const
   return null
 }
 

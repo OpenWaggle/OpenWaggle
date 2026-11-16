@@ -1,6 +1,7 @@
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { SessionId } from '@shared/types/brand'
 import type { SessionResource } from '@shared/types/session-resource'
+import { exceedsAttachmentTotalBytes } from '@shared/utils/attachment-limits'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useComposerStore } from '@/features/composer/state'
@@ -195,11 +196,7 @@ export function useViewerResourceActions(
           )
           return
         }
-        const totalSize = composer.attachments.reduce(
-          (sum, candidate) => sum + candidate.sizeBytes,
-          attachment.sizeBytes,
-        )
-        if (totalSize > ATTACHMENT.MAX_TOTAL_SIZE_BYTES) {
+        if (exceedsAttachmentTotalBytes([...composer.attachments, attachment])) {
           const maxMegabytes =
             ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)
           showToast(`Total attachment size exceeds ${String(maxMegabytes)} MB.`, 'error')
