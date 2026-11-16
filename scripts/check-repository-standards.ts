@@ -21,6 +21,7 @@ import { collectAstroRawButtonViolations } from './standards/astro-raw-buttons'
 import { BENCH_FILE, benchContext, collectBenchFileViolations } from './standards/bench-file'
 import { collectDuplicateExportedTypes } from './standards/duplicate-exported-types'
 import { collectExactDependencyVersionViolations } from './standards/exact-dependency-versions'
+import { collectOverrideCompatibilityViolations } from './standards/overrides-compatibility'
 import {
   collectScriptedElectronLaunchViolations,
   collectUnguardedDesktopUiViolations,
@@ -141,6 +142,7 @@ function collectViolationsForFile(file: string, contents: string) {
     ...collectSessionSummaryColumnViolations(file, contents),
     ...collectSyntaxRenderingViolations(file, contents),
     ...collectExactDependencyVersionViolations(file, contents),
+    ...collectOverrideCompatibilityViolations(file, contents),
     ...collectSqliteLibraryViolations(file, contents),
     ...collectAstroRawButtonViolations(file, contents),
     ...collectAgentMemoryFileViolations(file, contents),
