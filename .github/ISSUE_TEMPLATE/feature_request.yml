@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest a new feature, improvement, or product change.
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search the [existing issues](https://github.com/OpenWaggle/OpenWaggle/issues) first.
+        For a large architectural change, open the issue to discuss it before anyone builds it.
+  - type: textarea
+    id: task
+    attributes:
+      label: The task you cannot do
+      description: What you wanted to accomplish in OpenWaggle when you hit the limit.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: The workaround you use today
+    validations:
+      required: false
+  - type: textarea
+    id: change
+    attributes:
+      label: The change you want
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Mockups or examples
+      description: Screenshots, sketches, or examples from other tools, if they help.
+    validations:
+      required: false

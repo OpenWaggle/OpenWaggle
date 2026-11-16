@@ -19,6 +19,8 @@ Give enough detail for someone else to reproduce the problem:
 3. The provider and model, if the problem is about agent behavior.
 4. Screenshots or logs that show the problem. Remove credentials, private code, and personal information first.
 
+The repository's issue forms ask for these details when you open the issue.
+
 If you run OpenWaggle from source, add the commit and your Node.js version. A small reproduction helps more than a description of a whole project.
 
 ## Suggest a feature

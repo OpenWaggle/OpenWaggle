@@ -13,6 +13,8 @@ OpenWaggle is in active development. We welcome contributions in the form of **i
 3. Be as specific as possible — include steps to reproduce bugs, expected behavior, or a clear description of the feature you'd like.
 4. If relevant, include screenshots or logs.
 
+New issues open through the repository's [issue forms](https://github.com/OpenWaggle/OpenWaggle/issues/new/choose), which gather these details.
+
 We review all issues and track them on our [project roadmap](https://github.com/orgs/OpenWaggle/projects/1).
 
 ### What We're Looking For
