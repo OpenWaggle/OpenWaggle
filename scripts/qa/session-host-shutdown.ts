@@ -1,11 +1,14 @@
 import fs from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
+import { LOCAL_HOST_CONTRACT_VERSION } from '../../src/shared/types/local-host'
 import { LOCAL_SESSION_CURRENT_REVISION } from '../../src/shared/types/local-session-protocol'
+import { executeLocalSessionCommand } from '../../src/main/session-host/local-session-client'
 import {
   LocalSessionHostUpgradePendingError,
   openLocalSessionConnection,
 } from '../../src/main/session-host/local-session-client-connection'
+import { LocalSessionClientProtocolError } from '../../src/main/session-host/local-session-client-protocol-error'
 import {
   type LocalSessionHostPaths,
   refreshLocalSessionHostEndpoint,
@@ -34,7 +37,13 @@ type WhileOwnershipHeld = (
 interface SessionHostShutdownDependencies {
   readonly resolvePaths: (userDataRoot: string) => LocalSessionHostPaths
   readonly refreshPaths: (paths: LocalSessionHostPaths) => Promise<LocalSessionHostPaths>
-  readonly requestDrain: (paths: LocalSessionHostPaths) => Promise<void>
+  /**
+   * Stops the Host and returns its process id, which the shutdown waits on: the Host releases
+   * ownership before its Chromium profile (`session-data`) closes, so only its exit frees every
+   * profile file. Undefined when the Host cannot say, as one already handing over cannot.
+   */
+  readonly requestStop: (paths: LocalSessionHostPaths) => Promise<number | undefined>
+  readonly processExists: (processId: number) => boolean
   readonly canConnect: (endpoint: string) => Promise<boolean>
   readonly tryAcquireOwnership: (databasePath: string) => Promise<SessionHostOwnership | null>
   readonly now: () => number
@@ -125,6 +134,16 @@ function canConnect(endpoint: string) {
   })
 }
 
+function processExists(processId: number) {
+  try {
+    process.kill(processId, 0)
+    return true
+  } catch (error) {
+    // EPERM: the process exists but belongs to another user.
+    return hasErrorCode(error, 'EPERM')
+  }
+}
+
 async function requestDrain(paths: LocalSessionHostPaths) {
   try {
     const connection = await openLocalSessionConnection({
@@ -140,10 +159,43 @@ async function requestDrain(paths: LocalSessionHostPaths) {
   }
 }
 
+/**
+ * The update stop, which names the Host's process (ADR 0047). A Host already draining for a
+ * version handoff answers nothing else, and that drain is the stop.
+ */
+export async function requestStop(paths: LocalSessionHostPaths) {
+  try {
+    const result = await executeLocalSessionCommand({
+      paths,
+      clientKind: 'internal',
+      clientVersion: QA_HOST_CLIENT_VERSION,
+      payload: {
+        contract: 'local-host-v1',
+        request: {
+          contractVersion: LOCAL_HOST_CONTRACT_VERSION,
+          operation: 'stop',
+          purpose: 'update',
+        },
+      },
+    })
+    if (result.contract !== 'local-host-v1') {
+      throw new Error('The Session Host returned an unexpected response to the QA stop.')
+    }
+    return result.response.processId
+  } catch (error) {
+    if (error instanceof LocalSessionHostUpgradePendingError) return undefined
+    if (!(error instanceof LocalSessionClientProtocolError)) throw error
+    // A Host older than the update stop refuses it; the version handoff still drains it.
+    await requestDrain(paths)
+    return undefined
+  }
+}
+
 const defaultDependencies: SessionHostShutdownDependencies = {
   resolvePaths: (userDataRoot) => resolveLocalSessionHostPaths({ userDataRoot }),
   refreshPaths: refreshLocalSessionHostEndpoint,
-  requestDrain,
+  requestStop,
+  processExists,
   canConnect,
   tryAcquireOwnership: async (databasePath) => {
     try {
@@ -186,8 +238,8 @@ async function runWhileOwnershipHeld(
 }
 
 /**
- * Uses the authenticated version-handoff path to drain a QA Session Host, then holds canonical
- * durable-store ownership until the caller's profile cleanup finishes.
+ * Stops a QA Session Host through the authenticated update stop, waits for its process to exit,
+ * then holds canonical durable-store ownership until the caller's profile cleanup finishes.
  */
 export async function shutdownSessionHostForQa(
   userDataRoot: string,
@@ -205,9 +257,10 @@ export async function shutdownSessionHostForQa(
 
   const basePaths = dependencies.resolvePaths(userDataRoot)
   let paths: LocalSessionHostPaths | null = null
+  let processId: number | undefined
   try {
     paths = await dependencies.refreshPaths(basePaths)
-    await dependencies.requestDrain(paths)
+    processId = await dependencies.requestStop(paths)
   } catch (error) {
     if (!isUnavailable(error)) throw error
   }
@@ -215,7 +268,10 @@ export async function shutdownSessionHostForQa(
   const deadline = dependencies.now() + timeoutMs
   while (dependencies.now() < deadline) {
     const endpointReleased = paths === null || !(await dependencies.canConnect(paths.endpoint))
-    if (endpointReleased) {
+    // The Host releases ownership before its Chromium profile closes; on Windows a file it still
+    // holds makes the removal fail with EBUSY, so its exit, not its release, frees the profile.
+    const exited = processId === undefined || !dependencies.processExists(processId)
+    if (endpointReleased && exited) {
       const ownership = await dependencies.tryAcquireOwnership(basePaths.databasePath)
       if (ownership) {
         await runWhileOwnershipHeld(ownership, whileOwnershipHeld)
