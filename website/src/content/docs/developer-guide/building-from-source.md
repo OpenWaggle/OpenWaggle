@@ -6,7 +6,7 @@ section: "Developer docs"
 kind: "guide"
 ---
 
-Build OpenWaggle from source when you want to investigate a bug or try a local change. If you only want to use the app, follow [Installation](/docs/getting-started/installation) instead. OpenWaggle does not accept code pull requests yet, so read [Contributing](/docs/developer-guide/contributing) before you prepare a proposal.
+Build OpenWaggle from source when you want to investigate a bug or try a local change. If you only want to use the app, follow [Installation](/docs/getting-started/installation) instead. You can send a fix as a pull request. Read [Contributing](/docs/developer-guide/contributing) for the CLA and the process.
 
 ## Install the tools
 

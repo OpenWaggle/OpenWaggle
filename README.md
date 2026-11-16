@@ -50,7 +50,7 @@ For tasks that benefit from multiple agents, [Hives](https://openwaggle.ai/docs/
 
 ## Contributing
 
-Bug reports, documentation feedback, and feature requests are welcome through [GitHub Issues](https://github.com/OpenWaggle/OpenWaggle/issues). Code pull requests are not currently accepted; see [Contributing](CONTRIBUTING.md).
+Bug reports, documentation feedback, and feature requests are welcome through [GitHub Issues](https://github.com/OpenWaggle/OpenWaggle/issues). Code contributions are welcome through pull requests; see [Contributing](CONTRIBUTING.md) for the CLA and the process.
 
 - [Build from source](https://openwaggle.ai/docs/developer-guide/building-from-source)
 - [Architecture](docs/architecture.md)

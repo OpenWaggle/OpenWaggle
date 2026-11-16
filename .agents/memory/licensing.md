@@ -27,10 +27,14 @@ adding a new package, or answering licensing questions from users or companies.
 
 [CLA.md](../../CLA.md) at the root. Contributors keep copyright and grant the Project Owner a
 perpetual, irrevocable license including relicensing and commercial terms; submitting a
-Contribution means accepting it, no signature beyond that. Code PRs are not accepted yet
-(CONTRIBUTING.md); when they open, enforcement is a PR checklist item or CLA Assistant, and
-PRs without acceptance cannot merge. Every pre-CLA external commit is Diego's except
-`7ee5fc373` (a `.fallowrc.jsonc` trim), recorded as de minimis in the ADR.
+Contribution means accepting it, no signature beyond that act. Code PRs are open
+(ADR 0067); [CLA Assistant](https://cla-assistant.io/) enforces the CLA with a merge-blocking
+status check — one "I agree" through its PR comment (GitHub sign-in) covers a contributor
+forever. The App connection is a maintainer action in GitHub settings, not a repo file: point it
+at `CLA.md`. The PR-template-checkbox approach was rejected as the DCO idiom, not the CLA
+idiom (research: VS Code, Angular, Zulip all use one-time signature + status-check bot).
+Every pre-CLA external commit is Diego's except `7ee5fc373` (a `.fallowrc.jsonc` trim),
+recorded as de minimis in the ADR.
 
 ## The trademark
 

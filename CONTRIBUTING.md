@@ -25,13 +25,15 @@ We review all issues and track them on our [project roadmap](https://github.com/
 
 ### Code Contributions
 
-We're not accepting pull requests with code changes yet — we'll open this up as the project matures. In the meantime, opening a well-described issue is the best way to influence the direction of the project.
+Pull requests are welcome. Start from a well-described issue, keep each pull request one coherent change, and expect the same commit and verification standards CI enforces on the maintainers' own changes.
 
 Large architectural proposals are welcome as issues for discussion before any implementation.
 
 ## License and the CLA
 
-OpenWaggle is split-licensed: the app is [GPL-3.0](LICENSE) and the `@openwaggle/*` packages are [MIT](packages/waggle-core/LICENSE). The [Contributor License Agreement](CLA.md) lets the project keep every contribution usable under both its open licenses and any future license, while you keep full ownership of your work. When code pull requests open, submitting one will mean accepting the CLA — read it first. The name and logos are covered by the [trademark notice](TRADEMARKS.md), not by the licenses.
+OpenWaggle is split-licensed: the app is [GPL-3.0](LICENSE) and the `@openwaggle/*` packages are [MIT](packages/waggle-core/LICENSE). The [Contributor License Agreement](CLA.md) lets the project keep every contribution usable under both its open licenses and any future license, while you keep full ownership of your work.
+
+Submitting a contribution means accepting the CLA — read it first. Pull requests are enforced by [CLA Assistant](https://cla-assistant.io/): agree once through its comment on a pull request (a GitHub sign-in, no account elsewhere) and every later contribution is covered; a pull request without the CLA status cannot merge. The name and logos are covered by the [trademark notice](TRADEMARKS.md), not by the licenses.
 
 ## Code of Conduct
 
