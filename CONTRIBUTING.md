@@ -35,7 +35,7 @@ Large architectural proposals are welcome as issues for discussion before any im
 
 OpenWaggle is split-licensed: the app is [GPL-3.0](LICENSE) and the four `@openwaggle/*` packages in `packages/` each ship their own [MIT](packages/waggle-core/LICENSE) license file. The [Contributor License Agreement](CLA.md) lets the project keep every contribution usable under both its open licenses and any future license, while you keep full ownership of your work.
 
-Submitting a contribution means accepting the CLA — read it first. Pull requests are enforced by [CLA Assistant](https://cla-assistant.io/): agree once through its comment on a pull request (a GitHub sign-in, no account elsewhere) and every later contribution is covered; a pull request without the CLA status cannot merge. The name and logos are covered by the [trademark notice](TRADEMARKS.md), not by the licenses.
+Submitting a contribution means accepting the CLA — read it first. Pull requests are enforced by [CLA Assistant](https://cla-assistant.io/): agree once through its comment on a pull request (a GitHub sign-in, no account elsewhere) and every later contribution is covered. A pull request merges only when the CLA check and the full CI gate pass; the maintainer reviews it and merges it. The name and logos are covered by the [trademark notice](TRADEMARKS.md), not by the licenses.
 
 ## Code of Conduct
 

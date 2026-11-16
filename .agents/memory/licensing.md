@@ -1,9 +1,11 @@
 # Licensing
 
-The split license, the CLA, and the trademark notice (ADR 0067, November 2026): what is MIT,
-what is GPL-3.0, and which actions need the Project Owner.
+The split license, the CLA, the trademark notice, and the `main` merge gate (ADR 0067, November
+2026): what is MIT, what is GPL-3.0, how a pull request merges, and which actions need the Project
+Owner.
 Load before changing `package.json` license fields, publishing packages, accepting code PRs,
-adding a new package, or answering licensing questions from users or companies.
+adding a new package, answering licensing questions from users or companies, or editing `main`'s
+ruleset and `.github/CODEOWNERS`.
 
 ## The split (ADR 0067)
 
@@ -35,6 +37,44 @@ at `CLA.md`. The PR-template-checkbox approach was rejected as the DCO idiom, no
 idiom (research: VS Code, Angular, Zulip all use one-time signature + status-check bot).
 Every pre-CLA external commit is Diego's except `7ee5fc373` (a `.fallowrc.jsonc` trim),
 recorded as de minimis in the ADR.
+
+## The main merge gate
+
+One `main` ruleset, `OpenWaggle main protections`: deletion, non-fast-forward, a required pull
+request, and seven required status checks — Commit Policy, Typecheck & Lint, Unit Tests,
+Integration & Component Tests, MCP Conformance, Package Release Gate, and `license/cla`
+(CLA Assistant's commit status; it reports through the status API, not check runs). It carries one
+pre-existing bypass: `RepositoryRole` id `5`, the repository-admin role. That is what keeps an
+emergency default-branch change or a force push possible, since the ruleset otherwise blocks both;
+its cost is that the sole admin can also bypass a required check. Everyone else — including a
+future Maintain — faces every check.
+
+**No ruleset requires an approving review, on purpose.** A second ruleset once required one
+approval plus a code-owner review, and it locked the Project Owner out of their own pull requests:
+GitHub never counts an author's own approval, so with a single write-capable account the
+requirement is unsatisfiable, and the ruleset's bypass actor did not clear it. Only the Project
+Owner holds write access, which is what already enforces the intent — an outside contributor
+cannot merge at all, so every pull request lands through the Project Owner's review or not at all.
+Re-add a review rule when a **second** person holds write access: then a maintainer can approve the
+Project Owner's pull requests and the requirement becomes both meaningful and satisfiable.
+
+`.github/CODEOWNERS` (`* @DiegoGBrisa`) stays: with no review rule attached it still routes a review
+request to them on a pull request from anyone else. Granting someone the **Maintain** role is what
+would add the merge button for them, under every rule above. Changing a ruleset is a GitHub settings
+action, but the protections ruleset's required checks and its pull request parameters are also
+defined in the repository (`REQUIRED_CHECK_CONTEXTS` in `scripts/package-release-bootstrap-model.ts`,
+`pullRequestParametersSchema` in `scripts/package-release-bootstrap-policy.ts`), so
+change them together or the bootstrap reports the deployed ruleset as a conflict. Note that
+`pullRequestParametersSchema` pins `require_code_owner_review` to `false` and
+`required_approving_review_count` to `0`, so re-adding a review rule means updating that schema too. These rules are enforced only while the
+ruleset is `active` and the CLA App is installed.
+
+**Because `license/cla` is now required, the bot must be allowlisted.** GitHub's release
+machinery authors its pull requests as `github-actions[bot]`, which cannot click "I agree", so
+CLA Assistant holds `license/cla` at `pending` on every Release Please pull request and blocks it.
+The allowlist lives in the CLA Assistant dashboard (import `github-actions[bot]` alongside
+`dependabot[bot]`); making the check required without that entry blocks every release PR, exactly
+as #475 and #476 were blocked.
 
 ## The trademark
 

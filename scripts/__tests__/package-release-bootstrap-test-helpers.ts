@@ -79,6 +79,7 @@ export function compatibleRuleset(
     { context: 'Unit Tests' },
     { context: 'Integration & Component Tests' },
     { context: 'MCP Conformance' },
+    { context: 'license/cla' },
   ],
 ) {
   const fixture: CompatibleRulesetFixture = {
