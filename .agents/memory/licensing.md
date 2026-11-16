@@ -5,7 +5,7 @@ The split license, the CLA, the trademark notice, and the `main` merge gate (ADR
 Owner.
 Load before changing `package.json` license fields, publishing packages, accepting code PRs,
 adding a new package, answering licensing questions from users or companies, or editing `main`'s
-rulesets and `.github/CODEOWNERS`.
+ruleset and `.github/CODEOWNERS`.
 
 ## The split (ADR 0067)
 
@@ -40,32 +40,31 @@ recorded as de minimis in the ADR.
 
 ## The main merge gate
 
-Two `main` rulesets, split so the approval is bypassable per person while the checks carry only
-the pre-existing admin escape hatch:
+One `main` ruleset, `OpenWaggle main protections`: deletion, non-fast-forward, a required pull
+request, and seven required status checks — Commit Policy, Typecheck & Lint, Unit Tests,
+Integration & Component Tests, MCP Conformance, Package Release Gate, and `license/cla`
+(CLA Assistant's commit status; it reports through the status API, not check runs). It carries one
+pre-existing bypass: `RepositoryRole` id `5`, the repository-admin role. That is what keeps an
+emergency default-branch change or a force push possible, since the ruleset otherwise blocks both;
+its cost is that the sole admin can also bypass a required check. Everyone else — including a
+future Maintain — faces every check.
 
-- **`OpenWaggle main protections`** — deletion, non-fast-forward, a required pull request, and
-  seven required status checks: Commit Policy, Typecheck & Lint, Unit Tests, Integration &
-  Component Tests, MCP Conformance, Package Release Gate, and `license/cla` (CLA Assistant's
-  commit status; it reports through the status API, not check runs). It carries one pre-existing
-  bypass: `RepositoryRole` id `5`, the repository-admin role. That is what keeps an emergency
-  default-branch change or a force push possible, since the ruleset otherwise blocks both; its
-  cost is that the sole admin can also bypass a required check. Everyone else — including a
-  future Maintain — faces every check.
-- **`OpenWaggle approvals`** — `required_approving_review_count: 1` plus
-  `require_code_owner_review`, with `bypass_actors` = the Project Owner (user
-  `DiegoGBrisa`, id `77103257`). GitHub counts a required approval only from someone with
-  **write permission** or from a designated code owner, so with a single write-capable account a
-  plain count of one already means the Project Owner's approval; `require_code_owner_review`
-  states that explicitly and keeps the approval *theirs* once more maintainers hold write access.
-  The bypass keeps their own pull requests from deadlocking (GitHub never counts an author's own
-  approval), and because that ruleset holds only the review rule, bypassing it does not weaken the
-  required checks — the sole admin's escape hatch above still applies to those.
+**No ruleset requires an approving review, on purpose.** A second ruleset once required one
+approval plus a code-owner review, and it locked the Project Owner out of their own pull requests:
+GitHub never counts an author's own approval, so with a single write-capable account the
+requirement is unsatisfiable, and the ruleset's bypass actor did not clear it. Only the Project
+Owner holds write access, which is what already enforces the intent — an outside contributor
+cannot merge at all, so every pull request lands through the Project Owner's review or not at all.
+Re-add a review rule when a **second** person holds write access: then a maintainer can approve the
+Project Owner's pull requests and the requirement becomes both meaningful and satisfiable.
 
-`.github/CODEOWNERS` (`* @DiegoGBrisa`) is what the code-owner rule reads. Only the Project Owner
-holds write access, so only they can merge; granting someone the **Maintain** role is what would
-add the merge button for them, still under every rule above. Changing a ruleset is a GitHub
-settings action, not a repo change: the enforcement lives outside the checkout, and these rules
-are enforced only while the rulesets are `active` and the App is installed.
+`.github/CODEOWNERS` (`* @DiegoGBrisa`) stays: with no review rule attached it still routes a review
+request to the Project Owner on every pull request. Granting someone the **Maintain** role is what
+would add the merge button for them, under every rule above. Changing a ruleset is a GitHub settings
+action, but the protections ruleset's required checks are also defined in the repository
+(`scripts/package-release-bootstrap-model.ts`, `REQUIRED_CHECK_CONTEXTS`), so change both or the
+bootstrap reports the deployed ruleset as a conflict. These rules are enforced only while the
+ruleset is `active` and the CLA App is installed.
 
 **Because `license/cla` is now required, the bot must be allowlisted.** GitHub's release
 machinery authors its pull requests as `github-actions[bot]`, which cannot click "I agree", so
