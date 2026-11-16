@@ -1,9 +1,11 @@
 # Licensing
 
-The split license, the CLA, and the trademark notice (ADR 0067, November 2026): what is MIT,
-what is GPL-3.0, and which actions need the Project Owner.
+The split license, the CLA, the trademark notice, and the `main` merge gate (ADR 0067, November
+2026): what is MIT, what is GPL-3.0, how a pull request merges, and which actions need the Project
+Owner.
 Load before changing `package.json` license fields, publishing packages, accepting code PRs,
-adding a new package, or answering licensing questions from users or companies.
+adding a new package, answering licensing questions from users or companies, or editing `main`'s
+rulesets and `.github/CODEOWNERS`.
 
 ## The split (ADR 0067)
 
@@ -56,8 +58,8 @@ the pre-existing admin escape hatch:
   plain count of one already means the Project Owner's approval; `require_code_owner_review`
   states that explicitly and keeps the approval *theirs* once more maintainers hold write access.
   The bypass keeps their own pull requests from deadlocking (GitHub never counts an author's own
-  approval), and because that ruleset holds only the review rule, their pull requests still face
-  every required check.
+  approval), and because that ruleset holds only the review rule, bypassing it does not weaken the
+  required checks — the sole admin's escape hatch above still applies to those.
 
 `.github/CODEOWNERS` (`* @DiegoGBrisa`) is what the code-owner rule reads. Only the Project Owner
 holds write access, so only they can merge; granting someone the **Maintain** role is what would
