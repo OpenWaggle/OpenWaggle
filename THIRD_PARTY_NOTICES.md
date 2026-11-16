@@ -85,9 +85,11 @@ own decoder cannot read: `heic-decode` (`index.js`, `lib.js`) is Kiril Vatev's I
 wrapper, and it loads `libheif-js`'s WebAssembly build of libheif, which is LGPL-3.0. Both are
 loaded lazily, only when a HEIC arrives, and neither is modified.
 
-The LGPL-3.0 text for `libheif-js` ships unmodified beside the library in the packaged app as
-`libheif-js/LICENSE`, and the ISC notice for `heic-decode` is its package's `license` field; both
-packages remain separate, replaceable files next to the app's own code, which is what the LGPL
-asks for. The WebAssembly binary itself carries an HEVC decoder, the component `sharp`'s prebuilt
+The LGPL-3.0 text for `libheif-js` travels with the library it covers, unmodified, as
+`libheif-js/LICENSE` inside the packaged app: `electron-builder.ts` keeps that one file even though
+it leaves other `node_modules` license files out. `heic-decode` is ISC-licensed (Copyright (c)
+Kiril Vatev), and its license text is published with its source at
+https://github.com/catdad-experiments/heic-decode. Both packages remain separate, replaceable files
+next to the app's own code, which is what the LGPL asks for. The WebAssembly binary itself carries an HEVC decoder, the component `sharp`'s prebuilt
 libvips leaves out; that exposure was accepted deliberately for this one capability, and the
 reasoning is recorded in ADR 0068.
