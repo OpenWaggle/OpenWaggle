@@ -139,7 +139,9 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
     )
   }
 
-  const mimeType = input.mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
+  // A blob the browser could not type (a pasted HEIC, for one) is typed by its name instead.
+  const mimeType =
+    input.mimeType.split(';')[0]?.trim().toLowerCase() || (guessMimeType(input.fileName) ?? '')
 
   // A pathless HEIC arrives as bytes, so it is decoded here the way the picker path decodes a file:
   // everything below this line sees the JPEG the decode produced (ADR 0068).
@@ -152,7 +154,9 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   }
 
   const extension = imageAttachmentExtension(mimeType)
-  if (!extension) throw new Error(`Unsupported Session image type: ${input.mimeType}`)
+  if (!extension) {
+    throw new Error(`Unsupported Session image type: ${mimeType || path.basename(input.fileName)}`)
+  }
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
   const buffer = Buffer.from(input.bytes)
   const kind = 'image'

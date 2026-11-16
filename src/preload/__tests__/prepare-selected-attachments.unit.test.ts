@@ -63,6 +63,43 @@ describe('prepareSelectedAttachments', () => {
     expect(result).toEqual([{ attachment: preparedImage('shot.png'), fileIndex: 0 }])
   })
 
+  it('leaves an untyped pathless file for main to type by its name', async () => {
+    vi.mocked(webUtils.getPathForFile).mockReturnValue('')
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce(preparedImage('IMG_4521.HEIC'))
+    const photo = new File([new Uint8Array([0, 0, 0, 0x24])], 'IMG_4521.HEIC')
+
+    const result = await prepareSelectedAttachments('/repo', [photo])
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'attachments:prepare-image-from-bytes',
+      new Uint8Array(await photo.arrayBuffer()),
+      'IMG_4521.HEIC',
+      '',
+    )
+    expect(result).toEqual([{ attachment: preparedImage('IMG_4521.HEIC'), fileIndex: 0 }])
+  })
+
+  it('keeps the order of files prepared by path and by bytes', async () => {
+    vi.mocked(webUtils.getPathForFile).mockImplementation((file) =>
+      file.name === 'shot.png' ? '/repo/shot.png' : '',
+    )
+    vi.mocked(ipcRenderer.invoke).mockImplementation((channel) =>
+      Promise.resolve(
+        channel === 'attachments:prepare'
+          ? [preparedImage('shot.png')]
+          : preparedImage('image.png'),
+      ),
+    )
+    const shot = new File([new Uint8Array([0x89])], 'shot.png', { type: 'image/png' })
+
+    const result = await prepareSelectedAttachments('/repo', [screenshotFile(), shot])
+
+    expect(result).toEqual([
+      { attachment: preparedImage('image.png'), fileIndex: 0 },
+      { attachment: preparedImage('shot.png'), fileIndex: 1 },
+    ])
+  })
+
   it('ignores a pathless file that is not an image', async () => {
     vi.mocked(webUtils.getPathForFile).mockReturnValue('')
     const notes = new File(['notes'], 'notes.txt', { type: 'text/plain' })

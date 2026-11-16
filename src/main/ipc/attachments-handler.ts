@@ -78,9 +78,10 @@ const attachmentImageFileNameArgumentSchema = withArgumentRefusal(
   ),
   'Attachment image name must be a non-empty file name.',
 )
+/** Empty when the browser could not type the blob; preparation then reads the type from the name. */
 const attachmentImageMimeTypeArgumentSchema = withArgumentRefusal(
-  Schema.String.pipe(Schema.minLength(1)),
-  'Attachment image type must be a non-empty media type.',
+  Schema.String,
+  'Attachment image type must be a media type string.',
 )
 const operationIdArgumentSchema = withArgumentRefusal(
   Schema.String.pipe(Schema.minLength(1)),

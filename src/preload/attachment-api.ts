@@ -1,9 +1,8 @@
 import { invoke, on, prepareSelectedAttachments } from './electron-transport'
 
-/**
- * The attachment methods, kept beside api.ts for its line budget. Pasting a screenshot arrives
- * here as bytes (ADR 0064), so `prepareImageAttachment` is the path a pathless image takes.
- */
+// The attachment methods, kept beside api.ts for its line budget. Pasting a screenshot arrives
+// here as bytes (ADR 0064), so `prepareImageAttachment` is the path a pathless image takes.
+// Line comments: the preload build keeps JSDoc, and the preload runs before every page.
 export const attachmentApi = {
   prepareAttachments: prepareSelectedAttachments,
   prepareAttachmentFromText: invoke('attachments:prepare-from-text'),

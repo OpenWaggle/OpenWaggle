@@ -40,6 +40,27 @@ describe('attachments:prepare-image-from-bytes', () => {
     expect(files.get(result.path)?.content).toEqual(Buffer.from(PNG_BYTES))
   })
 
+  it('types an untyped blob by its file name', async () => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare-image-from-bytes')
+
+    const result = decodeUnknownExactOrThrow(
+      preparedAttachmentSchema,
+      await handler?.({}, PNG_BYTES, 'dropped.png', ''),
+    )
+
+    expect(result).toMatchObject({ kind: 'image', name: 'dropped.png', mimeType: 'image/png' })
+  })
+
+  it('names the file when neither its type nor its name is an image', async () => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare-image-from-bytes')
+
+    await expect(handler?.({}, PNG_BYTES, 'blob', '')).rejects.toThrow(
+      'Unsupported Session image type: blob',
+    )
+  })
+
   it('refuses bytes that are not an image the app can attach', async () => {
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare-image-from-bytes')
