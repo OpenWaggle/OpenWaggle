@@ -56,6 +56,10 @@ Bug reports, documentation feedback, and feature requests are welcome through [G
 - [Architecture](docs/architecture.md)
 - [Project roadmap](https://github.com/orgs/OpenWaggle/projects/1)
 
+## License & trademark
+
+The app is released under the [GPL-3.0 license](LICENSE); the `@openwaggle/*` packages under [MIT](packages/waggle-core/LICENSE). OpenWaggle and the OpenWaggle logos are trademarks of Diego Garcia Brisa — see [TRADEMARKS.md](TRADEMARKS.md) for what that means for forks and redistribution. Contributions are accepted under the [CLA](CLA.md).
+
 ---
 
 Built on [Pi](https://pi.dev/).

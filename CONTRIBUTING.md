@@ -29,6 +29,10 @@ We're not accepting pull requests with code changes yet — we'll open this up a
 
 Large architectural proposals are welcome as issues for discussion before any implementation.
 
+## License and the CLA
+
+OpenWaggle is split-licensed: the app is [GPL-3.0](LICENSE) and the `@openwaggle/*` packages are [MIT](packages/waggle-core/LICENSE). The [Contributor License Agreement](CLA.md) lets the project keep every contribution usable under both its open licenses and any future license, while you keep full ownership of your work. When code pull requests open, submitting one will mean accepting the CLA — read it first. The name and logos are covered by the [trademark notice](TRADEMARKS.md), not by the licenses.
+
 ## Code of Conduct
 
 - Be respectful and constructive in all interactions.
