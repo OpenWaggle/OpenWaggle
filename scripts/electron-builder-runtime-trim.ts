@@ -95,6 +95,11 @@ export const REQUIRED_RUNTIME_ASAR_ENTRIES = [
   '/node_modules/mammoth/package.json',
   '/node_modules/jszip/package.json',
   '/node_modules/unpdf/package.json',
+  // The HEIC decode worker's files (src/main/utils/heic-image-conversion.ts).
+  '/node_modules/heic-decode/lib.js',
+  '/node_modules/libheif-js/LICENSE',
+  '/node_modules/libheif-js/libheif-wasm/libheif.js',
+  '/node_modules/libheif-js/libheif-wasm/libheif.wasm',
 ] as const
 
 export function prunedRuntimeIssues(asarEntries: readonly string[]) {

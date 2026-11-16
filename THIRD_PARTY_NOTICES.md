@@ -81,9 +81,10 @@ Sources: https://github.com/catdad-experiments/heic-decode and
 https://github.com/catdad-experiments/libheif-js
 
 OpenWaggle decodes HEIC and HEIF image attachments with these two packages (ADR 0068), which Pi's
-own decoder cannot read: `heic-decode` (`index.js`, `lib.js`) is Kiril Vatev's ISC-licensed
-wrapper, and it loads `libheif-js`'s WebAssembly build of libheif, which is LGPL-3.0. Both are
-loaded lazily, only when a HEIC arrives, and neither is modified.
+own decoder cannot read: `heic-decode` (`lib.js`) is Kiril Vatev's ISC-licensed wrapper, and it
+runs `libheif-js`'s WebAssembly build of libheif (`libheif-wasm/libheif.js` and `libheif.wasm`),
+which is LGPL-3.0. Both are loaded only when a HEIC arrives, in a worker thread of their own, and
+neither is modified.
 
 The LGPL-3.0 text for `libheif-js` travels with the library it covers, unmodified, as
 `libheif-js/LICENSE` inside the packaged app: `electron-builder.ts` keeps that one file even though
