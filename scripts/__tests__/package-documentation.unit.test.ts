@@ -233,6 +233,7 @@ describe('package documentation rendering', () => {
       ].join('\n'),
       description: 'Typed example package.',
       docsUrl: 'https://openwaggle.ai/docs/packages/example/0.1/',
+      licenseUrl: 'https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/example/LICENSE',
       packageName: '@openwaggle/example',
     })
 
@@ -242,6 +243,9 @@ describe('package documentation rendering', () => {
     expect(readme).toContain('# @openwaggle/example')
     expect(readme).toContain(
       '[Full documentation](https://openwaggle.ai/docs/packages/example/0.1/)',
+    )
+    expect(readme).toContain(
+      '[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/example/LICENSE)',
     )
     expect(readme).toContain('npm install @openwaggle/example')
     expect(readme).toContain(

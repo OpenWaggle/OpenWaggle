@@ -8,6 +8,7 @@ import type {
 import {
   packageDocumentationDefinitions,
   packageDocumentationUrl,
+  packageLicenseUrl,
   resolvePackageDocumentationVersions,
   versionPackageDocumentation,
 } from './package-documentation-model'
@@ -123,6 +124,8 @@ async function generatedFilesForPackage(
         canonicalBody: substituteInstallPlaceholders(guideBody),
         description: definition.description,
         docsUrl,
+        // The npm README's License badge links the package's own MIT LICENSE, not the GPL-3.0 root file.
+        licenseUrl: packageLicenseUrl(definition.slug),
         packageName: definition.packageName,
       }),
       path: path.join(packageRoot(projectRoot, definition.slug), 'README.md'),

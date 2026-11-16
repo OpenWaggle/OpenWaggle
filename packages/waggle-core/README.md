@@ -3,7 +3,7 @@
 
 # @openwaggle/waggle-core
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/waggle-core?color=f5a623)](https://www.npmjs.com/package/@openwaggle/waggle-core) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/waggle-core/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/waggle-core?color=f5a623)](https://www.npmjs.com/package/@openwaggle/waggle-core) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/waggle-core/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/waggle-core/LICENSE)
 
 Runtime-neutral Waggle policy, prompts, state, presets, and turn orchestration primitives.
 

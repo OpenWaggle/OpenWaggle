@@ -11,7 +11,7 @@ OpenWaggle uses GitHub Issues in `OpenWaggle/OpenWaggle` and tracks roadmap work
 
 ## Contribution Model
 
-The public contribution model currently prioritizes issues, bug reports, feature requests, documentation feedback, UI/UX feedback, and architecture proposals. Public code contributions are not generally open yet, so issue quality matters.
+Code contributions are open (ADR 0067). Bug reports, feature requests, documentation feedback, UI/UX feedback, and architecture proposals start as issues, and issue quality still drives the roadmap. Pull requests are welcome as one coherent change each, under the same commit and verification standards CI enforces on maintainer changes. Submitting a contribution accepts the Contributor License Agreement (`CLA.md`), and CLA Assistant sets a merge-blocking status check on every pull request.
 
 For internal agent work, use the repository branch/PR conventions in `AGENTS.md` and preserve the no-commit-without-maintainer-approval rule.
 

@@ -3,7 +3,7 @@
 
 # @openwaggle/pi-waggle
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/pi-waggle?color=f5a623)](https://www.npmjs.com/package/@openwaggle/pi-waggle) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/pi-waggle/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/pi-waggle?color=f5a623)](https://www.npmjs.com/package/@openwaggle/pi-waggle) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/pi-waggle/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/pi-waggle/LICENSE)
 
 Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit.
 

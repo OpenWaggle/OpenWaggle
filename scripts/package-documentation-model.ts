@@ -147,6 +147,10 @@ export function packageDocumentationUrl(slug: string, version: string) {
   return `https://openwaggle.ai${packageDocumentationRoute(slug, version)}`
 }
 
+export function packageLicenseUrl(slug: string) {
+  return `https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/${slug}/LICENSE`
+}
+
 export function packageDocumentationPage(
   documentation: readonly VersionedPackageDocumentationDefinition[],
   routeSlug: string,

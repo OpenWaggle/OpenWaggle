@@ -3,7 +3,7 @@
 
 # @openwaggle/extension-sdk
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-sdk?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-sdk) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-sdk/0.3/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-sdk?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-sdk) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-sdk/0.3/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/extension-sdk/LICENSE)
 
 Browser-safe OpenWaggle extension SDK schemas, types, broker helpers, theme tokens, and federated-module context helpers.
 
