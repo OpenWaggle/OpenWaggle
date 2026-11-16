@@ -58,7 +58,7 @@ Bug reports, documentation feedback, and feature requests are welcome through [G
 
 ## License & trademark
 
-The app is released under the [GPL-3.0 license](LICENSE); the `@openwaggle/*` packages under [MIT](packages/waggle-core/LICENSE). OpenWaggle and the OpenWaggle logos are trademarks of Diego Garcia Brisa — see [TRADEMARKS.md](TRADEMARKS.md) for what that means for forks and redistribution. Contributions are accepted under the [CLA](CLA.md).
+The app is released under the [GPL-3.0 license](LICENSE); each `@openwaggle/*` package in `packages/` ships its own [MIT](packages/waggle-core/LICENSE) license file. OpenWaggle and the OpenWaggle logos are trademarks of Diego Garcia Brisa — see [TRADEMARKS.md](TRADEMARKS.md) for what that means for forks and redistribution. Contributions are accepted under the [CLA](CLA.md).
 
 ---
 

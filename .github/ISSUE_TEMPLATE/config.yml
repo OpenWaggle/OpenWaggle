@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Questions, ideas, and UI feedback
+  - name: Questions and ideas
     url: https://github.com/OpenWaggle/OpenWaggle/discussions
-    about: Open a GitHub Discussion for questions, design ideas, and feedback that is not a bug, a feature request, or a documentation issue.
+    about: Open a GitHub Discussion for questions and design ideas that are not a bug, a feature request, or a documentation issue. UI and UX feedback belongs in an issue.

@@ -15,4 +15,4 @@ If you redistribute OpenWaggle, modified or unmodified, outside the official pro
 - A factual reference to the upstream project is fine: you may say your software is "based on
   OpenWaggle" or "not affiliated with OpenWaggle", as long as nothing suggests the project or its
   maintainer produced, endorses, or supports your distribution.
-- Questions about the trademarks can be opened as a [GitHub issue](https://github.com/OpenWaggle/OpenWaggle/issues).
+- Questions about the trademarks can be opened in [GitHub Discussions](https://github.com/OpenWaggle/OpenWaggle/discussions).
