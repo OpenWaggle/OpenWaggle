@@ -59,11 +59,14 @@ Re-add a review rule when a **second** person holds write access: then a maintai
 Project Owner's pull requests and the requirement becomes both meaningful and satisfiable.
 
 `.github/CODEOWNERS` (`* @DiegoGBrisa`) stays: with no review rule attached it still routes a review
-request to the Project Owner on every pull request. Granting someone the **Maintain** role is what
+request to them on a pull request from anyone else. Granting someone the **Maintain** role is what
 would add the merge button for them, under every rule above. Changing a ruleset is a GitHub settings
-action, but the protections ruleset's required checks are also defined in the repository
-(`scripts/package-release-bootstrap-model.ts`, `REQUIRED_CHECK_CONTEXTS`), so change both or the
-bootstrap reports the deployed ruleset as a conflict. These rules are enforced only while the
+action, but the protections ruleset's required checks and its pull request parameters are also
+defined in the repository (`REQUIRED_CHECK_CONTEXTS` in `scripts/package-release-bootstrap-model.ts`,
+`pullRequestParametersSchema` in `scripts/package-release-bootstrap-policy.ts`), so
+change them together or the bootstrap reports the deployed ruleset as a conflict. Note that
+`pullRequestParametersSchema` pins `require_code_owner_review` to `false` and
+`required_approving_review_count` to `0`, so re-adding a review rule means updating that schema too. These rules are enforced only while the
 ruleset is `active` and the CLA App is installed.
 
 **Because `license/cla` is now required, the bot must be allowlisted.** GitHub's release
