@@ -1,14 +1,6 @@
 import fs from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
-import { LOCAL_HOST_CONTRACT_VERSION } from '../../src/shared/types/local-host'
-import { LOCAL_SESSION_CURRENT_REVISION } from '../../src/shared/types/local-session-protocol'
-import { executeLocalSessionCommand } from '../../src/main/session-host/local-session-client'
-import {
-  LocalSessionHostUpgradePendingError,
-  openLocalSessionConnection,
-} from '../../src/main/session-host/local-session-client-connection'
-import { LocalSessionClientProtocolError } from '../../src/main/session-host/local-session-client-protocol-error'
 import {
   type LocalSessionHostPaths,
   refreshLocalSessionHostEndpoint,
@@ -18,12 +10,12 @@ import {
   acquireSessionHostOwnership,
   type SessionHostOwnership,
 } from '../../src/main/session-host/session-host-ownership'
+import { SESSION_HOST_EXIT_BUDGET_MS } from '../../src/main/session-host/session-host-update-stop'
+import { hasErrorCode, processExists, requestStop } from './session-host-stop'
 
 const QA_HOST_SHUTDOWN_TIMEOUT_MS = 30_000
 const QA_HOST_SHUTDOWN_POLL_INTERVAL_MS = 50
 const QA_HOST_CONNECT_TIMEOUT_MS = 250
-const QA_HOST_CLIENT_VERSION = 'qa-graceful-shutdown'
-const FUTURE_PROTOCOL_REVISION = LOCAL_SESSION_CURRENT_REVISION + 1
 const QA_PROFILE_REMOVAL_MAX_RETRIES = 10
 const QA_PROFILE_REMOVAL_RETRY_DELAY_MS = 100
 const OWNERSHIP_DATABASE_SUFFIX = '.ownership.sqlite'
@@ -48,10 +40,6 @@ interface SessionHostShutdownDependencies {
   readonly tryAcquireOwnership: (databasePath: string) => Promise<SessionHostOwnership | null>
   readonly now: () => number
   readonly wait: (milliseconds: number) => Promise<void>
-}
-
-function hasErrorCode(error: unknown, code: string) {
-  return error instanceof Error && 'code' in error && error.code === code
 }
 
 function isUnavailable(error: unknown) {
@@ -134,63 +122,6 @@ function canConnect(endpoint: string) {
   })
 }
 
-function processExists(processId: number) {
-  try {
-    process.kill(processId, 0)
-    return true
-  } catch (error) {
-    // EPERM: the process exists but belongs to another user.
-    return hasErrorCode(error, 'EPERM')
-  }
-}
-
-async function requestDrain(paths: LocalSessionHostPaths) {
-  try {
-    const connection = await openLocalSessionConnection({
-      paths,
-      clientKind: 'internal',
-      clientVersion: QA_HOST_CLIENT_VERSION,
-      supportedRevisions: [FUTURE_PROTOCOL_REVISION],
-    })
-    connection.socket.destroy()
-    throw new Error('The Session Host unexpectedly accepted the QA shutdown revision.')
-  } catch (error) {
-    if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
-  }
-}
-
-/**
- * The update stop, which names the Host's process (ADR 0047). A Host already draining for a
- * version handoff answers nothing else, and that drain is the stop.
- */
-export async function requestStop(paths: LocalSessionHostPaths) {
-  try {
-    const result = await executeLocalSessionCommand({
-      paths,
-      clientKind: 'internal',
-      clientVersion: QA_HOST_CLIENT_VERSION,
-      payload: {
-        contract: 'local-host-v1',
-        request: {
-          contractVersion: LOCAL_HOST_CONTRACT_VERSION,
-          operation: 'stop',
-          purpose: 'update',
-        },
-      },
-    })
-    if (result.contract !== 'local-host-v1') {
-      throw new Error('The Session Host returned an unexpected response to the QA stop.')
-    }
-    return result.response.processId
-  } catch (error) {
-    if (error instanceof LocalSessionHostUpgradePendingError) return undefined
-    if (!(error instanceof LocalSessionClientProtocolError)) throw error
-    // A Host older than the update stop refuses it; the version handoff still drains it.
-    await requestDrain(paths)
-    return undefined
-  }
-}
-
 const defaultDependencies: SessionHostShutdownDependencies = {
   resolvePaths: (userDataRoot) => resolveLocalSessionHostPaths({ userDataRoot }),
   refreshPaths: refreshLocalSessionHostEndpoint,
@@ -207,6 +138,23 @@ const defaultDependencies: SessionHostShutdownDependencies = {
   },
   now: Date.now,
   wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+}
+
+/**
+ * The Host releases ownership before its Chromium profile closes, and on Windows a file it still
+ * holds (`session-data/Local State`) makes the removal fail with EBUSY, so the cleanup waits for
+ * its exit. Only for the Host's own exit budget: a reused process id must not hold the cleanup to
+ * its timeout, and `fs.rm`'s retries absorb what lag is left.
+ */
+async function waitForHostProcessExit(
+  processId: number | undefined,
+  dependencies: SessionHostShutdownDependencies,
+) {
+  if (processId === undefined) return
+  const deadline = dependencies.now() + SESSION_HOST_EXIT_BUDGET_MS
+  while (dependencies.processExists(processId) && dependencies.now() < deadline) {
+    await dependencies.wait(QA_HOST_SHUTDOWN_POLL_INTERVAL_MS)
+  }
 }
 
 async function runWhileOwnershipHeld(
@@ -268,15 +216,15 @@ export async function shutdownSessionHostForQa(
   const deadline = dependencies.now() + timeoutMs
   while (dependencies.now() < deadline) {
     const endpointReleased = paths === null || !(await dependencies.canConnect(paths.endpoint))
-    // The Host releases ownership before its Chromium profile closes; on Windows a file it still
-    // holds makes the removal fail with EBUSY, so its exit, not its release, frees the profile.
-    const exited = processId === undefined || !dependencies.processExists(processId)
-    if (endpointReleased && exited) {
-      const ownership = await dependencies.tryAcquireOwnership(basePaths.databasePath)
-      if (ownership) {
-        await runWhileOwnershipHeld(ownership, whileOwnershipHeld)
-        return
-      }
+    const ownership = endpointReleased
+      ? await dependencies.tryAcquireOwnership(basePaths.databasePath)
+      : null
+    if (ownership) {
+      await runWhileOwnershipHeld(ownership, async (held) => {
+        await waitForHostProcessExit(processId, dependencies)
+        return whileOwnershipHeld(held)
+      })
+      return
     }
     await dependencies.wait(QA_HOST_SHUTDOWN_POLL_INTERVAL_MS)
   }

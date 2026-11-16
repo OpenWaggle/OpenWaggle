@@ -18,7 +18,7 @@ vi.mock('../../../src/main/session-host/local-session-client-connection', async 
   openLocalSessionConnection: client.connect,
 }))
 
-const { requestStop } = await import('../session-host-shutdown')
+const { requestStop } = await import('../session-host-stop')
 
 const PATHS = {
   stateRoot: 'qa-profile/session-host',
@@ -71,6 +71,14 @@ describe('the QA Session Host stop', () => {
 
     await expect(requestStop(PATHS)).resolves.toBeUndefined()
     expect(client.connect).toHaveBeenCalledOnce()
+  })
+
+  it('passes on a protocol failure other than a refused purpose', async () => {
+    const failure = new LocalSessionClientProtocolError('unauthorized', 'not this client')
+    client.execute.mockRejectedValue(failure)
+
+    await expect(requestStop(PATHS)).rejects.toBe(failure)
+    expect(client.connect).not.toHaveBeenCalled()
   })
 
   it('passes on any other failure', async () => {

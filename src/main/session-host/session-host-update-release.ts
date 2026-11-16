@@ -9,14 +9,12 @@ import {
   LocalSessionHostUpgradePendingError,
   probeLocalSessionHost,
 } from './local-session-client'
-import { LocalSessionClientProtocolError } from './local-session-client-protocol-error'
 import { isLocalSessionHostUnavailable } from './local-session-host-launcher'
 import { refreshLocalSessionHostEndpoint } from './local-session-paths'
+import { isRejectedUpdatePurpose, SESSION_HOST_EXIT_BUDGET_MS } from './session-host-update-stop'
 
 const logger = createLogger('session-host-release')
 
-/** Time the Host takes from the end of its drain to exiting: flushes, runtime dispose, logs. */
-const SESSION_HOST_EXIT_BUDGET_MS = 7_000
 /** The Host's whole update stop: its drain deadline, the Run settle, and its exit. */
 export const SESSION_HOST_UPDATE_RELEASE_TIMEOUT_MS =
   UPDATE_HOST_STOP_DEADLINE_MS + SESSION_HOST_DRAIN_DEADLINE_SETTLE_MS + SESSION_HOST_EXIT_BUDGET_MS
@@ -99,10 +97,6 @@ async function sendStop(client: SessionHostReleaseClient, forUpdate: boolean) {
 }
 
 /** How a Host that predates `purpose` answers it: its exact decoder fails the command. */
-function isRejectedUpdatePurpose(error: unknown): error is LocalSessionClientProtocolError {
-  return error instanceof LocalSessionClientProtocolError && error.code === 'command_failed'
-}
-
 export function defaultReleaseDependencies(client: SessionHostReleaseClient) {
   return {
     // Bounded by the client's default 10 s response timeout; the Host answers a stop at once.

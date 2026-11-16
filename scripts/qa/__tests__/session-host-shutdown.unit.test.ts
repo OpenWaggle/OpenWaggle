@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LocalSessionHostPaths } from '../../../src/main/session-host/local-session-paths'
 import type { SessionHostOwnership } from '../../../src/main/session-host/session-host-ownership'
+import { SESSION_HOST_EXIT_BUDGET_MS } from '../../../src/main/session-host/session-host-update-stop'
 import { shutdownSessionHostForQa } from '../session-host-shutdown'
 
 function paths(platform: NodeJS.Platform) {
@@ -222,25 +223,34 @@ describe('shutdownSessionHostForQa', () => {
     ])
   })
 
-  it('fails without deleting state when the Host process does not exit before the timeout', async () => {
+  it('removes the profile after the exit budget when the process id never disappears', async () => {
+    // A reused process id must not hold the cleanup to its timeout and fail a release job.
     const hostPaths = paths('win32')
-    const cleanup = vi.fn()
+    const heldOwnership = ownership()
     let now = 0
+    const cleanedAt: number[] = []
 
-    await expect(
-      shutdownSessionHostForQa('qa-profile', cleanup, 100, {
+    await shutdownSessionHostForQa(
+      'qa-profile',
+      async () => {
+        cleanedAt.push(now)
+      },
+      undefined,
+      {
         resolvePaths: () => hostPaths,
         refreshPaths: async () => hostPaths,
         requestStop: async () => 4242,
         processExists: () => true,
         canConnect: async () => false,
-        tryAcquireOwnership: async () => ownership(),
+        tryAcquireOwnership: async () => heldOwnership,
         now: () => now,
         wait: async (milliseconds) => {
           now += milliseconds
         },
-      }),
-    ).rejects.toThrow('waiting for the QA Session Host to release')
-    expect(cleanup).not.toHaveBeenCalled()
+      },
+    )
+
+    expect(cleanedAt).toEqual([SESSION_HOST_EXIT_BUDGET_MS])
+    expect(heldOwnership.release).toHaveBeenCalledOnce()
   })
 })
