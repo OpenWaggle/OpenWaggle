@@ -7,6 +7,8 @@ const PROBE_TIMEOUT_MS = 180_000
 const PROBE_OUTPUT_BYTES = 1_000_000
 /** How much of the runner's stderr a failure message keeps. */
 const PROBE_STDERR_BYTES = 2_000
+/** How many of the runner's last non-empty stderr lines the failure message names. */
+const PROBE_STDERR_LINE_COUNT = 4
 /** How long `taskkill` may take before only the probe's root process is killed. */
 const TREE_KILL_TIMEOUT_MS = 1_000
 
@@ -49,7 +51,7 @@ function stderrTail(stderr: string) {
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-  return lines.slice(-4).join(' | ')
+  return lines.slice(-PROBE_STDERR_LINE_COUNT).join(' | ')
 }
 
 /** Kills the process itself; one that already exited (ESRCH) or cannot be signalled is left. */
