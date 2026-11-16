@@ -68,9 +68,10 @@ export const UNLOADED_PACKAGES: ReadonlySet<string> = new Set(['onnxruntime-web'
  *   recorder and HTML report web apps of Playwright's own tooling.
  * - libheif-js: `heic-decode` requires `libheif-js/wasm-bundle`, which loads
  *   `libheif-wasm/libheif-bundle.js` with the wasm embedded as a base64 URI (`wasmBinary` is set,
- *   so the separate `.wasm` is not fetched). The ESM twin, the non-wasm build and the TypeScript
- *   sources never load. `index.js` and `wasm.js` stay because they are the package's declared
- *   entry points; nothing the app loads reaches them.
+ *   so the separate `.wasm` is not fetched). Everything else in the package stays on disk:
+ *   `index.js` and the non-wasm `libheif/` build it requires, `wasm.js`, the ESM twin, the
+ *   TypeScript sources and the standalone `.wasm`. What ships is what the decode loads, plus the
+ *   package's own license and manifest.
  */
 export const PACKAGE_UNLOADED_FILES: Readonly<Record<string, readonly string[]>> = {
   lucide: ['dist/esm', 'dist/umd'],
@@ -80,6 +81,8 @@ export const PACKAGE_UNLOADED_FILES: Readonly<Record<string, readonly string[]>>
     'dist/!(transformers.node.cjs|transformers.node.mjs)',
   ],
   'libheif-js': [
+    'index.js',
+    'wasm.js',
     'libheif',
     'libheif-wasm/libheif-bundle.mjs',
     'libheif-wasm/libheif.d.ts',
