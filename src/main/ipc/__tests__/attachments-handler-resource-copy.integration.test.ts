@@ -1,4 +1,4 @@
-import { ATTACHMENT } from '@shared/constants/resource-limits'
+import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ocrRecognizeMock, parserWorkerMock } from './attachment-extraction-mocks.test-support'
 import {
@@ -116,14 +116,28 @@ describe('managed Session resource attachment copies', () => {
     await expect(hydrateAttachmentSources([attachment])).resolves.toHaveLength(1)
   })
 
+  // An image is bounded only by what the app will read in one piece, not by the non-image limit
+  // (ADR 0068): Pi reduces every prompt image to the budget its model declares.
+  it('accepts an image past the non-image size bound', async () => {
+    const attachment = await prepareRegisteredImageAttachmentFromBytes({
+      bytes: new Uint8Array(ATTACHMENT.MAX_SIZE_BYTES + 1),
+      fileName: 'large.png',
+      mimeType: 'image/png',
+    })
+
+    expect(attachment.sizeBytes).toBe(ATTACHMENT.MAX_SIZE_BYTES + 1)
+  })
+
   it('rejects oversized bytes before creating an isolated copy', async () => {
     await expect(
       prepareRegisteredImageAttachmentFromBytes({
-        bytes: new Uint8Array(ATTACHMENT.MAX_SIZE_BYTES + 1),
+        bytes: new Uint8Array(ATTACHMENT.MAX_IMAGE_SIZE_BYTES + 1),
         fileName: 'large.png',
         mimeType: 'image/png',
       }),
-    ).rejects.toThrow('Attachment exceeds 8 MB')
+    ).rejects.toThrow(
+      `Attachment exceeds ${String(ATTACHMENT.MAX_IMAGE_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB`,
+    )
 
     expect(ocrRecognizeMock).not.toHaveBeenCalled()
     expect(writeFileMock).not.toHaveBeenCalled()

@@ -61,7 +61,8 @@ describe('snapshot part decode reports', () => {
 })
 
 // Snapshot parts decode with the transcript's own part schema, so an attachment is held to the
-// bounds the window prepared it under; the snapshot's own copy accepted any size.
+// widest bound any kind may claim (ADR 0068; each kind's own limit is enforced where the file is
+// read); the snapshot's own copy accepted any size.
 describe('snapshot attachment parts', () => {
   const attachment = {
     id: 'attachment-1',
@@ -80,7 +81,7 @@ describe('snapshot attachment parts', () => {
 
   it('drops an attachment over the size bound, naming the field', () => {
     logged.error.mockClear()
-    const oversized = { ...attachment, sizeBytes: ATTACHMENT.MAX_SIZE_BYTES + 1 }
+    const oversized = { ...attachment, sizeBytes: ATTACHMENT.MAX_IMAGE_SIZE_BYTES + 1 }
     const decoded = decodeStreamingParts(
       { parts: [{ type: 'attachment', attachment: oversized }] },
       context,

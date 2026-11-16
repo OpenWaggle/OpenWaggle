@@ -4,7 +4,7 @@ import path from 'node:path'
 import { PERCENT_BASE } from '@shared/constants/math'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { TIME_UNIT } from '@shared/constants/time'
-import { appPaths } from '../desktop-shell/app-paths'
+import { ensureTempAttachmentsDirectory } from '../utils/attachment-temp-directory'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 
@@ -12,14 +12,17 @@ const logger = createLogger('ipc/attachments')
 const MILLISECONDS_PER_HOUR =
   TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.MILLISECONDS_PER_SECOND
 const TEMP_ATTACHMENT_RETENTION_MS = TIME_UNIT.HOURS_PER_DAY * MILLISECONDS_PER_HOUR
-const TEMP_ATTACHMENTS_DIRECTORY_NAME = 'temp-attachments'
 const TEMP_PROMPT_FILENAME_PREFIX = 'prompt-'
 const TEMP_PROMPT_FILENAME_EXTENSION = '.md'
 const TEMP_TEXT_ATTACHMENT_WRITE_CHUNK_BYTES = 32 * BYTES_PER_KIBIBYTE
 export const TEXT_ATTACHMENT_MAX_SIZE_MB =
   ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)
+// Every name the app writes into the directory, so the cleanup below can reach it: a prompt's
+// markdown, a window-prepared image copy (a decoded HEIC, a pasted screenshot) and an isolated
+// Session resource copy. A name that is not listed here is left alone, so adding a writer means
+// adding its prefix (`writeTempAttachment`'s prefix argument).
 const TEMP_ATTACHMENT_FILENAME_PATTERN =
-  /^(?:prompt-\d+\.md|resource-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[a-z0-9]+)$/u
+  /^(?:prompt-\d+\.md|(?:attachment|resource)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[a-z0-9]+)$/u
 /** A directory holding one named prompt file (`createTempPromptPath`). */
 const TEMP_PROMPT_DIRECTORY_PATTERN = /^prompt-\d+-[0-9a-f]{8}$/u
 const TEMP_PROMPT_DIRECTORY_SUFFIX_BYTES = 4
@@ -48,11 +51,7 @@ export async function createTempPromptPath(name: string | undefined, timestamp =
   return path.join(directory, name)
 }
 
-export async function ensureTempAttachmentsDirectory() {
-  const tempAttachmentsDir = path.join(appPaths.userData(), TEMP_ATTACHMENTS_DIRECTORY_NAME)
-  await fs.mkdir(tempAttachmentsDir, { recursive: true })
-  return tempAttachmentsDir
-}
+export { ensureTempAttachmentsDirectory }
 export async function cleanupTempAttachments() {
   const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
   const entries = await fs.readdir(tempAttachmentsDir)

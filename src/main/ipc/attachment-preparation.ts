@@ -4,17 +4,15 @@ import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { PreparedAttachment } from '@shared/types/agent'
-import { allInOrder } from '@shared/utils/all-in-order'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
+import { writeTempAttachment } from '../utils/attachment-temp-directory'
 import {
   DOCX_MIME_TYPE,
   extractAttachmentText,
   ODT_MIME_TYPE,
   RTF_MIME_TYPE,
 } from '../utils/attachment-text-extraction'
-import { ensureTempAttachmentsDirectory } from './attachment-temp-files'
-
-const PRIVATE_ATTACHMENT_FILE_MODE = 0o600
+import { convertHeicToAttachmentImage, isHeicImageMimeType } from '../utils/heic-image-conversion'
 
 function contentSha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
@@ -35,6 +33,8 @@ function guessMimeType(filePath: string) {
     .with('.jpeg', () => 'image/jpeg')
     .with('.webp', () => 'image/webp')
     .with('.gif', () => 'image/gif')
+    .with('.heic', () => 'image/heic')
+    .with('.heif', () => 'image/heif')
     .with('.bmp', () => 'image/bmp')
     .with('.svg', () => 'image/svg+xml')
     .with('.md', () => 'text/markdown')
@@ -74,21 +74,32 @@ async function prepareAttachment(filePath: string) {
   if (!stats.isFile()) {
     throw new Error(`Not a file: ${filePath}`)
   }
-  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
-    throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
-    )
-  }
-
   const mimeType = guessMimeType(filePath)
   if (!mimeType) {
     throw new Error(
-      `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images, PDFs.`,
+      `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images (PNG, JPEG, WebP, GIF, HEIC, HEIF), and PDFs.`,
+    )
+  }
+  const kind = resolveAttachmentKind(mimeType)
+  const maxBytes = kind === 'image' ? ATTACHMENT.MAX_IMAGE_SIZE_BYTES : ATTACHMENT.MAX_SIZE_BYTES
+  if (stats.size > maxBytes) {
+    throw new Error(
+      `Attachment exceeds ${String(maxBytes / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
     )
   }
   const buffer = await fs.readFile(filePath)
-  const kind = resolveAttachmentKind(mimeType)
   const attachmentName = path.basename(filePath)
+
+  // Pi's own decoder cannot read HEIC, so the app decodes it once and the attachment becomes the
+  // JPEG copy it wrote; nothing downstream has to know HEIC existed (ADR 0068).
+  if (isHeicImageMimeType(mimeType)) {
+    const converted = await convertHeicToAttachmentImage({
+      bytes: buffer,
+      fileName: attachmentName,
+    })
+    return prepareRegisteredImageAttachmentFromBytes(converted)
+  }
+
   const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
 
   return {
@@ -132,9 +143,9 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   readonly fileName: string
   readonly mimeType: string
 }) {
-  if (input.bytes.byteLength > ATTACHMENT.MAX_SIZE_BYTES) {
+  if (input.bytes.byteLength > ATTACHMENT.MAX_IMAGE_SIZE_BYTES) {
     throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(input.fileName)}`,
+      `Attachment exceeds ${String(ATTACHMENT.MAX_IMAGE_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(input.fileName)}`,
     )
   }
 
@@ -144,12 +155,8 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
   const buffer = Buffer.from(input.bytes)
   const kind = 'image'
-  const [extractedText, tempAttachmentsDir] = await allInOrder([
-    extractAttachmentText({ kind, mimeType, buffer, attachmentName }),
-    ensureTempAttachmentsDirectory(),
-  ])
-  const filePath = path.join(tempAttachmentsDir, `resource-${randomUUID()}${extension}`)
-  await fs.writeFile(filePath, buffer, { flag: 'wx', mode: PRIVATE_ATTACHMENT_FILE_MODE })
+  const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
+  const filePath = await writeTempAttachment(buffer, extension, 'resource')
 
   const attachment: PreparedAttachment = {
     id: randomUUID(),

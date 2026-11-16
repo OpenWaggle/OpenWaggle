@@ -24,15 +24,20 @@ function validatePreparedAttachments(attachments: readonly PreparedAttachment[])
       throw new Error(`Duplicate prepared attachment capability: ${attachment.name}`)
     }
     capabilityIds.add(attachment.id)
+    // Pi reduces every prompt image for the selected model, so an image's size never decides
+    // whether the send can succeed and images do not count towards the file total (ADR 0068).
+    const maxSizeBytes =
+      attachment.kind === 'image' ? ATTACHMENT.MAX_IMAGE_SIZE_BYTES : ATTACHMENT.MAX_SIZE_BYTES
     if (
       !Number.isSafeInteger(attachment.sizeBytes) ||
       attachment.sizeBytes < 0 ||
-      attachment.sizeBytes > ATTACHMENT.MAX_SIZE_BYTES
+      attachment.sizeBytes > maxSizeBytes
     ) {
       throw new Error(
-        `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / MEBIBYTE)} MB: ${attachment.name}`,
+        `Attachment exceeds ${String(maxSizeBytes / MEBIBYTE)} MB: ${attachment.name}`,
       )
     }
+    if (attachment.kind === 'image') continue
     if (totalSizeBytes > ATTACHMENT.MAX_TOTAL_SIZE_BYTES - attachment.sizeBytes) {
       throw new Error(
         `Total attachment size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / MEBIBYTE)} MB.`,

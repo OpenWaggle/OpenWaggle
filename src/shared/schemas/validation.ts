@@ -134,7 +134,9 @@ export const preparedAttachmentSchema = Schema.Struct({
   name: sessionInputItemTextSchema,
   path: sessionInputPathSchema,
   mimeType: sessionInputItemTextSchema,
-  sizeBytes: Schema.Number.pipe(Schema.int(), Schema.between(0, ATTACHMENT.MAX_SIZE_BYTES)),
+  // The widest bound any attachment kind may claim; each kind's own limit is enforced where the
+  // file is read (ADR 0068: images are bounded only by what the app will read in one piece).
+  sizeBytes: Schema.Number.pipe(Schema.int(), Schema.between(0, ATTACHMENT.MAX_IMAGE_SIZE_BYTES)),
   contentSha256: Schema.optionalWith(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)), {
     exact: true,
   }),
