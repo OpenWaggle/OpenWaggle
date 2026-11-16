@@ -21,7 +21,7 @@ Each line names a topic file and when to load it:
 - [`hive`](.agents/memory/hive.md): touching the `hive` tool, Workers, Delegations, Agent definitions, Hive wake or the Hive panel.
 - [`hive-delegation-revisions`](.agents/memory/hive-delegation-revisions.md): touching how a revision request, reopen or task change reaches the Worker (#454).
 - [`scheduled-tasks`](.agents/memory/scheduled-tasks.md): touching Heartbeats, Launch schedules or `openwaggle schedules`.
-- [`licensing`](.agents/memory/licensing.md): before changing license fields, publishing packages, accepting code PRs, adding a package, or answering licensing questions: the MIT/GPL-3.0 split, the CLA and the trademark notice (ADR 0067).
+- [`licensing`](.agents/memory/licensing.md): before changing license fields, publishing packages, accepting code PRs, adding a package, answering licensing questions, or editing `main`'s rulesets and `CODEOWNERS`: the MIT/GPL-3.0 split, the CLA, the trademark notice, and the merge gate (ADR 0067).
 - [`access-and-authorization`](.agents/memory/access-and-authorization.md): touching authorization modes, grants, approvals, caller ceilings or catalog-wide reach.
 - [`cli`](.agents/memory/cli.md): touching the `openwaggle` CLI, CLI profiles and credentials, or CLI exit and error kinds.
 - [`renderer-transcript`](.agents/memory/renderer-transcript.md): touching `features/chat` transcript rows, scrolling, streaming render or edit/fork points.

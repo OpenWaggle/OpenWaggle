@@ -36,6 +36,28 @@ idiom (research: VS Code, Angular, Zulip all use one-time signature + status-che
 Every pre-CLA external commit is Diego's except `7ee5fc373` (a `.fallowrc.jsonc` trim),
 recorded as de minimis in the ADR.
 
+## The main merge gate
+
+Two `main` rulesets, deliberately split so CI can never be bypassed, only the approval:
+
+- **`OpenWaggle main protections`** — deletion, non-fast-forward, a required pull request, and
+  seven required status checks: Commit Policy, Typecheck & Lint, Unit Tests, Integration &
+  Component Tests, MCP Conformance, Package Release Gate, and `license/cla` (CLA Assistant's
+  commit status; it reports through the status API, not check runs). **No bypass actors.**
+- **`OpenWaggle approvals`** — `required_approving_review_count: 1` plus
+  `require_code_owner_review`, with `bypass_actors` = the Project Owner (user
+  `DiegoGBrisa`, id `77103257`). `require_code_owner_review` is what makes the approval
+  *theirs*: on a public repository anyone with read access can approve, so a plain count of one
+  would accept a stranger's approval. The bypass keeps their own pull requests from deadlocking
+  (GitHub never counts an author's own approval), and because that ruleset holds only the review
+  rule, their pull requests still face every required check.
+
+`.github/CODEOWNERS` (`* @DiegoGBrisa`) is what the code-owner rule reads. Only the Project Owner
+holds write access, so only they can merge; granting someone the **Maintain** role is what would
+add the merge button for them, still under every rule above. Changing a ruleset is a GitHub
+settings action, not a repo change: the enforcement lives outside the checkout, and these rules
+are enforced only while the rulesets are `active` and the App is installed.
+
 ## The trademark
 
 [TRADEMARKS.md](../../TRADEMARKS.md) at the root: the names "OpenWaggle"/"Waggle", the
