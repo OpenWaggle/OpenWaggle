@@ -249,6 +249,7 @@ describe('package release namespace bootstrap GitHub policy', () => {
       { context: 'Unit Tests' },
       { context: 'Integration & Component Tests' },
       { context: 'MCP Conformance' },
+      { context: 'license/cla' },
       {},
     ])
     const { dependencies, requests } = createDependencies(rulesetOverrides(ruleset))

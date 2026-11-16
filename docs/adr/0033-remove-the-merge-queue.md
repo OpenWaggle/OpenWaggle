@@ -34,7 +34,7 @@ The supply-chain provenance attestation for `@openwaggle/*` (`package-release.ym
 - Merging is no longer gated by a merge queue: once the required per-PR checks pass, a PR merges directly. `main` can briefly go red from a semantic conflict between two independently-green PRs.
 - There is no Electron E2E in CI. Renderer boot, CSP enforcement, visual baselines, and app timing budgets have no automated CI control; the nightly canary covers packaged build + native runtime load (+ the renderer syntax budget on macOS), and the rest is local/manual. See `docs/agents/e2e-removal-coverage-map.md`.
 - Workflow code did change: `ci.yml`, the fail-closed gate/policy/AST-contract, and the required-status-check contexts were all updated; `release.yml` and `package-release.yml` were not.
-- Adoption is a one-time ruleset edit: drop the `merge_queue` rule and set the required contexts to `Commit Policy`, `Typecheck & Lint`, `Unit Tests`, `Integration & Component Tests`, `MCP Conformance`, `Package Release Gate`.
+- Adoption is a one-time ruleset edit: drop the `merge_queue` rule and set the required contexts to `Commit Policy`, `Typecheck & Lint`, `Unit Tests`, `Integration & Component Tests`, `MCP Conformance`, `Package Release Gate`. [ADR 0067](0067-split-mit-packages-from-a-gpl-app-with-a-cla-and-trademark-notice.md) later added a seventh, `license/cla`.
 
 ## Follow-up: skip the redundant suite on the Release Please PR
 
