@@ -50,16 +50,42 @@ export function on<C extends IpcEventChannel>(channel: C) {
 }
 
 const invokePrepareAttachments = invoke('attachments:prepare')
+const invokePrepareImageFromBytes = invoke('attachments:prepare-image-from-bytes')
 
-export async function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
-  const selectedByPath = new Map<string, { readonly path: string; readonly fileIndex: number }>()
-  files.forEach((file, fileIndex) => {
-    const path = webUtils.getPathForFile(file)
-    if (path.length > 0 && !selectedByPath.has(path)) selectedByPath.set(path, { path, fileIndex })
-  })
-  const selected = [...selectedByPath.values()]
-  if (selected.length === 0) return []
+/** The image types an attachment can carry, by the extension a pathless file still has. */
+const IMAGE_MIME_TYPES_BY_EXTENSION: Readonly<Record<string, string>> = {
+  gif: 'image/gif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+}
 
+/** The image type of a file whose name is all we have, for a file that never had one. */
+function imageMimeTypeOf(file: File) {
+  if (file.type.startsWith('image/')) return file.type
+  const extension = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase()
+  return IMAGE_MIME_TYPES_BY_EXTENSION[extension] ?? null
+}
+
+/**
+ * An image pasted from the clipboard exists only in memory: the browser hands over a blob with no
+ * path, so `getPathForFile` answers nothing and the bytes are the attachment (ADR 0068).
+ */
+async function preparePathlessImage(file: File, fileIndex: number) {
+  const mimeType = imageMimeTypeOf(file)
+  if (mimeType === null) return null
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const attachment = await invokePrepareImageFromBytes(bytes, file.name, mimeType)
+  return { attachment, fileIndex }
+}
+
+async function prepareAttachmentsByPath(
+  projectPath: string,
+  selected: readonly { readonly path: string; readonly fileIndex: number }[],
+) {
   const attachments = await invokePrepareAttachments(
     projectPath,
     selected.map(({ path }) => path),
@@ -71,4 +97,31 @@ export async function prepareSelectedAttachments(projectPath: string, files: rea
     attachment,
     fileIndex: selected[index]?.fileIndex ?? index,
   }))
+}
+
+export async function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
+  const selectedByPath = new Map<string, { readonly path: string; readonly fileIndex: number }>()
+  const pathlessImages: { readonly file: File; readonly fileIndex: number }[] = []
+  files.forEach((file, fileIndex) => {
+    const path = webUtils.getPathForFile(file)
+    if (path.length > 0) {
+      if (!selectedByPath.has(path)) selectedByPath.set(path, { path, fileIndex })
+      return
+    }
+    pathlessImages.push({ file, fileIndex })
+  })
+  const selected = [...selectedByPath.values()]
+
+  const [byPath, byBytes] = await Promise.all([
+    selected.length === 0 ? Promise.resolve([]) : prepareAttachmentsByPath(projectPath, selected),
+    Promise.all(
+      pathlessImages.map(async ({ file, fileIndex }) =>
+        preparePathlessImage(file, fileIndex).catch(() => null),
+      ),
+    ),
+  ])
+
+  return [...byPath, ...byBytes.filter((prepared) => prepared !== null)].sort(
+    (left, right) => left.fileIndex - right.fileIndex,
+  )
 }

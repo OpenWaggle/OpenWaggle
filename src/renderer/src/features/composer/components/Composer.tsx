@@ -181,6 +181,7 @@ export function Composer({
           isLoading={isLoading}
           editorRef={editorRef}
           checkAndConvertPaste={attachments.checkAndConvertPaste}
+          onPaste={attachments.fileAttachment.handlePaste}
         />
         <ComposerModeControls
           disabled={disabled}

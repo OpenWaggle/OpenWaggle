@@ -181,7 +181,7 @@ describe('preload api surface contract', () => {
   })
 
   it('preserves original File indexes when preload filters and deduplicates paths', async () => {
-    const pathless = new File(['clipboard'], 'clipboard.png')
+    const pathless = new File(['clipboard'], 'clipboard.txt')
     const file = new File(['screenshot'], 'screenshot.png')
     const duplicate = new File(['screenshot'], 'copy.png')
     const attachment = {

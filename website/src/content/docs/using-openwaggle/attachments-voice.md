@@ -25,7 +25,9 @@ Compare this screenshot with the checkout page in our app.
 List the differences before making any changes.
 ```
 
-You can attach up to 5 files to a message, up to 8 MiB each and 20 MiB in total. Nothing is sent until you send the message. With a hosted model, the attachment content in the request goes to that provider.
+You can attach up to 5 files to a message. A document can be up to 8 MiB, and the documents in one message up to 20 MiB in total. An image can be up to 100 MiB, because OpenWaggle reduces it to what the model accepts before it sends anything. Nothing is sent until you send the message. With a hosted model, the attachment content in the request goes to that provider.
+
+You can also paste instead of picking a file. Press Ctrl+V, or Cmd+V on macOS, while an image is on the clipboard and OpenWaggle attaches it. Text on the clipboard is pasted as text. Screenshots work this way: press Win+Shift+S on Windows or Cmd+Shift+4 on macOS, then paste.
 
 The rest of the **+** menu:
 
@@ -41,6 +43,8 @@ The rest of the **+** menu:
 | Text and documents | The extracted text, for files such as `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf` and `.odt`. |
 | PDF | The extracted text with its page structure, not the PDF itself. |
 | Image | The image, if the model accepts images, plus any text read from it by optical character recognition. |
+
+Images can be PNG, JPEG, WebP or GIF. A HEIC or HEIF photo from an iPhone is converted to JPEG first, so it reaches the model like any other image.
 
 OpenWaggle saves attachments with the session, as their details and extracted text. It loads image and PDF data again when a request needs it.
 

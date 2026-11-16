@@ -1,8 +1,9 @@
 import type { OpenWaggleApi } from '@shared/types/ipc'
 import { agentDefinitionsApi } from './agent-definitions-api'
+import { attachmentApi } from './attachment-api'
 import { browserPreviewApi } from './browser-preview-api'
 import { desktopNotificationsApi } from './desktop-notifications-api'
-import { invoke, on, prepareSelectedAttachments, send } from './electron-transport'
+import { invoke, on, send } from './electron-transport'
 import { scheduledTasksApi } from './scheduled-tasks-api'
 import { sessionDataApi } from './session-data-api'
 import { startupApi } from './startup-api'
@@ -228,9 +229,7 @@ export const api: OpenWaggleApi = {
   refreshSourceControlStatus: invoke('source-control:refresh-status'),
 
   // Attachments
-  prepareAttachments: prepareSelectedAttachments,
-  prepareAttachmentFromText: invoke('attachments:prepare-from-text'),
-  onPrepareAttachmentFromTextProgress: on('attachments:prepare-from-text-progress'),
+  ...attachmentApi,
 
   // Voice
   transcribeVoiceLocal: invoke('voice:transcribe-local'),
@@ -245,6 +244,7 @@ export const api: OpenWaggleApi = {
   // Shell / App
   copyToClipboard: send('clipboard:write-text'),
   readFromClipboard: invoke('clipboard:read-text'),
+  readClipboardImage: invoke('clipboard:read-image'),
   openLogsDir: invoke('app:open-logs-dir'),
   getLogsPath: invoke('app:get-logs-path'),
   openPath: invoke('shell:open-path'),

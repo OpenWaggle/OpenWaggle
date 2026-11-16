@@ -84,6 +84,8 @@ export function fakeElectron() {
     },
     clipboard: {
       readText: () => clipboardState.text,
+      // Electron always answers a NativeImage here, empty when the clipboard holds no image.
+      readImage: () => clipboardState.image ?? new FakeNativeImage(new Uint8Array()),
       writeText: (text: string) => void (clipboardState.text = text),
       writeImage: (image: FakeNativeImage) => void (clipboardState.image = image),
     },

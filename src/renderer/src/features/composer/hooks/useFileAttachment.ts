@@ -28,7 +28,27 @@ export interface UseFileAttachmentResult {
   readonly handleDragLeave: (event: React.DragEvent) => void
   readonly handleDragOver: (event: React.DragEvent) => void
   readonly handleDrop: (event: React.DragEvent) => Promise<void>
+  /**
+   * Takes a paste that carries files or a clipboard image, and answers whether it did. `false`
+   * leaves the paste to the editor's text handling (ADR 0068).
+   */
+  readonly handlePaste: (event: ClipboardEvent) => boolean
   readonly handleAttachFiles: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>
+}
+
+/** The name a pasted clipboard image is attached under; it carries no name of its own. */
+const PASTED_IMAGE_NAME = 'pasted-image.png'
+
+/** The files a paste carries; a clipboard bitmap may arrive only as an item, never as a file. */
+function pastedFiles(event: ClipboardEvent) {
+  const clipboardData = event.clipboardData
+  if (!clipboardData) return []
+  const files = Array.from(clipboardData.files)
+  if (files.length > 0) return files
+  return Array.from(clipboardData.items)
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null)
 }
 
 function describeAttachmentError(err: unknown) {
@@ -144,6 +164,51 @@ export function useFileAttachment({
     }
   }
 
+  /**
+   * A clipboard image has no file and no name, so the desktop shell reads the system clipboard and
+   * its bytes become the attachment (ADR 0068).
+   */
+  async function attachClipboardImage() {
+    if (disabled || isAtCapacity) return
+    if (!projectPath) {
+      setAttachmentError('Select a project before attaching files.')
+      return
+    }
+    const isCurrentDraft = captureInputGuard()
+    try {
+      setAttachmentError(null)
+      const image = await api.readClipboardImage()
+      if (!image) return
+      const attachment = await api.prepareImageAttachment(
+        image.bytes,
+        PASTED_IMAGE_NAME,
+        image.mimeType,
+      )
+      if (!isCurrentDraft()) return
+      addAttachments([attachment])
+      onToast?.('Attached 1 file.')
+    } catch (err) {
+      if (!isCurrentDraft()) return
+      reportAttachmentError(err, setAttachmentError, onToast)
+    }
+  }
+
+  /**
+   * Files on the clipboard win, then an image with no accompanying text. Text pasted alongside an
+   * image is what the person meant, so that paste stays with the editor (ADR 0068).
+   */
+  function handlePaste(event: ClipboardEvent) {
+    if (disabled) return false
+    const files = pastedFiles(event)
+    if (files.length > 0) {
+      void validateAndAttach(files)
+      return true
+    }
+    if ((event.clipboardData?.getData('text/plain') ?? '').trim().length > 0) return false
+    void attachClipboardImage()
+    return true
+  }
+
   async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? [])
     await withFinally(
@@ -164,6 +229,7 @@ export function useFileAttachment({
     handleDragLeave,
     handleDragOver,
     handleDrop,
+    handlePaste,
     handleAttachFiles,
   }
 }
