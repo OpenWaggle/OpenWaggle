@@ -38,7 +38,8 @@ recorded as de minimis in the ADR.
 
 ## The main merge gate
 
-Two `main` rulesets, deliberately split so CI can never be bypassed, only the approval:
+Two `main` rulesets, split so the approval is bypassable per person while the checks carry only
+the pre-existing admin escape hatch:
 
 - **`OpenWaggle main protections`** — deletion, non-fast-forward, a required pull request, and
   seven required status checks: Commit Policy, Typecheck & Lint, Unit Tests, Integration &
@@ -50,11 +51,13 @@ Two `main` rulesets, deliberately split so CI can never be bypassed, only the ap
   future Maintain — faces every check.
 - **`OpenWaggle approvals`** — `required_approving_review_count: 1` plus
   `require_code_owner_review`, with `bypass_actors` = the Project Owner (user
-  `DiegoGBrisa`, id `77103257`). `require_code_owner_review` is what makes the approval
-  *theirs*: on a public repository anyone with read access can approve, so a plain count of one
-  would accept a stranger's approval. The bypass keeps their own pull requests from deadlocking
-  (GitHub never counts an author's own approval), and because that ruleset holds only the review
-  rule, their pull requests still face every required check.
+  `DiegoGBrisa`, id `77103257`). GitHub counts a required approval only from someone with
+  **write permission** or from a designated code owner, so with a single write-capable account a
+  plain count of one already means the Project Owner's approval; `require_code_owner_review`
+  states that explicitly and keeps the approval *theirs* once more maintainers hold write access.
+  The bypass keeps their own pull requests from deadlocking (GitHub never counts an author's own
+  approval), and because that ruleset holds only the review rule, their pull requests still face
+  every required check.
 
 `.github/CODEOWNERS` (`* @DiegoGBrisa`) is what the code-owner rule reads. Only the Project Owner
 holds write access, so only they can merge; granting someone the **Maintain** role is what would

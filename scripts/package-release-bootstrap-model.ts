@@ -44,6 +44,8 @@ export const REQUIRED_CHECK_CONTEXTS = [
   'Unit Tests',
   'Integration & Component Tests',
   'MCP Conformance',
+  // CLA Assistant reports through the commit-status API; ADR 0067 requires it on main.
+  'license/cla',
 ] as const
 
 export const DEPLOYED_LEGACY_CHECK_CONTEXTS = [

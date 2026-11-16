@@ -47,6 +47,6 @@ Start a [GitHub Discussion](https://github.com/OpenWaggle/OpenWaggle/discussions
 - Talk about the problem, not the person.
 - Assume other contributors mean well.
 
-## Code contributions later
+## Send a change
 
-The project plans to accept code contributions later. Until the policy changes, send proposals as issues. You can still [build OpenWaggle from source](/docs/developer-guide/building-from-source) to look into a problem on your own machine.
+Open a pull request when you have a change to send, or start from an issue if you want to agree on the approach first. Keep the pull request one coherent change and follow the commit and verification standards the repository CI enforces, described in [CONTRIBUTING.md](https://github.com/OpenWaggle/OpenWaggle/blob/main/CONTRIBUTING.md). Building OpenWaggle from source lets you check a fix on your own machine before you send it.
