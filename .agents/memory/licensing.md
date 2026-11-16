@@ -43,7 +43,11 @@ Two `main` rulesets, deliberately split so CI can never be bypassed, only the ap
 - **`OpenWaggle main protections`** — deletion, non-fast-forward, a required pull request, and
   seven required status checks: Commit Policy, Typecheck & Lint, Unit Tests, Integration &
   Component Tests, MCP Conformance, Package Release Gate, and `license/cla` (CLA Assistant's
-  commit status; it reports through the status API, not check runs). **No bypass actors.**
+  commit status; it reports through the status API, not check runs). It carries one pre-existing
+  bypass: `RepositoryRole` id `5`, the repository-admin role. That is what keeps an emergency
+  default-branch change or a force push possible, since the ruleset otherwise blocks both; its
+  cost is that the sole admin can also bypass a required check. Everyone else — including a
+  future Maintain — faces every check.
 - **`OpenWaggle approvals`** — `required_approving_review_count: 1` plus
   `require_code_owner_review`, with `bypass_actors` = the Project Owner (user
   `DiegoGBrisa`, id `77103257`). `require_code_owner_review` is what makes the approval
@@ -57,6 +61,13 @@ holds write access, so only they can merge; granting someone the **Maintain** ro
 add the merge button for them, still under every rule above. Changing a ruleset is a GitHub
 settings action, not a repo change: the enforcement lives outside the checkout, and these rules
 are enforced only while the rulesets are `active` and the App is installed.
+
+**Because `license/cla` is now required, the bot must be allowlisted.** GitHub's release
+machinery authors its pull requests as `github-actions[bot]`, which cannot click "I agree", so
+CLA Assistant holds `license/cla` at `pending` on every Release Please pull request and blocks it.
+The allowlist lives in the CLA Assistant dashboard (import `github-actions[bot]` alongside
+`dependabot[bot]`); making the check required without that entry blocks every release PR, exactly
+as #475 and #476 were blocked.
 
 ## The trademark
 
