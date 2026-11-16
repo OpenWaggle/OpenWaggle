@@ -3,7 +3,7 @@
 
 # @openwaggle/extension-react
 
-[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-react?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-react) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-react/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@openwaggle/extension-react?color=f5a623)](https://www.npmjs.com/package/@openwaggle/extension-react) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](https://openwaggle.ai/docs/packages/extension-react/0.2/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/packages/extension-react/LICENSE)
 
 React UI primitives for OpenWaggle extensions that follow the host extension theme contract.
 

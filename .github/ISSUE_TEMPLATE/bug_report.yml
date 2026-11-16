@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: OpenWaggle version
-      description: The version you run, from the release you downloaded or the About dialog.
+      description: The version you run, from the release you downloaded or the About dialog on macOS.
       placeholder: "1.0.0-beta.42"
     validations:
       required: true
