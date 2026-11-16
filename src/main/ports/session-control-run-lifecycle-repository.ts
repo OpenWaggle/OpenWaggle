@@ -18,12 +18,24 @@ export interface SessionControlDelegationAttentionCleared {
   readonly state: 'working' | 'revision_requested'
 }
 
+/**
+ * An accepted Delegation that a Run its parent's agent started reopened as `working`
+ * (`sqlite-delegation-attention.ts`): the parent and the Worker publish a list change too.
+ */
+export interface SessionControlDelegationReopened {
+  readonly delegationId: string
+  readonly parentSessionId: SessionId
+  readonly workerSessionId: SessionId
+  readonly state: 'working'
+}
+
 export type SessionControlRunActivationResult =
   | {
       readonly accepted: true
       readonly stateRevision: number
       readonly intent: SessionControlRunIntent
       readonly attentionCleared?: SessionControlDelegationAttentionCleared
+      readonly delegationReopened?: SessionControlDelegationReopened
     }
   | {
       readonly accepted: false
