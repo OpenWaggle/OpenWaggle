@@ -100,4 +100,27 @@ describe('package runner probe timeout', () => {
       }),
     ).resolves.toBe('resolved')
   })
+
+  /*
+   * An expired `npx` resolution falls back to the runner, and npm 11 rejects the root manifest's
+   * `pkg>dep` override keys with "Override without name". The probe reported only "exited with
+   * code 1", so the Host log showed no reason; the runner's stderr carried it.
+   */
+  it("names the runner's own reason when the probe exits with a failure", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'ow-runner-probe-'))
+    directories.push(directory)
+    const probe = createExecProbe({ timeoutMs: EXIT_WAIT_MS })
+
+    await expect(
+      probe({
+        command: process.execPath,
+        args: [
+          '-e',
+          'process.stderr.write("npm error Override without name: a>b\\n"); process.exit(1)',
+        ],
+        cwd: directory,
+        env: probeEnvironment(),
+      }),
+    ).rejects.toThrow(/exited with code 1\..*Override without name: a>b/u)
+  })
 })
