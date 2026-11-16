@@ -24,6 +24,10 @@ interface LiveQaCleanupDependencies {
   readonly describeProfile?: (userDataRoot: string) => Promise<string>
 }
 
+/** The cleanup's update stop gives active Runs its deadline, then interrupts them (ADR 0047). */
+export const RETAINED_RUNS_NOTE =
+  "The cleanup's Session Host stop interrupted any Runs still active at that point."
+
 const defaultLiveQaCleanupDependencies: LiveQaCleanupDependencies = {
   prepareProfileRemoval: prepareQaProfileRemoval,
   shutdownHost: shutdownSessionHostForQa,
@@ -62,7 +66,7 @@ export async function completeLiveQaCleanup(
       (error: unknown) => `The retained profile could not be described: ${String(error)}`,
     )
     console.error(
-      `Live QA data retained at ${input.userDataRoot}\n${input.guiLogs.map((read) => read()).join('\n')}\n${profile}`,
+      `Live QA data retained at ${input.userDataRoot}\n${RETAINED_RUNS_NOTE}\n${input.guiLogs.map((read) => read()).join('\n')}\n${profile}`,
     )
   }
   if (input.primaryFailure && cleanupErrors.length > 0) {

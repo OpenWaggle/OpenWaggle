@@ -21,8 +21,8 @@ interface ElectronQaSessionHostShutdownDependencies {
 }
 
 /**
- * Drains the QA profile's Session Host through its authenticated version-handoff path and clears
- * the profile while holding the Host's ownership, so no Host keeps its SQLite files open after the
+ * Stops the QA profile's Session Host through its authenticated update stop, waits for its process
+ * to exit and clears the profile while holding the Host's ownership, so no Host keeps its SQLite files open after the
  * launcher deletes the profile. The Host is detached and outlives the Electron process group.
  */
 export function stopElectronQaSessionHost(

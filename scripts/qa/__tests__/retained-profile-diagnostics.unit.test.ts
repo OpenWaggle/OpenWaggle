@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { completeLiveQaCleanup } from '../live-session-orchestration-lifecycle'
+import { completeLiveQaCleanup, RETAINED_RUNS_NOTE } from '../live-session-orchestration-lifecycle'
 import { retainedProfileDiagnostics } from '../retained-profile-diagnostics'
 
 let root = ''
@@ -63,7 +63,7 @@ describe('a retained live QA profile', () => {
     )
 
     expect(consoleError).toHaveBeenCalledWith(
-      `Live QA data retained at ${root}\nvite output\n--- logs/openwaggle-host.log (last 1 lines)\nwaiting`,
+      `Live QA data retained at ${root}\n${RETAINED_RUNS_NOTE}\nvite output\n--- logs/openwaggle-host.log (last 1 lines)\nwaiting`,
     )
     consoleError.mockRestore()
   })
