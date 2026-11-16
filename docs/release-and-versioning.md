@@ -60,7 +60,7 @@ Platform trust for v1:
   runner failure fails the job. Rerunning the failed jobs reuses the version job's result, but a
   rerun uses the workflow as it was at the release commit. A workflow fix only reaches the next
   release.
-- Windows code signing does not block `1.0.0`; it is tracked as post-v1 work. Unsigned Windows installers show a SmartScreen warning on first install.
+- Windows code signing does not block `1.0.0`; it is tracked as post-v1 work (ADR 0067). The chosen path is the SignPath Foundation, free for open-source projects now that the app is GPL-3.0: builds stay unsigned until the application is accepted, and Windows installers show a SmartScreen warning on first install until then. The future upgrade is Azure Artifact Signing ($9.99/month), accepted as a one-time SmartScreen certificate-reputation reset; EV certificates are not a path because Microsoft's SmartScreen documentation states EV no longer bypasses it.
 - Linux AppImage artifacts are not signed.
 
 ## Versioning

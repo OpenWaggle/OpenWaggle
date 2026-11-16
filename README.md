@@ -50,11 +50,15 @@ For tasks that benefit from multiple agents, [Hives](https://openwaggle.ai/docs/
 
 ## Contributing
 
-Bug reports, documentation feedback, and feature requests are welcome through [GitHub Issues](https://github.com/OpenWaggle/OpenWaggle/issues). Code pull requests are not currently accepted; see [Contributing](CONTRIBUTING.md).
+Bug reports, documentation feedback, and feature requests are welcome through [GitHub Issues](https://github.com/OpenWaggle/OpenWaggle/issues). Code contributions are welcome through pull requests; see [Contributing](CONTRIBUTING.md) for the CLA and the process.
 
 - [Build from source](https://openwaggle.ai/docs/developer-guide/building-from-source)
 - [Architecture](docs/architecture.md)
 - [Project roadmap](https://github.com/orgs/OpenWaggle/projects/1)
+
+## License & trademark
+
+The app is released under the [GPL-3.0 license](LICENSE); each `@openwaggle/*` package in `packages/` ships its own [MIT](packages/waggle-core/LICENSE) license file. OpenWaggle and the OpenWaggle logos are trademarks of Diego Garcia Brisa — see [TRADEMARKS.md](TRADEMARKS.md) for what that means for forks and redistribution. Contributions are accepted under the [CLA](CLA.md).
 
 ---
 

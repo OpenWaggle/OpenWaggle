@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in OpenWaggle is broken or behaves wrong.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search the [existing issues](https://github.com/OpenWaggle/OpenWaggle/issues) first, in
+        case someone already reported it. Remove credentials, private code, and personal
+        information from anything you paste.
+  - type: input
+    id: version
+    attributes:
+      label: OpenWaggle version
+      description: The version you run, from the release you downloaded or the About dialog on macOS.
+      placeholder: "1.0.0-beta.42"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        1. Open a project and ...
+        2. ...
+
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model
+      description: Only when the problem is about agent behavior.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Screenshots or log lines that show the problem.
+    validations:
+      required: false
+  - type: input
+    id: source
+    attributes:
+      label: Running from source
+      description: The commit and your Node.js version, if you run a development build.
+    validations:
+      required: false

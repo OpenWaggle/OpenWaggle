@@ -5,6 +5,7 @@ interface RenderPackageReadmeInput {
   readonly canonicalBody: string
   readonly description: string
   readonly docsUrl: string
+  readonly licenseUrl: string
   readonly packageName: string
 }
 
@@ -66,6 +67,7 @@ export function renderPackageReadme({
   canonicalBody,
   description,
   docsUrl,
+  licenseUrl,
   packageName,
 }: RenderPackageReadmeInput) {
   const body = rewritePackageDocumentationLinks(
@@ -78,7 +80,7 @@ export function renderPackageReadme({
     '',
     `# ${packageName}`,
     '',
-    `[![npm version](https://img.shields.io/npm/v/${packageName}?color=f5a623)](https://www.npmjs.com/package/${packageName}) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](${ensureTrailingSlash(docsUrl)}) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE)`,
+    `[![npm version](https://img.shields.io/npm/v/${packageName}?color=f5a623)](https://www.npmjs.com/package/${packageName}) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.19-43853d)](${ensureTrailingSlash(docsUrl)}) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](${licenseUrl})`,
     '',
     description,
     '',
