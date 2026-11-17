@@ -1,4 +1,5 @@
 import type { WagglePreset } from '@shared/types/waggle'
+import { skillCommandText } from '@shared/utils/skill-id'
 import type { LexicalEditor } from 'lexical'
 import {
   $createParagraphNode,
@@ -70,7 +71,7 @@ export function insertComposerInvocation(invocation: '@' | '/') {
 export function insertSkillReferenceAtActiveSlash(skillId: string, skillName: string) {
   const store = useComposerStore.getState()
   if (!store.lexicalEditor) {
-    replaceSlashCommandInStore(`/${skillId}`, true)
+    replaceSlashCommandInStore(skillCommandText(skillId), true)
     return
   }
 

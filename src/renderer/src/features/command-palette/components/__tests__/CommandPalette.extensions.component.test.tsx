@@ -1,6 +1,8 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { SupportedModelId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,18 +12,30 @@ import { CommandPalette } from '../CommandPalette'
 
 const PROJECT_PATH = '/tmp/project'
 const apiMock = vi.hoisted(() => ({
+  listExtensionCommands: vi.fn(),
   listExtensionContributions: vi.fn(),
   listWagglePresets: vi.fn(),
 }))
 
+const HANDOFF_SKILL: SkillDiscoveryItem = {
+  id: 'handoff',
+  name: 'handoff',
+  description: 'Compact the current conversation into a handoff document',
+  folderPath: '/tmp/project/.agents/skills/handoff',
+  skillPath: '/tmp/project/.agents/skills/handoff/SKILL.md',
+  hasScripts: false,
+  enabled: true,
+  loadStatus: 'ok',
+}
+
 vi.mock('@/shared/lib/ipc', () => ({ api: apiMock }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 
-function renderPalette() {
+function renderPalette(slashSkills: readonly SkillDiscoveryItem[] = []) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <CommandPalette slashSkills={[]} onSelectSkill={vi.fn()} onStartWaggle={vi.fn()} />
+      <CommandPalette slashSkills={slashSkills} onSelectSkill={vi.fn()} onStartWaggle={vi.fn()} />
     </QueryClientProvider>,
   )
 }
@@ -118,5 +132,28 @@ describe('composer slash extension contributions', () => {
     expect(useComposerStore.getState().input).toBe('/sample.slash ')
     expect(screen.queryByRole('menuitem', { name: /run global command/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: /open global panel/i })).not.toBeInTheDocument()
+  })
+
+  it('lists an enabled skill instead of the Pi extension command that shares its name', async () => {
+    apiMock.listExtensionCommands.mockResolvedValue([
+      { name: 'handoff', description: 'An extension handoff' },
+      { name: 'qa-probe', description: 'A control command' },
+    ])
+
+    // The commands query needs a model; the default settings carry an empty reference.
+    usePreferencesStore.setState({
+      settings: {
+        ...usePreferencesStore.getState().settings,
+        selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
+      },
+    })
+
+    renderPalette([HANDOFF_SKILL])
+
+    expect(await screen.findByRole('menuitem', { name: /a control command/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /into a handoff do/i })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('menuitem', { name: /an extension handoff/i }),
+    ).not.toBeInTheDocument()
   })
 })

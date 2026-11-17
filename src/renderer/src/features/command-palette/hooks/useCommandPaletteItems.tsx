@@ -17,6 +17,7 @@ import {
   createConfigureWaggleItem,
   createPresetItems,
   createSkillItems,
+  skillOwnedCommandNames,
 } from '../lib/command-palette-items'
 import { normalizeCommandQuery } from '../lib/command-palette-text'
 import {
@@ -104,6 +105,7 @@ export function useCommandPaletteItems({
     insertCommandText(extensionSlashCommandText(entry))
   }
   const skillItems = createSkillItems(slashSkills, lowerQuery, actions.selectSkill)
+  const skillsOwnCommandNames = skillOwnedCommandNames(slashSkills)
   const presetItems = createPresetItems(wagglePresets, lowerQuery, actions.selectPreset)
   const configureWaggleItems = createConfigureWaggleItem(lowerQuery, actions.configureWaggle)
   if (filter === 'skills') return skillItems
@@ -122,6 +124,7 @@ export function useCommandPaletteItems({
       commands: piExtensionCommands,
       lowerQuery,
       insertCommand: insertCommandText,
+      skillOwnedCommandNames: skillsOwnCommandNames,
     }),
     ...configureWaggleItems,
   ]

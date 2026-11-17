@@ -193,11 +193,11 @@ Type `/` at the start of a word in the message box. Keep typing to filter, then 
 
 The menu lists the built-in commands `/compact`, `/fork` and `/clone` first, then skills, saved Waggle presets, and commands from enabled extensions. A skill gives the agent instructions for one kind of task. A Waggle preset sets up a review by two agents.
 
-In a session, the menu also lists the commands its Pi extensions add, such as Pi's `/mcp`, with their descriptions. Choosing one puts it in the message box. When you send the message, Pi runs the command instead of sending the text to the model. A session's title never comes from such a command, only from the first real request.
+In a session, the menu also lists the commands its Pi extensions add, such as Pi's `/mcp`, with their descriptions. A command a Pi extension adds stays out when an enabled skill already uses its name. Choosing one puts it in the message box. When you send the message, Pi runs the command instead of sending the text to the model. A session's title never comes from such a command, only from the first real request.
 
 When a built-in command such as `/compact` is the whole message, `Enter` runs it. `Tab` or a click always completes the command so you can type after it, such as instructions for compaction. `Enter` completes it too when the message has other text.
 
-Choosing a skill or preset replaces only the slash word and keeps the rest of your draft. It shows as a chip until you send. A Waggle preset applies to that one message, not to every message after it.
+Choosing a skill or preset replaces only the slash word and keeps the rest of your draft. It shows as a chip until you send. Pi loads a skill only when it starts the message, so a skill you add after your own text stays a reference the agent can follow without loading the skill. A Waggle preset applies to that one message, not to every message after it.
 
 `/compact`, `/fork` and `/clone` need the session to be idle. If the agent is working, wait for it to finish and send the command again. OpenWaggle keeps your draft and attachments when it refuses one of these commands. Ordinary messages, skills and Pi extension commands can still wait in the queue as follow-ups.
 

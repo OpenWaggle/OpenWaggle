@@ -8,22 +8,27 @@ const NO_DESCRIPTION = 'Pi extension command'
 
 /**
  * The slash menu's items for the commands the Session's Pi extensions register. Choosing one
- * inserts `/name`, which Pi runs when the message is sent. OpenWaggle's own commands of the same
- * name are listed instead.
+ * inserts `/name`, which Pi runs when the message is sent. A name an enabled skill is offered under
+ * is listed as the skill instead, so one name never labels two rows. That is only the row: the
+ * skill reaches Pi as `/skill:<name>`, and a typed `/name` still runs the extension command.
  */
 export function createPiExtensionCommandItems({
   commands,
   lowerQuery,
   insertCommand,
+  skillOwnedCommandNames,
 }: {
   readonly commands: readonly AgentExtensionCommand[]
   readonly lowerQuery: string
   readonly insertCommand: (command: string) => void
+  /** Lowercased names an enabled skill is offered under, so the menu lists the skill item. */
+  readonly skillOwnedCommandNames: ReadonlySet<string>
 }) {
   return commands
     .filter(
       (command) =>
         command.name.toLowerCase().startsWith(lowerQuery) &&
+        !skillOwnedCommandNames.has(command.name.toLowerCase()) &&
         !BUILT_IN_COMPOSER_SLASH_COMMANDS.includes(`/${command.name}`),
     )
     .map((command) => ({

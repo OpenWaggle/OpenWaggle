@@ -1,3 +1,4 @@
+import { skillCommandText } from '@shared/utils/skill-id'
 import { Sparkles } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 
@@ -16,7 +17,7 @@ export function SkillMentionChip({ skillId, skillName }: SkillMentionChipProps) 
         'inline-flex items-center gap-1',
         'select-none cursor-default',
       )}
-      title={`/${skillId}`}
+      title={skillCommandText(skillId)}
     >
       <Sparkles size={ICON_SIZE} className="shrink-0" />
       <span className="max-w-50 truncate">{skillName}</span>
