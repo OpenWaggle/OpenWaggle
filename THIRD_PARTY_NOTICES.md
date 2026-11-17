@@ -74,3 +74,23 @@ The Model Context Protocol logo on MCP tool rows (`src/renderer/src/shared/ui/ic
 comes from Simple Icons, which dedicates its icons to the public domain under CC0 1.0 Universal
 (https://creativecommons.org/publicdomain/zero/1.0/). CC0 asks for no notice; this entry records
 where the logo came from. The logo remains a mark of the Model Context Protocol project.
+
+## heic-decode and libheif-js
+
+Sources: https://github.com/catdad-experiments/heic-decode and
+https://github.com/catdad-experiments/libheif-js
+
+OpenWaggle decodes HEIC and HEIF image attachments with these two packages (ADR 0068), which Pi's
+own decoder cannot read: `heic-decode` (`lib.js`) is Kiril Vatev's ISC-licensed wrapper, and it
+runs `libheif-js`'s WebAssembly build of libheif (`libheif-wasm/libheif.js` and `libheif.wasm`),
+which is LGPL-3.0. Both are loaded only when a HEIC arrives, in a worker thread of their own, and
+neither is modified.
+
+The LGPL-3.0 text for `libheif-js` travels with the library it covers, unmodified, as
+`libheif-js/LICENSE` inside the packaged app: `electron-builder.ts` keeps that one file even though
+it leaves other `node_modules` license files out. `heic-decode` is ISC-licensed (Copyright (c)
+Kiril Vatev), and its license text is published with its source at
+https://github.com/catdad-experiments/heic-decode. Both packages remain separate, replaceable files
+next to the app's own code, which is what the LGPL asks for. The WebAssembly binary itself carries an HEVC decoder, the component `sharp`'s prebuilt
+libvips leaves out; that exposure was accepted deliberately for this one capability, and the
+reasoning is recorded in ADR 0068.

@@ -26,9 +26,13 @@ async function hydrateAttachmentSource(
   if (!stats.isFile()) {
     throw new Error(`Attachment is no longer a file: ${preparedAttachment.name}`)
   }
-  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
+  const maxSizeBytes =
+    preparedAttachment.kind === 'image'
+      ? ATTACHMENT.MAX_IMAGE_SIZE_BYTES
+      : ATTACHMENT.MAX_SIZE_BYTES
+  if (stats.size > maxSizeBytes) {
     throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${preparedAttachment.name}`,
+      `Attachment exceeds ${String(maxSizeBytes / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${preparedAttachment.name}`,
     )
   }
   if (stats.size !== preparedAttachment.sizeBytes) {

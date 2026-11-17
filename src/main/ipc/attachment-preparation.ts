@@ -6,15 +6,14 @@ import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limit
 import type { PreparedAttachment } from '@shared/types/agent'
 import { allInOrder } from '@shared/utils/all-in-order'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
+import { writeTempAttachment } from '../utils/attachment-temp-directory'
 import {
   DOCX_MIME_TYPE,
   extractAttachmentText,
   ODT_MIME_TYPE,
   RTF_MIME_TYPE,
 } from '../utils/attachment-text-extraction'
-import { ensureTempAttachmentsDirectory } from './attachment-temp-files'
-
-const PRIVATE_ATTACHMENT_FILE_MODE = 0o600
+import { convertHeicToAttachmentImage, isHeicImageMimeType } from '../utils/heic-image-conversion'
 
 function contentSha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
@@ -35,6 +34,8 @@ function guessMimeType(filePath: string) {
     .with('.jpeg', () => 'image/jpeg')
     .with('.webp', () => 'image/webp')
     .with('.gif', () => 'image/gif')
+    .with('.heic', () => 'image/heic')
+    .with('.heif', () => 'image/heif')
     .with('.bmp', () => 'image/bmp')
     .with('.svg', () => 'image/svg+xml')
     .with('.md', () => 'text/markdown')
@@ -74,20 +75,20 @@ async function prepareAttachment(filePath: string) {
   if (!stats.isFile()) {
     throw new Error(`Not a file: ${filePath}`)
   }
-  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
-    throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
-    )
-  }
-
   const mimeType = guessMimeType(filePath)
   if (!mimeType) {
     throw new Error(
-      `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images, PDFs.`,
+      `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images (PNG, JPEG, WebP, GIF, HEIC, HEIF), and PDFs.`,
+    )
+  }
+  const kind = resolveAttachmentKind(mimeType)
+  const maxBytes = kind === 'image' ? ATTACHMENT.MAX_IMAGE_SIZE_BYTES : ATTACHMENT.MAX_SIZE_BYTES
+  if (stats.size > maxBytes) {
+    throw new Error(
+      `Attachment exceeds ${String(maxBytes / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
     )
   }
   const buffer = await fs.readFile(filePath)
-  const kind = resolveAttachmentKind(mimeType)
   const attachmentName = path.basename(filePath)
   const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
 
@@ -132,24 +133,38 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   readonly fileName: string
   readonly mimeType: string
 }) {
-  if (input.bytes.byteLength > ATTACHMENT.MAX_SIZE_BYTES) {
+  if (input.bytes.byteLength > ATTACHMENT.MAX_IMAGE_SIZE_BYTES) {
     throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(input.fileName)}`,
+      `Attachment exceeds ${String(ATTACHMENT.MAX_IMAGE_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(input.fileName)}`,
     )
   }
 
-  const mimeType = input.mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
+  // A blob the browser could not type (a pasted HEIC, for one) is typed by its name instead.
+  const mimeType =
+    input.mimeType.split(';')[0]?.trim().toLowerCase() || (guessMimeType(input.fileName) ?? '')
+
+  // A pathless HEIC arrives as bytes, so it is decoded here the way the picker path decodes a file:
+  // everything below this line sees the JPEG the decode produced (ADR 0068).
+  if (isHeicImageMimeType(mimeType)) {
+    const converted = await convertHeicToAttachmentImage({
+      bytes: input.bytes,
+      fileName: input.fileName,
+    })
+    return prepareRegisteredImageAttachmentFromBytes(converted)
+  }
+
   const extension = imageAttachmentExtension(mimeType)
-  if (!extension) throw new Error(`Unsupported Session image type: ${input.mimeType}`)
+  if (!extension) {
+    throw new Error(`Unsupported Session image type: ${mimeType || path.basename(input.fileName)}`)
+  }
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
   const buffer = Buffer.from(input.bytes)
   const kind = 'image'
-  const [extractedText, tempAttachmentsDir] = await allInOrder([
+  // Independent: the OCR read and the copy on disk do not wait for each other.
+  const [extractedText, filePath] = await allInOrder([
     extractAttachmentText({ kind, mimeType, buffer, attachmentName }),
-    ensureTempAttachmentsDirectory(),
+    writeTempAttachment(buffer, extension, 'resource'),
   ])
-  const filePath = path.join(tempAttachmentsDir, `resource-${randomUUID()}${extension}`)
-  await fs.writeFile(filePath, buffer, { flag: 'wx', mode: PRIVATE_ATTACHMENT_FILE_MODE })
 
   const attachment: PreparedAttachment = {
     id: randomUUID(),

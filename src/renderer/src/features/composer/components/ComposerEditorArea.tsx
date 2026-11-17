@@ -11,6 +11,7 @@ interface ComposerEditorAreaProps {
   readonly isLoading: boolean
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
+  readonly onPaste?: (event: ClipboardEvent) => boolean
 }
 
 export function ComposerEditorArea({
@@ -21,6 +22,7 @@ export function ComposerEditorArea({
   isLoading,
   editorRef,
   checkAndConvertPaste,
+  onPaste,
 }: ComposerEditorAreaProps) {
   return (
     <div className="relative px-4 py-4">
@@ -31,6 +33,7 @@ export function ComposerEditorArea({
         placeholder={placeholder ?? getDefaultPlaceholder(isLoading)}
         editorRef={editorRef}
         checkAndConvertPaste={checkAndConvertPaste}
+        {...(onPaste === undefined ? {} : { onPaste })}
       />
     </div>
   )

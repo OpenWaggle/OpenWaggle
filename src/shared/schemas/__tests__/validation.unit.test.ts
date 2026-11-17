@@ -76,7 +76,7 @@ describe('agentSendPayloadSchema visualization context', () => {
             name: 'large.txt',
             path: '/repo/large.txt',
             mimeType: 'text/plain',
-            sizeBytes: ATTACHMENT.MAX_SIZE_BYTES + 1,
+            sizeBytes: ATTACHMENT.MAX_IMAGE_SIZE_BYTES + 1,
             extractedText: '',
           },
         ],

@@ -64,7 +64,7 @@ describe('registerAttachmentHandlers limits and hydration', () => {
 
     await expect(
       handler?.({}, '/tmp/repo', ['/tmp/repo/a.txt', '/tmp/repo/b.txt', '/tmp/repo/c.txt']),
-    ).rejects.toThrow('Total attachment size exceeds 20 MB')
+    ).rejects.toThrow('Total document size exceeds 20 MB')
   })
 
   it('accepts user-selected screenshot files outside the selected project root', async () => {

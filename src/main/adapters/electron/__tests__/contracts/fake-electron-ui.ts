@@ -12,6 +12,9 @@ export class FakeNativeImage {
   isEmpty() {
     return !PNG_SIGNATURE.every((byte, index) => this.bytes[index] === byte)
   }
+  toPNG() {
+    return this.bytes
+  }
 }
 
 export interface FakeMenuItem {
