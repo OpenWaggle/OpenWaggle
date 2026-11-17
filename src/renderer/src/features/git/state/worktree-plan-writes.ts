@@ -40,11 +40,14 @@ export function trackWorktreePlanWrite(key: string, write: Promise<unknown>) {
 }
 
 /**
- * A send must not reach the Host before the pick it follows. The first worktree is born from the
- * base ref the Host has recorded, so a send that overtakes a pick forks from the previous ref:
- * the branch the user chose appeared to be ignored, and the worktree came out on the checkout's
- * branch instead.
+ * The pick still travelling to the Host for this plan key, if any. A send must not reach the Host
+ * before it: the first worktree is born from the base ref the Host has recorded, so a send that
+ * overtakes a pick forks from the previous ref, and the branch the user chose appeared to be
+ * ignored.
+ *
+ * Returned rather than awaited so the send stays synchronous when no pick is in flight. A send
+ * that always deferred by a tick broke callers that dispatch inside the submit handler.
  */
-export async function settledWorktreePlanWrite(key: string) {
-  await pendingWrites.get(key)
+export function pendingWorktreePlanWrite(key: string) {
+  return pendingWrites.get(key)
 }

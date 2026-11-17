@@ -2,7 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 import { draftWorktreePlanKey, PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY } from '../worktree-plan-store'
 import {
-  settledWorktreePlanWrite,
+  pendingWorktreePlanWrite,
   trackWorktreePlanWrite,
   worktreePlanKey,
 } from '../worktree-plan-writes'
@@ -31,7 +31,7 @@ describe('worktree plan writes', () => {
     expect(worktreePlanKey({ sessionId: null, projectPath: null, isFirstMessage: false })).toBe('')
   })
 
-  it('resolves a wait only once the tracked write settles', async () => {
+  it('hands a send the pending write, which resolves once it settles', async () => {
     const key = 'session-waits'
     let release = () => {}
     trackWorktreePlanWrite(
@@ -42,7 +42,9 @@ describe('worktree plan writes', () => {
     )
 
     let waited = false
-    const waiting = settledWorktreePlanWrite(key).then(() => {
+    const pending = pendingWorktreePlanWrite(key)
+    if (!pending) throw new Error('A tracked write must be pending.')
+    const waiting = pending.then(() => {
       waited = true
     })
     await Promise.resolve()
@@ -61,7 +63,9 @@ describe('worktree plan writes', () => {
     trackWorktreePlanWrite(key, new Promise<void>((resolve) => (releaseLast = resolve)))
 
     let waited = false
-    const waiting = settledWorktreePlanWrite(key).then(() => {
+    const pending = pendingWorktreePlanWrite(key)
+    if (!pending) throw new Error('A tracked write must be pending.')
+    const waiting = pending.then(() => {
       waited = true
     })
 
@@ -74,16 +78,16 @@ describe('worktree plan writes', () => {
     expect(waited).toBe(true)
   })
 
-  it('still settles the wait when the write fails', async () => {
+  it('hands back a settled wait when the write fails', async () => {
     const key = 'session-failed'
     trackWorktreePlanWrite(key, Promise.reject(new Error('Session handoff was rejected')))
 
-    await expect(settledWorktreePlanWrite(key)).resolves.toBeUndefined()
+    await expect(pendingWorktreePlanWrite(key)).resolves.toBeUndefined()
   })
 
-  it('waits for nothing when no write was tracked, and never waits on an empty key', async () => {
-    await expect(settledWorktreePlanWrite('session-untouched')).resolves.toBeUndefined()
+  it('has nothing pending for an untouched or an empty key', () => {
+    expect(pendingWorktreePlanWrite('session-untouched')).toBeUndefined()
     trackWorktreePlanWrite('', Promise.resolve())
-    await expect(settledWorktreePlanWrite('')).resolves.toBeUndefined()
+    expect(pendingWorktreePlanWrite('')).toBeUndefined()
   })
 })

@@ -7,17 +7,17 @@ import {
   reportInlineVisualizationState,
 } from '../../state/inline-visualization-state'
 
-const { useSessionContextRowMock, stashDraftWorktreePlanMock, settledWorktreePlanWriteMock } =
+const { useSessionContextRowMock, stashDraftWorktreePlanMock, pendingWorktreePlanWriteMock } =
   vi.hoisted(() => ({
     useSessionContextRowMock: vi.fn(),
     stashDraftWorktreePlanMock: vi.fn(),
-    settledWorktreePlanWriteMock: vi.fn(async () => {}),
+    pendingWorktreePlanWriteMock: vi.fn(),
   }))
 
 vi.mock('@/features/git', () => ({
   useSessionContextRow: useSessionContextRowMock,
   stashDraftWorktreePlan: stashDraftWorktreePlanMock,
-  settledWorktreePlanWrite: settledWorktreePlanWriteMock,
+  pendingWorktreePlanWrite: pendingWorktreePlanWriteMock,
   worktreePlanKey: (input: { sessionId: string | null; projectPath: string | null }) =>
     input.sessionId ?? `draft:${input.projectPath}`,
 }))
@@ -46,6 +46,7 @@ function stripWith(sendPlan: { kind: string; reason?: string }) {
 describe('useComposerSendGate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    pendingWorktreePlanWriteMock.mockReturnValue(undefined)
   })
 
   afterEach(clearInlineVisualizationStatesForTests)
@@ -127,8 +128,8 @@ describe('useComposerSendGate', () => {
     const activeSessionId = SessionId('session-a')
     useSessionContextRowMock.mockReturnValue(stripWith({ kind: 'proceed' }))
     let releasePick = () => {}
-    settledWorktreePlanWriteMock.mockImplementationOnce(
-      () => new Promise<void>((resolve) => (releasePick = resolve)),
+    pendingWorktreePlanWriteMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => (releasePick = resolve)),
     )
     const onSend = vi.fn(async () => {})
     const { result } = renderHook(() =>
@@ -144,10 +145,33 @@ describe('useComposerSendGate', () => {
     const sending = result.current.guardedSend(PAYLOAD)
     await Promise.resolve()
     expect(onSend).not.toHaveBeenCalled()
-    expect(settledWorktreePlanWriteMock).toHaveBeenCalledWith(String(activeSessionId))
+    expect(pendingWorktreePlanWriteMock).toHaveBeenCalledWith(String(activeSessionId))
 
     releasePick()
     await sending
+    expect(onSend).toHaveBeenCalledOnce()
+  })
+
+  it('sends synchronously when no base-ref pick is in flight', async () => {
+    /*
+     * A wait that always deferred by a tick broke callers that dispatch inside the submit
+     * handler, so the common path must not go through a promise.
+     */
+    useSessionContextRowMock.mockReturnValue(stripWith({ kind: 'proceed' }))
+    pendingWorktreePlanWriteMock.mockReturnValue(undefined)
+    const onSend = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useComposerSendGate({
+        activeSessionId: null,
+        session: null,
+        isFirstMessage: true,
+        onSend,
+        onToast: vi.fn(),
+      }),
+    )
+
+    void result.current.guardedSend(PAYLOAD)
+
     expect(onSend).toHaveBeenCalledOnce()
   })
 
