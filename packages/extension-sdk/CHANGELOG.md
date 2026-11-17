@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/OpenWaggle/OpenWaggle/compare/extension-sdk-v0.3.0...extension-sdk-v0.3.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **license:** open the project to contributions with a GPL-3.0 app, MIT packages, CLA, trademark notice, and issue forms ([#471](https://github.com/OpenWaggle/OpenWaggle/issues/471)) ([219c841](https://github.com/OpenWaggle/OpenWaggle/commit/219c841fabe9652de5c3dfcc9673135a2ea8c7d7))
+
 ## [0.3.0](https://github.com/OpenWaggle/OpenWaggle/compare/extension-sdk-v0.2.0...extension-sdk-v0.3.0) (2026-11-14)
 
 
