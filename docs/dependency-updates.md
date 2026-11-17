@@ -33,12 +33,19 @@ manifests with the merge base of `origin/main`. It fails a new or changed pin be
 a line, and a line whose version or package no manifest uses. It asks the registry only about
 changed pins without a line.
 
-The `overrides` in the root `package.json` are not checked. Several of them are vulnerability
+The `overrides` in the root `package.json` keep their version policy: several are vulnerability
 floors, such as `"js-yaml@^4": ^4.3.2`, which force a transitive dependency up to a fixed release
 and on purpose still accept its later patches. Other overrides pin a transitive version exactly
 because two packages must agree on it, as with `better-sqlite3` and the TanStack Router packages.
 The `better-sqlite3` override also keeps a single SQLite build in the Session Host process; see
-[One SQLite library](system-architecture.md#one-sqlite-library).
+[One SQLite library](system-architecture.md#one-sqlite-library). `bun run check:repository-standards`
+checks their *form*: every override must be written the way npm reads it, so a transitive pin is
+the parent's object (`{"@effect/sql-sqlite-node": {"better-sqlite3": "13.0.3"}}`) and never a
+`pkg>dep` key. npm 11 rejects a `pkg>dep` key with `Override without name`, and `npx`/`npm exec`
+and `npm install` then die before they start, while Bun resolves the same key, so the form matters
+for `npx`-launched MCP servers. A readable manifest is not an installable one: `npm install` still
+fails in the repository root for an unrelated reason, the `catalog:` protocol npm does not know,
+so this check covers the form only and nothing in CI runs npm.
 
 The Pi runtime is one matched release in the `pi-runtime` catalog. `bun run check:pi-runtime`
 checks the matched set, the patches, and the root pins of `quickjs-wasi` and Photon to the
