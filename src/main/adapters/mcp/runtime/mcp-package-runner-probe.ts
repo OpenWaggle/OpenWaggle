@@ -5,6 +5,10 @@ import { windowsCommandLine } from './mcp-package-runner-launch'
 
 const PROBE_TIMEOUT_MS = 180_000
 const PROBE_OUTPUT_BYTES = 1_000_000
+/** How much of the runner's stderr a failure message keeps. */
+const PROBE_STDERR_BYTES = 2_000
+/** How many of the runner's last non-empty stderr lines the failure message names. */
+const PROBE_STDERR_LINE_COUNT = 4
 /** How long `taskkill` may take before only the probe's root process is killed. */
 const TREE_KILL_TIMEOUT_MS = 1_000
 
@@ -35,6 +39,19 @@ export function probeSpawnOf(
 function errorCode(error: unknown) {
   if (typeof error !== 'object' || error === null || !('code' in error)) return null
   return typeof error.code === 'string' ? error.code : null
+}
+
+/**
+ * The runner's own diagnosis on one line, its last stderr lines. A bare "exited with code 1" sent
+ * an expired `npx` resolution's real reason (npm refusing the root manifest's `pkg>dep` override
+ * keys) to the Host log's waste bin; the runner had already printed it.
+ */
+function stderrTail(stderr: string) {
+  const lines = stderr
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  return lines.slice(-PROBE_STDERR_LINE_COUNT).join(' | ')
 }
 
 /** Kills the process itself; one that already exited (ESRCH) or cannot be signalled is left. */
@@ -92,7 +109,8 @@ export function createExecProbe(
       const child = spawn(spawned.file, spawned.args, {
         cwd: input.cwd,
         env: { ...input.env },
-        stdio: ['ignore', 'pipe', 'ignore'],
+        // stderr is read, not ignored: its last lines name why a runner failed.
+        stdio: ['ignore', 'pipe', 'pipe'],
         // Its own process group on POSIX, so a timeout stops the whole tree.
         detached: platform !== 'win32',
         windowsHide: true,
@@ -100,6 +118,7 @@ export function createExecProbe(
         shell: false,
       })
       let stdout = ''
+      let stderr = ''
       let settled = false
       const finish = (error: Error | null) => {
         if (settled) return
@@ -122,14 +141,19 @@ export function createExecProbe(
           finish(new Error('The package runner probe printed more than it may.'))
         }
       })
+      child.stderr?.setEncoding('utf8')
+      child.stderr?.on('data', (chunk: string) => {
+        stderr = (stderr + chunk).slice(-PROBE_STDERR_BYTES)
+      })
       child.once('error', (error) => finish(error))
       child.once('close', (code, signal) => {
-        if (code === 0) finish(null)
-        else {
-          finish(
-            new Error(`The package runner probe exited with ${signal ?? `code ${String(code)}`}.`),
-          )
+        if (code === 0) {
+          finish(null)
+          return
         }
+        const failure = `The package runner probe exited with ${signal ?? `code ${String(code)}`}.`
+        const diagnosis = stderrTail(stderr)
+        finish(new Error(diagnosis ? `${failure} ${diagnosis}` : failure))
       })
     })) satisfies PackageRunnerProbe
 }
