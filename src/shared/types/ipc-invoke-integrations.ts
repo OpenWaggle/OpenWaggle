@@ -3,6 +3,7 @@ import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './ag
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { SessionId, WagglePresetId } from './brand'
+import type { ClipboardImageBytes } from './clipboard'
 import type { FileSuggestion } from './composer'
 import type {
   DiagnosticsInfo,
@@ -41,6 +42,11 @@ export interface IpcIntegrationInvokeChannelMap
   'attachments:prepare-from-text': {
     /** `name`: the composer's label; the prompt file is named after it, and so is the attachment. */
     args: [text: string, operationId: string, name?: string]
+    return: PreparedAttachment
+  }
+  /** A pasted image has no file on disk, so its bytes are the attachment (ADR 0068). */
+  'attachments:prepare-image-from-bytes': {
+    args: [bytes: Uint8Array, fileName: string, mimeType: string]
     return: PreparedAttachment
   }
   'attachments:discard': {
@@ -95,6 +101,10 @@ export interface IpcIntegrationInvokeChannelMap
   'clipboard:read-text': {
     args: []
     return: string
+  }
+  'clipboard:read-image': {
+    args: []
+    return: ClipboardImageBytes | null
   }
   'app:open-logs-dir': {
     args: []

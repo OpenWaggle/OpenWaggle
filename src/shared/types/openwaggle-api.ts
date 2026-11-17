@@ -145,6 +145,8 @@ export interface OpenWaggleApi
     files: readonly File[],
   ): Promise<PreparedSelectedAttachment[]>
   prepareAttachmentFromText: IpcInvokeMethod<'attachments:prepare-from-text'>
+  /** A pasted image has no file to read, so its bytes become the attachment (ADR 0068). */
+  prepareImageAttachment: IpcInvokeMethod<'attachments:prepare-image-from-bytes'>
   discardPreparedAttachment: IpcInvokeMethod<'attachments:discard'>
   onPrepareAttachmentFromTextProgress: IpcEventMethod<'attachments:prepare-from-text-progress'>
 
@@ -161,6 +163,7 @@ export interface OpenWaggleApi
 
   copyToClipboard: IpcSendMethod<'clipboard:write-text'>
   readFromClipboard: IpcInvokeMethod<'clipboard:read-text'>
+  readClipboardImage: IpcInvokeMethod<'clipboard:read-image'>
   openLogsDir: IpcInvokeMethod<'app:open-logs-dir'>
   getLogsPath: IpcInvokeMethod<'app:get-logs-path'>
   openPath: IpcInvokeMethod<'shell:open-path'>

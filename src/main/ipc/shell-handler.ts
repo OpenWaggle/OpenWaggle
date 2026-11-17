@@ -107,6 +107,8 @@ export function registerShellHandlers() {
 
   typedHandle('clipboard:read-text', () => Effect.sync(() => clipboard.readText()))
 
+  typedHandle('clipboard:read-image', () => Effect.sync(() => clipboard.readImage()))
+
   typedHandle('shell:open-path', (_event, targetPath) =>
     Effect.gen(function* () {
       const trimmedPath = targetPath.trim()

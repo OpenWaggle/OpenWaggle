@@ -66,6 +66,13 @@ export const UNLOADED_PACKAGES: ReadonlySet<string> = new Set(['onnxruntime-web'
  *   legacy-engine cores and the browser builds with their WASM inlined (`*.wasm.js`) never load.
  * - playwright-core: Browser preview attaches over CDP; `lib/vite` holds the trace viewer,
  *   recorder and HTML report web apps of Playwright's own tooling.
+ * - heic-decode and libheif-js: the HEIC decode worker (src/main/utils/heic-image-conversion.ts)
+ *   requires `heic-decode/lib.js` with libheif's plain emscripten loader,
+ *   `libheif-js/libheif-wasm/libheif.js`, and hands it `libheif.wasm` read as a file. Neither
+ *   package's entry point loads: `heic-decode`'s `index.js` and `libheif-js`'s `wasm-bundle.js`
+ *   pick `libheif-bundle.js`, the same wasm inlined as base64 (a third larger), and `index.js` the
+ *   non-wasm `libheif/` build. Those, `wasm.js`, the ESM twin and the TypeScript sources are
+ *   pruned; what ships is what the worker loads, plus each package's license and manifest.
  */
 export const PACKAGE_UNLOADED_FILES: Readonly<Record<string, readonly string[]>> = {
   lucide: ['dist/esm', 'dist/umd'],
@@ -73,6 +80,16 @@ export const PACKAGE_UNLOADED_FILES: Readonly<Record<string, readonly string[]>>
     'src',
     'types',
     'dist/!(transformers.node.cjs|transformers.node.mjs)',
+  ],
+  'heic-decode': ['index.js'],
+  'libheif-js': [
+    'index.js',
+    'wasm.js',
+    'wasm-bundle.js',
+    'libheif',
+    'libheif-wasm/libheif-bundle.js',
+    'libheif-wasm/libheif-bundle.mjs',
+    'libheif-wasm/libheif.d.ts',
   ],
   underscore: ['!(package.json|underscore-node.cjs|underscore-node-f.cjs)'],
   zlibjs: ['bin/!(node-zlib.js)'],

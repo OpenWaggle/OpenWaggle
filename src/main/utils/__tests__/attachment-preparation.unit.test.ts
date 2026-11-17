@@ -81,7 +81,7 @@ describe('attachment preparation', () => {
         baseDirectory: directory,
         entries: sources.map((source) => ({ path: source })),
       }),
-    ).rejects.toThrow('Total attachment size exceeds 20 MB')
+    ).rejects.toThrow('Total document size exceeds 20 MB')
 
     expect(mocks.extractAttachmentText).not.toHaveBeenCalled()
   })
