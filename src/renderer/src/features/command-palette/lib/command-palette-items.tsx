@@ -1,5 +1,6 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WagglePreset } from '@shared/types/waggle'
+import { skillCommandText } from '@shared/utils/skill-id'
 import {
   Archive,
   ChartNoAxesCombined,
@@ -79,6 +80,20 @@ export function createBuiltInCommandItems(
   }))
 }
 
+/**
+ * The lowercased command names this project's enabled skills own. Pi runs a registered extension
+ * command before it expands a skill, so the slash menu must not offer both under one name.
+ */
+export function skillOwnedCommandNames(skills: readonly SkillDiscoveryItem[]) {
+  const names = new Set<string>()
+  for (const skill of skills) {
+    if (!skill.enabled || skill.loadStatus !== 'ok') continue
+    names.add(skill.id.toLowerCase())
+    names.add(skill.name.toLowerCase())
+  }
+  return names
+}
+
 export function createSkillItems(
   slashSkills: readonly SkillDiscoveryItem[],
   lowerQuery: string,
@@ -97,7 +112,7 @@ export function createSkillItems(
         : 'Create an interactive visualization in this conversation',
       icon: <ChartNoAxesCombined className="size-3.5" />,
       section: 'Skills',
-      trailing: '/visualize',
+      trailing: skillCommandText('visualize'),
       disabled: diagnostic !== undefined,
       action: diagnostic ? () => undefined : () => selectSkill('visualize', 'Visualize'),
     })

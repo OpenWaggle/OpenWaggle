@@ -1,6 +1,11 @@
+import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { describe, expect, it, vi } from 'vitest'
 import { buildCommandPaletteEntries } from '../command-palette-entries'
-import { createBuiltInCommandItems, createSkillItems } from '../command-palette-items'
+import {
+  createBuiltInCommandItems,
+  createSkillItems,
+  skillOwnedCommandNames,
+} from '../command-palette-items'
 import { normalizeCommandQuery, truncateCommandDescription } from '../command-palette-text'
 
 const {
@@ -127,7 +132,7 @@ describe('createSkillItems', () => {
       id: 'skill-visualize',
       label: 'Visualize',
       section: 'Skills',
-      trailing: '/visualize',
+      trailing: '/skill:visualize',
     })
 
     items[0]?.action()
@@ -161,6 +166,38 @@ describe('createSkillItems', () => {
     })
     items[0]?.action()
     expect(selectSkill).not.toHaveBeenCalled()
+  })
+})
+
+describe('skillOwnedCommandNames', () => {
+  const skillBase: SkillDiscoveryItem = {
+    id: 'handoff',
+    name: 'handoff',
+    description: 'Compact the current conversation into a handoff document',
+    folderPath: '/project/.agents/skills/handoff',
+    skillPath: '/project/.agents/skills/handoff/SKILL.md',
+    hasScripts: false,
+    enabled: true,
+    loadStatus: 'ok',
+  }
+  const skill = (overrides: Partial<SkillDiscoveryItem> = {}) => ({ ...skillBase, ...overrides })
+
+  it('claims a command name for an enabled skill by its id and its name', () => {
+    const names = skillOwnedCommandNames([
+      skill({ id: 'handoff', name: 'Handoff' }),
+      skill({ id: 'qa', name: 'qa' }),
+    ])
+
+    expect([...names].sort()).toEqual(['handoff', 'qa'])
+  })
+
+  it('leaves the name of a disabled or broken skill to the Pi extension command', () => {
+    const names = skillOwnedCommandNames([
+      skill({ enabled: false }),
+      skill({ id: 'broken', name: 'broken', loadStatus: 'error' }),
+    ])
+
+    expect([...names]).toEqual([])
   })
 })
 

@@ -22,6 +22,7 @@ import {
 import { USAGE_STATISTICS_CUSTOM_IDENTIFIER } from '@shared/usage-statistics/contract'
 import { containsInlineVisualizationReference } from '@shared/utils/inline-visualization'
 import { isObjectValue } from '@shared/utils/object-shape'
+import { SKILL_COMMAND_PREFIX } from '@shared/utils/skill-id'
 import { includes } from '@shared/utils/validation'
 import { getProjectPreferencesStrict } from '../../config/project-config'
 import { usageStatisticsMcpServerIdentifier } from '../../domain/usage-statistics/usage-statistics-mcp'
@@ -41,7 +42,6 @@ const SKILL_FILE_NAME = 'SKILL.md'
 /** `<root>/<skill name>/SKILL.md`, counted from the end of the path. */
 const SKILL_DIRECTORY_SEGMENT = -2
 const SKILLS_ROOT_SEGMENT = -3
-const SKILL_COMMAND_PREFIX = '/skill:'
 const BROWSER_PREVIEW_TOOL_PREFIX = 'preview_'
 const READ_TOOL_NAME = 'read'
 

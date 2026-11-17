@@ -12,7 +12,12 @@ describe('the slash menu items of Pi extension commands', () => {
   it('lists each command with its description and inserts it when chosen', () => {
     const insertCommand = vi.fn()
 
-    const items = createPiExtensionCommandItems({ commands, lowerQuery: '', insertCommand })
+    const items = createPiExtensionCommandItems({
+      commands,
+      lowerQuery: '',
+      insertCommand,
+      skillOwnedCommandNames: new Set(),
+    })
 
     expect(
       items.map(({ label, description, trailing }) => ({ label, description, trailing })),
@@ -29,8 +34,20 @@ describe('the slash menu items of Pi extension commands', () => {
       commands,
       lowerQuery: 'qa',
       insertCommand: vi.fn(),
+      skillOwnedCommandNames: new Set(),
     })
 
     expect(items.map((item) => item.label)).toEqual(['qa-hello'])
+  })
+
+  it('leaves out a command an enabled skill already owns', () => {
+    const items = createPiExtensionCommandItems({
+      commands: [...commands, { name: 'handoff', description: 'An extension handoff' }],
+      lowerQuery: '',
+      insertCommand: vi.fn(),
+      skillOwnedCommandNames: new Set(['handoff']),
+    })
+
+    expect(items.map((item) => item.label)).toEqual(['mcp', 'qa-hello'])
   })
 })

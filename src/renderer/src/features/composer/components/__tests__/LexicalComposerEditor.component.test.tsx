@@ -59,7 +59,7 @@ describe('LexicalComposerEditor', () => {
     useComposerStore.setState(useComposerStore.getInitialState())
   })
 
-  it('submits the preserved prompt with the serialized slash skill reference', async () => {
+  it("submits the preserved prompt with Pi's serialized skill command", async () => {
     const editorRef = createRef<LexicalEditor>()
     const onSubmit = vi.fn()
     render(
@@ -78,14 +78,14 @@ describe('LexicalComposerEditor', () => {
     )
     act(() => insertSkillReferenceAtActiveSlash('caveman', 'Caveman'))
     await waitFor(() =>
-      expect(useComposerStore.getState().input).toBe('Keep the existing prompt /caveman '),
+      expect(useComposerStore.getState().input).toBe('Keep the existing prompt /skill:caveman '),
     )
 
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message input' }), {
       key: 'Enter',
     })
 
-    expect(onSubmit).toHaveBeenCalledWith('Keep the existing prompt /caveman ')
+    expect(onSubmit).toHaveBeenCalledWith('Keep the existing prompt /skill:caveman ')
   })
 
   it('updates Lexical editability when disabled changes after mount', async () => {
