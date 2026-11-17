@@ -20,7 +20,10 @@ import {
   settleDeferredWorkerDelegation,
   takeDeferredWorkerSettlement,
 } from './sqlite-deferred-worker-settlement'
-import { clearRunFailedAttention } from './sqlite-delegation-attention'
+import {
+  clearRunFailedAttention,
+  reopenAcceptedDelegationForParentRun,
+} from './sqlite-delegation-attention'
 import {
   externalRunAdmission,
   replaceWithExternal,
@@ -65,6 +68,25 @@ function settledRunResponse(
   } as const
 }
 
+/**
+ * What a starting Run changes on the Worker's Delegation: a Host-set `needs_attention` clears,
+ * and an accepted Delegation reopens when the parent's agent sent the work. The two never meet,
+ * since each needs a different state.
+ */
+function delegationChangesOnRunStart(
+  sql: SqlClient.SqlClient,
+  input: Parameters<typeof reopenAcceptedDelegationForParentRun>[1],
+) {
+  return Effect.gen(function* () {
+    const attentionCleared = yield* clearRunFailedAttention(sql, input)
+    const delegationReopened = yield* reopenAcceptedDelegationForParentRun(sql, input)
+    return {
+      ...(attentionCleared ? { attentionCleared } : {}),
+      ...(delegationReopened ? { delegationReopened } : {}),
+    }
+  })
+}
+
 function activate(
   sql: SqlClient.SqlClient,
   input: Parameters<SessionControlRunLifecycleRepositoryShape['activate']>[0],
@@ -80,16 +102,17 @@ function activate(
         }
         const now = Date.now()
         yield* persistSessionControlState(sql, result.state, now)
-        const attentionCleared = yield* clearRunFailedAttention(sql, {
+        const delegation = yield* delegationChangesOnRunStart(sql, {
           workerSessionId: input.sessionId,
           runId: input.runId,
+          intent: state.run.intent,
           now,
         })
         return {
           accepted: true,
           stateRevision: result.state.revision,
           intent: state.run.intent,
-          ...(attentionCleared ? { attentionCleared } : {}),
+          ...delegation,
         } as const
       }),
     )
@@ -119,16 +142,17 @@ function startExternal(
         if (!activated.accepted) return activated
         const now = Date.now()
         yield* persistSessionControlState(sql, activated.state, now)
-        const attentionCleared = yield* clearRunFailedAttention(sql, {
+        const delegation = yield* delegationChangesOnRunStart(sql, {
           workerSessionId: input.sessionId,
           runId: input.runId,
+          intent: input.intent,
           now,
         })
         return {
           accepted: true,
           stateRevision: activated.state.revision,
           intent: input.intent,
-          ...(attentionCleared ? { attentionCleared } : {}),
+          ...delegation,
         } as const
       }),
     )

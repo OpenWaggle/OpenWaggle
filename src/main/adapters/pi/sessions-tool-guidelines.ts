@@ -3,7 +3,7 @@ import {
   permitsSessionsToolAction,
   type SessionsToolActionGrant,
 } from './sessions-tool-capability-schema'
-import { REVISION_STARTS_WORKER_RUN, revisionGuideline } from './sessions-tool-revision-guidelines'
+import { REVISION_STARTS_WORKER_RUN, reviewGuidelines } from './sessions-tool-revision-guidelines'
 import { SCHEDULED_TASK_GUIDELINES } from './sessions-tool-schedule-guidelines'
 import { SELF_ARCHIVE_GUIDELINE } from './sessions-tool-self-archive-guideline'
 
@@ -244,7 +244,7 @@ function sessionsToolGuidelines(permits: Permits) {
       ? 'Use report for provenance-labelled peer context that must not start, steer, or reopen a Run.'
       : undefined,
     delegationGuideline(permits),
-    revisionGuideline(permits),
+    ...reviewGuidelines(permits),
     nextActorGuideline(permits),
     cleanupGuideline(permits),
     permits('archive') ? SELF_ARCHIVE_GUIDELINE : undefined,

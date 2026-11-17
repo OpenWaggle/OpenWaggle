@@ -18,7 +18,7 @@ const REVISION_ARRIVES =
   'A revision request from your parent arrives as its Follow-up starting "OpenWaggle Delegation revision request", naming delegationId, submissionRevision and feedback; address the feedback and submit a new revision. A Run that started before the request may not submit while it waits for your next Run (delegation_revision_pending); end that turn.'
 
 /** The full revision rules for `help`, for the review actions this Session may use. */
-export function revisionGuideline(permits: (action: string) => boolean) {
+function revisionGuideline(permits: (action: string) => boolean) {
   const reviews = ['delegation_request_revision', 'delegation_reopen'].filter(permits)
   const taskChanges = ['delegation_amend', 'delegation_dependency'].filter(permits)
   const arrives = permits('delegation_submit') ? REVISION_ARRIVES : ''
@@ -45,4 +45,33 @@ export function revisionGuideline(permits: (action: string) => boolean) {
   ]
     .filter(Boolean)
     .join(' ')
+}
+
+/** The actions that start a Run on a Worker, which reopen an accepted Delegation. */
+const PARENT_WORK_ACTIONS = ['message', 'start', 'follow_up', 'replace']
+
+/**
+ * New work for a Worker the parent accepted reopens its Delegation (`sqlite-delegation-attention.ts`),
+ * so the answer reaches the parent as a Worker update and wakes it. Agents used to answer with
+ * `report` instead, which never starts a Run, and the idle parent waited for the person.
+ */
+function acceptedWorkerGuideline(permits: (action: string) => boolean) {
+  const sends = PARENT_WORK_ACTIONS.filter(permits)
+  const listed =
+    sends.length > 1 ? `${sends.slice(0, -1).join(', ')}, or ${sends.at(-1) ?? ''}` : sends[0]
+  return [
+    permits('delegation_accept') && listed
+      ? `After delegation_accept, a ${listed} that starts a Run on that Worker reopens its Delegation (working): its reply or submission reaches you as a Worker update that wakes you when idle, and you review it again. A report never wakes you.`
+      : '',
+    permits('delegation_submit')
+      ? 'When your parent sends you new work after accepting your Delegation, it is working again: give the result with delegation_submit or as your final reply. A report alone never wakes your parent.'
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+/** The `help` rules for sending a Worker back to work: new work after acceptance, then revisions. */
+export function reviewGuidelines(permits: (action: string) => boolean) {
+  return [acceptedWorkerGuideline(permits), revisionGuideline(permits)]
 }

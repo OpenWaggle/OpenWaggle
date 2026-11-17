@@ -25,6 +25,7 @@ import {
   archiveStateJournal,
   commandHostLayer,
   controlCommandAs,
+  reacceptWorker,
   seedQueenAuthority,
   useHiveHostTestContext,
   waitForSessionIdle,
@@ -59,8 +60,8 @@ interface Scenario {
   /** How the Run that asked ends. */
   readonly terminalStatus?: SessionControlTerminalRunStatus
   /**
-   * An accepted Worker its Queen sent more work, which Hive cleanup archives once that Run ends,
-   * instead of a Queen the user started.
+   * An accepted Worker its Queen sent more work, which reopens its Delegation, instead of a
+   * Queen the user started.
    */
   readonly acceptedWorker?: boolean
   /** The Queen's Worker is still working, instead of waiting for the Queen's review. */
@@ -239,6 +240,8 @@ describe('a Session agent archiving its own Session', () => {
     const result = await runScenario(database('worker-failed'), {
       acceptedWorker: true,
       terminalStatus: 'failed',
+      // The Queen's work reopened the Delegation, and it accepts again before the Run fails.
+      afterArchive: (runtime) => Runtime.runPromise(runtime)(reacceptWorker('run-generated-1')),
     })
 
     expect(result.observed.toolResults).toEqual([deferredOutcome(result.runId, 'worker')])

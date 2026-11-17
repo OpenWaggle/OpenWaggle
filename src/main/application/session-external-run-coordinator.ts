@@ -12,7 +12,7 @@ import {
   requestHiveParentWake,
 } from './hive-parent-wake-request'
 import { requestHiveWorkerCleanup } from './hive-worker-cleanup-request'
-import { publishDelegationAttentionCleared } from './session-control-event-projection'
+import { publishHostDelegationChange } from './session-control-event-projection'
 import { settleWithUndeliveredSteers } from './undelivered-steering-settlement'
 
 export function prepareExternalSessionRunReplacement(input: {
@@ -45,7 +45,8 @@ export function activatePreparedExternalSessionRun(input: {
         stateRevision: activation.stateRevision,
         operation: 'run-activated',
       })
-      publishDelegationAttentionCleared(activation.attentionCleared)
+      publishHostDelegationChange(activation.attentionCleared)
+      publishHostDelegationChange(activation.delegationReopened)
     }
     return activation
   })
