@@ -53,7 +53,7 @@ A run is one turn of the agent working in a session, from your message to its fi
 | `promote` | `sessions:queue`, `sessions:steer` | Takes one queued follow-up out of the queue and delivers it as steering to the current run. |
 | `interrupt` | `sessions:interrupt` | Stops the current run without starting another. Needs the run's ID. |
 | `interrupt_descendants` | `sessions:interrupt` | Stops the runs of every worker below a session. |
-| `report` | `sessions:report` | Passes a note to the parent (`upstream`), the Queen, or named sessions. It never starts or steers a run. |
+| `report` | `sessions:report` | Passes a note to the parent (`upstream`), the Queen, or named sessions. It never starts or steers a run, so an idle target reads it at its next run. |
 
 `steer`, `replace`, `promote` and `interrupt` need the ID of the run they act on (`expectedRunId`, or `--expected-run` in the CLI). If that run has already ended, the call fails instead of reaching the wrong run. Steering does not cancel a tool that is already running.
 
@@ -154,7 +154,7 @@ A submitted revision never changes. `delegation_request_revision` and `delegatio
 | `needs_attention` | Yes | The worker asked its parent for help, or its last run failed. |
 | `ready_for_review` | Yes | The worker submitted a result. |
 | `revision_requested` | Yes | The parent asked for a new revision. |
-| `accepted` | No | The parent accepted a revision. It can only be reopened. |
+| `accepted` | No | The parent accepted a revision. It reopens when the parent reopens it or sends the worker new work. |
 | `cancelled` | No | The parent cancelled the delegation. |
 
 In an open state the worker can set `working`, `waiting` or `needs_attention` itself, and the parent can cancel. A worker run that is interrupted, or that ends without a reply, counts as failed in the diagram.
@@ -178,10 +178,13 @@ stateDiagram-v2
   }
   ready_for_review --> accepted: Parent accepts
   accepted --> revision_requested: Parent reopens
+  accepted --> working: A run the parent's agent sent starts
   open --> cancelled: Parent cancels, from any open state
 ```
 
 A worker whose run ends normally with a reply, without submitting, gets that reply captured as a submission, so its result is not lost. A worker that set `needs_attention` itself keeps that state when its run ends, even if it replied. The reply explains what it needs and is not a result. Once the parent answers, OpenWaggle captures the next run that ends with a reply as usual.
+
+A run that the parent's agent starts on a worker whose delegation is `accepted` reopens it as `working`. That covers `message`, `start`, `follow_up` and `replace`, and a follow-up the parent's agent queued that you later sent as yourself. The run's end then counts like any other worker run. A reply or a `delegation_submit` gives a new `ready_for_review` result, and a failed run sets `needs_attention`. Either one is an update that wakes an idle parent. A run that you, another session or a Hive wake starts leaves the delegation `accepted`, and a `cancelled` delegation stays cancelled.
 
 A `needs_attention` that OpenWaggle set for a failed run goes back to `working` (or `revision_requested`) when a new run starts on the worker. One the worker set itself goes back to `working` when its parent's agent sends it anything. The history keeps both changes, by `session-host` and by the parent.
 
@@ -221,8 +224,10 @@ The parent hears about every result and every request for help as an update from
 
 | Update | Sent when |
 | --- | --- |
-| `ready_for_review` | The worker submits, or its run ends with a reply. |
+| `ready_for_review` | The worker submits, or its run ends with a reply. That includes a run the parent sent after accepting the worker's result. |
 | `needs_attention` | The worker's run fails, is interrupted, or ends without a reply, or the worker sets `needs_attention` itself. |
+
+A `report` is not an update. It never starts a run, even from a worker to its parent, so an idle parent reads it at its next run. To answer new work the parent sent after accepting a result, the worker submits or replies, as [delegation states](#delegation-states) describes.
 
 OpenWaggle starts that run only when all of these hold:
 

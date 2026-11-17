@@ -136,6 +136,28 @@ export function controlCommandAs(
   })
 }
 
+/**
+ * The Worker's agent in Run `runId` submits and the Queen accepts that result, as when a Run the
+ * Queen sent reopened an accepted Delegation and the Worker answered before the Run ended.
+ */
+export function reacceptWorker(runId: string) {
+  return Effect.gen(function* () {
+    yield* controlCommandAs(`session-agent:worker:${runId}`, 'worker-submit', {
+      operation: 'delegation-submit',
+      sessionId: 'worker',
+      delegationId: 'delegation-worker',
+      summary: 'Triaged.',
+      evidence: [],
+    })
+    return yield* controlCommandAs('session-agent:queen:run-queen', 'queen-accept', {
+      operation: 'delegation-accept',
+      sessionId: 'queen',
+      delegationId: 'delegation-worker',
+      submissionRevision: 2,
+    })
+  })
+}
+
 /** The forked Run coordinator settles asynchronously after the command returns. */
 export function waitForSessionIdle(sessionId: string) {
   return Effect.suspend(() =>
