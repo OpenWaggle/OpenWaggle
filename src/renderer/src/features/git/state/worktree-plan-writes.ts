@@ -48,8 +48,3 @@ export function trackWorktreePlanWrite(key: string, write: Promise<unknown>) {
 export async function settledWorktreePlanWrite(key: string) {
   await pendingWrites.get(key)
 }
-
-/** Test seam: no write may leak between cases. */
-export function clearWorktreePlanWritesForTests() {
-  pendingWrites.clear()
-}

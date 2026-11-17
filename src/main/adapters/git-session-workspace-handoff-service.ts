@@ -28,6 +28,7 @@ interface SourceWorkspaceRow {
   readonly active_run_id: string | null
   readonly handoff_seed_ref: string | null
   readonly run_count: number
+  readonly node_count: number
 }
 
 interface TargetWorkspaceRow {
@@ -57,7 +58,11 @@ function loadSourceWorkspace(sql: SqlClient.SqlClient, sessionId: string) {
       (
         SELECT COUNT(1) FROM session_runs
         WHERE session_runs.session_id = session_workspace_bindings.session_id
-      ) AS run_count
+      ) AS run_count,
+      (
+        SELECT COUNT(1) FROM session_nodes
+        WHERE session_nodes.session_id = session_workspace_bindings.session_id
+      ) AS node_count
     FROM session_workspace_bindings
     JOIN workspace_resources
       ON workspace_resources.id = session_workspace_bindings.workspace_id
@@ -153,16 +158,20 @@ function prepareExistingTransfer(
 }
 
 /**
- * A Session that never started a Run owns no work in the checkout it is leaving, so a
- * handoff to a new worktree has nothing to carry and its base ref stays free.
+ * A Session with no history owns no work in the checkout it is leaving, so a handoff to a new
+ * worktree has nothing to carry and its base ref stays free.
  *
  * Capturing a seed for such a Session was the base-ref bug: a seed can only sit on the source
  * HEAD, so `assertRequestedBaseRef` refused every other branch and the plan recorded the
  * checkout's HEAD commit as the base ref. Birth then forked from whatever the checkout had,
  * and the composer showed a commit id instead of the chosen branch.
+ *
+ * Transcript nodes count, not only runs: the session-host cutover writes a `session_runs` row
+ * for the runs it has to interrupt and none for completed Sessions, so a migrated Session that
+ * ran is visible only through its nodes, and reading `run_count` alone would drop its work.
  */
 function sessionHasWorkToCarry(source: SourceWorkspaceRow) {
-  return source.run_count > 0
+  return source.run_count > 0 || source.node_count > 0
 }
 
 function prepareNewTransfer(input: PrepareHandoffInput, source: SourceWorkspaceRow) {

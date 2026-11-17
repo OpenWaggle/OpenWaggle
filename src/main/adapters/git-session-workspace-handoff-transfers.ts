@@ -107,12 +107,14 @@ export function prepareExistingWorkspaceTransfer(input: {
           targetSnapshotRef: seeds.target.snapshotRef,
         } satisfies PreparedWorkspaceHandoff)
       }
-      return Effect.promise(() =>
-        Promise.all([
-          releaseWorkspaceHandoffSeed(input.projectPath, seeds.source.snapshotRef),
-          releaseWorkspaceHandoffSeed(input.projectPath, seeds.target.snapshotRef),
-        ]).then(() => undefined),
-      ).pipe(Effect.as(undefined))
+      return Effect.tryPromise({
+        try: () =>
+          Promise.all([
+            releaseWorkspaceHandoffSeed(input.projectPath, seeds.source.snapshotRef),
+            releaseWorkspaceHandoffSeed(input.projectPath, seeds.target.snapshotRef),
+          ]).then(() => undefined),
+        catch: transferError,
+      }).pipe(Effect.as(undefined))
     }),
   )
 }

@@ -78,6 +78,15 @@ function handoffRequest(sessionId: string, baseRef: string | undefined) {
 
 function insertLocalSession(sql: SqlClient.SqlClient, sessionId: string) {
   return Effect.gen(function* () {
+    /*
+     * Only a node's existence is read, by the handoff's "does this Session have history" query,
+     * so this fixture carries the two columns that decide it rather than the whole transcript
+     * schema, which would collide with the `session_branches` sibling fixtures declare.
+     */
+    yield* sql.unsafe(`CREATE TABLE IF NOT EXISTS session_nodes (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE
+    )`)
     yield* sql`INSERT INTO sessions (id, project_path) VALUES (${sessionId}, ${repositoryPath})`
     yield* sql`
       INSERT INTO workspace_resources (
@@ -104,6 +113,13 @@ function markSessionAsHavingRun(sql: SqlClient.SqlClient, sessionId: string) {
   return sql`
     INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
     VALUES (${`run-${sessionId}`}, ${sessionId}, ${'completed'}, ${1000}, ${1000})
+  `
+}
+
+/** A Session the session-host cutover migrated: transcript nodes, no `session_runs` row. */
+function markSessionAsMigratedWithHistory(sql: SqlClient.SqlClient, sessionId: string) {
+  return sql`
+    INSERT INTO session_nodes (id, session_id) VALUES (${`node-${sessionId}`}, ${sessionId})
   `
 }
 
@@ -211,6 +227,29 @@ describe('handing a Session to a new worktree', () => {
     expect(await git(worktreePath, ['rev-parse', 'HEAD'])).toBe(featureHead)
     // The checkout's uncommitted edit stayed in the checkout.
     expect(await git(worktreePath, ['show', 'HEAD:base.txt'])).toBe('base')
+  })
+
+  it('keeps carrying uncommitted work for a migrated Session with no run row', async () => {
+    const layer = makeSessionControlTestLayer(
+      path.join(temporaryRoot, 'migrated.sqlite'),
+      undefined,
+      GitSessionWorkspaceHandoffServiceLive,
+    )
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* insertLocalSession(sql, 'session-migrated')
+        yield* markSessionAsMigratedWithHistory(sql, 'session-migrated')
+        yield* organizeSession({
+          callerId: 'caller',
+          request: handoffRequest('session-migrated', 'main'),
+        })
+        return yield* boundWorkspace(sql, 'session-migrated')
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result?.handoff_seed_state).toBe('pending')
   })
 
   it('keeps carrying uncommitted work for a Session that already ran', async () => {
