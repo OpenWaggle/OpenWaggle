@@ -21,7 +21,7 @@ OpenWaggle shipped with no root LICENSE file: the app was all-rights-reserved by
 
 - **One license for the whole repo.** Rejected: it would either break the published MIT declaration of the four packages or drag the extension SDK into copyleft, strangling the extension ecosystem at birth (ADR 0066 makes the SDK the public API).
 - **MPL-2.0 for the app.** Rejected: file-level copyleft lets a competitor ship the inherited files open inside a closed product, leaving the moat to the trademark alone. GPL-3.0 moves the protection into the license itself.
-- **A source-available license (FSL, BSL, PolyForm).** Rejected: not OSI-approved, which closes the free SignPath Foundation signing path the decision was made to enable.
+- **A source-available license (FSL, BSL, PolyForm).** Rejected: not OSI-approved, which would have closed the free SignPath Foundation signing path. That path did not pan out (ADR 0069), so the rejection rests on openness rather than on signing.
 - **Copyright assignment instead of a CLA.** Rejected: more friction, no additional commercial benefit over the grant-and-relicense CLA.
 - **Self-signed Windows certificates.** Rejected: same SmartScreen wall as unsigned, no reputation path.
 
