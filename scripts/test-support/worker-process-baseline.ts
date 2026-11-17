@@ -4,6 +4,7 @@
  * and the builtins and global classes code patches in place.
  */
 import type { EventEmitter } from 'node:events'
+import { syncBuiltinESMExports } from 'node:module'
 import { trackDomListeners } from './dom-listener-tracking'
 
 interface ObjectSnapshot {
@@ -246,5 +247,11 @@ export function restoreWorkerProcess(
   restoreSnapshot(baseline.globals, keepGlobal)
   removeAddedProcessListeners(baseline)
   for (const owned of baseline.owned) restoreSnapshot(owned, () => false)
+  // The trusted-main escape guard patches a builtin in place and then publishes the patched
+  // functions with `syncBuiltinESMExports()`. Restoring the module objects above leaves the ESM
+  // named exports still patched on Node, where that call is not a no-op as it is on Bun, so a
+  // later file's `import { execFile } from 'node:child_process'` would keep the guard's wrapper
+  // and `promisify(execFile)` would resolve to stdout instead of `{ stdout, stderr }`.
+  syncBuiltinESMExports()
   for (const shared of baseline.shared) restoreSnapshot(shared, () => true)
 }
