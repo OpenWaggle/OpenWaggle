@@ -22,8 +22,9 @@ ruleset and `.github/CODEOWNERS`.
 - The decision order was rights over adoption: a proprietary fork of the app needs a commercial
   exception only the Project Owner (Diego Garcia Brisa and that person's successors and assigns)
   can grant. MPL-2.0 was rejected as too weak a moat; source-available (FSL/BSL) was rejected
-  because it is not OSI, which closes free Windows signing (SignPath Foundation requires an
-  OSI-approved license).
+  because it is not OSI, which would have closed the free SignPath Foundation signing path. That
+  path did not pay off: the Foundation declined the application in November 2026, so the split
+  license now rests on the rights argument alone (ADR 0069).
 
 ## The CLA
 
