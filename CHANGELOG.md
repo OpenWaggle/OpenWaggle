@@ -1,8 +1,10 @@
 # Changelog
 
-This file lists OpenWaggle's Stable releases, starting with 1.0.0. Earlier 0.x builds used a legacy release process and are still listed in [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases), along with every Beta and release candidate.
+What changed in each OpenWaggle desktop release, newest first. The website shows the same notes at [openwaggle.ai/changelog](https://openwaggle.ai/changelog/), and every release after 1.0.0-beta.43 publishes its entry as its GitHub Release notes. Builds before 1.0.0-beta.1 are listed only in [GitHub Releases](https://github.com/OpenWaggle/OpenWaggle/releases).
 
-## 1.0.0
+Each release PR writes its version's entry from the titles of the pull requests merged since the previous release: breaking changes, features, fixes and performance work. A Stable release's entry starts with the hand-written notes under `[Unreleased]`, which say what the release means for you; prereleases leave them for the next Stable release. Write those notes on `main` and leave the entries as the release PR wrote them.
+
+## [Unreleased]
 
 1.0.0 is OpenWaggle's first Stable release. These notes cover the whole 1.0.0 line, from 1.0.0-beta.1 through the release candidates, so if you are coming from a 0.x alpha, these are the changes that affect you.
 
@@ -194,3 +196,363 @@ Released builds send anonymous usage statistics and error reports, starting at t
 - Linux AppImages are not signed.
 - 0.x macOS builds were unsigned, and macOS installs an update only when it is signed by the same team as the running app. If you are still on a 0.x build, install 1.0.0 by hand once, from GitHub Releases or with the install script. Updates after that install from the app.
 - On Linux, opening Session links from other apps needs the desktop entry that the install script writes. If you installed before Session links shipped, run the install script again.
+
+## [1.0.0-beta.43] - 2026-11-17
+
+### Features
+
+- **attachments:** accept pasted screenshots and HEIC photos ([#481](https://github.com/OpenWaggle/OpenWaggle/pull/481))
+
+### Fixes
+
+- **sessions:** poll past a Host that disconnects mid-handshake instead of failing startup ([#485](https://github.com/OpenWaggle/OpenWaggle/pull/485))
+- **hive:** wake the parent when a Worker answers new work sent after acceptance ([#483](https://github.com/OpenWaggle/OpenWaggle/pull/483))
+- **deps:** write root overrides so npm and npx work again ([#478](https://github.com/OpenWaggle/OpenWaggle/pull/478))
+- **license:** open the project to contributions with a GPL-3.0 app, MIT packages, CLA, trademark notice, and issue forms ([#471](https://github.com/OpenWaggle/OpenWaggle/pull/471))
+- **qa:** wait for the Session Host's process to exit before removing a QA profile ([#472](https://github.com/OpenWaggle/OpenWaggle/pull/472))
+
+## [1.0.0-beta.42] - 2026-11-16
+
+### Breaking changes
+
+- **extension-sdk:** publish types and result helpers with an Effect-free runtime ([#461](https://github.com/OpenWaggle/OpenWaggle/pull/461))
+
+### Fixes
+
+- **session-search:** wait for the model download in a required-fresh search ([#469](https://github.com/OpenWaggle/OpenWaggle/pull/469))
+- **chat:** show a Run whose start a resync lost instead of a blank chat ([#457](https://github.com/OpenWaggle/OpenWaggle/pull/457))
+- update MAX_INITIAL_RENDERER_GRAPH_BYTES to reflect accurate measurement ([5d8db4f](https://github.com/OpenWaggle/OpenWaggle/commit/5d8db4f0fafcb45b27586b0062c395e5976e178e))
+- **hive:** start the Worker's Run when its parent requests a revision ([#456](https://github.com/OpenWaggle/OpenWaggle/pull/456))
+- build and test with Bun and enforce the strictest type, lint and test checks ([#453](https://github.com/OpenWaggle/OpenWaggle/pull/453))
+- **schedules:** give older and agent-created Sessions their schedule actions ([#455](https://github.com/OpenWaggle/OpenWaggle/pull/455))
+
+### Performance
+
+- ship a smaller Electron app that starts faster on Windows and uses less memory ([#450](https://github.com/OpenWaggle/OpenWaggle/pull/450))
+
+## [1.0.0-beta.39] - 2026-11-13
+
+### Fixes
+
+- **windows:** start the Session Host under Avast and report its startup failures ([#447](https://github.com/OpenWaggle/OpenWaggle/pull/447))
+
+## [1.0.0-beta.38] - 2026-11-10
+
+### Breaking changes
+
+- **cli:** settle the machine-output contract before 1.0.0 ([#432](https://github.com/OpenWaggle/OpenWaggle/pull/432))
+- **cli:** replace inline-JSON flags with ordinary flags before 1.0.0 ([#429](https://github.com/OpenWaggle/OpenWaggle/pull/429))
+
+### Features
+
+- **hive:** show running Workers on parents' rows, header and rail ([#438](https://github.com/OpenWaggle/OpenWaggle/pull/438))
+
+### Fixes
+
+- **sessions:** count and limit agents' Runs in the person's Sessions ([#440](https://github.com/OpenWaggle/OpenWaggle/pull/440))
+- **renderer:** settle void-fired Settings writes instead of floating their rejections ([#441](https://github.com/OpenWaggle/OpenWaggle/pull/441))
+- **session-summary:** show the Session Summary by default ([#439](https://github.com/OpenWaggle/OpenWaggle/pull/439))
+- **hive:** archive a Session that archives itself after its Run ends ([#431](https://github.com/OpenWaggle/OpenWaggle/pull/431))
+- **schedules:** keep an agent-created Heartbeat's limits when the owner edits unrelated fields ([#435](https://github.com/OpenWaggle/OpenWaggle/pull/435))
+- **cli:** address review findings on the ordinary CLI flags ([#433](https://github.com/OpenWaggle/OpenWaggle/pull/433))
+- **installer:** refuse downgrades, keep the saved channel, and install from openwaggle.ai/install ([#427](https://github.com/OpenWaggle/OpenWaggle/pull/427))
+- **release:** harden the RC and Stable release path before rc.1 ([#428](https://github.com/OpenWaggle/OpenWaggle/pull/428))
+- **sessions:** never let busy Workers refuse the person's messages ([#434](https://github.com/OpenWaggle/OpenWaggle/pull/434))
+- **chat:** roll elapsed timers over into hours ([#436](https://github.com/OpenWaggle/OpenWaggle/pull/436))
+- **docs:** bring the Agent-definition schema and CLI docs up to date before rc.1 ([#426](https://github.com/OpenWaggle/OpenWaggle/pull/426))
+
+## [1.0.0-beta.37] - 2026-11-08
+
+### Fixes
+
+- **release:** rebuild macOS when stapling loses its connection to Apple ([#423](https://github.com/OpenWaggle/OpenWaggle/pull/423))
+
+## [1.0.0-beta.36] - 2026-11-08
+
+### Features
+
+- **notifications:** desktop notifications for Sessions that need you or are ready to read ([#417](https://github.com/OpenWaggle/OpenWaggle/pull/417))
+- **hive:** offer Agent definitions to spawning agents and show them in the Hive panel ([#405](https://github.com/OpenWaggle/OpenWaggle/pull/405))
+
+### Fixes
+
+- **release:** build macOS on the supported macos-15 runner ([#421](https://github.com/OpenWaggle/OpenWaggle/pull/421))
+- **hive:** apply review fixes to the idle-parent wake ([#418](https://github.com/OpenWaggle/OpenWaggle/pull/418))
+- **hive:** wake an idle Queen when its Workers report, and report explicit submissions ([#416](https://github.com/OpenWaggle/OpenWaggle/pull/416))
+- **command-palette:** keep keyboard focus in the search field when the palette opens ([#415](https://github.com/OpenWaggle/OpenWaggle/pull/415))
+- **packages:** add the pending 0.2 package docs and catch missing release docs on pull requests ([#410](https://github.com/OpenWaggle/OpenWaggle/pull/410))
+- estimate Usage & Cost from Pi's model catalog, and rewrite the user docs as plain-English guides and reference pages ([#408](https://github.com/OpenWaggle/OpenWaggle/pull/408))
+- **sessions:** settle a failed targeted catalog refresh instead of floating its rejection ([#407](https://github.com/OpenWaggle/OpenWaggle/pull/407))
+- show home-relative paths and illustrate the user docs with screenshots, diagrams, and schemas ([#406](https://github.com/OpenWaggle/OpenWaggle/pull/406))
+- **settings:** let every Settings section fill the available width ([#403](https://github.com/OpenWaggle/OpenWaggle/pull/403))
+
+## [1.0.0-beta.32] - 2026-11-03
+
+### Features
+
+- **error-reporting:** attribute renderer IPC rejections by API method in reports ([#401](https://github.com/OpenWaggle/OpenWaggle/pull/401))
+
+## [1.0.0-beta.31] - 2026-11-02
+
+### Fixes
+
+- **schedules:** keep agent-created tasks running after their Session is deleted ([#400](https://github.com/OpenWaggle/OpenWaggle/pull/400))
+- **bedrock:** pick up AWS keys rotated in the shared credentials file ([#398](https://github.com/OpenWaggle/OpenWaggle/pull/398))
+- **hive:** let the hive tool search archived Sessions ([#397](https://github.com/OpenWaggle/OpenWaggle/pull/397))
+
+## [1.0.0-beta.30] - 2026-10-29
+
+### Features
+
+- **settings:** redesign Settings > Worktrees and add Automatic worktree removal ([#396](https://github.com/OpenWaggle/OpenWaggle/pull/396))
+
+### Fixes
+
+- **session-search:** end the embedding child with SIGKILL so macOS stops reporting a crash ([#395](https://github.com/OpenWaggle/OpenWaggle/pull/395))
+- **chat:** show a long pasted prompt once, with its attachment ([#393](https://github.com/OpenWaggle/OpenWaggle/pull/393))
+
+## [1.0.0-beta.29] - 2026-10-28
+
+### Performance
+
+- start faster, use less memory, and send agents less context before v1 ([#391](https://github.com/OpenWaggle/OpenWaggle/pull/391))
+
+## [1.0.0-beta.28] - 2026-10-27
+
+### Breaking changes
+
+- **scheduled-tasks:** gate Heartbeats with a Wake check, require a way to finish, auto-pause idle runs ([#389](https://github.com/OpenWaggle/OpenWaggle/pull/389))
+
+## [1.0.0-beta.27] - 2026-10-27
+
+### Fixes
+
+- **terminal:** never answer terminal queries replayed on reattach ([#386](https://github.com/OpenWaggle/OpenWaggle/pull/386))
+
+## [1.0.0-beta.26] - 2026-10-27
+
+### Breaking changes
+
+- **cli:** authenticate mcp serve profiles and make CLI errors typed and consistent ([#363](https://github.com/OpenWaggle/OpenWaggle/pull/363))
+- **hive:** show a Queen all its Workers by default, fix Worker cleanup and tool ergonomics ([#364](https://github.com/OpenWaggle/OpenWaggle/pull/364))
+
+### Fixes
+
+- **website:** regenerate the screenshots from a capture script that runs against the current app ([#384](https://github.com/OpenWaggle/OpenWaggle/pull/384))
+- **session-summary:** make the whole Hive row open the Hive panel ([#383](https://github.com/OpenWaggle/OpenWaggle/pull/383))
+- **hive:** group Workers by who acts next and show Needs you only for what you must unblock ([#381](https://github.com/OpenWaggle/OpenWaggle/pull/381))
+- **qa:** isolate hidden Electron QA and fail test files that leak temp dirs ([#368](https://github.com/OpenWaggle/OpenWaggle/pull/368))
+- **session-host:** open OpenWaggle's SQLite files with one SQLite library ([#374](https://github.com/OpenWaggle/OpenWaggle/pull/374))
+- **website:** serve a real 404 page, redirect /install.sh, derive the stage badge ([#367](https://github.com/OpenWaggle/OpenWaggle/pull/367))
+- **hive:** resynchronize wait internally instead of returning resync_required ([#373](https://github.com/OpenWaggle/OpenWaggle/pull/373))
+- **renderer:** open only readable resources, name Hive counts and states, and polish a11y and usage views ([#369](https://github.com/OpenWaggle/OpenWaggle/pull/369))
+- **composer:** drag the whole queued message, with a placeholder and a drop line ([#379](https://github.com/OpenWaggle/OpenWaggle/pull/379))
+- **scheduled-tasks:** show run trigger, UTC offset and jitter on every surface ([#365](https://github.com/OpenWaggle/OpenWaggle/pull/365))
+- **session-host:** stop Run settlement stalls and report provider failures ([#366](https://github.com/OpenWaggle/OpenWaggle/pull/366))
+- **git:** keep the Summary Git row for worktree branches and guard worktree removal ([#362](https://github.com/OpenWaggle/OpenWaggle/pull/362))
+- **updater:** default installs to Beta, scope the macOS quit, keep --check read-only ([#360](https://github.com/OpenWaggle/OpenWaggle/pull/360))
+- **release:** build Linux for glibc 2.35 and state the v1 platform minimums ([#361](https://github.com/OpenWaggle/OpenWaggle/pull/361))
+- **renderer:** catch unhandled fire-and-forget IPC rejections in the GUI process ([#375](https://github.com/OpenWaggle/OpenWaggle/pull/375))
+
+## [1.0.0-beta.25] - 2026-10-25
+
+### Breaking changes
+
+- **hive:** rename the sessions tool, CLI and MCP tool to hive ([#348](https://github.com/OpenWaggle/OpenWaggle/pull/348))
+
+### Fixes
+
+- **project-actions:** recover a worktree created just before the app stopped ([#343](https://github.com/OpenWaggle/OpenWaggle/pull/343))
+- **project-actions:** remove worktrees without cleanup without asking for Delete anyway ([#342](https://github.com/OpenWaggle/OpenWaggle/pull/342))
+- **session-host:** keep credential receipts valid across macOS reboots ([#341](https://github.com/OpenWaggle/OpenWaggle/pull/341))
+
+## [1.0.0-beta.24] - 2026-10-24
+
+### Fixes
+
+- finish the Waggle package migration, retry failed provider catalogs, and pin dependencies ([#339](https://github.com/OpenWaggle/OpenWaggle/pull/339))
+
+## [1.0.0-beta.23] - 2026-10-23
+
+### Features
+
+- **scheduled-tasks:** Heartbeats and Launch schedules run by the Session Host ([#335](https://github.com/OpenWaggle/OpenWaggle/pull/335))
+
+### Fixes
+
+- **sessions:** stop a full Host send budget from closing unrelated connections ([#338](https://github.com/OpenWaggle/OpenWaggle/pull/338))
+- **pi:** upgrade Pi to 1.4.0 so error tool results with images stop breaking Claude sessions ([#336](https://github.com/OpenWaggle/OpenWaggle/pull/336))
+
+## [1.0.0-beta.22] - 2026-10-22
+
+### Features
+
+- **sessions:** copy and open Session links ([#333](https://github.com/OpenWaggle/OpenWaggle/pull/333))
+
+### Fixes
+
+- **project-actions:** keep worktrees runnable when macOS renumbers the volume ([#329](https://github.com/OpenWaggle/OpenWaggle/pull/329))
+
+## [1.0.0-beta.21] - 2026-10-19
+
+### Features
+
+- **settings:** search, filter, and bulk-restore archived items ([#325](https://github.com/OpenWaggle/OpenWaggle/pull/325))
+- **chat:** fork from turn replies and fix desktop fork and clone ([#323](https://github.com/OpenWaggle/OpenWaggle/pull/323))
+
+### Fixes
+
+- **chat:** keep interaction cards inside the transcript column ([#328](https://github.com/OpenWaggle/OpenWaggle/pull/328))
+- **sessions:** queue messages while a steered Follow-up waits for delivery ([#324](https://github.com/OpenWaggle/OpenWaggle/pull/324))
+- **chat:** show extension status and offer Stop while a Run is finishing ([#326](https://github.com/OpenWaggle/OpenWaggle/pull/326))
+
+## [1.0.0-beta.20] - 2026-10-16
+
+### Features
+
+- **pi:** title discovered Pi sessions and ask before continuing one pi used last ([#321](https://github.com/OpenWaggle/OpenWaggle/pull/321))
+
+## [1.0.0-beta.19] - 2026-10-16
+
+### Fixes
+
+- **agents:** let agents discover and read the installed OpenWaggle docs ([#319](https://github.com/OpenWaggle/OpenWaggle/pull/319))
+
+## [1.0.0-beta.18] - 2026-10-16
+
+### Features
+
+- **chat:** show a kind icon on every tool row and name the Worker each Hive row acts on ([#317](https://github.com/OpenWaggle/OpenWaggle/pull/317))
+
+### Fixes
+
+- **mcp-apps:** load MCP Apps from what their server declares and size them to their data ([#318](https://github.com/OpenWaggle/OpenWaggle/pull/318))
+- **mcp:** point MCP guidance at Settings and replace stuck server processes ([#316](https://github.com/OpenWaggle/OpenWaggle/pull/316))
+- **chat:** keep typed and pasted line breaks in user messages ([#314](https://github.com/OpenWaggle/OpenWaggle/pull/314))
+- **usage:** give Usage & Cost a way back and a compact sidebar entry ([#313](https://github.com/OpenWaggle/OpenWaggle/pull/313))
+
+## [1.0.0-beta.17] - 2026-10-15
+
+### Features
+
+- **usage:** add the Usage & Cost view for Pi session spending ([#312](https://github.com/OpenWaggle/OpenWaggle/pull/312))
+
+### Fixes
+
+- **stats:** keep the usage snapshot when npm or traffic reads fail ([#310](https://github.com/OpenWaggle/OpenWaggle/pull/310))
+
+## [1.0.0-beta.16] - 2026-10-14
+
+### Features
+
+- **settings:** search and filter Available Models, and fix Sign in with ChatGPT ([#305](https://github.com/OpenWaggle/OpenWaggle/pull/305))
+
+### Fixes
+
+- **sessions:** decode nested tool calls in active Run snapshots ([#308](https://github.com/OpenWaggle/OpenWaggle/pull/308))
+- **visualization:** render, retain selection state, and open session images ([#306](https://github.com/OpenWaggle/OpenWaggle/pull/306))
+
+## [1.0.0-beta.15] - 2026-10-14
+
+### Fixes
+
+- **mcp:** stop notifying that MCP servers are still connecting ([#304](https://github.com/OpenWaggle/OpenWaggle/pull/304))
+
+## [1.0.0-beta.14] - 2026-10-13
+
+### Features
+
+- **renderer:** move Hive Workers into a dedicated Hive panel (ADR 0051) ([#300](https://github.com/OpenWaggle/OpenWaggle/pull/300))
+- **pi:** upgrade to Pi 1.2.0 and make OpenWaggle the GUI for the Pi ecosystem ([#303](https://github.com/OpenWaggle/OpenWaggle/pull/303))
+
+### Fixes
+
+- **sessions:** stop Session Host stalls that hid the Follow-up queue ([#301](https://github.com/OpenWaggle/OpenWaggle/pull/301))
+
+## [1.0.0-beta.13] - 2026-10-13
+
+### Fixes
+
+- **sessions:** stop Session Host writes to dead clients from raising unhandled rejections ([#298](https://github.com/OpenWaggle/OpenWaggle/pull/298))
+
+## [1.0.0-beta.12] - 2026-10-11
+
+### Features
+
+- **chat:** show the file diff when an edit row expands ([#294](https://github.com/OpenWaggle/OpenWaggle/pull/294))
+- **source-control:** open PRs/MRs in the inspector and support enterprise GitHub and self-hosted GitLab ([#288](https://github.com/OpenWaggle/OpenWaggle/pull/288))
+
+### Fixes
+
+- **sidebar:** keep session rows from rendering behind section titles ([#295](https://github.com/OpenWaggle/OpenWaggle/pull/295))
+- **resources:** capture and surface the evidence images agents embed ([#297](https://github.com/OpenWaggle/OpenWaggle/pull/297))
+- **pi:** keep the leading prompt stable across Runs ([#296](https://github.com/OpenWaggle/OpenWaggle/pull/296))
+- **actions:** keep Project Actions in the open Session's project ([#293](https://github.com/OpenWaggle/OpenWaggle/pull/293))
+- **sessions:** stop losing replies and chat history, and keep Sessions live across Host stalls ([#282](https://github.com/OpenWaggle/OpenWaggle/pull/282))
+
+## [1.0.0-beta.11] - 2026-10-08
+
+### Fixes
+
+- **desktop:** let users recover desktop tools after an unclean quit ([#289](https://github.com/OpenWaggle/OpenWaggle/pull/289))
+
+## [1.0.0-beta.10] - 2026-10-07
+
+### Fixes
+
+- **updater:** install updates on the first restart and fit the macOS icon grid ([#286](https://github.com/OpenWaggle/OpenWaggle/pull/286))
+
+## [1.0.0-beta.9] - 2026-10-05
+
+### Features
+
+- **stats:** add anonymous usage statistics and error reports ([#280](https://github.com/OpenWaggle/OpenWaggle/pull/280))
+
+### Fixes
+
+- **release:** retry transient hdiutil failures when building macOS DMGs ([#284](https://github.com/OpenWaggle/OpenWaggle/pull/284))
+
+## [1.0.0-beta.7] - 2026-10-03
+
+### Breaking changes
+
+- **sessions:** show queued messages live, edit and reorder the queue, and make thinking level a Session setting ([#275](https://github.com/OpenWaggle/OpenWaggle/pull/275))
+
+## [1.0.0-beta.6] - 2026-10-03
+
+### Features
+
+- **shell:** unified right panel with a panel rail ([#278](https://github.com/OpenWaggle/OpenWaggle/pull/278))
+- **sessions:** generate short Session titles with a Title model ([#276](https://github.com/OpenWaggle/OpenWaggle/pull/276))
+
+## [1.0.0-beta.4] - 2026-10-01
+
+### Fixes
+
+- **install:** match the installer's exact name in release checksums ([#272](https://github.com/OpenWaggle/OpenWaggle/pull/272))
+
+## [1.0.0-beta.3] - 2026-10-01
+
+### Fixes
+
+- **sessions:** reach other projects and isolate Session scratch files ([#262](https://github.com/OpenWaggle/OpenWaggle/pull/262))
+
+## [1.0.0-beta.2] - 2026-09-30
+
+### Fixes
+
+- **session-host:** stop Run replacement deadlocking on its own teardown ([#265](https://github.com/OpenWaggle/OpenWaggle/pull/265))
+- **release:** rebuild macOS once when notarization loses Apple ([#269](https://github.com/OpenWaggle/OpenWaggle/pull/269))
+- **release:** end quietly when the release PR is closed during validation ([#268](https://github.com/OpenWaggle/OpenWaggle/pull/268))
+- **sessions:** save forks and keep branches on the conversation shown ([#267](https://github.com/OpenWaggle/OpenWaggle/pull/267))
+
+## [1.0.0-beta.1] - 2026-09-30
+
+### Features
+
+- **release:** adopt the v1 release policy and update flow ([#264](https://github.com/OpenWaggle/OpenWaggle/pull/264))
+- **cli:** add top-level help, run, status, and host commands ([#252](https://github.com/OpenWaggle/OpenWaggle/pull/252))
+
+### Fixes
+
+- **chat:** hold a sent message at the top until the reader scrolls ([#251](https://github.com/OpenWaggle/OpenWaggle/pull/251))
