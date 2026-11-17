@@ -6,11 +6,11 @@ import { sessionWorktreeBranch } from '@shared/utils/worktree'
 import { useEffect, useState } from 'react'
 import { resolveWorktreeSendPlan } from '@/features/git/lib/worktree-send-plan'
 import {
-  draftWorktreePlanKey,
   PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY,
   useWorktreePlanStore,
   type WorktreePlanOverride,
 } from '@/features/git/state/worktree-plan-store'
+import { trackWorktreePlanWrite, worktreePlanKey } from '@/features/git/state/worktree-plan-writes'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { type ProjectBranchStatus, useProjectBranchState } from './useProjectBranchState'
@@ -46,13 +46,7 @@ export function useSessionContextRow(input: UseSessionContextRowInput) {
   // Sessions are created lazily on first send, so before that key the plan on a
   // draft key derived from the project; the send path flushes it onto the new
   // session (review renderer-B1). Falls back to the session id once it exists.
-  const sessionKey = sessionId
-    ? String(sessionId)
-    : projectPath
-      ? draftWorktreePlanKey(projectPath)
-      : isFirstMessage
-        ? PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY
-        : ''
+  const sessionKey = worktreePlanKey({ sessionId, projectPath, isFirstMessage })
 
   const scopedOverride = useWorktreePlanStore((state) =>
     sessionKey ? state.bySessionId[sessionKey] : undefined,
@@ -125,32 +119,35 @@ export function useSessionContextRow(input: UseSessionContextRowInput) {
   }) => {
     if (!sessionId) return
     const requestId = crypto.randomUUID()
-    void api
-      .mutateSessionControl({
-        contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
-        requestId,
-        idempotencyKey: requestId,
-        command: {
-          operation: 'handoff',
-          sessionId,
-          workspace:
-            next.envMode === 'local'
-              ? { mode: 'local' }
-              : {
-                  mode: 'new-worktree',
-                  ...(next.baseRef ? { baseRef: next.baseRef } : {}),
-                  ...(next.startFromOrigin ? { startFromOrigin: true } : {}),
-                },
-        },
-      })
-      .then((response) => {
-        if (response.outcome.effect === 'rejected') {
-          throw new Error(`Session handoff was rejected: ${response.outcome.code}`)
-        }
-      })
-      .catch((error: unknown) =>
-        logger.warn('Failed to hand off Session Workspace', { error: String(error) }),
-      )
+    trackWorktreePlanWrite(
+      sessionKey,
+      api
+        .mutateSessionControl({
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId,
+          idempotencyKey: requestId,
+          command: {
+            operation: 'handoff',
+            sessionId,
+            workspace:
+              next.envMode === 'local'
+                ? { mode: 'local' }
+                : {
+                    mode: 'new-worktree',
+                    ...(next.baseRef ? { baseRef: next.baseRef } : {}),
+                    ...(next.startFromOrigin ? { startFromOrigin: true } : {}),
+                  },
+          },
+        })
+        .then((response) => {
+          if (response.outcome.effect === 'rejected') {
+            throw new Error(`Session handoff was rejected: ${response.outcome.code}`)
+          }
+        })
+        .catch((error: unknown) =>
+          logger.warn('Failed to hand off Session Workspace', { error: String(error) }),
+        ),
+    )
   }
 
   const setEnvMode = (mode: SessionEnvironmentMode) => {
