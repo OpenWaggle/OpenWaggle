@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
+import { nodeRuntime } from '../../support/node-runtime'
 import { REUSED_WORKER_SETUP } from '../vitest-tier-options'
 
 const run = promisify(execFile)
@@ -31,6 +32,7 @@ export const seen = flavour
   'a-dirty.test.ts': `import childProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { appendFileSync } from 'node:fs'
+import { syncBuiltinESMExports } from 'node:module'
 import { bump, label } from './module-state'
 // Vitest runs larger files first when it has no timings: this one must run before the other.
 // ................................................................................................
@@ -46,6 +48,9 @@ it('dirties the worker', () => {
   Reflect.set(globalThis, 'leakedGlobal', 1)
   process.env.LEAKED_ENV = '1'
   Reflect.set(childProcess, 'spawn', () => 'patched')
+  // The trusted-main escape guard publishes its patch this way; on Node it also replaces the
+  // ESM named export, which restoring the module object alone does not put back.
+  syncBuiltinESMExports()
   Reflect.set(EventEmitter.prototype, 'on', () => 'patched')
   process.on('beforeExit', () => undefined)
   process.exitCode = 3
@@ -54,7 +59,7 @@ it('dirties the worker', () => {
   vi.useFakeTimers()
 })
 `,
-  'b-clean.test.ts': `import childProcess from 'node:child_process'
+  'b-clean.test.ts': `import childProcess, { spawn as namedSpawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { appendFileSync } from 'node:fs'
 import { bump, label } from './module-state'
@@ -71,13 +76,14 @@ it('starts from what a fresh worker gives', async () => {
     global: Reflect.get(globalThis, 'leakedGlobal'),
     env: process.env.LEAKED_ENV,
     spawn: String(childProcess.spawn).includes('patched'),
+    namedSpawn: String(namedSpawn).includes('patched'),
     on: String(EventEmitter.prototype.on).includes('patched'),
     listeners: process.listeners('beforeExit').length,
     fakeTimers: vi.isFakeTimers(),
     exitCode: process.exitCode ?? 0,
     automocked: vi.isMockFunction(flush),
     seen,
-  }).toEqual({ count: 1, label: 'real', global: undefined, env: undefined, spawn: false, on: false, listeners: 0, fakeTimers: false, exitCode: 0, automocked: true, seen: 'clean' })
+  }).toEqual({ count: 1, label: 'real', global: undefined, env: undefined, spawn: false, namedSpawn: false, on: false, listeners: 0, fakeTimers: false, exitCode: 0, automocked: true, seen: 'clean' })
   process.exitCode = 0
 })
 `,
@@ -90,7 +96,7 @@ afterEach(async () => {
   directory = ''
 })
 
-async function runFixtures(setupFiles: readonly string[]) {
+async function runFixtures(setupFiles: readonly string[], runtime: 'bun' | 'node' = 'bun') {
   directory = await mkdtemp(path.join(os.tmpdir(), 'reused-worker-'))
   for (const [name, source] of Object.entries(FIXTURES)) {
     await writeFile(path.join(directory, name), source)
@@ -101,7 +107,9 @@ async function runFixtures(setupFiles: readonly string[]) {
     `export default ${JSON.stringify(config)}\n`,
   )
   const pidLog = path.join(directory, 'pids')
-  const result = await run(process.execPath, ['--bun', VITEST, 'run', '--root', directory], {
+  const executable = runtime === 'node' ? nodeRuntime().execPath : process.execPath
+  const args = [...(runtime === 'bun' ? ['--bun'] : []), VITEST, 'run', '--root', directory]
+  const result = await run(executable, args, {
     cwd: directory,
     env: { ...fixtureEnv(), PID_LOG: pidLog, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
     timeout: RUN_TIMEOUT_MS,
@@ -149,6 +157,18 @@ describe('the reused-worker reset', () => {
 
       expect(result).toMatchObject({ passed: false, workers: 1 })
       expect(result.output).toContain('starts from what a fresh worker gives')
+    },
+  )
+
+  // `syncBuiltinESMExports()` is a no-op on Bun, so only Node sees a leaked ESM named export.
+  it(
+    'puts back the ESM named export a builtin patch published on Node',
+    { timeout: RUN_TIMEOUT_MS },
+    async () => {
+      const result = await runFixtures([path.resolve(REUSED_WORKER_SETUP)], 'node')
+
+      expect(result.output).toContain('2 passed')
+      expect(result).toMatchObject({ passed: true, workers: 1 })
     },
   )
 })
