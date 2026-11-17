@@ -4,10 +4,10 @@ import path from 'node:path'
 import { appPaths } from '../desktop-shell/app-paths'
 
 /**
- * The directory the app writes copies of attachments it produced itself into: a pasted image, a
- * converted HEIC, a prompt written from long text. It lives in `utils/` because both attachment
- * preparation paths need it — the window's own (`ipc/attachment-preparation.ts`) and the Session
- * Host's (`utils/attachment-preparation.ts`) — and `utils/` may not import `ipc/`.
+ * The directory the app writes copies of attachments it produced itself into: a pasted image or a
+ * Session resource copy (the window, `ipc/attachment-preparation.ts`), the JPEG a HEIC is decoded
+ * into (the Session Host, `utils/attachment-preparation.ts`), a prompt written from long text. It
+ * lives in `utils/` because both processes need it and `utils/` may not import `ipc/`.
  */
 const TEMP_ATTACHMENTS_DIRECTORY_NAME = 'temp-attachments'
 
@@ -21,15 +21,14 @@ export async function ensureTempAttachmentsDirectory() {
 const PRIVATE_ATTACHMENT_FILE_MODE = 0o600
 
 /**
- * Writes a copy of an attachment the app produced itself, such as a decoded HEIC, and answers the
- * path the attachment then owns: hydration re-reads that path and checks it against `sizeBytes`.
- * The prefix names which path wrote the copy, so a support log can tell a Session resource from a
- * window-prepared image without opening it.
+ * Writes the JPEG the Host decodes a HEIC into, and answers the path the attachment then owns:
+ * hydration re-reads that path and checks it against `sizeBytes`. Its `attachment-` prefix tells
+ * it apart in a support log from the window's `resource-<uuid>/` copies.
  */
 export async function writeTempAttachment(
   bytes: Uint8Array,
   extension: string,
-  prefix: 'attachment' | 'resource',
+  prefix: 'attachment',
 ) {
   const directory = await ensureTempAttachmentsDirectory()
   const filePath = path.join(directory, `${prefix}-${randomUUID()}${extension}`)
@@ -55,7 +54,7 @@ export function isNamedTempAttachmentDirectory(name: string) {
 export async function writeNamedTempAttachment(
   bytes: Uint8Array,
   fileName: string,
-  prefix: 'attachment' | 'resource',
+  prefix: 'resource',
 ) {
   const directory = path.join(await ensureTempAttachmentsDirectory(), `${prefix}-${randomUUID()}`)
   await fs.mkdir(directory, { mode: PRIVATE_ATTACHMENT_DIRECTORY_MODE })

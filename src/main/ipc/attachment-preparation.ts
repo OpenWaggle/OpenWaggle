@@ -9,6 +9,7 @@ import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
 import {
+  ensureTempAttachmentsDirectory,
   isNamedTempAttachmentDirectory,
   writeNamedTempAttachment,
 } from '../utils/attachment-temp-directory'
@@ -117,14 +118,17 @@ export async function prepareRegisteredAttachment(filePath: string) {
 }
 
 function imageAttachmentExtension(mimeType: string) {
-  return match(mimeType)
-    .with('image/png', () => '.png')
-    .with('image/jpeg', () => '.jpg')
-    .with('image/webp', () => '.webp')
-    .with('image/gif', () => '.gif')
-    .with('image/heic', () => '.heic')
-    .with('image/heif', () => '.heif')
-    .otherwise(() => null)
+  return (
+    match(mimeType)
+      .with('image/png', () => '.png')
+      .with('image/jpeg', () => '.jpg')
+      .with('image/webp', () => '.webp')
+      .with('image/gif', () => '.gif')
+      // A HEIC is written as one so the Host decodes it, a sequence included (`isHeicImageMimeType`).
+      .with('image/heic', 'image/heic-sequence', () => '.heic')
+      .with('image/heif', 'image/heif-sequence', () => '.heif')
+      .otherwise(() => null)
+  )
 }
 
 /** Leaves room under the 255 bytes file systems accept for the copy's directory to stay short. */
@@ -233,8 +237,16 @@ export async function discardRegisteredImageAttachment(attachment: PreparedAttac
   }
   const forgotten = await forgetPreparedAttachment(attachment)
   if (!forgotten) return
-  const directory = path.dirname(attachment.path)
-  if (isNamedTempAttachmentDirectory(path.basename(directory))) {
+  // The directory removed whole is the copy's own, found from where the file really is, and only
+  // one that sits directly in the temp attachments directory.
+  const realPath = await fs.realpath(attachment.path).catch(() => null)
+  const directory = realPath === null ? null : path.dirname(realPath)
+  const tempDirectory = await fs.realpath(await ensureTempAttachmentsDirectory())
+  if (
+    directory !== null &&
+    path.dirname(directory) === tempDirectory &&
+    isNamedTempAttachmentDirectory(path.basename(directory))
+  ) {
     await fs.rm(directory, { recursive: true, force: true })
     return
   }

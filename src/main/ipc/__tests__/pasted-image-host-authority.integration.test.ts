@@ -168,29 +168,34 @@ it('discards a pasted image and the private directory its copy was written to', 
   )
 })
 
-it('sends a pasted HEIC as the JPEG the Host decoded, and leaves no copy of the original', async () => {
-  const attachment = await prepareRegisteredImageAttachmentFromBytes({
-    bytes: HEIC_BYTES,
-    fileName: 'photo.heic',
-    mimeType: '',
-  })
+it.each([
+  { fileName: 'photo.heic', mimeType: '' },
+  { fileName: 'photo', mimeType: 'image/heic-sequence' },
+])(
+  'sends a pasted HEIC ($mimeType) as the JPEG the Host decoded, with no copy of the original',
+  async (input) => {
+    const attachment = await prepareRegisteredImageAttachmentFromBytes({
+      bytes: HEIC_BYTES,
+      ...input,
+    })
 
-  expect(attachment).toMatchObject({
-    origin: 'session-resource',
-    name: 'photo.jpg',
-    mimeType: 'image/jpeg',
-    sizeBytes: JPEG_BYTES.byteLength,
-  })
-  expect(path.basename(attachment.path)).toMatch(/^attachment-[0-9a-f-]+\.jpg$/u)
-  const temp = await fs.readdir(path.join(appUserData.path, 'temp-attachments'))
-  expect(temp).toEqual([path.basename(attachment.path)])
-  const [sent] = await resolveThroughHost([attachment.id])
-  expect(sent?.source?.value).toBe(JPEG_BYTES.toString('base64'))
+    expect(attachment).toMatchObject({
+      origin: 'session-resource',
+      name: 'photo.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: JPEG_BYTES.byteLength,
+    })
+    expect(path.basename(attachment.path)).toMatch(/^attachment-[0-9a-f-]+\.jpg$/u)
+    const temp = await fs.readdir(path.join(appUserData.path, 'temp-attachments'))
+    expect(temp).toEqual([path.basename(attachment.path)])
+    const [sent] = await resolveThroughHost([attachment.id])
+    expect(sent?.source?.value).toBe(JPEG_BYTES.toString('base64'))
 
-  await discardRegisteredImageAttachment(attachment)
+    await discardRegisteredImageAttachment(attachment)
 
-  await expect(fs.readdir(path.join(appUserData.path, 'temp-attachments'))).resolves.toEqual([])
-})
+    await expect(fs.readdir(path.join(appUserData.path, 'temp-attachments'))).resolves.toEqual([])
+  },
+)
 
 it('writes a resource title no platform can name a file after under a portable name', async () => {
   const attachment = await prepareRegisteredImageAttachmentFromBytes({
@@ -214,4 +219,18 @@ it('writes a resource title no platform can name a file after under a portable n
   expect(reserved.name).toBe('What is _this__ _draft_ _ v2_.png')
   expect(device.name).toBe('_con.png')
   await expect(resolveThroughHost([attachment.id, reserved.id, device.id])).resolves.toHaveLength(3)
+})
+
+it('removes the copy when the Session Host cannot prepare it', async () => {
+  configureGuiSessionCommandClient(null)
+
+  await expect(
+    prepareRegisteredImageAttachmentFromBytes({
+      bytes: PNG_BYTES,
+      fileName: 'pasted-image.png',
+      mimeType: 'image/png',
+    }),
+  ).rejects.toThrow('not attached to the Session Host')
+
+  await expect(fs.readdir(path.join(appUserData.path, 'temp-attachments'))).resolves.toEqual([])
 })

@@ -288,7 +288,9 @@ export function resetAttachmentHandlerMocks() {
     if (file) return filePath
     throw new Error(`ENOENT: ${filePath}`)
   })
-  mkdirMock.mockResolvedValue(undefined)
+  mkdirMock.mockImplementation(async (directoryPath: string) => {
+    registerDirectory(directoryPath)
+  })
   openMock.mockImplementation(async (filePath: string) =>
     createAttachmentFileHandle({ filePath, files, persistWrittenFile: registerFile }),
   )
