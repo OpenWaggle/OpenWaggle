@@ -10,7 +10,7 @@ Load before any non-trivial change; it is short.
 - The working tree may contain another agent's active refactor. Treat dirty files as intended future shape unless there is clear evidence otherwise.
 - Legacy vendor-specific agent configuration has been removed; keep this repository centered on `AGENTS.md` and `.agents/`.
 - Legacy agent memory files were removed. Add durable OpenWaggle memory here or to focused skills.
-- `docs/agents/` is reserved for the adapted `/setup-matt-pocock-skills` workflow. Do not manually scaffold it during unrelated work.
+- `docs/agents/` holds the agent-facing guides (issue tracker, triage labels, domain, design, release) that AGENTS.md links. Change them only when the work changes what they describe.
 
 ## Current Architecture Direction
 
