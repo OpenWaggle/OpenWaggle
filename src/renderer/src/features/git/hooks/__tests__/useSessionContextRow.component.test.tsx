@@ -1,14 +1,21 @@
-import { RepositoryPath } from '@shared/types/brand'
+import { RepositoryPath, SessionId } from '@shared/types/brand'
 import type { GitBranchListResult } from '@shared/types/git'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGitStore } from '../../state/git-store'
 import {
   PROJECTLESS_DRAFT_WORKTREE_PLAN_KEY,
   prepareDraftWorktreePlan,
   useWorktreePlanStore,
 } from '../../state/worktree-plan-store'
+import { pendingWorktreePlanWrite } from '../../state/worktree-plan-writes'
 import { useSessionContextRow } from '../useSessionContextRow'
+
+const { mutateSessionControl } = vi.hoisted(() => ({ mutateSessionControl: vi.fn() }))
+
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({ mutateSessionControl }),
+}))
 
 const MAIN_BRANCH_RESULT: GitBranchListResult = {
   currentBranch: 'main',
@@ -35,6 +42,43 @@ describe('useSessionContextRow project-first setup', () => {
       isLoadingBranches: false,
       branchesError: null,
     })
+  })
+
+  it('registers a base-ref pick under the plan key a send waits on', async () => {
+    /*
+     * The reported bug's critical wire: a pick on an existing Session is a Session Control
+     * handoff, and the send gate waits on the write registered under `worktreePlanKey(session)`.
+     * A mis-keyed or missing `trackWorktreePlanWrite` here would leave every other test green
+     * while the send overtook the pick again and the worktree forked from the previous branch.
+     */
+    const sessionId = SessionId('session-pick')
+    let settle = () => {}
+    mutateSessionControl.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          settle = () => resolve({ outcome: { effect: 'session-handed-off' } })
+        }),
+    )
+    const { result } = renderHook(() =>
+      useSessionContextRow({
+        sessionId,
+        projectPath: '/test/project',
+        isFirstMessage: true,
+        session: null,
+        defaultEnvironmentMode: 'worktree',
+      }),
+    )
+
+    act(() => result.current.setBaseRef('develop'))
+
+    const pending = pendingWorktreePlanWrite(String(sessionId))
+    expect(pending).toBeInstanceOf(Promise)
+
+    await act(async () => {
+      settle()
+      await pending
+    })
+    expect(pendingWorktreePlanWrite(String(sessionId))).toBeUndefined()
   })
 
   it('preserves a projectless environment choice while branches load for the selected project', () => {
