@@ -7,14 +7,19 @@ import {
   reportInlineVisualizationState,
 } from '../../state/inline-visualization-state'
 
-const { useSessionContextRowMock, stashDraftWorktreePlanMock } = vi.hoisted(() => ({
-  useSessionContextRowMock: vi.fn(),
-  stashDraftWorktreePlanMock: vi.fn(),
-}))
+const { useSessionContextRowMock, stashDraftWorktreePlanMock, pendingWorktreePlanWriteMock } =
+  vi.hoisted(() => ({
+    useSessionContextRowMock: vi.fn(),
+    stashDraftWorktreePlanMock: vi.fn(),
+    pendingWorktreePlanWriteMock: vi.fn(),
+  }))
 
 vi.mock('@/features/git', () => ({
   useSessionContextRow: useSessionContextRowMock,
   stashDraftWorktreePlan: stashDraftWorktreePlanMock,
+  pendingWorktreePlanWrite: pendingWorktreePlanWriteMock,
+  worktreePlanKey: (input: { sessionId: string | null; projectPath: string | null }) =>
+    input.sessionId ?? `draft:${input.projectPath}`,
 }))
 
 vi.mock('@/features/settings/state', () => ({
@@ -41,6 +46,7 @@ function stripWith(sendPlan: { kind: string; reason?: string }) {
 describe('useComposerSendGate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    pendingWorktreePlanWriteMock.mockReturnValue(undefined)
   })
 
   afterEach(clearInlineVisualizationStatesForTests)
@@ -111,6 +117,62 @@ describe('useComposerSendGate', () => {
 
     expect(result.current.sendBlockedReason).toBeNull()
     expect(onSend).toHaveBeenCalledWith(PAYLOAD)
+  })
+
+  it('waits for a base-ref pick to reach the Host before it sends', async () => {
+    /*
+     * A pick on an existing Session is a Session Control handoff, so the plan the Host knows
+     * changes one round trip later. A send that overtook it forked the first worktree from the
+     * previous base ref, which is the reported "my branch selection was ignored".
+     */
+    const activeSessionId = SessionId('session-a')
+    useSessionContextRowMock.mockReturnValue(stripWith({ kind: 'proceed' }))
+    let releasePick = () => {}
+    pendingWorktreePlanWriteMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => (releasePick = resolve)),
+    )
+    const onSend = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useComposerSendGate({
+        activeSessionId,
+        session: null,
+        isFirstMessage: false,
+        onSend,
+        onToast: vi.fn(),
+      }),
+    )
+
+    const sending = result.current.guardedSend(PAYLOAD)
+    await Promise.resolve()
+    expect(onSend).not.toHaveBeenCalled()
+    expect(pendingWorktreePlanWriteMock).toHaveBeenCalledWith(String(activeSessionId))
+
+    releasePick()
+    await sending
+    expect(onSend).toHaveBeenCalledOnce()
+  })
+
+  it('sends synchronously when no base-ref pick is in flight', async () => {
+    /*
+     * A wait that always deferred by a tick broke callers that dispatch inside the submit
+     * handler, so the common path must not go through a promise.
+     */
+    useSessionContextRowMock.mockReturnValue(stripWith({ kind: 'proceed' }))
+    pendingWorktreePlanWriteMock.mockReturnValue(undefined)
+    const onSend = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useComposerSendGate({
+        activeSessionId: null,
+        session: null,
+        isFirstMessage: true,
+        onSend,
+        onToast: vi.fn(),
+      }),
+    )
+
+    void result.current.guardedSend(PAYLOAD)
+
+    expect(onSend).toHaveBeenCalledOnce()
   })
 
   it('attaches the latest mounted visualization state to an active-session send', async () => {
