@@ -15,7 +15,10 @@ import {
   configurePreparedAttachmentRegistry,
   rememberPreparedAttachment,
 } from '../utils/attachment-registry'
-import { discardRegisteredImageAttachment } from './attachment-preparation'
+import {
+  discardRegisteredImageAttachment,
+  prepareRegisteredImageAttachmentFromBytes,
+} from './attachment-preparation'
 import {
   cleanupTempAttachments,
   createTempPromptPath,
@@ -62,6 +65,23 @@ const promptAttachmentNameArgumentSchema = withArgumentRefusal(
 const attachmentTextArgumentSchema = withArgumentRefusal(
   Schema.String.pipe(Schema.minLength(1)),
   'Attachment text must be a non-empty string.',
+)
+/** The bytes a pasted image is made of; the image type itself is checked when it is prepared. */
+const attachmentImageBytesArgumentSchema = withArgumentRefusal(
+  Schema.Uint8ArrayFromSelf,
+  'Attachment image bytes must be a byte array.',
+)
+const attachmentImageFileNameArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.filter((name) => Buffer.byteLength(name, 'utf8') <= MAX_FILE_NAME_BYTES),
+  ),
+  'Attachment image name must be a non-empty file name.',
+)
+/** Empty when the browser could not type the blob; preparation then reads the type from the name. */
+const attachmentImageMimeTypeArgumentSchema = withArgumentRefusal(
+  Schema.String,
+  'Attachment image type must be a media type string.',
 )
 const operationIdArgumentSchema = withArgumentRefusal(
   Schema.String.pipe(Schema.minLength(1)),
@@ -163,6 +183,30 @@ function registerPrepareFromTextAttachmentHandler() {
   )
 }
 
+function registerPrepareImageFromBytesAttachmentHandler() {
+  typedHandle(
+    'attachments:prepare-image-from-bytes',
+    (_event, rawBytes: unknown, rawFileName: unknown, rawMimeType: unknown) =>
+      Effect.gen(function* () {
+        const bytes = yield* decodeSessionOperationArgument(
+          attachmentImageBytesArgumentSchema,
+          rawBytes,
+        )
+        const fileName = yield* decodeSessionOperationArgument(
+          attachmentImageFileNameArgumentSchema,
+          rawFileName,
+        )
+        const mimeType = yield* decodeSessionOperationArgument(
+          attachmentImageMimeTypeArgumentSchema,
+          rawMimeType,
+        )
+        return yield* Effect.promise(() =>
+          prepareRegisteredImageAttachmentFromBytes({ bytes, fileName, mimeType }),
+        )
+      }),
+  )
+}
+
 function registerDiscardAttachmentHandler() {
   typedHandle('attachments:discard', (_event, rawAttachment: unknown) =>
     Effect.gen(function* () {
@@ -180,5 +224,6 @@ export function registerAttachmentHandlers() {
 
   registerPrepareAttachmentHandler()
   registerPrepareFromTextAttachmentHandler()
+  registerPrepareImageFromBytesAttachmentHandler()
   registerDiscardAttachmentHandler()
 }

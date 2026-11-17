@@ -210,7 +210,7 @@ describe('hydratePayloadAttachments', () => {
     )
 
     await expect(hydratePayloadAttachments(attachments)).rejects.toThrow(
-      'Total attachment size exceeds',
+      'Total document size exceeds',
     )
     expect(hydrateAttachmentSourcesMock).not.toHaveBeenCalled()
   })

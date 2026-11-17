@@ -16,6 +16,19 @@ export const clipboardContract = definePortContract<ClipboardContractHarness>('C
     expect(subject.readText()).toBe('copied from OpenWaggle')
   },
 
+  'reads back the image it wrote, and answers null when it holds none': async ({
+    subject,
+    encodedImage,
+    holdsImage,
+  }) => {
+    expect(subject.readImage()).toBeNull()
+    subject.writeImage(encodedImage)
+    expect(holdsImage()).toBe(true)
+    const read = subject.readImage()
+    expect(read?.mimeType).toBe('image/png')
+    expect(read?.bytes.byteLength).toBeGreaterThan(0)
+  },
+
   'writes a decodable image and leaves the clipboard alone for bytes it cannot decode': async ({
     subject,
     encodedImage,

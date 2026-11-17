@@ -137,12 +137,14 @@ describe('SessionResourceViewer', () => {
     expect(useComposerStore.getState().attachments).toHaveLength(5)
   })
 
-  it('does not exceed the composer aggregate attachment-size cap', async () => {
+  // The composer total counts documents only, so an image never pushes a draft past it (ADR 0068).
+  it('adds an image even when the draft already holds an oversized document', async () => {
     useComposerStore.getState().replaceAttachments([
       {
         ...PREPARED_IMAGE,
-        id: 'large-existing-attachment',
-        sizeBytes: ATTACHMENT.MAX_TOTAL_SIZE_BYTES - 5,
+        id: 'large-existing-document',
+        kind: 'text',
+        sizeBytes: ATTACHMENT.MAX_TOTAL_SIZE_BYTES + 1,
       },
     ])
     useUIStore.getState().openResourceViewer('session-1', 'image-1')
@@ -151,10 +153,9 @@ describe('SessionResourceViewer', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add image to chat' }))
 
-    await waitFor(() => expect(prepareSessionResourceAttachment).toHaveBeenCalledOnce())
-    await waitFor(() => expect(discardPreparedAttachment).toHaveBeenCalledWith(PREPARED_IMAGE))
-    expect(useComposerStore.getState().attachments).toHaveLength(1)
-    expect(useComposerStore.getState().attachments[0]?.id).toBe('large-existing-attachment')
+    await waitFor(() => expect(useComposerStore.getState().attachments).toHaveLength(2))
+    expect(prepareSessionResourceAttachment).toHaveBeenCalledOnce()
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
   })
 
   it('does not navigate while arrow keys operate the zoom control', async () => {

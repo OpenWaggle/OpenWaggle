@@ -28,6 +28,7 @@ interface LexicalComposerEditorProps {
   placeholder: string
   editorRef: RefObject<LexicalEditor | null>
   checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
+  onPaste?: (event: ClipboardEvent) => boolean
 }
 
 const logger = createRendererLogger('lexical-composer')
@@ -53,6 +54,7 @@ export function LexicalComposerEditor({
   placeholder,
   editorRef,
   checkAndConvertPaste,
+  onPaste,
 }: LexicalComposerEditorProps) {
   return (
     <LexicalComposer initialConfig={EDITOR_CONFIG}>
@@ -82,7 +84,10 @@ export function LexicalComposerEditor({
       <SyncPlugin />
       <SlashCommandPlugin />
       <AutoResizePlugin />
-      <PastePlugin checkAndConvertPaste={checkAndConvertPaste} />
+      <PastePlugin
+        checkAndConvertPaste={checkAndConvertPaste}
+        {...(onPaste === undefined ? {} : { onPaste })}
+      />
       <MentionTypeaheadPlugin />
       <EditorRefPlugin editorRef={editorRef} />
     </LexicalComposer>

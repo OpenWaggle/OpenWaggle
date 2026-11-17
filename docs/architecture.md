@@ -94,6 +94,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0065-parents-show-their-running-workers.md`
 - `docs/adr/0066-the-extension-sdk-public-api-is-types-and-result-helpers.md`
 - `docs/adr/0067-split-mit-packages-from-a-gpl-app-with-a-cla-and-trademark-notice.md`
+- `docs/adr/0068-follow-pi-prompt-image-limits-and-decode-heic-in-openwaggle.md`
 
 ## Testing
 

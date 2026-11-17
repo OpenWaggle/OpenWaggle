@@ -16,7 +16,9 @@ import {
   parseBrowserAttachmentMetadata,
 } from './browser-attachment-metadata'
 import { assertCanonicalDirectoryRoots } from './canonical-directory-roots'
+import { convertHeicToAttachmentImage, isHeicImageMimeType } from './heic-image-conversion'
 import { isPathInsideDirectory } from './project-path-validation'
+import { writeTempAttachment } from './attachment-temp-directory'
 
 export interface AttachmentPreparationEntry {
   readonly path: string
@@ -46,7 +48,7 @@ export function toPublicPreparedAttachment(attachment: PreparedAttachment) {
   }
 }
 
-const ATTACHMENT_LIMIT_SENTINEL_BYTES = 1
+const ATTACHMENT_READ_CHUNK_BYTES = 64 * BYTES_PER_KIBIBYTE
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
 const OPEN_READ_NO_FOLLOW_NONBLOCKING =
   filesystemConstants.O_RDONLY |
@@ -60,20 +62,29 @@ function sameFile(
   return left.dev === right.dev && left.ino === right.ino
 }
 
-async function readBoundedAttachment(handle: FileHandle, filePath: string) {
-  const buffer = Buffer.allocUnsafe(ATTACHMENT.MAX_SIZE_BYTES + ATTACHMENT_LIMIT_SENTINEL_BYTES)
+function attachmentLimitBytes(kind: PreparedAttachment['kind']) {
+  return kind === 'image' ? ATTACHMENT.MAX_IMAGE_SIZE_BYTES : ATTACHMENT.MAX_SIZE_BYTES
+}
+
+function attachmentSizeLimitError(filePath: string, maxBytes: number) {
+  return new Error(
+    `Attachment exceeds ${String(maxBytes / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
+  )
+}
+
+/** Chunked, so the memory held is the file read, not `maxBytes` per attachment (ADR 0068). */
+async function readBoundedAttachment(handle: FileHandle, filePath: string, maxBytes: number) {
+  const chunks: Buffer[] = []
+  const chunk = Buffer.allocUnsafe(ATTACHMENT_READ_CHUNK_BYTES)
   let offset = 0
-  while (offset < buffer.byteLength) {
-    const result = await handle.read(buffer, offset, buffer.byteLength - offset, offset)
-    if (result.bytesRead === 0) break
-    offset += result.bytesRead
+  let readBytes = 1
+  while (readBytes > 0) {
+    readBytes = (await handle.read(chunk, 0, chunk.byteLength, offset)).bytesRead
+    offset += readBytes
+    if (offset > maxBytes) throw attachmentSizeLimitError(filePath, maxBytes)
+    chunks.push(Buffer.from(chunk.subarray(0, readBytes)))
   }
-  if (offset > ATTACHMENT.MAX_SIZE_BYTES) {
-    throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
-    )
-  }
-  return buffer.subarray(0, offset)
+  return Buffer.concat(chunks, offset)
 }
 
 function resolveAttachmentKind(mimeType: string) {
@@ -89,6 +100,7 @@ function guessMimeType(filePath: string) {
     .with('.jpg', '.jpeg', () => 'image/jpeg')
     .with('.webp', () => 'image/webp')
     .with('.gif', () => 'image/gif')
+    .with('.heic', '.heif', () => 'image/heic')
     .with('.bmp', () => 'image/bmp')
     .with('.svg', () => 'image/svg+xml')
     .with('.md', () => 'text/markdown')
@@ -136,6 +148,38 @@ interface AttachmentSnapshot {
   readonly browserAnnotationText?: string
 }
 
+/** The attachment a HEIC file becomes, on the path the app wrote its own copy to. */
+async function convertedHeicSnapshot(input: {
+  readonly buffer: Buffer
+  readonly origin: AttachmentOrigin
+  readonly name: string
+}) {
+  const converted = await convertHeicToAttachmentImage({
+    bytes: input.buffer,
+    fileName: input.name,
+  })
+  return {
+    buffer: converted.bytes,
+    kind: 'image' as const,
+    mimeType: converted.mimeType,
+    name: converted.fileName,
+    origin: input.origin,
+    path: await writeTempAttachment(converted.bytes, '.jpg', 'attachment'),
+  }
+}
+
+/** The kind, read limit and MIME type an authorized attachment path is read under. */
+function attachmentReadPlan(canonicalPath: string, requestedPath: string) {
+  const mimeType = guessMimeType(canonicalPath)
+  if (!mimeType) {
+    throw new Error(
+      `Unsupported attachment type: ${path.basename(requestedPath)}. Supported: text files, images (PNG, JPEG, WebP, GIF, HEIC, HEIF), and PDFs.`,
+    )
+  }
+  const kind = resolveAttachmentKind(mimeType)
+  return { kind, maxBytes: attachmentLimitBytes(kind), mimeType }
+}
+
 async function readAttachmentSnapshot(
   filePath: string,
   origin: AttachmentOrigin,
@@ -159,11 +203,6 @@ async function readAttachmentSnapshot(
   try {
     const stats = await handle.stat()
     if (!stats.isFile()) throw new Error(`Not a file: ${filePath}`)
-    if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
-      throw new Error(
-        `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
-      )
-    }
     const canonicalPath = await fs.realpath(filePath)
     if (allowedRoots && !allowedRoots.some((root) => isPathInsideDirectory(root, canonicalPath))) {
       throw new Error('Attachment path is outside the caller-authorized workspace.')
@@ -172,16 +211,17 @@ async function readAttachmentSnapshot(
     if (!sameFile(stats, linkedStats)) {
       throw new Error('Attachment source changed while it was being authorized.')
     }
-    const mimeType = guessMimeType(canonicalPath)
-    if (!mimeType) {
-      throw new Error(
-        `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images, PDFs.`,
-      )
-    }
+    const { kind, maxBytes, mimeType } = attachmentReadPlan(canonicalPath, filePath)
+    if (stats.size > maxBytes) throw attachmentSizeLimitError(filePath, maxBytes)
     await beforeRead?.(canonicalPath)
-    const buffer = await readBoundedAttachment(handle, canonicalPath)
-    const kind = resolveAttachmentKind(mimeType)
+    const buffer = await readBoundedAttachment(handle, canonicalPath, maxBytes)
     const name = path.basename(canonicalPath)
+
+    // Nothing downstream has to know HEIC existed: Pi's decoder cannot read it (ADR 0068).
+    if (isHeicImageMimeType(mimeType)) {
+      return await convertedHeicSnapshot({ buffer, origin, name })
+    }
+
     return {
       buffer,
       kind,
@@ -262,10 +302,15 @@ export async function prepareAttachmentFiles(input: {
       ...browserContext,
     })),
   )
-  const totalSize = snapshots.reduce((sum, snapshot) => sum + snapshot.buffer.byteLength, 0)
+  // Images are bounded one by one instead: Pi reduces each one for the model, so their sizes do
+  // not add up to anything the app has to refuse (ADR 0068).
+  const totalSize = snapshots.reduce(
+    (sum, snapshot) => (snapshot.kind === 'image' ? sum : sum + snapshot.buffer.byteLength),
+    0,
+  )
   if (totalSize > ATTACHMENT.MAX_TOTAL_SIZE_BYTES) {
     throw new Error(
-      `Total attachment size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
+      `Total document size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
     )
   }
   return await Promise.all(snapshots.map(extractAttachmentSnapshot))

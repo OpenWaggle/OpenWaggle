@@ -67,6 +67,9 @@
     "mammoth",
     "tesseract.js",
     "unpdf",
+    // The HEIC decode worker requires `heic-decode/lib.js` by the path it resolves on first use
+    // (src/main/utils/heic-image-conversion.ts), so nothing imports the package statically.
+    "heic-decode",
     // CLI binaries run by check scripts; nothing imports them.
     "oxfmt",
     "react-doctor",
