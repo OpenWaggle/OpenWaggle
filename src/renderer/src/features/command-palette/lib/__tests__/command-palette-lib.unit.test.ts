@@ -206,14 +206,15 @@ describe('skillOwnedCommandNames', () => {
   }
   const skill = (overrides: Partial<SkillDiscoveryItem> = {}) => ({ ...skillBase, ...overrides })
 
-  it('claims a command name for an enabled skill by its id and its name', () => {
-    // The two tokens differ, so deleting either half of the rule fails this case.
+  it('claims the name an enabled skill is offered under, not the folder it lives in', () => {
+    // The two tokens differ: Pi matches a skill by its frontmatter name alone, so a Pi command
+    // named after the folder still runs and keeps its row.
     const names = skillOwnedCommandNames([
       skill({ id: 'handoff-folder', name: 'handoff' }),
       skill({ id: 'qa', name: 'qa' }),
     ])
 
-    expect([...names].sort()).toEqual(['handoff', 'handoff-folder', 'qa'])
+    expect([...names].sort()).toEqual(['handoff', 'qa'])
   })
 
   it('leaves the name of a disabled or broken skill to the Pi extension command', () => {

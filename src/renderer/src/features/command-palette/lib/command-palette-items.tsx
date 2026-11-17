@@ -81,14 +81,16 @@ export function createBuiltInCommandItems(
 }
 
 /**
- * The lowercased command names this project's enabled skills own. Pi runs a registered extension
- * command before it expands a skill, so the slash menu must not offer both under one name.
+ * The lowercased names this project's enabled skills are offered under: the frontmatter name each
+ * SKILL.md declares, which is also what Pi matches after `/skill:`. The slash menu withholds a Pi
+ * extension command under one of these names, so a name never labels two rows. A skill's folder id
+ * is not one of them: Pi resolves a skill by name alone, so an extension command named after the
+ * folder still runs and keeps its row.
  */
 export function skillOwnedCommandNames(skills: readonly SkillDiscoveryItem[]) {
   const names = new Set<string>()
   for (const skill of skills) {
     if (!skill.enabled || skill.loadStatus !== 'ok') continue
-    names.add(skill.id.toLowerCase())
     names.add(skill.name.toLowerCase())
   }
   return names
