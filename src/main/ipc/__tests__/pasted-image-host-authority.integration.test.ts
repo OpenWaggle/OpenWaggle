@@ -39,6 +39,15 @@ vi.mock('electron', () => ({ app: { getPath: () => '/unused' }, clipboard: {}, n
 vi.mock('../../desktop-shell/app-paths', () => ({
   appPaths: { userData: () => appUserData.path },
 }))
+// The real decode runs libheif in a worker; what matters here is where its JPEG ends up.
+vi.mock('../../utils/heic-image-conversion', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/heic-image-conversion')>()),
+  convertHeicToAttachmentImage: async (input: { readonly fileName: string }) => ({
+    bytes: JPEG_BYTES,
+    fileName: input.fileName.replace(/\.hei[cf]$/iu, '.jpg'),
+    mimeType: 'image/jpeg',
+  }),
+}))
 // OCR is not what this test is about, and the real one needs a language model download.
 vi.mock('../../utils/attachment-text-extraction', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/attachment-text-extraction')>()),
@@ -46,6 +55,8 @@ vi.mock('../../utils/attachment-text-extraction', async (importOriginal) => ({
 }))
 
 const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
+const HEIC_BYTES = Buffer.from('heic-photo-bytes')
+const JPEG_BYTES = vi.hoisted(() => Buffer.from([0xff, 0xd8, 0xff, 0xe0, 4, 5, 6]))
 
 let root: string
 let host: LocalSessionHostRuntime | undefined
@@ -155,4 +166,52 @@ it('discards a pasted image and the private directory its copy was written to', 
   await expect(resolvePreparedAttachmentCapability(attachment)).rejects.toThrow(
     'Attachment was not prepared by this app',
   )
+})
+
+it('sends a pasted HEIC as the JPEG the Host decoded, and leaves no copy of the original', async () => {
+  const attachment = await prepareRegisteredImageAttachmentFromBytes({
+    bytes: HEIC_BYTES,
+    fileName: 'photo.heic',
+    mimeType: '',
+  })
+
+  expect(attachment).toMatchObject({
+    origin: 'session-resource',
+    name: 'photo.jpg',
+    mimeType: 'image/jpeg',
+    sizeBytes: JPEG_BYTES.byteLength,
+  })
+  expect(path.basename(attachment.path)).toMatch(/^attachment-[0-9a-f-]+\.jpg$/u)
+  const temp = await fs.readdir(path.join(appUserData.path, 'temp-attachments'))
+  expect(temp).toEqual([path.basename(attachment.path)])
+  const [sent] = await resolveThroughHost([attachment.id])
+  expect(sent?.source?.value).toBe(JPEG_BYTES.toString('base64'))
+
+  await discardRegisteredImageAttachment(attachment)
+
+  await expect(fs.readdir(path.join(appUserData.path, 'temp-attachments'))).resolves.toEqual([])
+})
+
+it('writes a resource title no platform can name a file after under a portable name', async () => {
+  const attachment = await prepareRegisteredImageAttachmentFromBytes({
+    bytes: PNG_BYTES,
+    fileName: `${'a'.repeat(254)}.`,
+    mimeType: 'image/png',
+  })
+  const reserved = await prepareRegisteredImageAttachmentFromBytes({
+    bytes: PNG_BYTES,
+    fileName: 'What is <this>? "draft" | v2*.png',
+    mimeType: 'image/png',
+  })
+  const device = await prepareRegisteredImageAttachmentFromBytes({
+    bytes: PNG_BYTES,
+    fileName: 'con',
+    mimeType: 'image/png',
+  })
+
+  expect(Buffer.byteLength(attachment.name)).toBeLessThanOrEqual(200)
+  expect(attachment.name).toMatch(/^a+\.png$/u)
+  expect(reserved.name).toBe('What is _this__ _draft_ _ v2_.png')
+  expect(device.name).toBe('_con.png')
+  await expect(resolveThroughHost([attachment.id, reserved.id, device.id])).resolves.toHaveLength(3)
 })

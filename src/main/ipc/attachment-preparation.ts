@@ -127,12 +127,35 @@ function imageAttachmentExtension(mimeType: string) {
     .otherwise(() => null)
 }
 
+/** Leaves room under the 255 bytes file systems accept for the copy's directory to stay short. */
+const MAX_IMAGE_COPY_NAME_BYTES = 200
+/** What Windows refuses in a file name, and control characters everywhere. */
+const NON_PORTABLE_NAME_CHARACTERS = /[<>:"/\\|?*\p{Cc}]/gu
+const WINDOWS_RESERVED_STEM = /^(?:con|prn|aux|nul|com\d|lpt\d)$/iu
+
+/**
+ * The stem the copy is written under. The name becomes a real file the Host names the attachment
+ * after, so a resource title or a pasted name must be one every platform can write.
+ */
+function portableImageStem(stem: string, extension: string) {
+  const budget = MAX_IMAGE_COPY_NAME_BYTES - Buffer.byteLength(extension)
+  let bounded = ''
+  for (const character of stem.replaceAll(NON_PORTABLE_NAME_CHARACTERS, '_').trim()) {
+    if (Buffer.byteLength(bounded + character) > budget) break
+    bounded += character
+  }
+  // Windows drops a trailing dot or space, and a reserved stem names a device, not a file.
+  const trimmed = bounded.replace(/[. ]+$/u, '')
+  if (!trimmed) return 'image'
+  return WINDOWS_RESERVED_STEM.test(trimmed) ? `_${trimmed}` : trimmed
+}
+
 function compatibleImageAttachmentName(fileName: string, mimeType: string, extension: string) {
   const candidate = path.basename(fileName)
-  if (guessMimeType(candidate) === mimeType) return candidate
   const candidateExtension = path.extname(candidate)
-  const stem = candidate.slice(0, candidate.length - candidateExtension.length).trim()
-  return `${stem || 'image'}${extension}`
+  const stem = candidate.slice(0, candidate.length - candidateExtension.length)
+  const nameExtension = guessMimeType(candidate) === mimeType ? candidateExtension : extension
+  return `${portableImageStem(stem, nameExtension)}${nameExtension}`
 }
 
 /**
@@ -186,10 +209,12 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
     'resource',
   )
   const copyDirectory = path.dirname(copyPath)
+  // A HEIC becomes the JPEG the Host decoded into a file of its own, outside the copy directory.
+  let hostOwnedPath: string | null = null
   try {
     const prepared = await prepareCopyThroughHost(copyPath)
-    // A HEIC becomes the JPEG the Host decoded into a file of its own, so the original goes.
     if (path.basename(path.dirname(prepared.path)) !== path.basename(copyDirectory)) {
+      hostOwnedPath = prepared.path
       await fs.rm(copyDirectory, { recursive: true, force: true })
     }
     const attachment: PreparedAttachment = { ...prepared, origin: 'session-resource' }
@@ -197,6 +222,7 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
     return attachment
   } catch (cause) {
     await fs.rm(copyDirectory, { recursive: true, force: true }).catch(() => {})
+    if (hostOwnedPath) await fs.rm(hostOwnedPath, { force: true }).catch(() => {})
     throw cause
   }
 }
