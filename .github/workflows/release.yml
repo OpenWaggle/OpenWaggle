@@ -196,14 +196,15 @@ jobs:
               --releases "$releases_path"
           }
 
-          # Stable gates run before any branch, PR, or tag exists. A Stable release publishes its
-          # hand-written CHANGELOG.md entry: an ordinary merge without one waits with a notice,
-          # while a dispatch or a merged release commit fails. The promotion guard requires an RC
-          # before a new major and RC-identical content after one.
+          # Stable gates run before any branch, PR, or tag exists. The release PR writes every
+          # version's CHANGELOG.md entry, and a Stable entry starts with the hand-written notes
+          # under "## [Unreleased]". Only a new major version needs those notes: an ordinary merge
+          # without them waits with a notice, while a dispatch or a merged release commit fails.
+          # The promotion guard requires an RC before a new major and RC-identical content after one.
           if [[ "$VERSION" != *-* ]]; then
             if ! bun scripts/app-release-notes.ts check --version "$VERSION"; then
               if [ -z "$RELEASE_TARGET_VERSION" ] && [ "$RELEASE_SUBJECT_VERSION" != "$VERSION" ]; then
-                echo "::notice::Stable ${VERSION} waits for its CHANGELOG.md entry; no release PR was prepared."
+                echo "::notice::Stable ${VERSION} waits for its CHANGELOG.md notes (see the error above); no release PR was prepared."
                 write_no_release_output
                 exit 0
               fi
@@ -225,26 +226,56 @@ jobs:
           RELEASE_BRANCH="app-release-v${VERSION}"
           TAG="v${VERSION}"
 
-          verify_version_only_tree() {
+          # A release PR's head is main plus exactly the files the workflow generates: package.json
+          # with the new version and CHANGELOG.md with the version's entry, written from the
+          # Conventional Commits since the previous release tag. Verification builds that tree
+          # again from the base and compares, so a hand edit or a stale entry fails.
+          verify_release_tree() {
             local base_ref="$1"
             local candidate_ref="$2"
-            test "$(git diff --name-only "${base_ref}...${candidate_ref}")" = "package.json"
-            git show "${base_ref}:package.json" > "$RUNNER_TEMP/base-package.json"
-            git show "${candidate_ref}:package.json" > "$RUNNER_TEMP/candidate-package.json"
-            bun scripts/app-release-state.ts expected-manifest \
-              --base "$RUNNER_TEMP/base-package.json" \
-              --output "$RUNNER_TEMP/expected-package.json" \
+            bun scripts/app-release-state.ts verify-release-tree \
+              --base "$base_ref" \
+              --candidate "$candidate_ref" \
               --version "$VERSION"
-            cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"
           }
 
+          # Before the release files are written again, a branch may carry any CHANGELOG.md (a
+          # stale entry, or none on a version-only branch from before CHANGELOG.md was generated)
+          # but must not change anything else.
           verify_release_branch_base() {
             local base_ref="$1"
             local candidate_ref="$2"
             local common_base
             common_base=$(git merge-base --all "$base_ref" "$candidate_ref")
             [[ "$common_base" =~ ^[0-9a-f]{40}$ ]]
-            verify_version_only_tree "$common_base" "$candidate_ref"
+            bun scripts/app-release-state.ts verify-release-tree \
+              --base "$common_base" \
+              --candidate "$candidate_ref" \
+              --version "$VERSION" \
+              --release-files-only "$base_ref"
+          }
+
+          configure_release_committer() {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          }
+
+          # Pushes a commit the workflow built on top of the release PR's head; the push fails unless
+          # it fast-forwards that head. Waits until the PR shows it, then makes it HEAD_SHA.
+          push_release_head() {
+            local commit_sha="$1"
+            [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
+            git push origin "${commit_sha}:refs/heads/${RELEASE_BRANCH}"
+            for PUSH_ATTEMPT in $(seq 1 30); do
+              if [ "$(gh pr view "$PR_URL" --json headRefOid --jq '.headRefOid')" = "$commit_sha" ]; then
+                HEAD_SHA="$commit_sha"
+                return 0
+              fi
+              echo "Waiting for the release PR to show ${commit_sha} (${PUSH_ATTEMPT}/30)."
+              sleep 2
+            done
+            echo "The release PR did not show ${commit_sha}." >&2
+            exit 1
           }
 
           verify_release_commit() {
@@ -259,7 +290,7 @@ jobs:
               --subject "$commit_subject")" = "$VERSION"
             local parent_sha
             parent_sha=$(git rev-parse "${commit_sha}^")
-            verify_version_only_tree "$parent_sha" "$commit_sha"
+            verify_release_tree "$parent_sha" "$commit_sha"
             if [[ "$VERSION" != *-* ]]; then
               verify_promotion "$commit_sha"
             fi
@@ -374,6 +405,22 @@ jobs:
             exit 0
           fi
 
+          # A release PR's CHANGELOG.md entry starts at the previous release tag, which the merged
+          # release's own publication run pushes. The tag must have been in this checkout: the bump
+          # step read its range from these tags, and an entry or bump computed before the tag existed
+          # would repeat that release's changes. An ordinary push waits for the next one to main; a
+          # dispatch fails, since it was asked to open the PR now.
+          CURRENT_TAG="v${CURRENT_VERSION}"
+          if ! git rev-parse -q --verify "refs/tags/${CURRENT_TAG}" >/dev/null; then
+            if [ -n "$RELEASE_TARGET_VERSION" ]; then
+              echo "::error::${CURRENT_TAG} is not tagged yet; dispatch ${VERSION} again once its publication run finishes." >&2
+              exit 1
+            fi
+            echo "::notice::${CURRENT_TAG} is not tagged yet; the ${VERSION} release PR waits for its publication run."
+            write_no_release_output
+            exit 0
+          fi
+
           ALL_PRS=$(gh pr list --state all --head "$RELEASE_BRANCH" --limit 100 \
             --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url)
           PRS=$(bun scripts/app-release-state.ts filter-prs \
@@ -407,19 +454,17 @@ jobs:
 
           if [ -z "$PR_URL" ]; then
             if git ls-remote --exit-code origin "refs/heads/${RELEASE_BRANCH}" >/dev/null 2>&1; then
+              # Adopt the branch without checking it out: the release scripts keep running from main.
               git fetch origin "refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
-              git switch --detach "origin/${RELEASE_BRANCH}"
             else
-              bun scripts/app-release-state.ts expected-manifest \
-                --base package.json \
-                --output package.json \
-                --version "$VERSION"
-              git config user.name "github-actions[bot]"
-              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git switch -c "$RELEASE_BRANCH"
-              git add package.json
-              git commit -m "chore(release): v${VERSION}"
-              git push origin "$RELEASE_BRANCH"
+              configure_release_committer
+              RELEASE_COMMIT_SHA=$(bun scripts/app-release-state.ts release-commit \
+                --base HEAD \
+                --version "$VERSION" \
+                --parent HEAD \
+                --message "chore(release): v${VERSION}")
+              [[ "$RELEASE_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+              git push origin "${RELEASE_COMMIT_SHA}:refs/heads/${RELEASE_BRANCH}"
             fi
 
             git fetch origin \
@@ -501,6 +546,19 @@ jobs:
               verify_release_branch_base "$MAIN_SHA" "$HEAD_SHA"
 
               if ! git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"; then
+                # GitHub's merge of main would conflict where main also changed a release file (notes
+                # under "## [Unreleased]", a dependency in package.json). Taking main's copies first
+                # makes both sides change them the same way; they are written again below.
+                SYNC_BASE=$(git merge-base "$MAIN_SHA" "$HEAD_SHA")
+                if ! git diff --quiet "$SYNC_BASE" "$MAIN_SHA" -- package.json CHANGELOG.md; then
+                  configure_release_committer
+                  RESTORE_SHA=$(bun scripts/app-release-state.ts restore-release-files \
+                    --from "$MAIN_SHA" \
+                    --onto "$HEAD_SHA" \
+                    --message "chore(release): take main's release files before syncing v${VERSION}")
+                  push_release_head "$RESTORE_SHA"
+                fi
+                UPDATE_BASE_SHA="$HEAD_SHA"
                 gh api --method PUT \
                   "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" \
                   -f "expected_head_sha=${HEAD_SHA}" >/dev/null
@@ -513,7 +571,7 @@ jobs:
                   echo "Waiting for release branch update (${UPDATE_ATTEMPT}/30)."
                   sleep 2
                 done
-                test "$HEAD_SHA" != "$(jq -er '.headRefOid' <<<"$PR_DETAILS")"
+                test "$HEAD_SHA" != "$UPDATE_BASE_SHA"
               fi
 
               git fetch origin \
@@ -529,7 +587,22 @@ jobs:
                 echo "Main advanced during release branch synchronization; retrying."
                 continue
               fi
-              verify_version_only_tree "$MAIN_SHA" "$HEAD_SHA"
+              verify_release_branch_base "$MAIN_SHA" "$HEAD_SHA"
+              # After a merge of main, and on a version-only branch from before CHANGELOG.md was
+              # generated, write the release files again so the entry lists every commit since the
+              # previous release. The commit changes only package.json and CHANGELOG.md, which the
+              # workflow token may push, unlike a merge that brings workflow changes from main.
+              if ! verify_release_tree "$MAIN_SHA" "$HEAD_SHA"; then
+                echo "Writing the ${VERSION} release files for main ${MAIN_SHA}."
+                configure_release_committer
+                RELEASE_COMMIT_SHA=$(bun scripts/app-release-state.ts release-commit \
+                  --base "$MAIN_SHA" \
+                  --version "$VERSION" \
+                  --parent "$HEAD_SHA" \
+                  --message "chore(release): v${VERSION}")
+                push_release_head "$RELEASE_COMMIT_SHA"
+              fi
+              verify_release_tree "$MAIN_SHA" "$HEAD_SHA"
 
               RUN_ID=""
               for RUN_ATTEMPT in $(seq 1 60); do
@@ -1027,8 +1100,8 @@ jobs:
         with:
           node-version: 24
 
-      - name: Prepare Stable release notes
-        if: ${{ !contains(needs.version.outputs.new_version, '-') }}
+      # Every release publishes its CHANGELOG.md entry, which its release PR wrote.
+      - name: Prepare release notes
         env:
           RELEASE_VERSION: ${{ needs.version.outputs.new_version }}
         run: |
@@ -1069,9 +1142,7 @@ jobs:
           draft: true
           prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}
           make_latest: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
-          # Prereleases use generated notes; Stable uses its CHANGELOG.md entry.
-          generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}
-          body_path: ${{ !contains(needs.version.outputs.new_version, '-') && format('{0}/release-notes.md', runner.temp) || '' }}
+          body_path: ${{ format('{0}/release-notes.md', runner.temp) }}
           files: release/*
 
       - name: Verify draft release assets

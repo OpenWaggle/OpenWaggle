@@ -18,7 +18,7 @@ Manual `full` CI also calls the same-commit Session Performance workflow and req
 
 Dispatched Commit Policy checks the commits after the candidate's merge base with the fetched `origin/main`. This preserves upstream-sync attribution even when `main` advances after the branch sync. Missing history, unrelated histories, or multiple merge bases fail the job; manual runs never substitute an empty range start. Merge-queue runs use their immutable event `base_sha` and synthetic merge head. Pull-request titles remain validated by pull-request CI, which has the authoritative title metadata.
 
-The release workflow is Conventional Commit derived: when release-eligible commits land on `main`, `release.yml` opens a generated version PR with `gh pr create`; `scripts/app-release-state.ts` validates the version transition and the version-only manifest. Release Please is used only for the npm packages. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for it, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. The workflow checks fetched Git ancestry to detect a stale release branch, including when GitHub reports its merge state as `UNKNOWN` or `BLOCKED`. It validates the version-only change against the branch's merge base before synchronizing, then against the pinned current `main`. If `main` advances during CI, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer merges the green release PR directly, like any other PR; there is no merge queue (ADR 0033). The release run then verifies the exact version-only commit and its same-repository release PR, pushes only its tag, builds platform artifacts, and uploads them with checksums to a draft GitHub Release. `scripts/verify-release-assets.ts` checks that the draft holds exactly the built files, each fully uploaded at its built size, with the update metadata (`*.yml`) and `SHA256SUMS.txt` byte-identical; only then does the job publish the release and verify it again. Publishing before the uploads finish let `1.0.0-beta.25`'s update checks get a 404 for `beta-mac.yml`. A rerun that finds the release already published only verifies it. Preparation runs share a coalescing concurrency group, while every publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
+The release workflow is Conventional Commit derived: when release-eligible commits land on `main`, `release.yml` opens a generated release PR with `gh pr create`. The PR changes exactly `package.json`, for the version, and `CHANGELOG.md`, for the version's entry (see "Release Notes" below); `scripts/app-release-state.ts` validates the version transition, and `scripts/app-release-tree.ts` builds and verifies the release files. Release Please is used only for the npm packages. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for it, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. The workflow checks fetched Git ancestry to detect a stale release branch, including when GitHub reports its merge state as `UNKNOWN` or `BLOCKED`. Before synchronizing, it checks that the branch changes nothing but the release files against the branch's merge base. A sync merges `main` in with GitHub's update-branch, first pushing a commit that takes `main`'s release files when `main` changed one, so the merge cannot conflict, and then pushes a commit that writes the release files again. It then checks the exact release tree against the pinned current `main`. If `main` advances during CI, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer merges the green release PR directly, like any other PR; there is no merge queue (ADR 0033). The release run then verifies the exact release commit, by building its release files again from its parent, and its same-repository release PR, pushes only its tag, builds platform artifacts, and uploads them with checksums to a draft GitHub Release. `scripts/verify-release-assets.ts` checks that the draft holds exactly the built files, each fully uploaded at its built size, with the update metadata (`*.yml`) and `SHA256SUMS.txt` byte-identical; only then does the job publish the release and verify it again. Publishing before the uploads finish let `1.0.0-beta.25`'s update checks get a 404 for `beta-mac.yml`. A rerun that finds the release already published only verifies it. Preparation runs share a coalescing concurrency group, while every publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
 
 ### Required-Check Settings Runbook
 
@@ -126,8 +126,8 @@ it is expected to be promoted within about a week.
   and Background start become covered surfaces at `1.0.0`.
 - No release blocker is open.
 
-`1.0.0` Stable additionally requires a curated `CHANGELOG.md` entry and release notes for the
-whole v1 train; these can be written during the RC window.
+`1.0.0` Stable additionally requires hand-written `CHANGELOG.md` notes for the whole v1 train
+under `## [Unreleased]`; these can be written during the RC window.
 
 Everything else, including open feature, reliability-polish, dependency-pinning, and coverage
 issues, is post-v1. For Scheduled tasks that includes webhook triggers, cloud runs, project-shared
@@ -168,7 +168,7 @@ the next major version.
 The `1.0.0` line has no Alpha stage. A later prerelease line opened by `target_version` dispatch,
 such as `2.0.0-alpha.1`, increments the same way as Beta.
 
-Stage transitions use the same protected, version-only release PR as ordinary releases. Never
+Stage transitions use the same protected release PR as ordinary releases. Never
 retag a prerelease or edit a GitHub release to simulate promotion.
 
 Prepare an explicit forward transition from `main` with:
@@ -179,7 +179,7 @@ gh workflow run release.yml --ref main -f target_version=1.0.0
 
 Manual release dispatches are accepted only from `main` and require an explicit target. The
 workflow rejects equal versions, downgrades, and backwards channel movement, then creates the
-normal version-only PR. A maintainer must merge that green PR before its tag and artifacts publish.
+normal release PR. A maintainer must merge that green PR before its tag and artifacts publish.
 The same path can later open a new prerelease line such as `2.0.0-alpha.1`.
 
 Pass `target_version` as the bare version, without a leading `v`: `1.0.0-rc.1`, not
@@ -371,17 +371,39 @@ and, for Stable versions, whether it is a patch, minor, or major. OpenWaggle doe
 release-intent files. A change that breaks a covered surface must use a `!` Conventional Commit
 title so it produces a major version.
 
-- Prerelease builds use GitHub's generated release notes.
-- Stable releases get a hand-written `## X.Y.Z` entry in the root `CHANGELOG.md`, and the same text
-  is used as the GitHub Release notes (`scripts/app-release-notes.ts`). No release PR, branch, or
-  tag is created for a Stable version without an entry: an ordinary merge records a notice and
-  waits, while a `target_version` dispatch or a merged release commit fails. Write the entry on
-  `main` first. `CHANGELOG.md` starts at `1.0.0`; it notes that earlier `0.x` builds
-  used a legacy process and remain listed in GitHub Releases.
-- The `1.0.0` entry summarizes the whole v1 train, not only the last RC.
+Every release PR writes its version's entry in the root `CHANGELOG.md` (ADR 0070), and the GitHub
+Release publishes that entry (`scripts/app-release-notes.ts write`). The website renders the same
+file at [openwaggle.ai/changelog](https://openwaggle.ai/changelog/), with an RSS feed.
 
-Product-impacting PRs should still include reviewer-facing release notes in the PR body so the
-Stable changelog can be written from them:
+- The entry is `## [X.Y.Z] - YYYY-MM-DD`, right under `## [Unreleased]`. It lists the Conventional
+  Commits since the previous `v*` tag (the bump step's range) under Breaking changes (a `!` or a
+  `BREAKING CHANGE` footer, any type), Features (`feat`), Fixes (`fix`) and Performance (`perf`),
+  one line per commit with its scope and a link to its PR (or to the commit when the subject has no
+  PR number). Other types are left out. A squash
+  merge's subject is the PR title for a multi-commit PR and the commit subject for a single-commit
+  one; a rebase merge lists each of its commits, linked to the commit.
+- Hand-written notes for users go under `## [Unreleased]` on `main`, with headings other than the
+  generated ones, such as `### Highlights` or `### Upgrade notes`. A Stable release PR moves them to
+  the top of its entry and empties the section; a prerelease leaves them for the next Stable
+  release, so notes written during a Beta or RC line ship with the Stable version.
+- A new major version (`X.0.0`) needs those notes. No release PR, branch, or tag is created for one
+  without them: an ordinary merge records a notice and waits, while a `target_version` dispatch or a
+  merged release commit fails. Every other version opens its release PR right away.
+- A release PR waits until the current version's tag was in the run's checkout. The merged
+  release's publication run pushes that tag, and an entry or bump computed before it would repeat
+  that release's changes. An ordinary push records a notice and the next push to `main` opens the
+  PR; a `target_version` dispatch fails, so dispatch again once the publication run finishes.
+- The release PR's files are generated. The workflow writes them in commits that change nothing
+  else and verifies the PR by building them again from its base. CI's Commit Policy job runs the
+  same check on every `app-release-v*` PR head, so a hand edit or GitHub's **Update branch** fails
+  CI until the next push to `main` writes the files again; edit `## [Unreleased]` on `main`
+  instead. Released entries are not rewritten.
+- `CHANGELOG.md` has an entry for every published `1.0.0-beta.N`, backfilled from the tag ranges
+  between published releases; earlier `0.x` builds remain listed in GitHub Releases.
+- The `1.0.0` entry starts with notes for the whole v1 train, not only the last RC.
+
+Product-impacting PRs should still include reviewer-facing release notes in the PR body, and their
+title should read as a changelog line:
 
 - User-visible feature or behavior changes.
 - Relevant docs updates.

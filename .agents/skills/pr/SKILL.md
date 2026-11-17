@@ -30,7 +30,7 @@ Turn the current branch's work into atomic commits, push it, and open a draft PR
 3. Group the uncommitted changes into atomic commits, one logical change each. Leave out work you did not make. If ownership is unclear, ask.
 4. Commit each group: `git add <paths>` then `git commit -m "<subject>"`. Re-check `git status --short` after each one.
 5. Push: `git push -u origin <branch>`, or `git push` when the upstream exists. The pre-push hook runs the fast verify; do not run it again by hand.
-6. Write the body to a file in the session scratch directory, starting from `.github/pull_request_template.md`. Keep every `##` heading. Fill in the summary, the user-facing release notes when the change is visible to users, links (`Closes #<n>` or `Part of #<n>`), and the validation you ran. Pass an absolute path: `bun run` starts in the repository root.
+6. Write the body to a file in the session scratch directory, starting from `.github/pull_request_template.md`. Keep every `##` heading. Fill in the summary, the user-facing release notes when the change is visible to users (the title becomes this change's line in `CHANGELOG.md`; add a `## [Unreleased]` note in `CHANGELOG.md` only when users need more than that line), links (`Closes #<n>` or `Part of #<n>`), and the validation you ran. Pass an absolute path: `bun run` starts in the repository root.
 7. Create the draft:
 
    ```bash
