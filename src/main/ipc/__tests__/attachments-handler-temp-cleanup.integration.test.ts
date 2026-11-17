@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   files,
   readdirMock,
+  registerDirectory,
   registerFile,
   resetAttachmentHandlerMocks,
 } from './attachments-handler.test-harness'
@@ -44,6 +45,21 @@ describe('temp attachment cleanup', () => {
     expect(files.has(resourceCopy)).toBe(false)
     expect(files.has(prompt)).toBe(false)
     expect(files.has(foreign)).toBe(true)
+  })
+
+  it('removes a stale pasted image together with the directory that names it', async () => {
+    const staleTimestamp = Date.now() - 2 * DAY_MS
+    const directory = `${TEMP_ATTACHMENTS_DIRECTORY}/resource-44444444-4444-4444-8444-444444444444`
+    const pastedImage = `${directory}/pasted-image.png`
+    registerDirectory(directory, staleTimestamp)
+    registerFile(pastedImage, 'bytes', 5, staleTimestamp)
+    readdirMock.mockResolvedValue(['resource-44444444-4444-4444-8444-444444444444'])
+    const { cleanupTempAttachments } = await import('../attachment-temp-files')
+
+    await cleanupTempAttachments()
+
+    expect(files.has(directory)).toBe(false)
+    expect(files.has(pastedImage)).toBe(false)
   })
 
   it('keeps a copy written within the retention window', async () => {

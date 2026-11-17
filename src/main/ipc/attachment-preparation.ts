@@ -4,16 +4,21 @@ import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { PreparedAttachment } from '@shared/types/agent'
-import { allInOrder } from '@shared/utils/all-in-order'
+import * as Cause from 'effect/Cause'
+import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
-import { writeTempAttachment } from '../utils/attachment-temp-directory'
+import {
+  isNamedTempAttachmentDirectory,
+  writeNamedTempAttachment,
+} from '../utils/attachment-temp-directory'
 import {
   DOCX_MIME_TYPE,
   extractAttachmentText,
   ODT_MIME_TYPE,
   RTF_MIME_TYPE,
 } from '../utils/attachment-text-extraction'
-import { convertHeicToAttachmentImage, isHeicImageMimeType } from '../utils/heic-image-conversion'
+import { dispatchHostAttachmentPreparation } from './host-attachment-preparation'
 
 function contentSha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
@@ -117,6 +122,8 @@ function imageAttachmentExtension(mimeType: string) {
     .with('image/jpeg', () => '.jpg')
     .with('image/webp', () => '.webp')
     .with('image/gif', () => '.gif')
+    .with('image/heic', () => '.heic')
+    .with('image/heif', () => '.heif')
     .otherwise(() => null)
 }
 
@@ -128,6 +135,32 @@ function compatibleImageAttachmentName(fileName: string, mimeType: string, exten
   return `${stem || 'image'}${extension}`
 }
 
+/**
+ * The Host prepares the copy as the file it is. Its attachment store accepts no
+ * `session-resource` origin, and the origin means nothing to a send: the window keeps it, below,
+ * as the mark that it owns the copy and deletes it when the chip is let go of.
+ */
+async function prepareCopyThroughHost(copyPath: string) {
+  const exit = await Effect.runPromiseExit(
+    dispatchHostAttachmentPreparation(path.dirname(copyPath), [
+      { path: copyPath, origin: 'user-file' },
+    ]),
+  )
+  // Effect's own failure wrapper would hide the Host's reason from the person who pasted.
+  if (Exit.isFailure(exit)) throw Cause.squash(exit.cause)
+  const [attachment] = exit.value
+  if (exit.value.length !== 1 || attachment?.kind !== 'image') {
+    throw new Error(`Session Host did not prepare the image: ${path.basename(copyPath)}`)
+  }
+  return attachment
+}
+
+/**
+ * An image that exists only as bytes: a pasted screenshot, or a Session resource added to the
+ * draft. Its copy is written under the name the person sees and the Session Host prepares it from
+ * there, as it prepares a picked file: the Host binds a message only to attachments it prepared
+ * (#465), and it reads the image's text and decodes a HEIC as it does for any file (ADR 0068).
+ */
 export async function prepareRegisteredImageAttachmentFromBytes(input: {
   readonly bytes: Uint8Array
   readonly fileName: string
@@ -142,46 +175,28 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   // A blob the browser could not type (a pasted HEIC, for one) is typed by its name instead.
   const mimeType =
     input.mimeType.split(';')[0]?.trim().toLowerCase() || (guessMimeType(input.fileName) ?? '')
-
-  // A pathless HEIC arrives as bytes, so it is decoded here the way the picker path decodes a file:
-  // everything below this line sees the JPEG the decode produced (ADR 0068).
-  if (isHeicImageMimeType(mimeType)) {
-    const converted = await convertHeicToAttachmentImage({
-      bytes: input.bytes,
-      fileName: input.fileName,
-    })
-    return prepareRegisteredImageAttachmentFromBytes(converted)
-  }
-
   const extension = imageAttachmentExtension(mimeType)
   if (!extension) {
     throw new Error(`Unsupported Session image type: ${mimeType || path.basename(input.fileName)}`)
   }
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
-  const buffer = Buffer.from(input.bytes)
-  const kind = 'image'
-  // Independent: the OCR read and the copy on disk do not wait for each other.
-  const [extractedText, filePath] = await allInOrder([
-    extractAttachmentText({ kind, mimeType, buffer, attachmentName }),
-    writeTempAttachment(buffer, extension, 'resource'),
-  ])
-
-  const attachment: PreparedAttachment = {
-    id: randomUUID(),
-    kind,
-    origin: 'session-resource',
-    name: attachmentName,
-    path: filePath,
-    mimeType,
-    sizeBytes: buffer.byteLength,
-    contentSha256: contentSha256(buffer),
-    extractedText,
-  }
+  const copyPath = await writeNamedTempAttachment(
+    Buffer.from(input.bytes),
+    attachmentName,
+    'resource',
+  )
+  const copyDirectory = path.dirname(copyPath)
   try {
-    await rememberPreparedAttachment(attachment, filePath)
+    const prepared = await prepareCopyThroughHost(copyPath)
+    // A HEIC becomes the JPEG the Host decoded into a file of its own, so the original goes.
+    if (path.basename(path.dirname(prepared.path)) !== path.basename(copyDirectory)) {
+      await fs.rm(copyDirectory, { recursive: true, force: true })
+    }
+    const attachment: PreparedAttachment = { ...prepared, origin: 'session-resource' }
+    await rememberPreparedAttachment(attachment, attachment.path)
     return attachment
   } catch (cause) {
-    await fs.rm(filePath, { force: true }).catch(() => {})
+    await fs.rm(copyDirectory, { recursive: true, force: true }).catch(() => {})
     throw cause
   }
 }
@@ -192,6 +207,11 @@ export async function discardRegisteredImageAttachment(attachment: PreparedAttac
   }
   const forgotten = await forgetPreparedAttachment(attachment)
   if (!forgotten) return
+  const directory = path.dirname(attachment.path)
+  if (isNamedTempAttachmentDirectory(path.basename(directory))) {
+    await fs.rm(directory, { recursive: true, force: true })
+    return
+  }
   await fs.rm(attachment.path, { force: true })
 }
 
