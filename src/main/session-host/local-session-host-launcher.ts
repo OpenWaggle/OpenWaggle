@@ -1,4 +1,3 @@
-import net from 'node:net'
 import { appLifecycle } from '../desktop-shell/app-lifecycle'
 import { appPaths } from '../desktop-shell/app-paths'
 import { desktopShellEnvironmentRefreshStartedAt } from '../desktop-shell-environment-process'
@@ -6,6 +5,7 @@ import { launchHeadlessBackgroundProcess } from '../desktop-ui'
 import { env, getSessionHostChildEnv } from '../env'
 import { startupTimingsRequested } from '../startup-timing'
 import { awaitWithSignal } from './await-with-signal'
+import { canConnectToLocalSessionHost } from './local-session-host-connect-probe'
 import { probeLocalSessionHost } from './local-session-client'
 import {
   type LocalSessionClientConnectionInput,
@@ -23,7 +23,6 @@ import type { SessionHostOwnership } from './session-host-ownership'
 import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
-const CONNECT_PROBE_TIMEOUT_MS = 250
 
 export { sessionHostLaunchArguments, sessionHostLaunchCommand } from './session-host-launch-command'
 
@@ -85,39 +84,9 @@ export function isLocalSessionHostUnavailable(error: unknown) {
   )
 }
 
-function canConnect(endpoint: string, signal?: AbortSignal) {
-  return new Promise<boolean>((resolve) => {
-    signal?.throwIfAborted()
-    const socket = net.createConnection(endpoint)
-    const abort = () => {
-      clearTimeout(timer)
-      socket.destroy()
-      resolve(false)
-    }
-    const settle = () => signal?.removeEventListener('abort', abort)
-    const timer = setTimeout(() => {
-      settle()
-      socket.destroy()
-      resolve(false)
-    }, CONNECT_PROBE_TIMEOUT_MS)
-    socket.once('connect', () => {
-      clearTimeout(timer)
-      settle()
-      socket.destroy()
-      resolve(true)
-    })
-    socket.once('error', () => {
-      clearTimeout(timer)
-      settle()
-      resolve(false)
-    })
-    signal?.addEventListener('abort', abort, { once: true })
-  })
-}
-
 /** The real socket, probe, ownership lock, launch and clock. */
 export const defaultLocalSessionHostLauncherDependencies: LocalSessionHostLauncherDependencies = {
-  canConnect,
+  canConnect: canConnectToLocalSessionHost,
   probe: probeLocalSessionHost,
   tryAcquireOwnership: async (databasePath) => {
     // Its SQLite lock loads only when no Host answers, never on the window's entry graph.
@@ -214,6 +183,8 @@ async function waitForLocalSessionHostAuthority(
   dependencies: LocalSessionHostLauncherDependencies,
 ) {
   let upgradePendingError: LocalSessionHostUpgradePendingError | null = null
+  /** The last disconnect of a Host that accepted a connection but never finished a probe. */
+  let lastFailure: { readonly error: unknown } | undefined
   /** Past an update hand-off this call waited for, the caller's start goes on. */
   const released = () => {
     if (upgradePendingError) input.onUpgradeReleased?.()
@@ -233,9 +204,16 @@ async function waitForLocalSessionHostAuthority(
         released()
         return { status: 'connected' as const, negotiation }
       } catch (error) {
-        if (!(error instanceof LocalSessionHostUpgradePendingError)) throw error
-        if (!upgradePendingError) input.onUpgradePending?.()
-        upgradePendingError = error
+        if (error instanceof LocalSessionHostUpgradePendingError) {
+          if (!upgradePendingError) input.onUpgradePending?.()
+          upgradePendingError = error
+        } else {
+          // A Host that accepted the connection but went away before the probe handshake finished
+          // (a disconnect verdict such as EPIPE, Sentry OPENWAGGLE-9) is a Host that is not
+          // answering, exactly like one that never accepted: keep polling within the wait.
+          if (!isLocalSessionHostUnavailable(error)) throw error
+          lastFailure = { error }
+        }
       }
       // An older executable may use a different ownership mechanism. Its authenticated listener
       // remains authoritative until it closes, even if this version's ownership file is available.
@@ -252,7 +230,38 @@ async function waitForLocalSessionHostAuthority(
     await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
   }
   if (upgradePendingError) throw upgradePendingError
+  if (lastFailure) throw lastFailure.error
   throw new LocalSessionHostUnavailableError('Timed out waiting for Local Session Host authority.')
+}
+
+/**
+ * The probe that closes a launch, once a Host has answered the launch's own wait: that Host can go
+ * away again before this probe reaches it (an update hand-off closes its listener mid-startup,
+ * Sentry OPENWAGGLE-9). A probe that fails with a disconnect verdict (EPIPE, …) is a Host that is
+ * not answering any more, so this waits for one that does — the way the launch's own wait does —
+ * and reports the last disconnect only once its deadline has passed. Anything else a probe can
+ * fail with still fails the start at once.
+ */
+async function waitForCompatibleHostProbe(
+  input: LocalSessionClientConnectionInput,
+  timeoutMs: number,
+  dependencies: LocalSessionHostLauncherDependencies,
+) {
+  let lastFailure: { readonly error: unknown } | undefined
+  const deadline = dependencies.now() + timeoutMs
+  while (dependencies.now() < deadline) {
+    input.signal?.throwIfAborted()
+    const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+    try {
+      return await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
+    } catch (error) {
+      if (!isLocalSessionHostUnavailable(error)) throw error
+      lastFailure = { error }
+    }
+    await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
+  }
+  if (lastFailure) throw lastFailure.error
+  throw new LocalSessionHostUnavailableError('Timed out starting the Local Session Host.')
 }
 
 /**
@@ -287,6 +296,5 @@ export async function ensureLocalSessionHost(
     signal.throwIfAborted()
     await waitForCompatibleHost({ ...input, signal }, takeoverTimeoutMs, dependencies)
   })
-  const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
-  return awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
+  return waitForCompatibleHostProbe(input, takeoverTimeoutMs, dependencies)
 }
