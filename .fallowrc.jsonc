@@ -88,13 +88,8 @@
     "@openwaggle/extension-react"
   ],
   "ignoreDependencyOverrides": [
-    // Nested `parent>child` overrides pin a transitive copy; bun.lock records each one
-    // under its parent, which Fallow's static override check does not read.
-    { "package": "@effect/sql-sqlite-node>better-sqlite3", "source": "package.json" },
-    { "package": "@huggingface/transformers>onnxruntime-node", "source": "package.json" },
-    { "package": "@pierre/diffs>shiki", "source": "package.json" },
-    { "package": "@pierre/theming>shiki", "source": "package.json" },
-    { "package": "electron-vite>vite", "source": "package.json" },
+    // bun.lock records an overridden transitive copy under its dependent, which
+    // Fallow's static override check does not read.
     { "package": "@tanstack/history", "source": "package.json" },
     { "package": "@tanstack/query-core", "source": "package.json" },
     { "package": "@tanstack/router-core", "source": "package.json" },
