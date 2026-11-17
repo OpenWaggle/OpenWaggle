@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   buildChangelogFeed,
@@ -130,5 +131,20 @@ describe('buildChangelogFeed', () => {
     expect(empty).not.toContain('<item>')
     expect(empty).not.toContain('<lastBuildDate>')
     expect(empty).toContain('</channel>\n</rss>')
+  })
+})
+
+describe("the repository's CHANGELOG.md", () => {
+  // The website build reads this file; parse it on every PR, since release PRs and edits to its
+  // Unreleased notes do not run the website build.
+  it('parses into dated entries, newest first', () => {
+    const entries = parseChangelog(
+      fs.readFileSync(new URL('../../../../CHANGELOG.md', import.meta.url), 'utf8'),
+    )
+
+    expect(entries.length).toBeGreaterThan(0)
+    for (const entry of entries) expect(entry.date).toMatch(/^\d{4}-\d{2}-\d{2}$/u)
+    const dates = entries.map((entry) => entry.date ?? '')
+    expect(dates).toEqual([...dates].sort().reverse())
   })
 })

@@ -8,6 +8,8 @@ Amended 2026-10-25: Supported platforms have stated minimums, and a vendor end o
 
 Amended 2026-11-09: The Sessions/Delegations/Access CLIs are the Hive and Access CLIs (ADR 0063 later lists every covered CLI), and the promotion guard compares Stable with the last published RC (see the Amendment below).
 
+Amended 2026-11-17: Release PRs write every release's `CHANGELOG.md` entry, and Stable no longer waits for a hand-written one ([ADR 0070](0070-release-prs-write-the-changelog.md)).
+
 Refines ADR 0032 (Coexisting Build Identities and Channel-Keyed Updates). Supersedes the release-intent design in PRD issue #90.
 
 OpenWaggle had published only prerelease builds (`0.x-alpha.N`), and its docs disagreed about the target: the release docs planned a Stable `0.4.0`, while PRD #90 planned a governed `1.0.0` train with custom release-intent files. We are shipping v1, so we fixed the policy that the release workflow, updater, and docs must follow. The full rules live in `docs/release-and-versioning.md`.
@@ -16,7 +18,7 @@ OpenWaggle had published only prerelease builds (`0.x-alpha.N`), and its docs di
 
 - **The first Stable release is `1.0.0`.** The `0.x` trains end without a Stable release. The `1.0.0` line starts at `1.0.0-beta.1`, ideally the first signed macOS build; there is no `1.0.0-alpha.N` stage, because the `0.x` alpha builds served that purpose.
 - **Semver becomes a Compatibility promise at `1.0.0`.** Breaking a Covered surface (user data, the Sessions/Delegations/Access CLIs and their machine output, Session Control over the OpenWaggle MCP server, the Agent-definition schema, supported platforms) requires a major version. The extension host contract follows the extension SDK's own semver, and Pi-owned resources follow Pi; neither is covered by the app version.
-- **Conventional Commits remain the app's release intent.** We do not build #90's `.release/changes/*` files or `release:none` classification. A breaking change needs a `!` title. Stable releases get a hand-written `CHANGELOG.md` entry reused as the GitHub Release notes; prereleases keep generated notes.
+- **Conventional Commits remain the app's release intent.** We do not build #90's `.release/changes/*` files or `release:none` classification. A breaking change needs a `!` title. Stable releases get a hand-written `CHANGELOG.md` entry reused as the GitHub Release notes; prereleases keep generated notes. (Superseded by ADR 0070: the release PR writes every entry.)
 - **macOS signing and notarization block `1.0.0`** and must run before the first RC; the identity is an individual Apple Developer membership. Windows signing is post-v1.
 - **RC reaches Beta and Alpha Update channels automatically**, so the RC validation window is exercised by real users.
 - **One release line after `1.0.0`.** Merges prepare the next Stable version; a Beta/Alpha line opens only by explicit dispatch and should be promoted within about a week. There is no rolling Beta and no maintenance branch.

@@ -4,15 +4,19 @@ import path from 'node:path'
 import { bunExecutable } from '../support/node-runtime'
 import {
   BUMP_STEP,
-  gitRunner,
-  isolatedGitEnv,
   PROJECT_ROOT,
-  readIfPresent,
   RELEASE_STEP,
   REPOSITORY,
-  runStep,
   workflowStep,
 } from './app-release-sync.test-harness'
+import { runStep } from './app-release-github-mock.test-harness'
+import {
+  EMPTY_CHANGELOG,
+  gitRunner,
+  isolatedGitEnv,
+  readIfPresent,
+  releaseCommit,
+} from './app-release-files.test-harness'
 
 /**
  * One step of `main`'s history in a release train fixture. A release commits the version-only
@@ -41,7 +45,7 @@ export interface ReleaseTrainOptions {
   /** The version of the fixture's first commit. */
   readonly initialVersion: string
   readonly history: readonly ReleaseTrainHistoryEntry[]
-  /** The root CHANGELOG.md on main; omitted means no file. */
+  /** The root CHANGELOG.md on main; omitted means one with an empty `## [Unreleased]`. */
   readonly changelog?: string
   /**
    * `dispatch` is a `target_version` dispatch, `merge` an ordinary push to main (the bump step runs
@@ -56,6 +60,11 @@ export interface ReleaseTrainOptions {
   readonly releasesUnreadable?: boolean
   /** Tags GitHub lists as published releases although the checkout has no such tag. */
   readonly publishedWithoutTag?: readonly string[]
+  /**
+   * The newest release commit's tag is not in the run's checkout: its publication run has not
+   * pushed it yet, or pushed it only after the checkout.
+   */
+  readonly currentTag?: 'missing' | 'pushed-after-checkout'
 }
 
 const TRAIN_MANIFEST = {
@@ -97,7 +106,12 @@ function committer(git: Git, author: string) {
  * Builds `main` from `history` and pushes it with its tags, plus the merged release PR branch for
  * `release-merge`. Writes GitHub's release list as `gh api --jq` JSON Lines and returns main's head.
  */
-async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths, git: Git) {
+async function buildTrainFixture(
+  options: ReleaseTrainOptions,
+  paths: TrainPaths,
+  git: Git,
+  env: NodeJS.ProcessEnv,
+) {
   const commit = committer(git, paths.author)
   await git(paths.directory, 'init', '--bare', '--initial-branch=main', paths.remote)
   await git(paths.directory, 'clone', paths.remote, paths.author)
@@ -106,10 +120,12 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
       ...manifestFile(options.initialVersion),
       'src/app.ts': 'export const app = 1\n',
       'THIRD_PARTY_NOTICES.md': '# Third-party notices\n',
-      ...(options.changelog === undefined ? {} : { 'CHANGELOG.md': options.changelog }),
+      'CHANGELOG.md': options.changelog ?? EMPTY_CHANGELOG,
     },
     'feat: initial app',
   )
+  // Every version on main was released, so its tag exists.
+  await git(paths.author, 'tag', '-a', `v${options.initialVersion}`, '-m', 'Initial release')
   // GitHub lists draft releases to a token with push access, and package releases share the list.
   const githubReleases = [
     { tag_name: 'v0.3.0-alpha.69', draft: true },
@@ -129,6 +145,10 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
       githubReleases.push({ tag_name: `v${entry.version}`, draft: entry.release === 'draft' })
     }
   }
+  const untagged = untaggedVersion(options)
+  if (untagged && options.currentTag === 'missing') {
+    await git(paths.author, 'tag', '-d', `v${untagged}`)
+  }
   for (const tag of options.publishedWithoutTag ?? []) {
     githubReleases.push({ tag_name: tag, draft: false })
   }
@@ -140,16 +160,26 @@ async function buildTrainFixture(options: ReleaseTrainOptions, paths: TrainPaths
   let mainSha = await git(paths.author, 'rev-parse', 'HEAD')
   if (options.run.kind === 'release-merge') {
     const version = options.run.version
-    await git(paths.author, 'switch', '-c', `app-release-v${version}`)
-    await commit(manifestFile(version), `chore(release): v${version}`)
-    await git(paths.author, 'switch', 'main')
-    mainSha = await commit(manifestFile(version), `chore(release): v${version} (#301)`)
+    // The release workflow's own commits: main plus the generated package.json and CHANGELOG.md.
+    const branchSha = await releaseCommit(paths.author, env, version, `chore(release): v${version}`)
+    mainSha = await releaseCommit(paths.author, env, version, `chore(release): v${version} (#301)`)
+    await git(paths.author, 'branch', `app-release-v${version}`, branchSha)
+    await git(paths.author, 'merge', '--ff-only', mainSha)
     await git(paths.author, 'push', 'origin', `app-release-v${version}`)
   }
   await git(paths.author, 'push', '--follow-tags', 'origin', 'main')
   await git(paths.directory, 'clone', paths.remote, paths.runner)
+  if (untagged && options.currentTag === 'pushed-after-checkout') {
+    await git(paths.runner, 'tag', '-d', `v${untagged}`)
+  }
   await fs.writeFile(paths.events, '')
   return mainSha
+}
+
+/** The version whose tag `currentTag` keeps out of the run's checkout, if any. */
+function untaggedVersion(options: ReleaseTrainOptions) {
+  const lastRelease = options.history.findLast((entry) => entry.kind === 'release')
+  return options.currentTag && lastRelease?.kind === 'release' ? lastRelease.version : ''
 }
 
 /** Runs the bump step for an ordinary merge and returns its outputs, as the release step reads them. */
@@ -203,7 +233,7 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
   const git = gitRunner(env)
 
   try {
-    const mainSha = await buildTrainFixture(options, paths, git)
+    const mainSha = await buildTrainFixture(options, paths, git, env)
     const stepEnv = {
       ...env,
       GITHUB_REPOSITORY_OWNER: 'OpenWaggle',
@@ -266,6 +296,11 @@ export async function runReleaseTrain(options: ReleaseTrainOptions) {
         paths.remote,
         'show',
         `refs/heads/${releaseBranch}:package.json`,
+      ).catch(missing),
+      releaseBranchChangelog: await git(
+        paths.remote,
+        'show',
+        `refs/heads/${releaseBranch}:CHANGELOG.md`,
       ).catch(missing),
     }
   } finally {
