@@ -1,13 +1,18 @@
-import { execFile as execFileCallback } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { promisify } from 'node:util'
 import { assertMatching, isMatching, P } from '@diegogbrisa/ts-match'
 import { parse } from 'yaml'
 import { bunExecutable } from '../support/node-runtime'
+import {
+  EMPTY_CHANGELOG,
+  gitRunner,
+  isolatedGitEnv,
+  MAIN_NOTES,
+  releaseCommit,
+} from './app-release-files.test-harness'
+import { runStep } from './app-release-github-mock.test-harness'
 
-const execFile = promisify(execFileCallback)
 export const PROJECT_ROOT = process.cwd()
 const RELEASE_VERSION = '0.4.0-alpha.5'
 const RELEASE_BRANCH = `app-release-v${RELEASE_VERSION}`
@@ -23,138 +28,20 @@ const BASE_MANIFEST = {
   private: true,
 }
 
-const GITHUB_MOCK = String.raw`
-bun() {
-  case "$1" in
-    scripts/app-release-state.ts|scripts/app-release-notes.ts) ;;
-    *) echo "Unexpected bun command: $*" >&2; return 1 ;;
-  esac
-  local script="$1"
-  shift
-  command "$TEST_BUN" "$TEST_PROJECT_ROOT/$script" "$@"
-}
-fixture_advance_main() {
-  if [ -n "$TEST_FUTURE_MAIN" ] && [ ! -f "$TEST_ADVANCED" ]; then
-    git -C "$TEST_AUTHOR" push origin "$TEST_FUTURE_MAIN:refs/heads/main" >&2
-    touch "$TEST_ADVANCED"
-  fi
-}
-fixture_pr() {
-  jq -nc --arg sha "$(git --git-dir "$TEST_REMOTE" rev-parse "$TEST_BRANCH")" \
-    --arg branch "$TEST_BRANCH" --arg status "$TEST_MERGE_STATUS" \
-    --arg state "$(if [ -f "$TEST_PR_CLOSED" ]; then echo CLOSED; else echo OPEN; fi)" \
-    --arg version "$TEST_VERSION" \
-    '{baseRefName:"main", headRefName:$branch, headRefOid:$sha,
-      headRepository:{name:"OpenWaggle"}, headRepositoryOwner:{login:"OpenWaggle"},
-      isCrossRepository:false, mergeCommit:null, number:221, state:$state,
-      title:("chore(release): v" + $version), url:"https://example.test/pull/221",
-      mergeStateStatus:$status}'
-}
-fixture_merged_pr() {
-  jq -nc --arg sha "$GITHUB_SHA" --arg branch "$TEST_BRANCH" --arg repository "$GITHUB_REPOSITORY" \
-    --arg head "$(git --git-dir "$TEST_REMOTE" rev-parse "$TEST_BRANCH")" --arg version "$TEST_VERSION" \
-    '{number:301, state:"closed", merged_at:"2026-11-09T00:00:00Z", merge_commit_sha:$sha,
-      base:{ref:"main"}, head:{ref:$branch, sha:$head, repo:{full_name:$repository}},
-      title:("chore(release): v" + $version), merged_by:{type:"User", login:"maintainer"}}'
-}
-gh() {
-  case "$1 $2" in
-    'pr list')
-      if [ -f "$TEST_PR_EXISTS" ]; then fixture_pr | jq -sc '.'; else echo '[]'; fi
-      ;;
-    'pr create')
-      touch "$TEST_PR_EXISTS"
-      echo 'create' >> "$TEST_EVENTS"
-      echo 'https://example.test/pull/221'
-      ;;
-    'pr view')
-      case "$*" in
-        *'--jq .number') echo 221 ;;
-        *'--jq .headRefOid') fixture_pr | jq -r '.headRefOid' ;;
-        *) fixture_pr ;;
-      esac
-      ;;
-    'api --method')
-      test "$3" = 'PUT'
-      test "$6" = "expected_head_sha=$(git --git-dir "$TEST_REMOTE" rev-parse "$TEST_BRANCH")"
-      git -C "$TEST_AUTHOR" fetch origin main >&2
-      git -C "$TEST_AUTHOR" switch "$TEST_BRANCH" >&2
-      git -C "$TEST_AUTHOR" merge --no-ff origin/main -m 'Merge main into release' >&2
-      if [ "$TEST_TAMPER_ON_UPDATE" = 'true' ]; then
-        echo 'unexpected change' > "$TEST_AUTHOR/unexpected.txt"
-        git -C "$TEST_AUTHOR" add unexpected.txt
-        git -C "$TEST_AUTHOR" commit -m 'chore: unexpected update change' >&2
-      fi
-      git -C "$TEST_AUTHOR" push origin "$TEST_BRANCH" >&2
-      echo 'update' >> "$TEST_EVENTS"
-      if [ "$TEST_ADVANCE_DURING" = 'update' ]; then fixture_advance_main; fi
-      ;;
-    'api --paginate')
-      test "$3" = "repos/$GITHUB_REPOSITORY/releases?per_page=100"
-      test "$4 $5" = "--jq .[] | {tag_name, draft}"
-      echo 'releases' >> "$TEST_EVENTS"
-      if [ "$TEST_RELEASES_UNREADABLE" = 'true' ]; then
-        echo 'HTTP 502: Bad Gateway' >&2
-        return 1
-      fi
-      cat "$TEST_RELEASES"
-      ;;
-    'api repos/'*)
-      case "$2" in
-        "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls") fixture_merged_pr | jq -sc '.' ;;
-        "repos/$GITHUB_REPOSITORY/pulls/301") fixture_merged_pr ;;
-        "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?"*)
-          jq -nc --arg sha "$(git --git-dir "$TEST_REMOTE" rev-parse "$TEST_BRANCH")" \
-            '{workflow_runs:[{head_sha:$sha,event:"pull_request",id:$sha,status:"completed",conclusion:"success"}]}'
-          ;;
-        *) echo "Unexpected gh api path: $2" >&2; return 1 ;;
-      esac
-      ;;
-    'run view')
-      jq -nc --arg sha "$3" \
-        '{attempt:1,conclusion:"success",event:"pull_request",headSha:$sha,status:"completed"}'
-      ;;
-    'run watch')
-      echo "ci $3" >> "$TEST_EVENTS"
-      if [ "$TEST_ADVANCE_DURING" = 'ci' ]; then fixture_advance_main; fi
-      if [ "$TEST_CLOSE_DURING_CI" = 'true' ]; then touch "$TEST_PR_CLOSED"; fi
-      ;;
-    *) echo "Unexpected gh command: $*" >&2; return 1 ;;
-  esac
-}
-sleep() {
-  echo 'Unexpected polling delay' >&2
-  return 1
-}
-`
-
 export interface ReleaseSyncOptions {
   mergeStatus?: 'BLOCKED' | 'UNKNOWN'
   orphan?: boolean
   advanceDuring?: 'ci' | 'update'
   closeDuringCi?: boolean
   tamperOnUpdate?: boolean
-  tamper?: 'manifest' | 'file'
+  tamper?: 'manifest' | 'file' | 'changelog'
+  /** A version-only release branch, as the workflow wrote them before CHANGELOG.md was generated. */
+  versionOnly?: boolean
+  /** Main also adds hand-written notes under `## [Unreleased]` after the release branch was cut. */
+  mainNotes?: boolean
+  /** GitHub's update-branch fails once, and the next run starts from what the failed one left. */
+  updateFailsOnce?: boolean
   workflow?: string
-}
-
-export function isolatedGitEnv() {
-  return {
-    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Release Tests',
-    GIT_AUTHOR_EMAIL: 'tests@openwaggle.ai',
-    GIT_COMMITTER_NAME: 'Release Tests',
-    GIT_COMMITTER_EMAIL: 'tests@openwaggle.ai',
-  }
-}
-
-export function gitRunner(env: NodeJS.ProcessEnv) {
-  return async (cwd: string, ...args: string[]) => {
-    const { stdout } = await execFile('git', args, { cwd, env })
-    return stdout.trim()
-  }
 }
 
 export async function workflowStep(name: string, workflowText?: string) {
@@ -170,19 +57,45 @@ export async function workflowStep(name: string, workflowText?: string) {
   return step.run
 }
 
-/** Runs one workflow step's script under the GitHub mock; a failing step resolves, not rejects. */
-export function runStep(script: string, cwd: string, env: NodeJS.ProcessEnv) {
-  return execFile('bash', ['-c', `${GITHUB_MOCK}\n${script}`], { cwd, env }).then(
-    (output) => ({ succeeded: true, ...output }),
-    (error: unknown) => {
-      assertMatching({ stdout: P.string, stderr: P.string }, error)
-      return { succeeded: false, stdout: error.stdout, stderr: error.stderr }
-    },
-  )
-}
-
-export async function readIfPresent(filePath: string) {
-  return fs.readFile(filePath, 'utf8').catch(() => '')
+/** The release branch an earlier run left behind, plus any tampering the case asks for. */
+async function cutReleaseBranch(input: {
+  readonly author: string
+  readonly env: NodeJS.ProcessEnv
+  readonly git: ReturnType<typeof gitRunner>
+  readonly commitManifest: (value: object, subject: string) => Promise<string>
+  readonly options: ReleaseSyncOptions
+}) {
+  const { author, env, git, commitManifest, options } = input
+  if (options.versionOnly) {
+    await git(author, 'switch', '-c', RELEASE_BRANCH)
+    await commitManifest(
+      { ...BASE_MANIFEST, version: RELEASE_VERSION },
+      `chore(release): v${RELEASE_VERSION}`,
+    )
+  } else {
+    const release = await releaseCommit(
+      author,
+      env,
+      RELEASE_VERSION,
+      `chore(release): v${RELEASE_VERSION}`,
+    )
+    await git(author, 'switch', '-c', RELEASE_BRANCH, release)
+  }
+  if (options.tamper === 'manifest') {
+    await commitManifest(
+      { ...BASE_MANIFEST, version: RELEASE_VERSION, unauthorized: true },
+      'chore: unexpected manifest change',
+    )
+  }
+  if (options.tamper === 'changelog') {
+    await fs.appendFile(path.join(author, 'CHANGELOG.md'), '\n- A hand edit.\n')
+    await git(author, 'commit', '-am', 'chore: edit the generated entry')
+  }
+  if (options.tamper === 'file') {
+    await fs.writeFile(path.join(author, 'unexpected.txt'), 'unexpected release change\n')
+    await git(author, 'add', '.')
+    await git(author, 'commit', '-m', 'chore: unexpected file')
+  }
 }
 
 export async function runReleaseSync(options: ReleaseSyncOptions = {}) {
@@ -203,27 +116,15 @@ export async function runReleaseSync(options: ReleaseSyncOptions = {}) {
   try {
     await git(directory, 'init', '--bare', '--initial-branch=main', remote)
     await git(directory, 'clone', remote, author)
+    await fs.writeFile(path.join(author, 'CHANGELOG.md'), EMPTY_CHANGELOG)
     await commitManifest(BASE_MANIFEST, 'feat: initial app')
-    await git(author, 'switch', '-c', RELEASE_BRANCH)
-    await commitManifest(
-      { ...BASE_MANIFEST, version: RELEASE_VERSION },
-      `chore(release): v${RELEASE_VERSION}`,
-    )
-    if (options.tamper === 'manifest') {
-      await commitManifest(
-        { ...BASE_MANIFEST, version: RELEASE_VERSION, unauthorized: true },
-        'chore: unexpected manifest change',
-      )
-    }
-    if (options.tamper === 'file') {
-      await fs.writeFile(path.join(author, 'unexpected.txt'), 'unexpected release change\n')
-      await git(author, 'add', '.')
-      await git(author, 'commit', '-m', 'chore: unexpected file')
-    }
+    await git(author, 'tag', '-a', `v${BASE_MANIFEST.version}`, '-m', 'Release')
+    await cutReleaseBranch({ author, env, git, commitManifest, options })
     await git(author, 'switch', 'main')
     const manifest = { ...BASE_MANIFEST, scripts: { 'prototype:actions': 'node serve.mts' } }
-    const mainSha = await commitManifest(manifest, 'feat: project actions')
-    await git(author, 'push', 'origin', 'main', RELEASE_BRANCH)
+    if (options.mainNotes) await fs.writeFile(path.join(author, 'CHANGELOG.md'), MAIN_NOTES)
+    const mainSha = await commitManifest(manifest, 'feat: project actions (#7)')
+    await git(author, 'push', '--follow-tags', 'origin', 'main', RELEASE_BRANCH)
     const futureMain = options.advanceDuring
       ? await commitManifest(
           { ...manifest, homepage: 'https://example.test/new' },
@@ -235,7 +136,8 @@ export async function runReleaseSync(options: ReleaseSyncOptions = {}) {
     if (!options.orphan) await fs.writeFile(prExists, '')
     await fs.writeFile(eventsPath, '')
 
-    const result = await runStep(await workflowStep(RELEASE_STEP, options.workflow), runner, {
+    const step = await workflowStep(RELEASE_STEP, options.workflow)
+    const stepEnv = {
       ...env,
       BUMP_SHOULD_RELEASE: 'true',
       BUMP_VERSION: RELEASE_VERSION,
@@ -263,17 +165,28 @@ export async function runReleaseSync(options: ReleaseSyncOptions = {}) {
       TEST_ADVANCE_DURING: options.advanceDuring ?? '',
       TEST_TAMPER_ON_UPDATE: String(options.tamperOnUpdate === true),
       TEST_FUTURE_MAIN: futureMain,
-    })
+      TEST_UPDATE_FAILS_ONCE: String(options.updateFailsOnce === true),
+      TEST_UPDATE_FAILED: path.join(directory, 'update-failed'),
+    }
+    const first = await runStep(step, runner, stepEnv)
+    const result = options.updateFailsOnce ? await runStep(step, runner, stepEnv) : first
     const head = await git(runner, 'rev-parse', `origin/${RELEASE_BRANCH}`)
     return {
       ...result,
+      firstRunSucceeded: first.succeeded,
       head,
       outputs: result.succeeded ? await fs.readFile(path.join(directory, 'outputs'), 'utf8') : '',
-      tags: await git(runner, 'ls-remote', '--tags', 'origin'),
+      // Tags the run pushed: every tag but the base version's, which the fixture creates.
+      tags: (await git(runner, 'ls-remote', '--tags', 'origin'))
+        .split('\n')
+        .filter((line) => line && !line.includes(`refs/tags/v${BASE_MANIFEST.version}`))
+        .join('\n'),
       mainSha: await git(remote, 'rev-parse', 'main'),
       expectedMainSha: futureMain || mainSha,
       events: (await fs.readFile(eventsPath, 'utf8')).trim().split('\n').filter(Boolean),
       manifest: await git(runner, 'show', `${head}:package.json`),
+      changelog: await git(runner, 'show', `${head}:CHANGELOG.md`),
+      version: RELEASE_VERSION,
       expectedManifest: JSON.stringify(
         {
           ...manifest,

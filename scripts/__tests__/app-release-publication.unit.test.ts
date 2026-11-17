@@ -58,7 +58,7 @@ describe('desktop app release publication', () => {
       /app-release-notes\.ts check --version "\$VERSION"[\s\S]*?exit 1\n\s+fi\n\s+verify_promotion HEAD\n\s+fi\n/u,
     )
     expect(WORKFLOW).toMatch(
-      /verify_version_only_tree "\$parent_sha" "\$commit_sha"\n\s+if \[\[ "\$VERSION" != \*-\* \]\]; then\n\s+verify_promotion "\$commit_sha"\n\s+fi\n\s+\}/u,
+      /verify_release_tree "\$parent_sha" "\$commit_sha"\n\s+if \[\[ "\$VERSION" != \*-\* \]\]; then\n\s+verify_promotion "\$commit_sha"\n\s+fi\n\s+\}/u,
     )
     // Both calls happen before any branch, PR, or tag exists.
     const firstGuard = WORKFLOW.indexOf('verify_promotion HEAD')
@@ -80,19 +80,24 @@ describe('desktop app release publication', () => {
     expect(guard).not.toContain('|| true')
   })
 
-  it('lets an ordinary merge wait for its CHANGELOG entry but fails a dispatch or release commit', () => {
+  it("lets an ordinary merge wait for a major's notes but fails a dispatch or release commit", () => {
     expect(WORKFLOW).toContain(
       'if [ -z "$RELEASE_TARGET_VERSION" ] && [ "$RELEASE_SUBJECT_VERSION" != "$VERSION" ]; then',
     )
-    expect(WORKFLOW).toContain('waits for its CHANGELOG.md entry; no release PR was prepared.')
+    expect(WORKFLOW).toContain(
+      'waits for its CHANGELOG.md notes (see the error above); no release PR was prepared.',
+    )
   })
 
-  it('publishes Stable releases with their CHANGELOG entry and fails before tagging without one', () => {
-    expect(WORKFLOW).toContain('scripts/app-release-notes.ts write')
-    expect(WORKFLOW).toContain(
-      "generate_release_notes: ${{ contains(needs.version.outputs.new_version, '-') }}",
+  it('publishes every release with the CHANGELOG entry its release PR wrote', () => {
+    const notes = WORKFLOW.slice(
+      WORKFLOW.indexOf('- name: Prepare release notes'),
+      WORKFLOW.indexOf('- name: Collect release assets'),
     )
-    expect(WORKFLOW).toContain("format('{0}/release-notes.md', runner.temp)")
+    expect(notes).toContain('scripts/app-release-notes.ts write')
+    expect(notes).not.toContain('if:')
+    expect(WORKFLOW).not.toContain('generate_release_notes')
+    expect(WORKFLOW).toContain("body_path: ${{ format('{0}/release-notes.md', runner.temp) }}")
   })
 
   it('verifies that both DMGs are signed, notarized and stapled, not only the apps', () => {

@@ -1,3 +1,4 @@
+import { SKILL_COMMAND_PREFIX } from '@shared/utils/skill-id'
 import { FileText, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useOpenWorkspaceFile } from '@/features/workspace-files/hooks'
@@ -7,10 +8,11 @@ import { Button } from '@/shared/ui/Button'
 const ICON_SIZE = 12
 
 /**
- * Matches composer references at a word boundary. File references accept paths;
- * skill references use the same identifier grammar as runtime skill activation.
+ * Matches composer references at a word boundary. File references accept paths; skill references
+ * are Pi's namespaced `/skill:<name>` form, or the bare `/name` an older draft carries.
  */
-const COMPOSER_REFERENCE_REGEX = /(?:^|\s)(@\S+|\/[a-z0-9][a-z0-9-_]*)(?=$|\s|[.,!?;:)\]}>'"])/gi
+const COMPOSER_REFERENCE_REGEX =
+  /(?:^|\s)(@\S+|\/skill:[a-z0-9][a-z0-9-_]*|\/[a-z0-9][a-z0-9-_]*)(?=$|\s|[.,!?;:)\]}>'"])/gi
 const TRAILING_FILE_REFERENCE_PUNCTUATION = /[.,!?;:)\]}>'"]+$/u
 
 /**
@@ -78,9 +80,16 @@ function SkillReferenceChip({ reference }: { readonly reference: string }) {
   return (
     <span className={referenceChipClassName()} title={reference}>
       <Sparkles size={ICON_SIZE} className="shrink-0" />
-      <span>{reference.slice(1)}</span>
+      <span>{skillReferenceName(reference)}</span>
     </span>
   )
+}
+
+/** The skill a serialized reference names, without Pi's `/skill:` prefix or the bare `/`. */
+function skillReferenceName(reference: string) {
+  return reference.startsWith(SKILL_COMMAND_PREFIX)
+    ? reference.slice(SKILL_COMMAND_PREFIX.length)
+    : reference.slice(1)
 }
 
 function referenceChipClassName() {

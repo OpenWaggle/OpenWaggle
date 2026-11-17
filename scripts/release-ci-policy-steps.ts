@@ -124,6 +124,21 @@ const NSIS_INSTALL_STEP = `      - name: Install NSIS for the installer script c
           done
           makensis -VERSION`
 const RELEASE_POLICY_STEP = '      - run: bun scripts/release-ci-policy.ts'
+/**
+ * A desktop app release PR's package.json and CHANGELOG.md are generated (ADR 0070): a hand edit,
+ * or GitHub's "Update branch" without the release workflow writing them again, fails here instead
+ * of failing the release's verification on main after the merge.
+ */
+const RELEASE_FILES_STEP = `      - name: Verify generated desktop app release files
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'app-release-v') && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          HEAD_SHA: \${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          BASE_SHA=$(git merge-base "$HEAD_SHA" refs/remotes/origin/main)
+          VERSION=$(git show "\${HEAD_SHA}:package.json" | jq -er '.version')
+          bun scripts/app-release-state.ts verify-release-tree \\
+            --base "$BASE_SHA" --candidate "$HEAD_SHA" --version "$VERSION"`
 const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
         env:
           COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
@@ -173,6 +188,7 @@ export const EXPECTED_STEPS = new Map<string, readonly string[]>([
       NODE_SETUP_STEP,
       INSTALL_COMPOSITE_STEP,
       RELEASE_POLICY_STEP,
+      RELEASE_FILES_STEP,
       CONVENTIONAL_COMMITS_STEP,
     ],
   ],

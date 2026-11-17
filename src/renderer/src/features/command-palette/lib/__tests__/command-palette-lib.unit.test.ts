@@ -1,6 +1,11 @@
+import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { describe, expect, it, vi } from 'vitest'
 import { buildCommandPaletteEntries } from '../command-palette-entries'
-import { createBuiltInCommandItems, createSkillItems } from '../command-palette-items'
+import {
+  createBuiltInCommandItems,
+  createSkillItems,
+  skillOwnedCommandNames,
+} from '../command-palette-items'
 import { normalizeCommandQuery, truncateCommandDescription } from '../command-palette-text'
 
 const {
@@ -127,11 +132,35 @@ describe('createSkillItems', () => {
       id: 'skill-visualize',
       label: 'Visualize',
       section: 'Skills',
-      trailing: '/visualize',
+      trailing: '/skill:visualize',
     })
 
     items[0]?.action()
     expect(selectSkill).toHaveBeenCalledWith('visualize', 'Visualize')
+  })
+
+  it('invokes a project skill by the name Pi resolves, not by its folder id', () => {
+    const selectSkill = vi.fn()
+
+    const items = createSkillItems(
+      [
+        {
+          id: 'handoff-folder',
+          name: 'handoff',
+          description: 'Compact the current conversation into a handoff document',
+          folderPath: '/project/.agents/skills/handoff-folder',
+          skillPath: '/project/.agents/skills/handoff-folder/SKILL.md',
+          hasScripts: false,
+          enabled: true,
+          loadStatus: 'ok',
+        },
+      ],
+      '',
+      selectSkill,
+    )
+
+    items.find((item) => item.id === 'skill-handoff-folder')?.action()
+    expect(selectSkill).toHaveBeenCalledWith('handoff', 'handoff')
   })
 
   it('shows a disabled diagnostic instead of selecting an unavailable bundled skill', () => {
@@ -161,6 +190,40 @@ describe('createSkillItems', () => {
     })
     items[0]?.action()
     expect(selectSkill).not.toHaveBeenCalled()
+  })
+})
+
+describe('skillOwnedCommandNames', () => {
+  const skillBase: SkillDiscoveryItem = {
+    id: 'handoff',
+    name: 'handoff',
+    description: 'Compact the current conversation into a handoff document',
+    folderPath: '/project/.agents/skills/handoff',
+    skillPath: '/project/.agents/skills/handoff/SKILL.md',
+    hasScripts: false,
+    enabled: true,
+    loadStatus: 'ok',
+  }
+  const skill = (overrides: Partial<SkillDiscoveryItem> = {}) => ({ ...skillBase, ...overrides })
+
+  it('claims the name an enabled skill is offered under, not the folder it lives in', () => {
+    // The two tokens differ: Pi matches a skill by its frontmatter name alone, so a Pi command
+    // named after the folder still runs and keeps its row.
+    const names = skillOwnedCommandNames([
+      skill({ id: 'handoff-folder', name: 'handoff' }),
+      skill({ id: 'qa', name: 'qa' }),
+    ])
+
+    expect([...names].sort()).toEqual(['handoff', 'qa'])
+  })
+
+  it('leaves the name of a disabled or broken skill to the Pi extension command', () => {
+    const names = skillOwnedCommandNames([
+      skill({ enabled: false }),
+      skill({ id: 'broken', name: 'broken', loadStatus: 'error' }),
+    ])
+
+    expect([...names]).toEqual([])
   })
 })
 

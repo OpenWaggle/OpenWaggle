@@ -1,3 +1,4 @@
+import { skillCommandText } from '@shared/utils/skill-id'
 import {
   $applyNodeReplacement,
   DecoratorNode,
@@ -16,6 +17,7 @@ export type SerializedSkillMentionNode = Spread<
 >
 
 export class SkillMentionNode extends DecoratorNode<ReactNode> {
+  /** The token Pi expands after `/skill:`: the skill's `name` in SKILL.md's frontmatter. */
   __skillId: string
   __skillName: string
 
@@ -45,7 +47,7 @@ export class SkillMentionNode extends DecoratorNode<ReactNode> {
 
   override exportDOM() {
     const element = document.createElement('span')
-    element.textContent = `/${this.__skillId}`
+    element.textContent = skillCommandText(this.__skillId)
     return { element }
   }
 
@@ -68,7 +70,7 @@ export class SkillMentionNode extends DecoratorNode<ReactNode> {
   }
 
   override getTextContent() {
-    return `/${this.__skillId}`
+    return skillCommandText(this.__skillId)
   }
 
   override isInline() {

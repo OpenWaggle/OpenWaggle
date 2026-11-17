@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   assertForwardAppVersionTransition,
-  expectedVersionOnlyManifest,
   releaseSubjectVersion,
   selectOwnedReleasePullRequests,
   type AppReleasePullRequest,
 } from '../app-release-state'
+import { expectedVersionOnlyManifest } from '../app-release-tree'
 
 function pullRequest(overrides: Partial<AppReleasePullRequest> = {}) {
   return {

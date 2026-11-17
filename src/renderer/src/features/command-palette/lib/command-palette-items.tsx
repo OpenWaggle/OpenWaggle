@@ -1,5 +1,6 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WagglePreset } from '@shared/types/waggle'
+import { skillCommandText } from '@shared/utils/skill-id'
 import {
   Archive,
   ChartNoAxesCombined,
@@ -79,6 +80,22 @@ export function createBuiltInCommandItems(
   }))
 }
 
+/**
+ * The lowercased names this project's enabled skills are offered under: the frontmatter name each
+ * SKILL.md declares, which is also what Pi matches after `/skill:`. The slash menu withholds a Pi
+ * extension command under one of these names, so a name never labels two rows. A skill's folder id
+ * is not one of them: Pi resolves a skill by name alone, so an extension command named after the
+ * folder still runs and keeps its row.
+ */
+export function skillOwnedCommandNames(skills: readonly SkillDiscoveryItem[]) {
+  const names = new Set<string>()
+  for (const skill of skills) {
+    if (!skill.enabled || skill.loadStatus !== 'ok') continue
+    names.add(skill.name.toLowerCase())
+  }
+  return names
+}
+
 export function createSkillItems(
   slashSkills: readonly SkillDiscoveryItem[],
   lowerQuery: string,
@@ -97,7 +114,7 @@ export function createSkillItems(
         : 'Create an interactive visualization in this conversation',
       icon: <ChartNoAxesCombined className="size-3.5" />,
       section: 'Skills',
-      trailing: '/visualize',
+      trailing: skillCommandText('visualize'),
       disabled: diagnostic !== undefined,
       action: diagnostic ? () => undefined : () => selectSkill('visualize', 'Visualize'),
     })
@@ -114,7 +131,11 @@ export function createSkillItems(
       description: truncateCommandDescription(skill.description, COMMAND_PALETTE.DESCRIPTION_LIMIT),
       icon: <Shield className="size-3.5" />,
       section: 'Skills',
-      action: () => selectSkill(skill.id, skill.name),
+      // Pi resolves a skill command by the `name` in SKILL.md's frontmatter, not by the folder the
+      // skill lives in, so the invocation the chip carries must be that name (`skill.id` is the
+      // normalized folder). Pi passes an unknown name through silently, so the id would look
+      // handled while the body never loaded.
+      action: () => selectSkill(skill.name, skill.name),
     })
   }
 

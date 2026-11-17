@@ -155,16 +155,20 @@ describe('UserMessageBubble', () => {
     expect(screen.getByText(/, then continue\./)).toBeInTheDocument()
   })
 
-  it('renders serialized slash skill references as skill chips', () => {
-    const message = createUserMessage('u1', [
-      { type: 'text', content: 'Use /caveman for this response' },
-    ])
-    render(<UserMessageBubble message={message} />)
+  // The bare form is what an older draft carries; the namespaced one is what Pi expands.
+  it.each(['/skill:caveman', '/caveman'])(
+    'renders %s as a chip named after the skill',
+    (reference) => {
+      const message = createUserMessage('u1', [
+        { type: 'text', content: `Use ${reference} for this response` },
+      ])
+      render(<UserMessageBubble message={message} />)
 
-    expect(screen.getByTitle('/caveman')).toBeInTheDocument()
-    expect(screen.getByText('caveman')).toBeInTheDocument()
-    expect(screen.getByText(/Use/)).toBeInTheDocument()
-  })
+      expect(screen.getByTitle(reference)).toBeInTheDocument()
+      expect(screen.getByText('caveman')).toBeInTheDocument()
+      expect(screen.getByText(/Use/)).toBeInTheDocument()
+    },
+  )
 
   it('does not render @mentions inside inline code as chips', () => {
     const message = createUserMessage('u1', [

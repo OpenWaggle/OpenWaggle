@@ -65,7 +65,7 @@ The canonical package policy lives in `docs/release-and-versioning.md` and ADR-0
 - The `0.x` trains end without a Stable release. The first Stable release is `1.0.0`.
 - The `1.0.0` line starts at `1.0.0-beta.1`, the first signed macOS build. There is no `1.0.0-alpha.N` stage.
 - Train: `1.0.0-beta.N` -> `1.0.0-rc.N` -> `1.0.0`.
-- Stage jumps use the Release workflow's `target_version` dispatch from `main`; it opens an ordinary version-only release PR. Pass the bare version (`1.0.0-rc.1`, no leading `v`). Pause `feat:`/`fix:` merges to `main` until that PR merges: a merge in between opens a competing release PR for the current stage. To recover, close the competing PR and dispatch again from the new `main`.
+- Stage jumps use the Release workflow's `target_version` dispatch from `main`; it opens an ordinary release PR. Pass the bare version (`1.0.0-rc.1`, no leading `v`). Pause `feat:`/`fix:` merges to `main` until that PR merges: a merge in between opens a competing release PR for the current stage. To recover, close the competing PR and dispatch again from the new `main`.
 
 Meanings:
 
@@ -84,8 +84,9 @@ Raising a stated platform minimum is breaking unless the OS vendor has ended sup
 - Conventional Commits decide whether a merge releases and, for Stable, the bump: `fix:` patch, `feat:` minor, `!`/`BREAKING CHANGE` major. On prereleases any `feat:`/`fix:` increments `N`.
 - There are no `.release/changes/*` files and no `release:none` classification.
 - A change that breaks a Covered surface must use a `!` title. A CI guard for this is planned post-v1 (#259).
-- Prereleases use GitHub's generated release notes.
-- Stable releases get a hand-written root `## X.Y.Z` `CHANGELOG.md` entry reused as the GitHub Release notes; the workflow fails closed without it (`scripts/app-release-notes.ts`). `CHANGELOG.md` starts at `1.0.0` and notes the legacy `0.x` process; the `1.0.0` entry summarizes the whole v1 train.
+- Every release PR writes its `## [X.Y.Z] - YYYY-MM-DD` entry in the root `CHANGELOG.md` from the Conventional Commits since the previous `v*` tag (`scripts/app-release-notes.ts`, `scripts/app-release-tree.ts`, ADR 0070), and the GitHub Release publishes it. The website renders the file at `/changelog/`.
+- Hand-written notes go under `## [Unreleased]` on `main`; a Stable release PR moves them into its entry, a prerelease leaves them. A new major `X.0.0` waits for them (notice on a merge, failure on a dispatch). The `1.0.0` notes for the whole v1 train live there until `1.0.0`.
+- The release PR changes exactly `package.json` and `CHANGELOG.md`; the workflow verifies that tree by building it again and overwrites hand edits at the next sync.
 - Product-impacting PRs include reviewer-facing release notes in the PR body.
 
 ## v1 scope and release blockers
