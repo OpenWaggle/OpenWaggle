@@ -43,7 +43,7 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `@types/node@24.13.3`. Held: types for Node 24, the `engines` range; `latest` is Node 26. Unblocked by: moving the `engines` range to a newer Node.
 - `@xterm/xterm@6.1.0-beta.303`. Held: xterm 6.0 stable lacks Kitty keyboard-protocol negotiation (ADR 0030). Unblocked by: a stable release with the protocol, after the protocol tests and Electron performance and IME QA pass.
 - `babel-plugin-react-compiler@1.0.0`. Held: patched for Babel 8 `AssignmentPattern` bailouts (`patches/babel-plugin-react-compiler@1.0.0.patch`); `react-compiler-coverage.unit.test.ts` catches a regression. Unblocked by: re-porting the patch.
-- `better-sqlite3@13.0.3`. Held: a native module; the `@effect/sql-sqlite-node>better-sqlite3` override keeps one SQLite build in the Host process (docs/system-architecture.md#one-sqlite-library). Unblocked by: the next monthly batch, changing the override with it.
+- `better-sqlite3@13.0.3`. Held: a native module; the `@effect/sql-sqlite-node` → `better-sqlite3` override keeps one SQLite build in the Host process (docs/system-architecture.md#one-sqlite-library). Unblocked by: the next monthly batch, changing the override with it.
 - `effect@3.22.2`. Held: `latest` is Effect 4, a major migration; this is the Effect 3 line. Unblocked by: the Effect 4 migration, moving every `@effect/*` package with it.
 - `electron@43.2.0`. Held: it sets the ABI of the native modules: an update needs `prepare:native:node`, `prepare:native:electron` and a packaged smoke (docs/dependency-updates.md). Unblocked by: the next monthly batch, with those three runs.
 - `electron-builder@26.17.0`. Held: `dmg-builder` `26.17.0` is patched (`patches/dmg-builder@26.17.0.patch`). Unblocked by: re-creating the patch.
@@ -52,9 +52,9 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `quickjs-wasi@3.6.2`. Held: the version Pi depends on; Pi reads its wasm from the installed package, and `check:pi-runtime` fails on drift. Unblocked by: the Pi release that moves it (docs/pi-runtime-upgrades.md).
 - `react-doctor@0.9.22`. Held: `0.9.23` came out on 2026-11-13, and the seven-day `minimumReleaseAge` in `bunfig.toml` refuses it until 2026-11-20. Unblocked by: that date, moving `oxc-parser` to the version the new release installs.
 - `sharp@0.35.4`. Held: a native module; the root `overrides` pin the same version. Unblocked by: the next monthly batch, with the `@img/sharp-*` binaries.
-- `shiki@4.4.3`. Held: the root `overrides` pin `@pierre/diffs>shiki` and `@pierre/theming>shiki` to this version. Unblocked by: the next monthly batch, moving all three together.
+- `shiki@4.4.3`. Held: the root `overrides` pin `shiki` under `@pierre/diffs` and `@pierre/theming` to this version. Unblocked by: the next monthly batch, moving all three together.
 - `typebox@1.3.27`. Held: the `typebox` `pi-coding-agent` depends on, the copy Pi gives extensions; `check:pi-runtime` checks it. Unblocked by: the Pi release that moves it (docs/pi-runtime-upgrades.md).
-- `vite@8.3.0`. Held: the root override pins `electron-vite>vite` to this version. Unblocked by: the next monthly batch, changing the override with it.
+- `vite@8.3.0`. Held: the root override pins `vite` under `electron-vite` to this version. Unblocked by: the next monthly batch, changing the override with it.
 
 ## Waiting for the monthly batch
 

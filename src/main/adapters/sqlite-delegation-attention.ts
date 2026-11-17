@@ -2,7 +2,12 @@ import type * as SqlClient from '@effect/sql/SqlClient'
 import { SessionId } from '@shared/types/brand'
 import type { HiveAttentionCause } from '@shared/types/hive-next-actor'
 import * as Effect from 'effect/Effect'
-import type { SessionControlDelegationAttentionCleared } from '../ports/session-control-run-lifecycle-repository'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
+import { parseSessionAgentCallerId } from '../domain/session-control/root-session-project-reach'
+import type {
+  SessionControlDelegationAttentionCleared,
+  SessionControlDelegationReopened,
+} from '../ports/session-control-run-lifecycle-repository'
 
 /** Who authored a transition the Session Host made on its own (ADR 0059). */
 export const SESSION_HOST_TRANSITION_AUTHOR = 'session-host'
@@ -173,5 +178,67 @@ export function clearWorkerRequestOnParentDelivery(
       authoredBy: input.callerId,
       now: input.now,
     })
+  })
+}
+
+interface AcceptedContractRow {
+  readonly id: string
+  readonly parent_session_id: string
+}
+
+/**
+ * A Run the parent's agent starts on a Worker whose result it accepted is new work for that
+ * parent (a message, a started Run, a Follow-up or a replacement), so the Delegation is open again
+ * as `working`. Its end then records a Worker update like any other, and an idle parent is woken
+ * for it. Before this, an accepted Delegation recorded nothing when that Run ended, the Worker
+ * could only `report` (which never starts a Run), and the parent waited until the person wrote
+ * (TC-mapping Hive, beta.38).
+ *
+ * The work belongs to whoever wrote it (`authorCallerId` survives the person adopting a queued
+ * Follow-up). A Hive wake is the Host acting for the Worker's own Workers, never its parent
+ * sending work, and a cancelled Delegation stays closed.
+ */
+export function reopenAcceptedDelegationForParentRun(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly workerSessionId: string
+    readonly runId: string
+    readonly intent: SessionControlRunIntent
+    readonly now: number
+  },
+) {
+  return Effect.gen(function* () {
+    if (input.intent.hiveWake === true) return undefined
+    const author = input.intent.authorCallerId ?? input.intent.callerId
+    const parentSessionId = parseSessionAgentCallerId(author)?.sessionId
+    if (parentSessionId === undefined) return undefined
+    const rows = yield* sql<AcceptedContractRow>`
+      SELECT id, parent_session_id FROM delegation_contracts
+      WHERE child_session_id = ${input.workerSessionId}
+        AND parent_session_id = ${parentSessionId}
+        AND state = ${'accepted'}
+      LIMIT 1
+    `
+    const contract = rows[0]
+    if (contract === undefined) return undefined
+    yield* sql`
+      INSERT INTO delegation_state_transitions (
+        delegation_id, from_state, to_state, reason, actor_session_id, authored_by, created_at
+      ) VALUES (
+        ${contract.id}, ${'accepted'}, ${'working'},
+        ${`Run ${input.runId} started with new work from the parent, so the Delegation is open again.`},
+        ${parentSessionId}, ${author}, ${input.now}
+      )
+    `
+    yield* sql`
+      UPDATE delegation_contracts SET state = ${'working'}, updated_at = ${input.now}
+      WHERE id = ${contract.id} AND state = ${'accepted'}
+    `
+    return {
+      delegationId: contract.id,
+      parentSessionId: SessionId(contract.parent_session_id),
+      workerSessionId: SessionId(input.workerSessionId),
+      state: 'working',
+    } satisfies SessionControlDelegationReopened
   })
 }
