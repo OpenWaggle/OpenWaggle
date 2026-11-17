@@ -210,3 +210,41 @@ describe('Hive tool revision guidance (#454)', () => {
     )
   })
 })
+
+// A Queen accepted, sent more work, and its Worker answered with report, which never starts a
+// Run; the idle Queen waited for the person (TC-mapping Hive, beta.38).
+describe('Hive tool guidance for new work after acceptance', () => {
+  it('tells the parent that new work reopens an accepted Delegation and the answer wakes it', async () => {
+    const registerTool = vi.fn()
+    createSessionsToolExtension({
+      sessionId: 'session-queen',
+      runId: 'run-current',
+      workingDirectory: '/project',
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+    const tool = registerTool.mock.calls[0]?.[0]
+
+    const overview = await hiveHelpText(tool)
+    expect(overview).toMatch(
+      /After delegation_accept, a message, start, follow_up, or replace that starts a Run on that Worker reopens its Delegation \(working\).*wakes you when idle/,
+    )
+    expect(overview).toMatch(
+      /new work after accepting your Delegation, it is working again: give the result with delegation_submit or as your final reply/,
+    )
+    const followUpRules: string = JSON.parse(await hiveHelpText(tool, 'follow_up')).rules.join('\n')
+    expect(followUpRules).toMatch(/After delegation_accept/)
+  })
+
+  it('tells a Worker that cannot review only its own side', async () => {
+    const registerTool = vi.fn()
+    createSessionsToolExtension({
+      sessionId: 'session-worker',
+      runId: 'run-current',
+      workingDirectory: '/project',
+      sessionCapabilities: ['sessions:read', 'sessions:report', 'delegations:contribute'],
+    })(fromPartial<ExtensionAPI>({ registerTool }))
+
+    const text = await hiveHelpText(registerTool.mock.calls[0]?.[0])
+    expect(text).toMatch(/A report alone never wakes your parent/)
+    expect(text).not.toMatch(/After delegation_accept/)
+  })
+})

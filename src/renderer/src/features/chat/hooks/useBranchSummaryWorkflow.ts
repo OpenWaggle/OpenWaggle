@@ -6,6 +6,7 @@ import type {
   SupportedModelId,
 } from '@shared/types/brand'
 import type { SessionWorkspace } from '@shared/types/session'
+import { exceedsAttachmentTotalBytes } from '@shared/utils/attachment-limits'
 import type { useNavigate } from '@tanstack/react-router'
 import { useChatStore } from '@/features/chat/state/chat-store'
 import { buildComposerDraftContextKey } from '@/features/composer/lib'
@@ -153,14 +154,14 @@ function applySummarizedBranchDraft(
     useComposerStore.getState().replaceAttachments(attachments)
   }
   const exceedsCount = attachments.length > ATTACHMENT.MAX_COUNT
-  const exceedsSize =
-    attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
-    ATTACHMENT.MAX_TOTAL_SIZE_BYTES
+  const exceedsSize = exceedsAttachmentTotalBytes(attachments)
   if (exceedsCount) {
     params.showToast('Your draft has too many attachments to send. Remove some before retrying.')
   }
   if (!exceedsCount && exceedsSize) {
-    params.showToast('Your draft exceeds the 20 MB attachment limit. Remove some before retrying.')
+    params.showToast(
+      "Your draft's documents exceed the 20 MB attachment limit. Remove some before retrying.",
+    )
   }
   useComposerStore.getState().clearScopedDraft(draftBranchComposerContextKey(prompt))
   setComposerTextValue(appliedDraft.input)

@@ -99,7 +99,7 @@ If the worker is busy, your message waits above the message box as a follow-up, 
 
 Switching between sessions never stops a run. A worker's Session Summary works as soon as it is created, even before it sends its first message.
 
-To pass a finding along without starting new work, ask a worker to report it to its parent. A report reaches the other session as a note and never starts or steers a run.
+To pass a finding along without starting new work, ask a worker to report it to its parent. A report reaches the other session as a note and never starts or steers a run. If the parent is idle, it reads the report at its next run.
 
 If a worker's result needs fixing, you can also tell the Queen what to change, and its agent asks the worker for a new revision. The [Hive reference](/docs/reference/hive#send-messages-and-control-runs) lists every message action and the queue rules.
 
@@ -110,6 +110,8 @@ When a worker finishes, it submits its result to the agent that created it. That
 The parent does not have to stay busy while its workers run. If it has finished its turn when a result or a request for help arrives, OpenWaggle starts a new run on it, and it picks up from there. A Queen that told you it would report back when its workers are done gets that run and can report back. A run you stopped stays stopped until you send something. The [Hive reference](/docs/reference/hive#when-a-worker-reports-to-an-idle-parent) lists the exact rules.
 
 A worker that ends its run with a reply but forgets to submit still has that reply kept as its result. A worker that asked for help keeps waiting for an answer, even if its last reply was text.
+
+A parent can give a worker more work after accepting its result. When the parent agent sends that worker a message or a follow-up, OpenWaggle reopens its delegation as soon as the new run starts. The worker's answer then comes back as a new result, wakes an idle parent the same way, and waits for the parent to accept it again. A report never wakes the parent, so a worker sends its answer as its result, not only as a report.
 
 The Queen's summary is where your review starts, not where it ends. Before you rely on it, read the worker transcripts, the changed files and the test results. The [Hive reference](/docs/reference/hive#delegation-states) lists every delegation state and how a result moves between them.
 

@@ -50,16 +50,23 @@ export function on<C extends IpcEventChannel>(channel: C) {
 }
 
 const invokePrepareAttachments = invoke('attachments:prepare')
+const invokePrepareImageFromBytes = invoke('attachments:prepare-image-from-bytes')
 
-export async function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
-  const selectedByPath = new Map<string, { readonly path: string; readonly fileIndex: number }>()
-  files.forEach((file, fileIndex) => {
-    const path = webUtils.getPathForFile(file)
-    if (path.length > 0 && !selectedByPath.has(path)) selectedByPath.set(path, { path, fileIndex })
-  })
-  const selected = [...selectedByPath.values()]
+// A file with no path, such as an image pasted from the clipboard, exists only in memory, so its
+// bytes are the attachment (ADR 0068). A blob the browser could not type (a HEIC, for one) is
+// taken by its name, and main reads its type from that name.
+const PATHLESS_IMAGE_NAME = /\.(?:gif|heic|heif|jpe?g|png|webp)$/iu
+
+async function preparePathlessImage(file: File, fileIndex: number) {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  return { attachment: await invokePrepareImageFromBytes(bytes, file.name, file.type), fileIndex }
+}
+
+async function prepareAttachmentsByPath(
+  projectPath: string,
+  selected: readonly { readonly path: string; readonly fileIndex: number }[],
+) {
   if (selected.length === 0) return []
-
   const attachments = await invokePrepareAttachments(
     projectPath,
     selected.map(({ path }) => path),
@@ -71,4 +78,27 @@ export async function prepareSelectedAttachments(projectPath: string, files: rea
     attachment,
     fileIndex: selected[index]?.fileIndex ?? index,
   }))
+}
+
+export async function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
+  const selectedByPath = new Map<string, { readonly path: string; readonly fileIndex: number }>()
+  const pathless: { readonly file: File; readonly fileIndex: number }[] = []
+  files.forEach((file, fileIndex) => {
+    const path = webUtils.getPathForFile(file)
+    if (path.length > 0) {
+      if (!selectedByPath.has(path)) selectedByPath.set(path, { path, fileIndex })
+      return
+    }
+    // A pathless file that is not an image is skipped, as it always was.
+    if (file.type.startsWith('image/') || PATHLESS_IMAGE_NAME.test(file.name)) {
+      pathless.push({ file, fileIndex })
+    }
+  })
+
+  // A preparation that fails rejects, so a pathless image shows the same error a file would.
+  const prepared = await Promise.all([
+    prepareAttachmentsByPath(projectPath, [...selectedByPath.values()]),
+    Promise.all(pathless.map(({ file, fileIndex }) => preparePathlessImage(file, fileIndex))),
+  ])
+  return prepared.flat().sort((left, right) => left.fileIndex - right.fileIndex)
 }

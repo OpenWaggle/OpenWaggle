@@ -28,6 +28,14 @@ _Avoid_: Pi import, Pi compatibility mode, partial Pi support
 A Pi session created outside OpenWaggle, such as by the `pi` CLI, whose working directory is an OpenWaggle project or a folder inside it, listed in that project as an ordinary Session that keeps using the same Pi session file.
 _Avoid_: imported session, Pi session import, Session discovery (which is search)
 
+**Prompt image normalization**:
+Pi's own resizing and re-encoding of every image a prompt carries, to the inline image budget of the selected model. OpenWaggle hands the image over and normalizes nothing itself; it only decodes a format Pi cannot read, so an image Pi could not carry still reaches the model intact.
+_Avoid_: OpenWaggle image resize, attachment downscale, duplicated normalization
+
+**Inline image budget**:
+The limits one model declares for a single prompt image: its largest base64 payload, its largest dimensions, and how many images one message or one request may carry. OpenWaggle reads them from Pi's own model metadata and never invents its own.
+_Avoid_: attachment size limit, global image cap, OpenWaggle image registry
+
 **Pi continuation choice**:
 A person's answer, when they send from the composer in a Session the `pi` CLI wrote to last, to continue it in OpenWaggle or keep running it in pi; it may be remembered for one project, for that person only.
 _Avoid_: session takeover, Pi lock
@@ -1133,7 +1141,7 @@ _Avoid_: extension-local pending prompt
 ### CI gates
 
 **CI gate**:
-The required checks that run on every pull-request update and on the push to `main` (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, and the aggregating Package Release Gate). Once they pass, a pull request merges directly — there is no merge queue and no Electron E2E (ADR 0033).
+The required checks that run on every pull-request update and on the push to `main` (Commit Policy, Typecheck & Lint, Unit, Integration & Component, MCP Conformance, the aggregating Package Release Gate, and the CLA Assistant check `license/cla`). Once they pass, a pull request merges directly — there is no merge queue and no Electron E2E (ADR 0033).
 _Avoid_: Fast gate, Full gate, merge queue, post-merge CI
 
 **Nightly canary**:

@@ -33,7 +33,7 @@ Link to the page and point out the instruction that is missing, unclear, or wron
 
 ## Send a pull request
 
-Start from an issue, keep each pull request one coherent change, and follow the commit and verification standards the repository CI enforces. [CONTRIBUTING.md](https://github.com/OpenWaggle/OpenWaggle/blob/main/CONTRIBUTING.md) describes them.
+Start from an issue, keep each pull request one coherent change, and follow the commit and verification standards the repository CI enforces. [CONTRIBUTING.md](https://github.com/OpenWaggle/OpenWaggle/blob/main/CONTRIBUTING.md) describes them. You can [build OpenWaggle from source](/docs/developer-guide/building-from-source) to check a fix on your own machine first.
 
 Submitting a contribution accepts the project's [Contributor License Agreement](https://github.com/OpenWaggle/OpenWaggle/blob/main/CLA.md). You keep the copyright of your work. [CLA Assistant](https://cla-assistant.io/) checks every pull request. Agree once in its comment and your later pull requests are covered automatically. A pull request without the CLA status cannot merge.
 
@@ -46,7 +46,3 @@ Start a [GitHub Discussion](https://github.com/OpenWaggle/OpenWaggle/discussions
 - Be respectful and constructive.
 - Talk about the problem, not the person.
 - Assume other contributors mean well.
-
-## Code contributions later
-
-The project plans to accept code contributions later. Until the policy changes, send proposals as issues. You can still [build OpenWaggle from source](/docs/developer-guide/building-from-source) to look into a problem on your own machine.

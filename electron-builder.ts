@@ -120,6 +120,9 @@ const config = {
     '!node_modules/**/README*',
     '!node_modules/**/CHANGELOG*',
     '!node_modules/**/LICENSE*',
+    // The LGPL-3.0 text of libheif-js, which the app loads to decode HEIC, has to travel with the
+    // library it covers (THIRD_PARTY_NOTICES.md, ADR 0068).
+    'node_modules/**/libheif-js/LICENSE',
     '!node_modules/**/.github',
     '!node_modules/**/docs',
     '!node_modules/**/test',
