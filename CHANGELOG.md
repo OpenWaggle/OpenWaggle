@@ -205,6 +205,7 @@ Released builds send anonymous usage statistics and error reports, starting at t
 
 ### Fixes
 
+- **sessions:** fork a Session worktree from the picked base ref ([#489](https://github.com/OpenWaggle/OpenWaggle/pull/489))
 - **composer:** send skill references as Pi's /skill: command ([#487](https://github.com/OpenWaggle/OpenWaggle/pull/487))
 
 ## [1.0.0-beta.43] - 2026-11-17
