@@ -1,7 +1,12 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import { stashDraftWorktreePlan, useSessionContextRow } from '@/features/git'
+import {
+  settledWorktreePlanWrite,
+  stashDraftWorktreePlan,
+  useSessionContextRow,
+  worktreePlanKey,
+} from '@/features/git'
 import { usePreferencesStore } from '@/features/settings/state'
 import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 
@@ -49,10 +54,22 @@ export function useComposerSendGate(input: UseComposerSendGateInput) {
         startFromOrigin: strip.startFromOrigin,
       })
     }
-    return input.onSend(
-      input.activeSessionId
-        ? withInlineVisualizationContext(input.activeSessionId, payload)
-        : payload,
+    /*
+     * A pick on an existing Session only reaches the Host through a Session Control handoff, and
+     * birth reads the base ref the Host recorded. Sending before that write lands forked the first
+     * worktree from the previous ref, so the chosen branch looked ignored.
+     */
+    const planKey = worktreePlanKey({
+      sessionId: input.activeSessionId,
+      projectPath,
+      isFirstMessage: input.isFirstMessage,
+    })
+    return settledWorktreePlanWrite(planKey).then(() =>
+      input.onSend(
+        input.activeSessionId
+          ? withInlineVisualizationContext(input.activeSessionId, payload)
+          : payload,
+      ),
     )
   }
   return { strip, guardedSend, sendBlockedReason }

@@ -7,14 +7,19 @@ import {
   reportInlineVisualizationState,
 } from '../../state/inline-visualization-state'
 
-const { useSessionContextRowMock, stashDraftWorktreePlanMock } = vi.hoisted(() => ({
-  useSessionContextRowMock: vi.fn(),
-  stashDraftWorktreePlanMock: vi.fn(),
-}))
+const { useSessionContextRowMock, stashDraftWorktreePlanMock, settledWorktreePlanWriteMock } =
+  vi.hoisted(() => ({
+    useSessionContextRowMock: vi.fn(),
+    stashDraftWorktreePlanMock: vi.fn(),
+    settledWorktreePlanWriteMock: vi.fn(async () => {}),
+  }))
 
 vi.mock('@/features/git', () => ({
   useSessionContextRow: useSessionContextRowMock,
   stashDraftWorktreePlan: stashDraftWorktreePlanMock,
+  settledWorktreePlanWrite: settledWorktreePlanWriteMock,
+  worktreePlanKey: (input: { sessionId: string | null; projectPath: string | null }) =>
+    input.sessionId ?? `draft:${input.projectPath}`,
 }))
 
 vi.mock('@/features/settings/state', () => ({
@@ -111,6 +116,39 @@ describe('useComposerSendGate', () => {
 
     expect(result.current.sendBlockedReason).toBeNull()
     expect(onSend).toHaveBeenCalledWith(PAYLOAD)
+  })
+
+  it('waits for a base-ref pick to reach the Host before it sends', async () => {
+    /*
+     * A pick on an existing Session is a Session Control handoff, so the plan the Host knows
+     * changes one round trip later. A send that overtook it forked the first worktree from the
+     * previous base ref, which is the reported "my branch selection was ignored".
+     */
+    const activeSessionId = SessionId('session-a')
+    useSessionContextRowMock.mockReturnValue(stripWith({ kind: 'proceed' }))
+    let releasePick = () => {}
+    settledWorktreePlanWriteMock.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (releasePick = resolve)),
+    )
+    const onSend = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useComposerSendGate({
+        activeSessionId,
+        session: null,
+        isFirstMessage: false,
+        onSend,
+        onToast: vi.fn(),
+      }),
+    )
+
+    const sending = result.current.guardedSend(PAYLOAD)
+    await Promise.resolve()
+    expect(onSend).not.toHaveBeenCalled()
+    expect(settledWorktreePlanWriteMock).toHaveBeenCalledWith(String(activeSessionId))
+
+    releasePick()
+    await sending
+    expect(onSend).toHaveBeenCalledOnce()
   })
 
   it('attaches the latest mounted visualization state to an active-session send', async () => {

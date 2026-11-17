@@ -1,7 +1,6 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown, Schema } from '@shared/schema'
 import type { SessionHandoffWorkspaceSelection } from '@shared/types/session-organization'
-import { sessionWorktreeBranchForId } from '@shared/utils/worktree'
 import { Option } from 'effect'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -9,13 +8,11 @@ import {
   SessionWorkspaceHandoffService,
   type SessionWorkspaceHandoffServiceShape,
 } from '../ports/session-workspace-handoff-service'
-import { resolveWorkspaceWorktreePath } from '../services/git/session-worktree-path'
+import { handoffPreparationError } from './git/session-workspace-handoff-preparation'
 import {
-  captureExistingWorkspaceSeeds,
-  captureNewWorkspaceSeed,
-  handoffPreparationError,
-  preparedWorkspaceId,
-} from './git/session-workspace-handoff-preparation'
+  prepareExistingWorkspaceTransfer,
+  prepareNewWorkspaceTransfer,
+} from './git-session-workspace-handoff-transfers'
 import {
   applyWorkspaceHandoffSeed,
   assertWorkspaceMatchesHandoffSeed,
@@ -30,6 +27,7 @@ interface SourceWorkspaceRow {
   readonly lifecycle_state: string
   readonly active_run_id: string | null
   readonly handoff_seed_ref: string | null
+  readonly run_count: number
 }
 
 interface TargetWorkspaceRow {
@@ -55,7 +53,11 @@ function loadSourceWorkspace(sql: SqlClient.SqlClient, sessionId: string) {
       workspace_resources.working_path,
       workspace_resources.lifecycle_state,
       workspace_resources.handoff_seed_ref,
-      session_control_states.active_run_id
+      session_control_states.active_run_id,
+      (
+        SELECT COUNT(1) FROM session_runs
+        WHERE session_runs.session_id = session_workspace_bindings.session_id
+      ) AS run_count
     FROM session_workspace_bindings
     JOIN workspace_resources
       ON workspace_resources.id = session_workspace_bindings.workspace_id
@@ -108,14 +110,12 @@ function operationAlreadyExists(
   `
 }
 
-function releaseCapturedExistingSeeds(
-  projectPath: string,
-  seeds: Awaited<ReturnType<typeof captureExistingWorkspaceSeeds>>,
-) {
-  return Promise.all([
-    releaseWorkspaceHandoffSeed(projectPath, seeds.source.snapshotRef),
-    releaseWorkspaceHandoffSeed(projectPath, seeds.target.snapshotRef),
-  ]).then(() => undefined)
+function handoffIdentity(input: PrepareHandoffInput) {
+  return {
+    callerId: input.callerId,
+    sessionId: input.request.command.sessionId,
+    idempotencyKey: input.request.idempotencyKey,
+  }
 }
 
 function prepareExistingTransfer(
@@ -139,62 +139,41 @@ function prepareExistingTransfer(
     ) {
       return undefined
     }
-    const transferId = `${preparedWorkspaceId({
-      callerId: input.callerId,
-      sessionId: input.request.command.sessionId,
-      idempotencyKey: input.request.idempotencyKey,
-    })}-transfer`
-    const seeds = yield* Effect.promise(() =>
-      captureExistingWorkspaceSeeds({
-        projectPath: source.project_path,
-        sourceWorkingPath: source.working_path,
-        targetWorkingPath: target.working_path,
-        transferId,
-      }),
-    )
-    if (replay?.status === 'pending' && target.handoff_seed_ref !== seeds.source.snapshotRef) {
-      yield* Effect.promise(() => releaseCapturedExistingSeeds(source.project_path, seeds))
-      return undefined
-    }
-    return {
-      transfer: 'deferred-existing' as const,
+    return yield* prepareExistingWorkspaceTransfer({
+      identity: handoffIdentity(input),
       workspaceId: target.id,
       projectPath: source.project_path,
       sourceWorkingPath: source.working_path,
       workingPath: target.working_path,
-      sourceHead: seeds.source.sourceHead,
-      snapshotRef: seeds.source.snapshotRef,
-      targetSnapshotRef: seeds.target.snapshotRef,
-    }
+      ...(replay?.status === 'pending'
+        ? { replay: { reservedSeedRef: target.handoff_seed_ref } }
+        : {}),
+    })
   })
+}
+
+/**
+ * A Session that never started a Run owns no work in the checkout it is leaving, so a
+ * handoff to a new worktree has nothing to carry and its base ref stays free.
+ *
+ * Capturing a seed for such a Session was the base-ref bug: a seed can only sit on the source
+ * HEAD, so `assertRequestedBaseRef` refused every other branch and the plan recorded the
+ * checkout's HEAD commit as the base ref. Birth then forked from whatever the checkout had,
+ * and the composer showed a commit id instead of the chosen branch.
+ */
+function sessionHasWorkToCarry(source: SourceWorkspaceRow) {
+  return source.run_count > 0
 }
 
 function prepareNewTransfer(input: PrepareHandoffInput, source: SourceWorkspaceRow) {
   const workspace = input.request.command.workspace
   if (workspace.mode !== 'new-worktree') return Effect.succeed(undefined)
-  const workspaceId = preparedWorkspaceId({
-    callerId: input.callerId,
-    sessionId: input.request.command.sessionId,
-    idempotencyKey: input.request.idempotencyKey,
+  return prepareNewWorkspaceTransfer({
+    identity: handoffIdentity(input),
+    projectPath: source.project_path,
+    workingPath: source.working_path,
+    ...(workspace.baseRef ? { baseRef: workspace.baseRef } : {}),
   })
-  return Effect.promise(() =>
-    captureNewWorkspaceSeed({
-      projectPath: source.project_path,
-      workingPath: source.working_path,
-      workspaceId,
-      ...(workspace.baseRef ? { requestedBaseRef: workspace.baseRef } : {}),
-    }),
-  ).pipe(
-    Effect.map((seed) => ({
-      transfer: 'deferred-new-worktree' as const,
-      workspaceId,
-      projectPath: source.project_path,
-      workingPath: resolveWorkspaceWorktreePath(source.project_path, workspaceId),
-      worktreeBranch: sessionWorktreeBranchForId(workspaceId),
-      sourceHead: seed.sourceHead,
-      snapshotRef: seed.snapshotRef,
-    })),
-  )
 }
 
 /** The refs a completed Workspace handoff recorded for its replay to release. */
@@ -242,9 +221,11 @@ function prepareWorkspaceHandoff(sql: SqlClient.SqlClient, input: PrepareHandoff
         : undefined
     }
     if (source.lifecycle_state !== 'ready') return undefined
-    return input.request.command.workspace.mode === 'new-worktree'
-      ? yield* prepareNewTransfer(input, source)
-      : yield* prepareExistingTransfer(sql, input, source, replay)
+    if (input.request.command.workspace.mode !== 'new-worktree') {
+      return yield* prepareExistingTransfer(sql, input, source, replay)
+    }
+    if (!sessionHasWorkToCarry(source)) return undefined
+    return yield* prepareNewTransfer(input, source)
   })
 }
 
