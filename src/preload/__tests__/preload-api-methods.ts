@@ -251,11 +251,11 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   'runStackedGitAction',
   'cancelStackedGitAction',
   ...PRELOAD_SOURCE_CONTROL_METHODS,
-  // Attachments
+  // Attachments and voice
   'prepareAttachments',
   'prepareAttachmentFromText',
+  'prepareImageAttachment',
   'onPrepareAttachmentFromTextProgress',
-  // Voice
   'transcribeVoiceLocal',
   // Standards & Skills
   'getStandardsStatus',
@@ -266,11 +266,11 @@ export const PRELOAD_API_METHODS: readonly (keyof OpenWaggleApi)[] = [
   // Shell / App
   'copyToClipboard',
   'readFromClipboard',
+  'readClipboardImage',
   'openLogsDir',
   'getLogsPath',
   'openPath',
   'revealPath',
-  // Dialog
   'showConfirm',
   // Waggle
   'sendWaggleMessage',

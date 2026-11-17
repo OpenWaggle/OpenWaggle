@@ -23,6 +23,16 @@ const image: PreparedAttachment = {
   extractedText: '',
 }
 
+// The message total counts documents, not images (ADR 0068).
+const documentAttachment: PreparedAttachment = {
+  ...image,
+  id: 'session-document',
+  kind: 'text',
+  name: 'notes.txt',
+  path: '/tmp/notes.txt',
+  mimeType: 'text/plain',
+}
+
 function renderSubmission(input: {
   readonly onSend: (payload: AgentSendPayload) => Promise<void> | false
   readonly clearOnSubmit?: boolean
@@ -227,10 +237,10 @@ describe('composer Session image submission ownership', () => {
     expect(onToast).toHaveBeenCalledWith(expect.stringContaining('Remove some before retrying'))
   })
 
-  it('blocks retry when restored attachments exceed the total size limit', async () => {
+  async function restoreExceedingTotal(attachment: PreparedAttachment) {
     let rejectSend: (cause: Error) => void = () => {}
     const onToast = vi.fn()
-    useComposerStore.getState().replaceAttachments([{ ...image, sizeBytes: 8 * 1024 * 1024 }])
+    useComposerStore.getState().replaceAttachments([{ ...attachment, sizeBytes: 8 * 1024 * 1024 }])
     const { result } = renderSubmission({
       onSend: () =>
         new Promise<void>((_resolve, reject) => {
@@ -245,17 +255,30 @@ describe('composer Session image submission ownership', () => {
     })
     act(() =>
       useComposerStore.getState().addAttachments([
-        { ...image, id: 'second', sizeBytes: 8 * 1024 * 1024 },
-        { ...image, id: 'third', sizeBytes: 8 * 1024 * 1024 },
+        { ...attachment, id: 'second', sizeBytes: 8 * 1024 * 1024 },
+        { ...attachment, id: 'third', sizeBytes: 8 * 1024 * 1024 },
       ]),
     )
     await act(async () => {
       rejectSend(new Error('Send refused'))
       await Promise.resolve()
     })
+    return { onToast, result }
+  }
+
+  it('blocks retry when restored documents exceed the total size limit', async () => {
+    const { onToast, result } = await restoreExceedingTotal(documentAttachment)
 
     expect(useComposerStore.getState().attachments).toHaveLength(3)
     expect(result.current.canSend).toBe(false)
     expect(onToast).toHaveBeenCalledWith(expect.stringContaining('20 MB attachment limit'))
+  })
+
+  it('sends restored images past that total, because the agent reduces each one', async () => {
+    const { onToast, result } = await restoreExceedingTotal(image)
+
+    expect(useComposerStore.getState().attachments).toHaveLength(3)
+    expect(result.current.canSend).toBe(true)
+    expect(onToast).not.toHaveBeenCalledWith(expect.stringContaining('20 MB attachment limit'))
   })
 })

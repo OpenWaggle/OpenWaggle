@@ -7,9 +7,17 @@ export const BYTES_PER_KIBIBYTE = 1024
 export const ATTACHMENT = {
   /** Max attachments per message */
   MAX_COUNT: 5,
-  /** Max size per attachment (8 MB) */
+  /** Max size per non-image attachment (8 MB) */
   MAX_SIZE_BYTES: 8 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE,
-  /** Max total attachment size (20 MB) */
+  /**
+   * Max size per image attachment (100 MB). Pi reduces every prompt image to the budget the
+   * selected model declares before the provider sees it, so an image's size never decides whether
+   * a send can succeed, and refusing one for its size would refuse a file `pi` accepts (ADR 0068).
+   * The bound is what the app will read, hash and decode in one piece: a crash guard, not a limit
+   * on what the model may receive.
+   */
+  MAX_IMAGE_SIZE_BYTES: 100 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE,
+  /** Max total size of the non-image attachments in one message (20 MB) */
   MAX_TOTAL_SIZE_BYTES: 20 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE,
   /** Max attachments in preview list */
   MAX_LIST_PREVIEW: 5,

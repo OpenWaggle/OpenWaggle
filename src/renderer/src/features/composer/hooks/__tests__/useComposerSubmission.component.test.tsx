@@ -1,3 +1,4 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import { act, renderHook } from '@testing-library/react'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -5,6 +6,7 @@ import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '../../state/composer-store'
+import { attachmentLimitReason } from '../composer-submission-support'
 import { useComposerSubmission } from '../useComposerSubmission'
 
 const { clearEditor } = vi.hoisted(() => ({ clearEditor: vi.fn() }))
@@ -55,6 +57,28 @@ function renderSubmission(
     }),
   )
 }
+
+// The window's copy of the message total has to agree with the Session Host's, which counts the
+// documents only: an image's size never decides whether a send can succeed (ADR 0068).
+describe('attachment total limit', () => {
+  function sized(kind: PreparedAttachment['kind'], sizeBytes: number) {
+    return fromPartial<PreparedAttachment>({ kind, sizeBytes })
+  }
+
+  it('keeps an image past the 20 MB total sendable', () => {
+    expect(attachmentLimitReason([sized('image', ATTACHMENT.MAX_TOTAL_SIZE_BYTES + 1)])).toBeNull()
+  })
+
+  it('still blocks a message whose documents pass the total', () => {
+    expect(attachmentLimitReason([sized('text', ATTACHMENT.MAX_TOTAL_SIZE_BYTES + 1)])).toBe('size')
+    expect(
+      attachmentLimitReason([
+        sized('text', ATTACHMENT.MAX_TOTAL_SIZE_BYTES),
+        sized('image', ATTACHMENT.MAX_TOTAL_SIZE_BYTES),
+      ]),
+    ).toBeNull()
+  })
+})
 
 describe('useComposerSubmission Follow-up lifecycle', () => {
   beforeEach(() => {
