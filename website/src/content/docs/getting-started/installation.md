@@ -46,7 +46,15 @@ macOS builds are signed with an Apple Developer ID and notarized by Apple, so ma
 
 Builds before `1.0.0-beta.1` were unsigned, and an in-app update from one of them may not install. If you still run one, download the current version from GitHub Releases once and replace the app in Applications.
 
-Windows installers are not signed yet, so SmartScreen may warn you the first time you run one. Check that you downloaded it from the official release page, then choose **More info** and **Run anyway**. The Linux AppImage is not signed either.
+Windows installers are not signed yet, so SmartScreen may warn you the first time you run one. A Windows signing certificate costs money and the project does not have one, so check the download yourself instead. Get the installer from the official release page and compare its SHA-256 with the matching line in the `SHA256SUMS.txt` file from the same release.
+
+On Windows, run this in the folder that holds the installer. Replace INSTALLER_NAME with the name of the file you downloaded.
+
+```
+certutil -hashfile INSTALLER_NAME.exe SHA256
+```
+
+When the two values match, choose **More info** and **Run anyway**. The Linux AppImage is not signed either.
 
 ## Install from the terminal
 
