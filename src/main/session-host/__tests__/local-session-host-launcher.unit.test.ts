@@ -10,8 +10,6 @@ import {
   isLocalSessionHostUnavailable,
   type LocalSessionHostLauncherDependencies,
   sessionHostChildEnvironment,
-  sessionHostLaunchArguments,
-  sessionHostLaunchCommand,
 } from '../local-session-host-launcher'
 
 const paths = {
@@ -72,53 +70,6 @@ describe('Local Session Host launcher', () => {
     expect(
       isLocalSessionHostUnavailable(Object.assign(new Error('denied'), { code: 'EACCES' })),
     ).toBe(false)
-  })
-
-  it('includes the Electron application path for a cold development Host', () => {
-    expect(
-      sessionHostLaunchArguments({ isPackaged: false, appPath: '/workspace/OpenWaggle' }),
-    ).toEqual(['/workspace/OpenWaggle', 'session-host-internal'])
-    expect(
-      sessionHostLaunchArguments({ isPackaged: true, appPath: '/Applications/OpenWaggle.app' }),
-    ).toEqual(['session-host-internal'])
-  })
-
-  it('launches a packaged Linux Host from the stable AppImage mount source', () => {
-    expect(
-      sessionHostLaunchCommand({
-        platform: 'linux',
-        isPackaged: true,
-        executablePath: '/tmp/.mount_openwaggle/openwaggle',
-        appPath: '/tmp/.mount_openwaggle/resources/app.asar',
-        appImagePath: '/opt/OpenWaggle.AppImage',
-      }),
-    ).toEqual({ command: '/opt/OpenWaggle.AppImage', args: ['session-host-internal'] })
-  })
-
-  it('keeps the Electron executable for development and non-AppImage packages', () => {
-    expect(
-      sessionHostLaunchCommand({
-        platform: 'linux',
-        isPackaged: false,
-        executablePath: '/workspace/node_modules/electron/dist/electron',
-        appPath: '/workspace/OpenWaggle',
-        appImagePath: '/opt/OpenWaggle.AppImage',
-      }),
-    ).toEqual({
-      command: '/workspace/node_modules/electron/dist/electron',
-      args: ['/workspace/OpenWaggle', 'session-host-internal'],
-    })
-    expect(
-      sessionHostLaunchCommand({
-        platform: 'darwin',
-        isPackaged: true,
-        executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
-        appPath: '/Applications/OpenWaggle.app/Contents/Resources/app.asar',
-      }),
-    ).toEqual({
-      command: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
-      args: ['session-host-internal'],
-    })
   })
 
   it('adds explicit Host identity settings to the selected runtime environment', () => {
@@ -255,6 +206,50 @@ describe('Local Session Host launcher', () => {
 
     expect(launcher.launch).toHaveBeenCalledOnce()
     expect(launcher.wait).toHaveBeenCalledTimes(699)
+  })
+
+  // Sentry OPENWAGGLE-9: a Host that accepted a connection went away before the probe
+  // handshake finished, and the raw EPIPE reached the GUI's startup failure report instead of
+  // a retry.
+  const epipeWrite = () => Object.assign(new Error('write EPIPE'), { code: 'EPIPE' })
+
+  it('keeps polling when a listening Host disconnects the probe handshake', async () => {
+    const probe = vi
+      .fn<LocalSessionHostLauncherDependencies['probe']>()
+      .mockRejectedValueOnce(epipeWrite())
+      .mockResolvedValue(accepted)
+    const launcher = dependencies({ probe })
+
+    await expect(ensureLocalSessionHost(client, launcher)).resolves.toEqual(accepted)
+
+    expect(launcher.launch).not.toHaveBeenCalled()
+    expect(probe).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries the closing probe of a launch whose Host went away mid-handshake', async () => {
+    const canConnect = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const probe = vi
+      .fn<LocalSessionHostLauncherDependencies['probe']>()
+      .mockResolvedValueOnce(accepted)
+      .mockRejectedValueOnce(epipeWrite())
+      .mockResolvedValue(accepted)
+    const launcher = dependencies({ canConnect, probe })
+
+    await expect(ensureLocalSessionHost(client, launcher)).resolves.toEqual(accepted)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(probe).toHaveBeenCalledTimes(3)
+  })
+
+  it('reports the last disconnect once the takeover wait times out', async () => {
+    const disconnect = epipeWrite()
+    const launcher = dependencies({ probe: vi.fn().mockRejectedValue(disconnect) })
+
+    await expect(
+      ensureLocalSessionHost({ ...client, takeoverTimeoutMs: 100 }, launcher),
+    ).rejects.toBe(disconnect)
+
+    expect(launcher.wait).toHaveBeenCalled()
   })
 
   it('waits for an incompatible Host to drain before launching its replacement', async () => {
