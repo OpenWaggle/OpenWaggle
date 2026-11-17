@@ -51,7 +51,7 @@ GitHub's `prerelease` flag is not the channel authority. Version semantics decid
 historical Alpha releases accidentally marked as ordinary GitHub releases cannot enter Stable.
 Use the Release workflow's `target_version` dispatch for a deliberate promotion or a new
 prerelease line. Dispatch it from `main`; manual runs fail closed on any other ref or without an
-explicit target. It still produces the ordinary version-only release PR and never bypasses the
+explicit target. It still produces the ordinary release PR and never bypasses the
 maintainer merge gate.
 Pass the bare version without a leading `v`, and pause `feat:`/`fix:` merges to `main` until the
 dispatched PR merges; see the `target_version` dispatch notes in `docs/release-and-versioning.md` for the
@@ -84,9 +84,16 @@ Load `.agents/skills/release/SKILL.md` before changing:
 ## Release Notes
 
 Conventional Commits decide app releases and Stable version bumps; there are no release-intent
-files. A change that breaks a covered surface needs a `!` title. Prereleases use GitHub's
-generated notes; Stable releases get a hand-written `CHANGELOG.md` entry reused as the GitHub
-Release notes. Product-impacting PRs should include reviewer-facing release notes in the PR body:
+files. A change that breaks a covered surface needs a `!` title. Every release PR writes its
+version's `CHANGELOG.md` entry from the squash subjects merged since the previous release (the PR
+title, or the commit subject of a single-commit PR), and the GitHub Release and
+openwaggle.ai/changelog publish it (ADR 0070). Write the PR title, and a lone commit's subject, as
+the line a user reads in the changelog. Never edit a release PR's files or click **Update branch**
+on it: CI fails it until the workflow writes them again. When users need more than that line (an upgrade step, a behavior change
+worth explaining, any new major), add a note under `## [Unreleased]` in `CHANGELOG.md` with a
+heading such as `### Highlights`; the next Stable release PR moves it into its entry. Never edit a
+release PR's `CHANGELOG.md` or a released entry. Product-impacting PRs should include
+reviewer-facing release notes in the PR body:
 
 - user-visible feature or behavior changes
 - relevant docs updates

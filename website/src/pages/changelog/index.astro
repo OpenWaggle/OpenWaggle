@@ -1,0 +1,92 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { CHANGELOG_FEED_PATH, GITHUB_RELEASES_URL, changelogAnchor, formatChangelogDate, githubReleaseUrl } from '@/lib/changelog';
+import { releaseStageLabel } from '@/lib/release-stage';
+import { CHANGELOG_DESCRIPTION, CHANGELOG_TITLE, changelogJsonLd, organizationJsonLd, websiteJsonLd } from '@/lib/seo';
+
+const collection = await getCollection('changelog');
+const entries = await Promise.all(
+  collection
+    .toSorted((left, right) => left.data.order - right.data.order)
+    .map(async (entry) => {
+      const { Content } = await render(entry);
+      const { version, date } = entry.data;
+      return {
+        version,
+        Content,
+        anchor: changelogAnchor(version),
+        stage: releaseStageLabel(version),
+        releaseUrl: githubReleaseUrl(version),
+        ...(date === undefined ? {} : { date, humanDate: formatChangelogDate(date) }),
+      };
+    }),
+);
+const jsonLd = [organizationJsonLd(), websiteJsonLd(), changelogJsonLd(Astro.url.pathname)];
+---
+
+<BaseLayout title={CHANGELOG_TITLE} description={CHANGELOG_DESCRIPTION} jsonLd={jsonLd}>
+  <link slot="head" rel="alternate" type="application/rss+xml" title="OpenWaggle changelog" href={CHANGELOG_FEED_PATH} />
+  <div class="mx-auto max-w-3xl px-6 py-14 md:px-12 md:py-20">
+    <header class="mb-12">
+      <h1 class="font-display text-4xl font-bold tracking-tight md:text-5xl">Changelog</h1>
+      <p class="mt-5 text-lg leading-relaxed text-text-secondary">
+        What changed in each OpenWaggle release, newest first.
+      </p>
+      <p class="mt-3 text-sm leading-relaxed text-text-tertiary">
+        Each release pull request writes its entry from the titles of the pull requests merged since the last release. Stable releases also get hand-written notes at the top. Builds from before the first entry are listed on <a href={GITHUB_RELEASES_URL} class="text-accent hover:underline">GitHub Releases</a>.
+      </p>
+      <p class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <a href={CHANGELOG_FEED_PATH} class="inline-flex items-center gap-2 text-text-tertiary hover:text-text-primary">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" /></svg>
+          RSS feed
+        </a>
+        <a href={GITHUB_RELEASES_URL} class="text-text-tertiary hover:text-text-primary">All releases on GitHub</a>
+      </p>
+    </header>
+
+    {entries.length === 0 ? (
+      <p data-changelog-empty class="rounded-2xl border border-border-light bg-bg-secondary p-6 text-text-secondary">
+        No releases are listed here yet. Until the first one is, see <a href={GITHUB_RELEASES_URL} class="text-accent hover:underline">GitHub Releases</a> for every build and its notes.
+      </p>
+    ) : (
+      <ol class="flex flex-col gap-8">
+        {entries.map(({ version, anchor, stage, releaseUrl, date, humanDate, Content }) => (
+          <li>
+            <article id={anchor} class="scroll-mt-24 rounded-2xl border border-border-light bg-bg-secondary p-6 md:p-8">
+              <header class="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-light pb-5">
+                <div class="flex flex-wrap items-center gap-3">
+                  <h2 class="font-display text-2xl font-bold tracking-tight">
+                    <a href={`#${anchor}`} class="hover:text-accent">{version}</a>
+                  </h2>
+                  {stage && <span data-release-stage class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">{stage}</span>}
+                </div>
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-text-tertiary">
+                  {date && <time datetime={date}>{humanDate}</time>}
+                  <a href={releaseUrl} target="_blank" rel="noopener noreferrer" class="hover:text-text-primary">View on GitHub ↗</a>
+                </div>
+              </header>
+              <div class="prose-docs changelog-notes">
+                <Content />
+              </div>
+            </article>
+          </li>
+        ))}
+      </ol>
+    )}
+  </div>
+</BaseLayout>
+
+<style>
+  /* Each entry's notes open with a section heading, which needs no gap above it inside the card. */
+  .changelog-notes :global(> :first-child) {
+    margin-top: 0;
+  }
+  /* One entry is one pull request, so the bullets show where each starts. */
+  .changelog-notes :global(ul) {
+    list-style: disc;
+  }
+  .changelog-notes :global(li::marker) {
+    color: var(--color-text-muted);
+  }
+</style>

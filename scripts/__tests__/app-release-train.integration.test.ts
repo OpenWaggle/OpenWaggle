@@ -1,11 +1,13 @@
 import { describe, it } from 'vitest'
+import { changelogEntry, unreleasedNotes } from '../app-release-notes'
 import { type ReleaseTrainHistoryEntry, runReleaseTrain } from './app-release-train.test-harness'
 
 // The RC and Stable paths of release.yml's version job, run against a local Git remote with a
 // mocked GitHub API (app-release-train.test-harness.ts). The build, installer, and publication jobs
 // need real runners and secrets, so they are not exercised here.
 
-const CHANGELOG = '# Changelog\n\n## 1.0.0\n\nThe first Stable release.\n'
+const CHANGELOG = '# Changelog\n\n## [Unreleased]\n\nThe first Stable release.\n'
+const MINOR_NOTES = '# Changelog\n\n## [Unreleased]\n\nA minor.\n'
 const BETA: ReleaseTrainHistoryEntry = {
   kind: 'release',
   version: '1.0.0-beta.37',
@@ -26,10 +28,10 @@ const DOCS_CHANGE: ReleaseTrainHistoryEntry = {
   subject: 'docs: release notes',
   path: 'docs/notes.md',
 }
-// The 1.0.0 entry is written during the RC window, so it is a change since rc.1.
+// The 1.0.0 notes are written during the RC window, so they are a change since rc.1.
 const CHANGELOG_ENTRY: ReleaseTrainHistoryEntry = {
   kind: 'change',
-  subject: 'docs: 1.0.0 changelog',
+  subject: 'docs: 1.0.0 release notes',
   path: 'CHANGELOG.md',
   content: CHANGELOG,
 }
@@ -52,7 +54,10 @@ describe.concurrent(
       expect(result.succeeded, result.stderr).toBe(true)
       expect(result.events).toEqual(['create', `ci ${result.releaseBranchHead}`])
       expect(result.releaseBranchManifest).toContain('"version": "1.0.0-rc.1"')
-      expect(Object.keys(result.tags)).toEqual(['v1.0.0-beta.37'])
+      expect(changelogEntry(result.releaseBranchChangelog ?? '', '1.0.0-rc.1')).toBe(
+        'No feature, fix or performance changes since v1.0.0-beta.37.',
+      )
+      expect(Object.keys(result.tags)).toEqual(['v1.0.0-beta.36', 'v1.0.0-beta.37'])
       expect(result.outputs).toBe('should_release=false\n')
       expect(result.stdout).toContain('Release PR ready for maintainer review')
     })
@@ -74,7 +79,7 @@ describe.concurrent(
         expect(result.stderr).toContain('1.0.0-rc.1 needs signed and notarized macOS builds')
         expect(result.events).toEqual([])
         expect(result.releaseBranchHead).toBeNull()
-        expect(Object.keys(result.tags)).toEqual(['v1.0.0-beta.37'])
+        expect(Object.keys(result.tags)).toEqual(['v1.0.0-beta.36', 'v1.0.0-beta.37'])
       },
     )
 
@@ -89,6 +94,9 @@ describe.concurrent(
       expect(result.bumpVersion).toBe('1.0.0-rc.2')
       expect(result.events).toEqual(['create', `ci ${result.releaseBranchHead}`])
       expect(result.releaseBranchManifest).toContain('"version": "1.0.0-rc.2"')
+      expect(changelogEntry(result.releaseBranchChangelog ?? '', '1.0.0-rc.2')).toMatch(
+        /^### Fixes\n\n- release blocker \(\[[0-9a-f]{7}\]/u,
+      )
     })
 
     it('tags the maintainer-merged rc.2 release commit', async ({ expect }) => {
@@ -120,7 +128,7 @@ describe.concurrent(
       expect(result.tags['v1.0.0-rc.2']).toBeUndefined()
     })
 
-    it('fails a Stable 1.0.0 dispatch without a CHANGELOG entry', async ({ expect }) => {
+    it('fails a Stable 1.0.0 dispatch without hand-written notes', async ({ expect }) => {
       const result = await runReleaseTrain({
         initialVersion: '1.0.0-beta.37',
         history: [RC_1],
@@ -129,7 +137,7 @@ describe.concurrent(
 
       expect(result.succeeded).toBe(false)
       expect(result.stderr).toContain(
-        'Stable 1.0.0 needs a hand-written "## 1.0.0" entry in CHANGELOG.md',
+        'Stable 1.0.0 is a new major version: write its upgrade notes under "## [Unreleased]"',
       )
       expect(result.events).toEqual([])
       expect(result.releaseBranchHead).toBeNull()
@@ -150,6 +158,9 @@ describe.concurrent(
       )
       expect(result.events).toEqual(['releases', 'create', `ci ${result.releaseBranchHead}`])
       expect(result.releaseBranchManifest).toContain('"version": "1.0.0"')
+      const changelog = result.releaseBranchChangelog ?? ''
+      expect(changelogEntry(changelog, '1.0.0')).toBe('The first Stable release.')
+      expect(unreleasedNotes(changelog)).toBe('')
     })
 
     it('checks the promotion guard again before tagging a merged Stable release commit', async ({
@@ -274,7 +285,7 @@ describe.concurrent(
             kind: 'change',
             subject: 'docs: 1.1.0 changelog',
             path: 'CHANGELOG.md',
-            content: '# Changelog\n\n## 1.1.0\n\nA minor.\n',
+            content: MINOR_NOTES,
           },
         ],
         run: { kind: 'dispatch', targetVersion: '1.1.0' },
@@ -299,7 +310,7 @@ describe.concurrent(
             kind: 'change',
             subject: 'docs: 1.1.0 changelog',
             path: 'CHANGELOG.md',
-            content: '# Changelog\n\n## 1.1.0\n\nA minor.\n',
+            content: MINOR_NOTES,
           },
         ],
         run: { kind: 'dispatch', targetVersion: '1.1.0' },
@@ -325,7 +336,9 @@ describe.concurrent(
       expect(result.releaseBranchManifest).toContain('"version": "1.0.0-beta.38"')
     })
 
-    it('bumps a fix after 1.0.0 to 1.0.1 and waits for its CHANGELOG entry', async ({ expect }) => {
+    it('bumps a fix after 1.0.0 to 1.0.1 and writes its entry without waiting for notes', async ({
+      expect,
+    }) => {
       const result = await runReleaseTrain({
         initialVersion: '1.0.0-rc.1',
         history: [{ kind: 'release', version: '1.0.0', release: 'published' }, RELEASE_BLOCKER_FIX],
@@ -334,11 +347,65 @@ describe.concurrent(
 
       expect(result.succeeded, result.stderr).toBe(true)
       expect(result.bumpVersion).toBe('1.0.1')
+      expect(result.outputs).toBe('should_release=false\n')
+      expect(result.events).toEqual(['releases', 'create', `ci ${result.releaseBranchHead}`])
+      expect(changelogEntry(result.releaseBranchChangelog ?? '', '1.0.1')).toContain(
+        '### Fixes\n\n- release blocker',
+      )
+    })
+
+    it('makes a new major version wait for its hand-written notes', async ({ expect }) => {
+      const result = await runReleaseTrain({
+        initialVersion: '1.0.0-rc.1',
+        history: [
+          { kind: 'release', version: '1.0.0', release: 'published' },
+          { kind: 'change', subject: 'feat(cli)!: rename the flags', path: 'src/app.ts' },
+        ],
+        run: { kind: 'merge' },
+      })
+
+      expect(result.succeeded, result.stderr).toBe(true)
+      expect(result.bumpVersion).toBe('2.0.0')
       expect(result.stdout).toContain(
-        'Stable 1.0.1 waits for its CHANGELOG.md entry; no release PR was prepared.',
+        'Stable 2.0.0 waits for its CHANGELOG.md notes (see the error above); no release PR was prepared.',
       )
       expect(result.outputs).toBe('should_release=false\n')
       expect(result.events).toEqual([])
+      expect(result.releaseBranchHead).toBeNull()
+    })
+
+    it.for(['missing', 'pushed-after-checkout'] as const)(
+      'waits for the previous release tag when it is %s',
+      async (currentTag, { expect }) => {
+        const result = await runReleaseTrain({
+          initialVersion: '1.0.0-beta.36',
+          history: [
+            { kind: 'release', version: '1.0.0-beta.37', release: 'published' },
+            RELEASE_BLOCKER_FIX,
+          ],
+          run: { kind: 'merge' },
+          currentTag,
+        })
+
+        expect(result.succeeded, result.stderr).toBe(true)
+        expect(result.stdout).toContain(
+          'v1.0.0-beta.37 is not tagged yet; the 1.0.0-beta.38 release PR waits for its publication run.',
+        )
+        expect(result.events).toEqual([])
+        expect(result.releaseBranchHead).toBeNull()
+      },
+    )
+
+    it('fails a dispatch while the previous release tag is missing', async ({ expect }) => {
+      const result = await runReleaseTrain({
+        initialVersion: '1.0.0-beta.36',
+        history: [BETA],
+        run: { kind: 'dispatch', targetVersion: '1.0.0-rc.1' },
+        currentTag: 'missing',
+      })
+
+      expect(result.succeeded).toBe(false)
+      expect(result.stderr).toContain('v1.0.0-beta.37 is not tagged yet; dispatch 1.0.0-rc.1 again')
       expect(result.releaseBranchHead).toBeNull()
     })
 

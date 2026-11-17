@@ -62,4 +62,4 @@ Do not create commits, push, or open PRs unless the maintainer explicitly approv
 - link solving work with `Closes #<issue-number>`
 - link partial progress with `Part of #<issue-number>`
 - include validation evidence
-- include reviewer-facing release notes for user-visible changes; Stable changelog entries are written from them
+- include reviewer-facing release notes for user-visible changes; the release PR writes each changelog line from the PR title, and notes that need more go under `## [Unreleased]` in `CHANGELOG.md`

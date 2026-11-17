@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { changelogEntry, unreleasedNotes } from '../app-release-notes'
 import { runReleaseSync } from './app-release-sync.test-harness'
+
+type SyncResult = Awaited<ReturnType<typeof runReleaseSync>>
+
+// The entry lists main's newer feature, so the release files were written again after the merge.
+function expectCurrentEntry(result: SyncResult) {
+  expect(changelogEntry(result.changelog, result.version)).toContain(
+    'project actions ([#7](https://github.com/OpenWaggle/OpenWaggle/pull/7))',
+  )
+}
 
 describe('desktop app release branch synchronization', () => {
   it.each(['BLOCKED', 'UNKNOWN'] as const)(
@@ -14,8 +24,39 @@ describe('desktop app release branch synchronization', () => {
       expect(result.tags).toBe('')
       expect(result.mainSha).toBe(result.expectedMainSha)
       expect(result.stdout).toContain('Release PR ready for maintainer review')
+      expectCurrentEntry(result)
     },
   )
+
+  it('keeps notes main added under Unreleased out of a prerelease entry, without a conflict', async () => {
+    const result = await runReleaseSync({ mainNotes: true })
+
+    expect(result.succeeded, result.stderr).toBe(true)
+    expect(result.events).toEqual(['update', `ci ${result.head}`])
+    expectCurrentEntry(result)
+    expect(unreleasedNotes(result.changelog)).toBe('### Highlights\n\n- Notes written on main.')
+  })
+
+  it("recovers on the next run when the merge fails after taking main's release files", async () => {
+    const result = await runReleaseSync({ updateFailsOnce: true })
+
+    expect(result.firstRunSucceeded).toBe(false)
+    expect(result.succeeded, result.stderr).toBe(true)
+    expect(result.manifest).toBe(result.expectedManifest)
+    expectCurrentEntry(result)
+  })
+
+  it.each([
+    ['a version-only branch from before CHANGELOG.md was generated', { versionOnly: true }],
+    ['a hand-edited entry', { tamper: 'changelog' }],
+  ] as const)('writes the release files again over %s', async (_case, options) => {
+    const result = await runReleaseSync(options)
+
+    expect(result.succeeded, result.stderr).toBe(true)
+    expect(result.manifest).toBe(result.expectedManifest)
+    expect(result.changelog).not.toContain('A hand edit.')
+    expectCurrentEntry(result)
+  })
 
   it('adopts a stale orphan release branch before synchronizing it', async () => {
     const result = await runReleaseSync({ orphan: true })

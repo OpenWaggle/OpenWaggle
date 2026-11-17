@@ -97,3 +97,21 @@ export function jsonLdScript(nodes: readonly JsonLd[]) {
     '\\u003c',
   )
 }
+
+export const CHANGELOG_TITLE = 'Changelog | OpenWaggle'
+export const CHANGELOG_DESCRIPTION =
+  'What changed in each OpenWaggle release, newest first: features, fixes, performance work and breaking changes, with a link to every release on GitHub.'
+
+/** The changelog page, a collection of release notes on the OpenWaggle website. */
+export function changelogJsonLd(path: string) {
+  const url = new URL(path, SITE_URL).href
+  return {
+    '@type': 'CollectionPage',
+    name: CHANGELOG_TITLE,
+    description: CHANGELOG_DESCRIPTION,
+    url,
+    isPartOf: { '@id': WEBSITE_ID },
+    publisher: { '@id': ORGANIZATION_ID },
+    about: { '@type': 'SoftwareApplication', name: SITE_NAME },
+  } satisfies JsonLd
+}

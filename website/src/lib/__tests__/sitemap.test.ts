@@ -6,6 +6,7 @@ describe('sitemap filter', () => {
     ['https://openwaggle.ai/', true],
     ['https://openwaggle.ai/docs/getting-started/installation/', true],
     ['https://openwaggle.ai/docs/packages/overview/', true],
+    ['https://openwaggle.ai/changelog/', true],
     ['https://openwaggle.ai/docs/packages/pi-waggle/0.1/', true],
     ['https://openwaggle.ai/docs/packages/pi-waggle/', false],
     ['https://openwaggle.ai/benchmarks/', false],

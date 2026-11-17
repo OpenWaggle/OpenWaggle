@@ -1,8 +1,12 @@
 import { defineCollection } from 'astro:content'
 import type { Loader } from 'astro/loaders'
+import { z } from 'astro/zod'
+import { changelogAnchor, parseChangelog, scopeHeadingIds } from './lib/changelog'
 import { docsFrontmatterSchema, parseMarkdownFrontmatter } from './lib/docs-frontmatter'
 
 const DOCS_BASE_DIR = 'src/content/docs'
+// The repository's root changelog, which each release PR writes. The website lives one level down.
+const CHANGELOG_FILE = '../CHANGELOG.md'
 
 interface FsPromisesModule {
   readdir(
@@ -112,4 +116,60 @@ const docs = defineCollection({
   schema: docsFrontmatterSchema,
 })
 
-export const collections = { docs }
+/**
+ * One entry per released version in the root CHANGELOG.md, rendered through the same Markdown
+ * pipeline as the docs. `order` keeps the file's newest-first order, which the store does not.
+ */
+function changelogLoader() {
+  return {
+    name: 'openwaggle-changelog-loader',
+    load: async (context) => {
+      const { config, store } = context
+      const fs = process.getBuiltinModule('node:fs/promises')
+      const path = process.getBuiltinModule('node:path')
+      const url = process.getBuiltinModule('node:url')
+
+      const rootPath = url.fileURLToPath(config.root)
+      const filePath = path.join(rootPath, CHANGELOG_FILE)
+      const source = await fs.readFile(filePath, 'utf8')
+      const fileURL = url.pathToFileURL(filePath)
+      const normalizedFilePath = toPosixPath(path.relative(rootPath, filePath))
+
+      const loadedEntries = await Promise.all(
+        parseChangelog(source).map(async (entry, order) => {
+          const id = changelogAnchor(entry.version)
+          const [data, rendered] = await Promise.all([
+            context.parseData({
+              id,
+              data: { version: entry.version, date: entry.date, order },
+              filePath: normalizedFilePath,
+            }),
+            context.renderMarkdown(entry.body, { fileURL }),
+          ])
+          return {
+            id,
+            data,
+            body: entry.body,
+            filePath: normalizedFilePath,
+            digest: context.generateDigest(`${entry.version}\n${entry.date ?? ''}\n${entry.body}`),
+            rendered: { ...rendered, html: scopeHeadingIds(rendered.html, id) },
+          }
+        }),
+      )
+
+      store.clear()
+      for (const entry of loadedEntries) store.set(entry)
+    },
+  } satisfies Loader
+}
+
+const changelog = defineCollection({
+  loader: changelogLoader(),
+  schema: z.object({
+    version: z.string(),
+    date: z.string().optional(),
+    order: z.number().int().nonnegative(),
+  }),
+})
+
+export const collections = { docs, changelog }

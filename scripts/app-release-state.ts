@@ -5,15 +5,19 @@ import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema } from 'effect'
 import {
   APP_VERSION_PATTERN,
-  manifestJsonSchema,
   promotionBase,
   promotionGuardViolations,
   ROOT_MANIFEST_PATH,
 } from './app-release-promotion'
+import {
+  createReleaseCommit,
+  releaseDate,
+  releaseTreeProblems,
+  restoreReleaseFilesCommit,
+} from './app-release-tree'
 
 const ARG_VALUE_OFFSET = 1
 const CLI_COMMAND_INDEX = 2
-const JSON_INDENT = 2
 const RELEASE_SUBJECT_PATTERN =
   /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
 const CHANNEL_RANK = { alpha: 0, beta: 1, rc: 2, stable: 3 } as const
@@ -52,11 +56,6 @@ export function selectOwnedReleasePullRequests(
       pullRequest.headRepository.name === identity.repository &&
       pullRequest.headRefName === identity.branch,
   )
-}
-
-export function expectedVersionOnlyManifest(baseManifestJson: string, version: string) {
-  const manifest = Schema.decodeUnknownSync(manifestJsonSchema)(baseManifestJson)
-  return `${JSON.stringify({ ...manifest, version }, null, JSON_INDENT)}\n`
 }
 
 function git(args: readonly string[]) {
@@ -150,6 +149,12 @@ function optionalArgument(name: string) {
   return index >= 0 ? process.argv[index + ARG_VALUE_OFFSET] : undefined
 }
 
+function repeatedArgument(name: string) {
+  return process.argv.flatMap((value, index) =>
+    value === name ? (process.argv[index + ARG_VALUE_OFFSET] ?? []) : [],
+  )
+}
+
 function argument(name: string) {
   const value = optionalArgument(name)
   if (!value) {
@@ -182,12 +187,39 @@ async function runCli() {
     return
   }
 
-  if (command === 'expected-manifest') {
-    const basePath = argument('--base')
-    const outputPath = argument('--output')
-    const version = argument('--version')
-    const expected = expectedVersionOnlyManifest(fs.readFileSync(basePath, 'utf8'), version)
-    fs.writeFileSync(outputPath, expected)
+  if (command === 'release-commit') {
+    const parents = repeatedArgument('--parent')
+    if (parents.length === 0) throw new Error('Missing required argument --parent.')
+    const commit = createReleaseCommit({
+      baseRef: argument('--base'),
+      version: argument('--version'),
+      date: releaseDate(),
+      parents,
+      message: argument('--message'),
+    })
+    process.stdout.write(`${commit}\n`)
+    return
+  }
+
+  if (command === 'restore-release-files') {
+    const commit = restoreReleaseFilesCommit({
+      fromRef: argument('--from'),
+      ontoRef: argument('--onto'),
+      message: argument('--message'),
+    })
+    process.stdout.write(`${commit}\n`)
+    return
+  }
+
+  if (command === 'verify-release-tree') {
+    const mainRef = optionalArgument('--release-files-only')
+    const problems = releaseTreeProblems({
+      baseRef: argument('--base'),
+      candidateRef: argument('--candidate'),
+      version: argument('--version'),
+      ...(mainRef === undefined ? {} : { releaseFilesOnly: mainRef }),
+    })
+    if (problems.length > 0) throw new Error(problems.join('\n'))
     return
   }
 
