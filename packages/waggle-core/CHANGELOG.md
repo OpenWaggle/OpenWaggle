@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/OpenWaggle/OpenWaggle/compare/waggle-core-v0.2.1...waggle-core-v0.2.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **license:** open the project to contributions with a GPL-3.0 app, MIT packages, CLA, trademark notice, and issue forms ([#471](https://github.com/OpenWaggle/OpenWaggle/issues/471)) ([219c841](https://github.com/OpenWaggle/OpenWaggle/commit/219c841fabe9652de5c3dfcc9673135a2ea8c7d7))
+
 ## [0.2.1](https://github.com/OpenWaggle/OpenWaggle/compare/waggle-core-v0.2.0...waggle-core-v0.2.1) (2026-11-14)
 
 

@@ -6,7 +6,7 @@ section: "Packages"
 kind: "reference"
 ---
 
-<!-- Generated from the public declarations of @openwaggle/extension-sdk 0.3.0; content sha256 c65c20041dd5a5cdb5738230845e8b5fb40554e3d12b4088ae1b29e834953f97. -->
+<!-- Generated from the public declarations of @openwaggle/extension-sdk 0.3.1; content sha256 c65c20041dd5a5cdb5738230845e8b5fb40554e3d12b4088ae1b29e834953f97. -->
 
 This reference inventories every public entry point and named export in `@openwaggle/extension-sdk` 0.3.
 
