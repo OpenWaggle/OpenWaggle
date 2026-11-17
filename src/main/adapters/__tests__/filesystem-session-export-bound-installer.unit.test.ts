@@ -221,7 +221,12 @@ describe('descriptor-bound Session export installation', () => {
       await sourceHandle.close()
     }
     expect(missing).toBe(false)
-    await expect(fs.readFile(destinationPath)).resolves.toEqual(replacement)
+    // `toEqual` on the 8 MiB buffers compares element by element and blocks the event loop for
+    // seconds; under CI load it crossed the 60 s test timeout. `Buffer.equals` is a native
+    // `memcmp`.
+    const installed = await fs.readFile(destinationPath)
+    expect(installed.length).toBe(replacement.length)
+    expect(installed.equals(replacement)).toBe(true)
   })
 
   it('rejects a destination directory replaced before the helper pins it', async () => {

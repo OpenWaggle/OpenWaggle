@@ -33,7 +33,9 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).not.toContain('--admin')
     expect(WORKFLOW).not.toContain('gh pr merge')
     expect(WORKFLOW).not.toContain('enablePullRequestAutoMerge')
-    expect(WORKFLOW).toContain('git push origin "$RELEASE_BRANCH"')
+    expect(WORKFLOW).toContain(
+      'git push origin "${RELEASE_COMMIT_SHA}:refs/heads/${RELEASE_BRANCH}"',
+    )
     expect(WORKFLOW).toContain('gh pr create')
     expect(WORKFLOW).toContain('event=pull_request&branch=${RELEASE_BRANCH}')
     expect(WORKFLOW).toContain('gh run rerun "$RUN_ID"')
@@ -92,16 +94,6 @@ describe('desktop app release workflow', () => {
     expect(WORKFLOW).toContain('Adopted release PR after an ambiguous creation failure')
     expect(WORKFLOW).toContain('sleep $((PR_CREATE_ATTEMPT * 5))')
     expect(WORKFLOW).toContain('test -n "$PR_URL"')
-  })
-
-  it('accepts no candidate package changes beyond the expected version', () => {
-    expect(WORKFLOW).toContain('verify_version_only_tree()')
-    expect(WORKFLOW).toContain('scripts/app-release-state.ts expected-manifest')
-    expect(WORKFLOW).toContain(
-      'cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"',
-    )
-    expect(WORKFLOW).toContain('verify_version_only_tree "$parent_sha" "$commit_sha"')
-    expect(WORKFLOW).toContain('verify_version_only_tree "$MAIN_SHA" "$HEAD_SHA"')
   })
 
   it('separates PR preparation from protected-merge publication', () => {

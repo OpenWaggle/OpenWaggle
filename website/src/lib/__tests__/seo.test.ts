@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CHANGELOG_DESCRIPTION,
+  CHANGELOG_TITLE,
   DEFAULT_DESCRIPTION,
   DEFAULT_TITLE,
   docsArticleJsonLd,
@@ -14,6 +16,11 @@ describe('seo defaults', () => {
   it('keeps the home title and description within search snippet limits', () => {
     expect(DEFAULT_TITLE.length).toBeLessThanOrEqual(MAX_TITLE_LENGTH)
     expect(DEFAULT_DESCRIPTION.length).toBeLessThanOrEqual(MAX_DESCRIPTION_LENGTH)
+  })
+
+  it('keeps the changelog title and description within search snippet limits', () => {
+    expect(CHANGELOG_TITLE.length).toBeLessThanOrEqual(MAX_TITLE_LENGTH)
+    expect(CHANGELOG_DESCRIPTION.length).toBeLessThanOrEqual(MAX_DESCRIPTION_LENGTH)
   })
 
   // The app repository has no LICENSE file (only the npm packages are MIT), so the site must not

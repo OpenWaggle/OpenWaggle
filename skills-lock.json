@@ -164,18 +164,6 @@
       "hash": "sha256-dd976bdb7ca5be519577b0604f862d8c194e1dd1b8d6c3fbf03c879d2c8fbc2b",
       "localEdits": "Drops the upstream fallback that lists the cache with ls when the host has no shell injection, and names cache directories owner_repo."
     },
-    "setup-matt-pocock-skills": {
-      "upstream": [
-        {
-          "repository": "https://github.com/mattpocock/skills",
-          "path": "skills/engineering/setup-matt-pocock-skills",
-          "ref": "67bce91c80cd1020a4f068ced32d0281656842ad",
-          "hash": "sha256-5d51b430ec6e1f43db16182bbd16fd1cb2929a25c0b615facf06346b08fb17ce"
-        }
-      ],
-      "hash": "sha256-ebd7edf937e2711057b2325fb48f1283fea2ead87d4b5c5df4ad03da3c2958a0",
-      "localEdits": "Rewritten for this repository's AGENTS.md, .agents/ and docs/agents/ layout; the upstream per-tracker templates are not vendored."
-    },
     "tdd": {
       "upstream": [
         {

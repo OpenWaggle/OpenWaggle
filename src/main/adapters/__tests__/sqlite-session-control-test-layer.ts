@@ -24,6 +24,8 @@ import { SqliteSessionWorkspaceResourceRepositoryLive } from '../sqlite-session-
 export function makeSessionControlTestLayer(
   databasePath: string,
   handoffService?: SessionWorkspaceHandoffServiceShape,
+  /** The real handoff service, for a test that has to capture or refuse a seed. */
+  handoffServiceLayer?: Layer.Layer<SessionWorkspaceHandoffService, never, SqlClient.SqlClient>,
 ) {
   const sqliteLayer = SqliteClient.layer({
     filename: databasePath,
@@ -94,15 +96,17 @@ export function makeSessionControlTestLayer(
     nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-next')),
     now: Effect.succeed(1234),
   })
-  const handoffLayer = Layer.succeed(
-    SessionWorkspaceHandoffService,
-    handoffService ?? {
-      prepare: () => Effect.succeed(undefined),
-      apply: () => Effect.void,
-      rollback: () => Effect.void,
-      complete: () => Effect.void,
-    },
-  )
+  const handoffLayer = handoffServiceLayer
+    ? handoffServiceLayer.pipe(Layer.provide(sqliteLayer))
+    : Layer.succeed(
+        SessionWorkspaceHandoffService,
+        handoffService ?? {
+          prepare: () => Effect.succeed(undefined),
+          apply: () => Effect.void,
+          rollback: () => Effect.void,
+          complete: () => Effect.void,
+        },
+      )
   return Layer.mergeAll(
     NoopSessionDesktopLayer,
     NoopActionRunServiceLayer,

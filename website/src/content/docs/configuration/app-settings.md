@@ -59,6 +59,8 @@ Changing the channel saves it and checks for an update straight away. It never i
 
 Click **Check now** to check again. A downloaded update installs only when you click **Restart to update**. Quitting the app the normal way does not install it. Before restarting, OpenWaggle checks again that the update fits your channel.
 
+The [changelog](https://openwaggle.ai/changelog/) lists what changed in each release.
+
 If agent runs are still working when you click **Restart to update**, OpenWaggle asks what to do. **Restart when idle** waits and installs as soon as no run is active, and the status line says how many runs it is waiting for. **Restart now** stops the runs and installs. **Cancel** leaves the runs going and installs nothing.
 
 While the update installs, OpenWaggle stops its background Session Host and quits. It reopens on its own once the update is in place, usually within a few seconds. If you open it yourself before then, the install fails. On macOS an update cannot install while another OpenWaggle process is running, such as `openwaggle mcp serve` used by another agent or `openwaggle hive wait` in a terminal. When an update did not install, OpenWaggle tells you why shortly after it next opens, once the update is ready again. Close the other process and click **Restart to update** again.

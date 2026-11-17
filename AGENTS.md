@@ -76,7 +76,7 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 - After changing source, run the tests that cover it before the turn ends and leave them passing.
 - Legacy vendor-specific agent configuration has been removed; keep this repository centered on `AGENTS.md` and `.agents/`.
 - Legacy agent memory files were removed; durable project memory lives in `.agents/memory/<topic>.md`, indexed by `MEMORY.md`.
-- `docs/agents/` is reserved for the adapted `/setup-matt-pocock-skills` workflow. Do not create those files manually during unrelated work.
+- `docs/agents/` holds the agent-facing guides listed under Agent skills below (issue tracker, triage labels, domain, design, release). Change them only when the work changes what they describe.
 - Before adding or editing anything under `website/src/content/docs/` (pages, screenshots, alt text, tables), load `.agents/skills/write-docs/SKILL.md`. User docs follow the guide, reference and overview split in ADR 0061.
 - Project-local skills are discovered from `.openwaggle/skills` and `.agents/skills`; same-name `.openwaggle` skills win at runtime.
 

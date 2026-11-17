@@ -1,7 +1,12 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
-import { stashDraftWorktreePlan, useSessionContextRow } from '@/features/git'
+import {
+  pendingWorktreePlanWrite,
+  stashDraftWorktreePlan,
+  useSessionContextRow,
+  worktreePlanKey,
+} from '@/features/git'
 import { usePreferencesStore } from '@/features/settings/state'
 import { withInlineVisualizationContext } from '../state/inline-visualization-state'
 
@@ -49,11 +54,28 @@ export function useComposerSendGate(input: UseComposerSendGateInput) {
         startFromOrigin: strip.startFromOrigin,
       })
     }
-    return input.onSend(
-      input.activeSessionId
-        ? withInlineVisualizationContext(input.activeSessionId, payload)
-        : payload,
+    const send = () =>
+      input.onSend(
+        input.activeSessionId
+          ? withInlineVisualizationContext(input.activeSessionId, payload)
+          : payload,
+      )
+    /*
+     * A pick on an existing Session only reaches the Host through a Session Control handoff, and
+     * birth reads the base ref the Host recorded. Sending before that write lands forked the first
+     * worktree from the previous ref, so the chosen branch looked ignored.
+     *
+     * The send stays synchronous when no pick is in flight: callers dispatch from the submit
+     * handler, and a wait that always deferred by a tick broke them.
+     */
+    const pendingPick = pendingWorktreePlanWrite(
+      worktreePlanKey({
+        sessionId: input.activeSessionId,
+        projectPath,
+        isFirstMessage: input.isFirstMessage,
+      }),
     )
+    return pendingPick ? pendingPick.then(send) : send()
   }
   return { strip, guardedSend, sendBlockedReason }
 }

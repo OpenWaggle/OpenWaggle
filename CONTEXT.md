@@ -1054,6 +1054,18 @@ _Avoid_: Changesets workflow
 The release path that publishes OpenWaggle desktop app artifacts and update metadata.
 _Avoid_: npm package publishing workflow
 
+**App changelog**:
+The root `CHANGELOG.md`, one entry per desktop app release. Each **App release PR** writes its version's entry from the Conventional Commits merged since the previous release, and a Stable entry starts with the **Unreleased notes**.
+_Avoid_: release notes file, package changelog
+
+**App release PR**:
+The pull request the App release workflow opens for one version. It changes exactly the root `package.json` version and the App changelog, and a maintainer merges it to publish.
+_Avoid_: version PR, Package release PR
+
+**Unreleased notes**:
+Hand-written notes for users under `## [Unreleased]` in the App changelog, which the next Stable release moves into its entry.
+_Avoid_: draft entry, release notes in the PR body
+
 **Compatibility promise**:
 The guarantee, starting at the first Stable release `1.0.0`, that a release within one major version does not break any **Covered surface**. Breaking a Covered surface requires the next major version.
 _Avoid_: stability guarantee, API freeze (the promise covers more than APIs and does not freeze additions)

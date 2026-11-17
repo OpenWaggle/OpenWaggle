@@ -80,6 +80,17 @@ jobs:
 
       - run: bun scripts/release-ci-policy.ts
 
+      - name: Verify generated desktop app release files
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'app-release-v') && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          BASE_SHA=$(git merge-base "$HEAD_SHA" refs/remotes/origin/main)
+          VERSION=$(git show "${HEAD_SHA}:package.json" | jq -er '.version')
+          bun scripts/app-release-state.ts verify-release-tree \
+            --base "$BASE_SHA" --candidate "$HEAD_SHA" --version "$VERSION"
+
       - name: Validate Conventional Commits
         env:
           COMMIT_POLICY_FROM: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
