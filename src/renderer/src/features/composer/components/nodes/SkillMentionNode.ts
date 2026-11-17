@@ -17,6 +17,7 @@ export type SerializedSkillMentionNode = Spread<
 >
 
 export class SkillMentionNode extends DecoratorNode<ReactNode> {
+  /** The token Pi expands after `/skill:`: the skill's `name` in SKILL.md's frontmatter. */
   __skillId: string
   __skillName: string
 

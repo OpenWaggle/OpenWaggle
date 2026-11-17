@@ -139,6 +139,30 @@ describe('createSkillItems', () => {
     expect(selectSkill).toHaveBeenCalledWith('visualize', 'Visualize')
   })
 
+  it('invokes a project skill by the name Pi resolves, not by its folder id', () => {
+    const selectSkill = vi.fn()
+
+    const items = createSkillItems(
+      [
+        {
+          id: 'handoff-folder',
+          name: 'handoff',
+          description: 'Compact the current conversation into a handoff document',
+          folderPath: '/project/.agents/skills/handoff-folder',
+          skillPath: '/project/.agents/skills/handoff-folder/SKILL.md',
+          hasScripts: false,
+          enabled: true,
+          loadStatus: 'ok',
+        },
+      ],
+      '',
+      selectSkill,
+    )
+
+    items.find((item) => item.id === 'skill-handoff-folder')?.action()
+    expect(selectSkill).toHaveBeenCalledWith('handoff', 'handoff')
+  })
+
   it('shows a disabled diagnostic instead of selecting an unavailable bundled skill', () => {
     const selectSkill = vi.fn()
     const items = createSkillItems(
@@ -183,12 +207,13 @@ describe('skillOwnedCommandNames', () => {
   const skill = (overrides: Partial<SkillDiscoveryItem> = {}) => ({ ...skillBase, ...overrides })
 
   it('claims a command name for an enabled skill by its id and its name', () => {
+    // The two tokens differ, so deleting either half of the rule fails this case.
     const names = skillOwnedCommandNames([
-      skill({ id: 'handoff', name: 'Handoff' }),
+      skill({ id: 'handoff-folder', name: 'handoff' }),
       skill({ id: 'qa', name: 'qa' }),
     ])
 
-    expect([...names].sort()).toEqual(['handoff', 'qa'])
+    expect([...names].sort()).toEqual(['handoff', 'handoff-folder', 'qa'])
   })
 
   it('leaves the name of a disabled or broken skill to the Pi extension command', () => {

@@ -129,7 +129,11 @@ export function createSkillItems(
       description: truncateCommandDescription(skill.description, COMMAND_PALETTE.DESCRIPTION_LIMIT),
       icon: <Shield className="size-3.5" />,
       section: 'Skills',
-      action: () => selectSkill(skill.id, skill.name),
+      // Pi resolves a skill command by the `name` in SKILL.md's frontmatter, not by the folder the
+      // skill lives in, so the invocation the chip carries must be that name (`skill.id` is the
+      // normalized folder). Pi passes an unknown name through silently, so the id would look
+      // handled while the body never loaded.
+      action: () => selectSkill(skill.name, skill.name),
     })
   }
 
