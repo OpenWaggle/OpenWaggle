@@ -252,6 +252,23 @@ describe('Local Session Host launcher', () => {
     expect(launcher.wait).toHaveBeenCalled()
   })
 
+  it('reports the disconnect of a closing probe once its own wait times out', async () => {
+    const canConnect = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const disconnect = epipeWrite()
+    const probe = vi
+      .fn<LocalSessionHostLauncherDependencies['probe']>()
+      .mockResolvedValueOnce(accepted)
+      .mockRejectedValue(disconnect)
+    const launcher = dependencies({ canConnect, probe })
+
+    await expect(
+      ensureLocalSessionHost({ ...client, takeoverTimeoutMs: 100 }, launcher),
+    ).rejects.toBe(disconnect)
+
+    expect(launcher.launch).toHaveBeenCalledOnce()
+    expect(probe).toHaveBeenCalledTimes(3)
+  })
+
   it('waits for an incompatible Host to drain before launching its replacement', async () => {
     const pending = new LocalSessionHostUpgradePendingError(
       'host-old',

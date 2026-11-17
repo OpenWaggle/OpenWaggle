@@ -24,7 +24,7 @@ import { makeSharedOperations } from './shared-operations'
 
 export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
 
-export { sessionHostLaunchArguments, sessionHostLaunchCommand } from './session-host-launch-command'
+export { sessionHostLaunchCommand } from './session-host-launch-command'
 
 /** The command that launches a Host with the switches this process was started with. */
 export function currentSessionHostLaunchCommand() {
