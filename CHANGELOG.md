@@ -205,6 +205,7 @@ Released builds send anonymous usage statistics and error reports, starting at t
 
 ### Fixes
 
+- **composer:** rank exact skill matches first in the slash menu ([#502](https://github.com/OpenWaggle/OpenWaggle/pull/502))
 - **attachments:** prepare a pasted image through the Session Host so it sends ([#495](https://github.com/OpenWaggle/OpenWaggle/pull/495))
 - **sessions:** fork a Session worktree from the picked base ref ([#489](https://github.com/OpenWaggle/OpenWaggle/pull/489))
 - **composer:** send skill references as Pi's /skill: command ([#487](https://github.com/OpenWaggle/OpenWaggle/pull/487))
