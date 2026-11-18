@@ -295,6 +295,23 @@ describe('getProjectPreferencesOperation', () => {
     await expect(run(projectPath)).resolves.toEqual({ model: 'legacy/file' })
   })
 
+  it('returns the project file provider restriction scope beside the model', async () => {
+    await fs.mkdir(path.join(projectPath, '.openwaggle'), { recursive: true })
+    await fs.writeFile(
+      path.join(projectPath, '.openwaggle', 'settings.json'),
+      JSON.stringify({
+        preferences: { model: 'legacy/file' },
+        providers: { only: ['amazon-bedrock'] },
+      }),
+      'utf-8',
+    )
+
+    await expect(run(projectPath)).resolves.toEqual({
+      model: 'legacy/file',
+      providers: { only: ['amazon-bedrock'] },
+    })
+  })
+
   it('suppresses the legacy file model when a clear tombstone exists', async () => {
     storedModels = { [projectPath]: '' }
     await writeSettingsFile({ model: 'legacy/file', authorizationMode: 'yolo' })

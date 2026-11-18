@@ -21,6 +21,7 @@ import {
   BROWSER_PREVIEW_CAPTURE_LIMITS,
 } from '@shared/types/browser-preview-controls'
 import { storedProjectActionsSchema } from './project-actions'
+import { providerRestrictionScopeSchema } from './settings-fields'
 import {
   sessionInputIdSchema,
   sessionInputItemTextSchema,
@@ -230,6 +231,12 @@ export const projectSettingsFileSchema = Schema.Struct(
   {
     preferences: Schema.optionalWith(projectPreferencesSchema, { exact: true }),
     sessionHost: Schema.optionalWith(projectSessionHostPolicySchema, { exact: true }),
+    /**
+     * The project's own provider restriction scope (CONTEXT.md, "Provider restriction"), which
+     * outranks every app-side scope for this project. A provider id maps to its enabled/disabled
+     * choice; the reserved `only` key names exactly the permitted providers.
+     */
+    providers: Schema.optionalWith(providerRestrictionScopeSchema, { exact: true }),
     authorizationGrants: Schema.optionalWith(
       Schema.mutable(Schema.Array(scopedAuthorizationGrantSchema)),
       { exact: true },
