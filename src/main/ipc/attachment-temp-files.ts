@@ -4,7 +4,10 @@ import path from 'node:path'
 import { PERCENT_BASE } from '@shared/constants/math'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { TIME_UNIT } from '@shared/constants/time'
-import { ensureTempAttachmentsDirectory } from '../utils/attachment-temp-directory'
+import {
+  ensureTempAttachmentsDirectory,
+  isNamedTempAttachmentDirectory,
+} from '../utils/attachment-temp-directory'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 
@@ -18,9 +21,9 @@ const TEMP_TEXT_ATTACHMENT_WRITE_CHUNK_BYTES = 32 * BYTES_PER_KIBIBYTE
 export const TEXT_ATTACHMENT_MAX_SIZE_MB =
   ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)
 // Every name the app writes into the directory, so the cleanup below can reach it: a prompt's
-// markdown, a window-prepared image copy (a decoded HEIC, a pasted screenshot) and an isolated
-// Session resource copy. A name that is not listed here is left alone, so adding a writer means
-// adding its prefix (`writeTempAttachment`'s prefix argument).
+// markdown and the JPEG the Host decodes a HEIC into. A pasted screenshot or a Session resource
+// copy lives in a directory of its own (`writeNamedTempAttachment`), which the cleanup removes
+// whole. A name that is not listed here is left alone, so adding a writer means adding its prefix.
 const TEMP_ATTACHMENT_FILENAME_PATTERN =
   /^(?:prompt-\d+\.md|(?:attachment|resource)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[a-z0-9]+)$/u
 /** A directory holding one named prompt file (`createTempPromptPath`). */
@@ -58,7 +61,8 @@ export async function cleanupTempAttachments() {
 
   const staleBefore = Date.now() - TEMP_ATTACHMENT_RETENTION_MS
   for (const entry of entries) {
-    const isDirectory = TEMP_PROMPT_DIRECTORY_PATTERN.test(entry)
+    const isDirectory =
+      TEMP_PROMPT_DIRECTORY_PATTERN.test(entry) || isNamedTempAttachmentDirectory(entry)
     if (!isDirectory && !TEMP_ATTACHMENT_FILENAME_PATTERN.test(entry)) continue
 
     const filePath = path.join(tempAttachmentsDir, entry)

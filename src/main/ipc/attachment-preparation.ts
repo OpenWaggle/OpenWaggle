@@ -4,16 +4,22 @@ import path from 'node:path'
 import { match } from '@diegogbrisa/ts-match'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { PreparedAttachment } from '@shared/types/agent'
-import { allInOrder } from '@shared/utils/all-in-order'
+import * as Cause from 'effect/Cause'
+import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
 import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
-import { writeTempAttachment } from '../utils/attachment-temp-directory'
+import {
+  ensureTempAttachmentsDirectory,
+  isNamedTempAttachmentDirectory,
+  writeNamedTempAttachment,
+} from '../utils/attachment-temp-directory'
 import {
   DOCX_MIME_TYPE,
   extractAttachmentText,
   ODT_MIME_TYPE,
   RTF_MIME_TYPE,
 } from '../utils/attachment-text-extraction'
-import { convertHeicToAttachmentImage, isHeicImageMimeType } from '../utils/heic-image-conversion'
+import { dispatchHostAttachmentPreparation } from './host-attachment-preparation'
 
 function contentSha256(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex')
@@ -112,22 +118,76 @@ export async function prepareRegisteredAttachment(filePath: string) {
 }
 
 function imageAttachmentExtension(mimeType: string) {
-  return match(mimeType)
-    .with('image/png', () => '.png')
-    .with('image/jpeg', () => '.jpg')
-    .with('image/webp', () => '.webp')
-    .with('image/gif', () => '.gif')
-    .otherwise(() => null)
+  return (
+    match(mimeType)
+      .with('image/png', () => '.png')
+      .with('image/jpeg', () => '.jpg')
+      .with('image/webp', () => '.webp')
+      .with('image/gif', () => '.gif')
+      // A HEIC is written as one so the Host decodes it, a sequence included (`isHeicImageMimeType`).
+      .with('image/heic', 'image/heic-sequence', () => '.heic')
+      .with('image/heif', 'image/heif-sequence', () => '.heif')
+      .otherwise(() => null)
+  )
+}
+
+/** Leaves room under the 255 bytes file systems accept for the copy's directory to stay short. */
+const MAX_IMAGE_COPY_NAME_BYTES = 200
+/** What Windows refuses in a file name, and control characters everywhere. */
+const NON_PORTABLE_NAME_CHARACTERS = /[<>:"/\\|?*\p{Cc}]/gu
+const WINDOWS_RESERVED_STEM = /^(?:con|prn|aux|nul|com\d|lpt\d)$/iu
+
+/**
+ * The stem the copy is written under. The name becomes a real file the Host names the attachment
+ * after, so a resource title or a pasted name must be one every platform can write.
+ */
+function portableImageStem(stem: string, extension: string) {
+  const budget = MAX_IMAGE_COPY_NAME_BYTES - Buffer.byteLength(extension)
+  let bounded = ''
+  for (const character of stem.replaceAll(NON_PORTABLE_NAME_CHARACTERS, '_').trim()) {
+    if (Buffer.byteLength(bounded + character) > budget) break
+    bounded += character
+  }
+  // Windows drops a trailing dot or space, and a reserved stem names a device, not a file.
+  const trimmed = bounded.replace(/[. ]+$/u, '')
+  if (!trimmed) return 'image'
+  return WINDOWS_RESERVED_STEM.test(trimmed) ? `_${trimmed}` : trimmed
 }
 
 function compatibleImageAttachmentName(fileName: string, mimeType: string, extension: string) {
   const candidate = path.basename(fileName)
-  if (guessMimeType(candidate) === mimeType) return candidate
   const candidateExtension = path.extname(candidate)
-  const stem = candidate.slice(0, candidate.length - candidateExtension.length).trim()
-  return `${stem || 'image'}${extension}`
+  const stem = candidate.slice(0, candidate.length - candidateExtension.length)
+  const nameExtension = guessMimeType(candidate) === mimeType ? candidateExtension : extension
+  return `${portableImageStem(stem, nameExtension)}${nameExtension}`
 }
 
+/**
+ * The Host prepares the copy as the file it is. Its attachment store accepts no
+ * `session-resource` origin, and the origin means nothing to a send: the window keeps it, below,
+ * as the mark that it owns the copy and deletes it when the chip is let go of.
+ */
+async function prepareCopyThroughHost(copyPath: string) {
+  const exit = await Effect.runPromiseExit(
+    dispatchHostAttachmentPreparation(path.dirname(copyPath), [
+      { path: copyPath, origin: 'user-file' },
+    ]),
+  )
+  // Effect's own failure wrapper would hide the Host's reason from the person who pasted.
+  if (Exit.isFailure(exit)) throw Cause.squash(exit.cause)
+  const [attachment] = exit.value
+  if (exit.value.length !== 1 || attachment?.kind !== 'image') {
+    throw new Error(`Session Host did not prepare the image: ${path.basename(copyPath)}`)
+  }
+  return attachment
+}
+
+/**
+ * An image that exists only as bytes: a pasted screenshot, or a Session resource added to the
+ * draft. Its copy is written under the name the person sees and the Session Host prepares it from
+ * there, as it prepares a picked file: the Host binds a message only to attachments it prepared
+ * (#465), and it reads the image's text and decodes a HEIC as it does for any file (ADR 0068).
+ */
 export async function prepareRegisteredImageAttachmentFromBytes(input: {
   readonly bytes: Uint8Array
   readonly fileName: string
@@ -142,46 +202,31 @@ export async function prepareRegisteredImageAttachmentFromBytes(input: {
   // A blob the browser could not type (a pasted HEIC, for one) is typed by its name instead.
   const mimeType =
     input.mimeType.split(';')[0]?.trim().toLowerCase() || (guessMimeType(input.fileName) ?? '')
-
-  // A pathless HEIC arrives as bytes, so it is decoded here the way the picker path decodes a file:
-  // everything below this line sees the JPEG the decode produced (ADR 0068).
-  if (isHeicImageMimeType(mimeType)) {
-    const converted = await convertHeicToAttachmentImage({
-      bytes: input.bytes,
-      fileName: input.fileName,
-    })
-    return prepareRegisteredImageAttachmentFromBytes(converted)
-  }
-
   const extension = imageAttachmentExtension(mimeType)
   if (!extension) {
     throw new Error(`Unsupported Session image type: ${mimeType || path.basename(input.fileName)}`)
   }
   const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
-  const buffer = Buffer.from(input.bytes)
-  const kind = 'image'
-  // Independent: the OCR read and the copy on disk do not wait for each other.
-  const [extractedText, filePath] = await allInOrder([
-    extractAttachmentText({ kind, mimeType, buffer, attachmentName }),
-    writeTempAttachment(buffer, extension, 'resource'),
-  ])
-
-  const attachment: PreparedAttachment = {
-    id: randomUUID(),
-    kind,
-    origin: 'session-resource',
-    name: attachmentName,
-    path: filePath,
-    mimeType,
-    sizeBytes: buffer.byteLength,
-    contentSha256: contentSha256(buffer),
-    extractedText,
-  }
+  const copyPath = await writeNamedTempAttachment(
+    Buffer.from(input.bytes),
+    attachmentName,
+    'resource',
+  )
+  const copyDirectory = path.dirname(copyPath)
+  // A HEIC becomes the JPEG the Host decoded into a file of its own, outside the copy directory.
+  let hostOwnedPath: string | null = null
   try {
-    await rememberPreparedAttachment(attachment, filePath)
+    const prepared = await prepareCopyThroughHost(copyPath)
+    if (path.basename(path.dirname(prepared.path)) !== path.basename(copyDirectory)) {
+      hostOwnedPath = prepared.path
+      await fs.rm(copyDirectory, { recursive: true, force: true })
+    }
+    const attachment: PreparedAttachment = { ...prepared, origin: 'session-resource' }
+    await rememberPreparedAttachment(attachment, attachment.path)
     return attachment
   } catch (cause) {
-    await fs.rm(filePath, { force: true }).catch(() => {})
+    await fs.rm(copyDirectory, { recursive: true, force: true }).catch(() => {})
+    if (hostOwnedPath) await fs.rm(hostOwnedPath, { force: true }).catch(() => {})
     throw cause
   }
 }
@@ -192,6 +237,19 @@ export async function discardRegisteredImageAttachment(attachment: PreparedAttac
   }
   const forgotten = await forgetPreparedAttachment(attachment)
   if (!forgotten) return
+  // The directory removed whole is the copy's own, found from where the file really is, and only
+  // one that sits directly in the temp attachments directory.
+  const realPath = await fs.realpath(attachment.path).catch(() => null)
+  const directory = realPath === null ? null : path.dirname(realPath)
+  const tempDirectory = await fs.realpath(await ensureTempAttachmentsDirectory())
+  if (
+    directory !== null &&
+    path.dirname(directory) === tempDirectory &&
+    isNamedTempAttachmentDirectory(path.basename(directory))
+  ) {
+    await fs.rm(directory, { recursive: true, force: true })
+    return
+  }
   await fs.rm(attachment.path, { force: true })
 }
 
