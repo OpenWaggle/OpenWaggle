@@ -272,9 +272,15 @@ export function resetAttachmentHandlerMocks() {
     files.set(destinationPath, source)
     files.delete(sourcePath)
   })
-  rmMock.mockImplementation(async (filePath: string) => {
-    files.delete(filePath)
-  })
+  rmMock.mockImplementation(
+    async (filePath: string, options?: { readonly recursive?: boolean }) => {
+      files.delete(filePath)
+      if (!options?.recursive) return
+      for (const entry of [...files.keys()]) {
+        if (entry.startsWith(`${filePath}/`)) files.delete(entry)
+      }
+    },
+  )
 
   realpathMock.mockImplementation(async (filePath: string) => {
     if (filePath === '/tmp/repo') return '/tmp/repo'
@@ -282,7 +288,9 @@ export function resetAttachmentHandlerMocks() {
     if (file) return filePath
     throw new Error(`ENOENT: ${filePath}`)
   })
-  mkdirMock.mockResolvedValue(undefined)
+  mkdirMock.mockImplementation(async (directoryPath: string) => {
+    registerDirectory(directoryPath)
+  })
   openMock.mockImplementation(async (filePath: string) =>
     createAttachmentFileHandle({ filePath, files, persistWrittenFile: registerFile }),
   )

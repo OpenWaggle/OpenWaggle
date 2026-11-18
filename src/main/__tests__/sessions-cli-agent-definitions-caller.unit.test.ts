@@ -9,6 +9,7 @@ vi.mock('../env', () => ({ env: mocks.env }))
 
 const { runAgentDefinitionDiscoveryCommand } = await import('../sessions-cli-agent-definitions')
 const { parseMcpCliArguments } = await import('../mcp-cli-arguments')
+const { temporaryTestDirectory } = await import('../test-support/temporary-test-directory')
 
 function discover(
   args: readonly string[],
@@ -37,11 +38,14 @@ describe('hive agent-definitions-* as Hive commands (#351)', () => {
   it('checks the caller, then says when there is nothing to list', async () => {
     const stdout: string[] = []
     const verifyCaller = vi.fn(async () => undefined)
+    // An empty temporary home, not the POSIX-looking '/home': macOS resolves that firmlink with
+    // EPERM and `confinedDirectory` rethrows everything but ENOENT.
+    const home = await temporaryTestDirectory('ow-agent-definitions-home-')
 
     await expect(
       discover(['agent-definitions-list', '--profile', 'helper'], {
         cwd: '/project',
-        home: '/home',
+        home,
         stdout: (value) => void stdout.push(value),
         verifyCaller,
         resolveProject: async (projectPath) => ({ projectPath, known: true, enabledByName: {} }),
