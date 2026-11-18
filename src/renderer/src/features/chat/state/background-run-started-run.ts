@@ -1,0 +1,218 @@
+import type { SessionId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
+import { settlingRunId } from '@/features/chat/lib/run-ids'
+import type { RenderSnapshotState, RunRenderSnapshot } from './background-run-render-state'
+import { isUnnamedRunSeed } from './background-run-seed'
+import { withRenderSnapshot } from './background-run-snapshot-map'
+
+/*
+ * A Run that starts in a snapshot a route owns (`RunRenderSnapshot.startedRun`), and the
+ * settlement of an earlier Run that reaches the renderer after that start.
+ */
+
+/**
+ * A route-owned snapshot remembering the Run that started in it. The messages it held then are
+ * earlier Runs', which ended before this one started: they are judged like a settled Run's
+ * (`settledMessageIds`) even while that Run's settlement has not arrived, so hydration leaves them
+ * to their saved copies once the persisted transcript holds them.
+ */
+export function withStartedRun(existing: RunRenderSnapshot, runId: string) {
+  const started = existing.startedRun
+  // An auto-retry, or the real id of a Run whose start named none: the same Run.
+  if (started?.runId === runId) return existing
+  if (started && isUnnamedRunSeed(started.runId)) {
+    return { ...existing, startedRun: { ...started, runId } }
+  }
+  const earlierMessageIds = new Set(existing.messages.map((message) => message.id))
+  const settledMessageIds = new Set([...(existing.settledMessageIds ?? []), ...earlierMessageIds])
+  return {
+    ...existing,
+    startedRun: { runId, earlierMessageIds },
+    ...(settledMessageIds.size > 0 ? { settledMessageIds } : {}),
+  }
+}
+
+/**
+ * The settlement of a Run that arrived after the next Run started in a route-owned snapshot: only
+ * the messages it held when that Run started are the settled one's. The snapshot stays the started
+ * Run's, unmarked, so the settlement's refetch does not clear it.
+ */
+export function withSettledEarlierMessages(
+  state: RenderSnapshotState,
+  id: SessionId,
+  existing: RunRenderSnapshot,
+  earlierMessageIds: ReadonlySet<string>,
+) {
+  const settledMessageIds = new Set(existing.settledMessageIds)
+  for (const message of existing.messages) {
+    if (earlierMessageIds.has(message.id)) settledMessageIds.add(message.id)
+  }
+  return withRenderSnapshot(state, id, {
+    ...existing,
+    ...(settledMessageIds.size > 0 ? { settledMessageIds } : {}),
+  })
+}
+
+/**
+ * The Run a route's write (`messages`) leaves the snapshot holding: the one that started in it, or
+ * the Run that seeded it, whose seed the write drops, so an auto-retry of it is not taken for a new
+ * one, nor the real start of a Run whose start named none. What the route shows that was created
+ * before that Run started (by Host time, when its start named it) is earlier Runs': judged like a
+ * settled Run's, as at a start.
+ */
+export function startedRunOf(
+  existing: RunRenderSnapshot | undefined,
+  messages: readonly UIMessage[],
+) {
+  if (existing?.startedRun) return existing.startedRun
+  const seed = existing?.seededByRunId
+  if (seed === undefined) return undefined
+  // A seed whose start named no Run: its real start, when it comes, is the same Run's.
+  const earlierMessageIds = new Set(existing?.settledMessageIds)
+  const startedAt = existing?.seededAt
+  for (const message of startedAt === undefined ? [] : messages) {
+    const createdAt = message.createdAt === undefined ? undefined : new Date(message.createdAt)
+    if (createdAt !== undefined && startedAt !== undefined && createdAt.getTime() < startedAt) {
+      earlierMessageIds.add(message.id)
+    }
+  }
+  return { runId: seed, earlierMessageIds }
+}
+
+/**
+ * A Run ended: one the snapshot holds unnamed (its start was the bridge's) is named by its end, so
+ * the next start tells another Run (another id) from Pi continuing this one (the same id).
+ */
+export function withEndedRunNamed(existing: RunRenderSnapshot, runId: string) {
+  if (existing.seededByRunId !== undefined) {
+    return isUnnamedRunSeed(existing.seededByRunId)
+      ? { ...existing, seededByRunId: runId }
+      : existing
+  }
+  const started = existing.startedRun
+  if (started === undefined || !isUnnamedRunSeed(started.runId)) return existing
+  return { ...existing, startedRun: { ...started, runId } }
+}
+
+export function seedRunRenderSnapshot(
+  runId: string,
+  settledMessageIds?: ReadonlySet<string>,
+  startedAt?: number,
+) {
+  const snapshot: RunRenderSnapshot = {
+    messages: [],
+    compactionStatus: null,
+    updatedAt: Date.now(),
+    seededByRunId: runId,
+    ...(startedAt === undefined || isUnnamedRunSeed(runId) ? {} : { seededAt: startedAt }),
+    ...(settledMessageIds ? { settledMessageIds } : {}),
+  }
+  return snapshot
+}
+
+export function seededSnapshotForRunStart(
+  existing: RunRenderSnapshot | undefined,
+  runId: string,
+  startedAt: number,
+) {
+  // The late start of a Run whose start was lost tells whether it is the Run the snapshot held.
+  if (existing?.noticedMessageIds && !isUnnamedRunSeed(runId)) {
+    const held = existing.seededByRunId ?? existing.startedRun?.runId ?? ''
+    return withNoticeResolved(existing, runId, settlingRunId(held) !== settlingRunId(runId), true)
+  }
+  if (existing === undefined) return seedRunRenderSnapshot(runId, undefined, startedAt)
+  // The snapshot holds a settled Run, persisted before this one started.
+  if (existing.settledRunId !== undefined) {
+    return seedRunRenderSnapshot(runId, existing.settledMessageIds, startedAt)
+  }
+  // A route renders the Session and owns the snapshot.
+  if (existing.seededByRunId === undefined) return withStartedRun(existing, runId)
+  // This Run starts again: an auto-retry, or Pi continuing it after its end (an overflow
+  // compaction's recovery, a truncated answer, a steer queued as it finished).
+  if (existing.seededByRunId === runId) return existing
+  // The real id of the in-progress Run the seed could not name: its answers are not persisted yet.
+  if (isUnnamedRunSeed(existing.seededByRunId) && !isUnnamedRunSeed(runId)) {
+    return { ...existing, seededByRunId: runId }
+  }
+  // Another Run, so the seeded one was persisted before it started.
+  return seedRunRenderSnapshot(runId, existing.settledMessageIds, startedAt)
+}
+
+/**
+ * The Run before a Run whose start was lost settled late: the seed's rows before the lost start
+ * (its settled ids, set apart as the Run streamed) are that settled Run's, the rest the running
+ * Run's. The seed becomes the running Run's start with those as earlier rows, as a route's write
+ * leaves it, so hydration leaves them to their saved copies and the Run's settlement clears it.
+ */
+export function withEarlierRunSettledBeforeUnannounced(existing: RunRenderSnapshot) {
+  const seed = existing.seededByRunId
+  if (seed === undefined) return existing
+  const { seededByRunId: _seed, seededAt: _seededAt, ...unseeded } = existing
+  return {
+    ...unseeded,
+    startedRun: { runId: seed, earlierMessageIds: new Set(existing.settledMessageIds) },
+  }
+}
+
+/**
+ * The Host's buffer named the Run whose start was lost (`nameUnannouncedRun`). When it is another
+ * Run than the one before, that one was saved when it ended, so its rows set apart at the notice
+ * leave the snapshot, as another Run's start drops them. Kept, they showed twice whenever no saved
+ * prompt vouched for them.
+ */
+export function withUnannouncedRunNamed(
+  state: RenderSnapshotState,
+  id: SessionId,
+  runId: string,
+  anotherRun: boolean,
+) {
+  const existing = state.renderSnapshotsBySessionId.get(id)
+  if (!existing) return state
+  if (existing.noticedMessageIds) {
+    const resolved = withNoticeResolved(existing, runId, anotherRun, true)
+    return withRenderSnapshot(state, id, resolved)
+  }
+  // The snapshot's unnamed seed or start is named too, or the Run's continuation took the late
+  // settlement of the Run before for its own and settled its answers.
+  const named = withEndedRunNamed(existing, runId)
+  const next = withRenderSnapshot(state, id, named)
+  return anotherRun ? withoutEarlierRunRows(next, id) : next
+}
+
+function withoutEarlierRunRows(state: RenderSnapshotState, id: SessionId) {
+  const existing = state.renderSnapshotsBySessionId.get(id)
+  const settled = existing?.settledMessageIds
+  // A route's snapshot holds what the route shows, which places these rows itself.
+  if (!existing || !settled || existing.seededByRunId === undefined) return state
+  const messages = existing.messages.filter((message) => !settled.has(message.id))
+  if (messages.length === existing.messages.length) return state
+  return withRenderSnapshot(state, id, { ...existing, messages })
+}
+
+/**
+ * Whether the Run noticed over a named Run's rows (`noticedMessageIds`) is another Run is known.
+ * The same Run continuing keeps them its own. Another Run sets them apart as the Run before's: a
+ * seed becomes the noticed Run's, without them when `dropSeeded` (the Run before was saved when it
+ * ended), and a route's snapshot records the noticed Run's start with them as earlier rows.
+ */
+export function withNoticeResolved(
+  existing: RunRenderSnapshot,
+  runId: string,
+  anotherRun: boolean,
+  dropSeeded: boolean,
+) {
+  const noticed = existing.noticedMessageIds
+  if (!noticed) return existing
+  const { noticedMessageIds: _noticed, ...rest } = existing
+  if (!anotherRun) return rest
+  const settledMessageIds = new Set([...(existing.settledMessageIds ?? []), ...noticed])
+  if (existing.seededByRunId !== undefined) {
+    const { seededAt: _seededAt, ...unseeded } = rest
+    const messages = dropSeeded
+      ? existing.messages.filter((message) => !noticed.has(message.id))
+      : existing.messages
+    return { ...unseeded, seededByRunId: runId, settledMessageIds, messages }
+  }
+  const earlierMessageIds = new Set([...(existing.startedRun?.earlierMessageIds ?? []), ...noticed])
+  return { ...rest, settledMessageIds, startedRun: { runId, earlierMessageIds } }
+}

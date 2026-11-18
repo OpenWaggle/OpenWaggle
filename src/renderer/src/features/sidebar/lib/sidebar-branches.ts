@@ -10,6 +10,8 @@ export type SidebarBranchRow =
   | {
       readonly type: 'draft'
       readonly sourceNodeId: SessionNodeId
+      /** The first line of the message the draft starts from, when the sidebar has it. */
+      readonly sourceLabel: string | null
     }
   | {
       readonly type: 'branch'
@@ -20,7 +22,7 @@ export type SidebarBranchRow =
 interface BuildSidebarBranchRowsInput {
   readonly session: SessionSummary
   readonly activeSessionTree?: SessionTree | null
-  readonly activeBranchId?: SessionBranchId | null | undefined
+  readonly activeBranchId?: SessionBranchId | null
   readonly branchesCollapsed?: boolean
   readonly draftBranch: SidebarDraftBranchInput | null
 }
@@ -32,6 +34,24 @@ function getSessionBranches(input: BuildSidebarBranchRowsInput) {
   return input.session.branches ?? []
 }
 
+/**
+ * The first line of the draft's source message. A node id is no label: a discovered Pi
+ * session's carries the Session id before the entry id (ADR 0051).
+ */
+function draftSourceLabel(input: BuildSidebarBranchRowsInput, sourceNodeId: SessionNodeId) {
+  const tree = input.activeSessionTree
+  if (tree?.session.id !== input.session.id) return null
+  // The tree carries the start of each message's text, which holds its first line (B5).
+  const preview = tree.nodes.find((node) => node.id === sourceNodeId)?.preview
+  const firstLine = preview
+    ? preview
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line.length > 0)
+    : undefined
+  return firstLine ?? null
+}
+
 function isDraftForSession(
   session: SessionSummary,
   draftBranch: SidebarDraftBranchInput | null,
@@ -39,9 +59,7 @@ function isDraftForSession(
   return draftBranch !== null && draftBranch.sessionId === session.id
 }
 
-export function buildSidebarBranchRows(
-  input: BuildSidebarBranchRowsInput,
-): readonly SidebarBranchRow[] {
+export function buildSidebarBranchRows(input: BuildSidebarBranchRowsInput) {
   const hasDraftBranch = isDraftForSession(input.session, input.draftBranch)
   const visibleBranches = getSessionBranches(input).filter((branch) => branch.archived !== true)
   const hasMaterializedBranchRows = visibleBranches.length > 1
@@ -49,12 +67,13 @@ export function buildSidebarBranchRows(
     input.branchesCollapsed ?? input.session.treeUiState?.branchesSidebarCollapsed === true
 
   if (!hasDraftBranch && (!hasMaterializedBranchRows || collapsed)) {
-    return []
+    return [] satisfies readonly SidebarBranchRow[]
   }
 
   const rows: SidebarBranchRow[] = []
   if (hasDraftBranch) {
-    rows.push({ type: 'draft', sourceNodeId: input.draftBranch.sourceNodeId })
+    const { sourceNodeId } = input.draftBranch
+    rows.push({ type: 'draft', sourceNodeId, sourceLabel: draftSourceLabel(input, sourceNodeId) })
   }
 
   for (const branch of visibleBranches) {

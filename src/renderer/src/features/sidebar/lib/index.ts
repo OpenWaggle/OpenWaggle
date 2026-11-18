@@ -1,1 +1,5 @@
-export { groupSessionsByProject, type ProjectGroup } from './sidebar-utils'
+export {
+  registerSidebarSessionActions,
+  sidebarSessionActions,
+  subscribeSidebarSessionActions,
+} from './session-actions-registry'

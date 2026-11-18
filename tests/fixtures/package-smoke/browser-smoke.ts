@@ -1,4 +1,5 @@
-import { defineExtensionManifest, validateExtensionManifest } from '@openwaggle/extension-sdk'
+import { defineExtensionManifest } from '@openwaggle/extension-sdk'
+import { validateExtensionManifest } from '@openwaggle/extension-sdk/validation'
 import {
   Alert,
   Badge,
@@ -28,36 +29,43 @@ const browserManifest = defineExtensionManifest({
 })
 
 async function runBrowserSmoke() {
-  validateExtensionManifest(browserManifest)
+  const validation = validateExtensionManifest(browserManifest)
+  if (!validation.success) {
+    throw new Error(`Extension manifest is invalid: ${validation.issues[0]?.message}`)
+  }
   const mount = document.querySelector('#browser-smoke-root')
   if (!(mount instanceof HTMLElement)) {
     throw new Error('Browser package smoke root is missing.')
   }
 
-  createRoot(mount).render(createElement(
-    Panel,
-    {},
+  createRoot(mount).render(
     createElement(
-      Stack,
-      { gap: '8px' },
-      createElement(Badge, { tone: 'success' }, 'Ready'),
-      createElement(Alert, { tone: 'info' }, 'Browser package smoke'),
+      Panel,
+      {},
       createElement(
-        Field,
-        { htmlFor: 'browser-smoke-input', label: 'Name', description: 'Package fixture' },
-        createElement(Input, { id: 'browser-smoke-input', defaultValue: 'OpenWaggle' }),
+        Stack,
+        { gap: '8px' },
+        createElement(Badge, { tone: 'success' }, 'Ready'),
+        createElement(Alert, { tone: 'info' }, 'Browser package smoke'),
+        createElement(
+          Field,
+          { htmlFor: 'browser-smoke-input', label: 'Name', description: 'Package fixture' },
+          createElement(Input, { id: 'browser-smoke-input', defaultValue: 'OpenWaggle' }),
+        ),
+        createElement(Textarea, { id: 'browser-smoke-textarea', defaultValue: 'Details' }),
+        createElement(
+          Select,
+          { id: 'browser-smoke-select', defaultValue: 'one' },
+          createElement('option', { value: 'one' }, 'One'),
+        ),
+        createElement(Checkbox, { id: 'browser-smoke-checkbox', defaultChecked: true }),
+        createElement(Button, { id: 'browser-smoke-button' }, 'Browser package smoke'),
       ),
-      createElement(Textarea, { id: 'browser-smoke-textarea', defaultValue: 'Details' }),
-      createElement(
-        Select,
-        { id: 'browser-smoke-select', defaultValue: 'one' },
-        createElement('option', { value: 'one' }, 'One'),
-      ),
-      createElement(Checkbox, { id: 'browser-smoke-checkbox', defaultChecked: true }),
-      createElement(Button, { id: 'browser-smoke-button' }, 'Browser package smoke'),
     ),
-  ))
-  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  )
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  )
 
   const button = document.querySelector('#browser-smoke-button')
   if (!(button instanceof HTMLButtonElement) || button.textContent !== 'Browser package smoke') {

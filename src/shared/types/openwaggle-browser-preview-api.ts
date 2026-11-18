@@ -1,0 +1,49 @@
+import type { IpcEventMethod, IpcInvokeMethod } from './ipc-api-methods'
+
+export interface OpenWaggleBrowserPreviewApi {
+  openBrowserPreview: IpcInvokeMethod<'browser-preview:open'>
+  setBrowserPreviewBounds: IpcInvokeMethod<'browser-preview:set-bounds'>
+  navigateBrowserPreview: IpcInvokeMethod<'browser-preview:navigate'>
+  goBackBrowserPreview: IpcInvokeMethod<'browser-preview:go-back'>
+  goForwardBrowserPreview: IpcInvokeMethod<'browser-preview:go-forward'>
+  reloadBrowserPreview: IpcInvokeMethod<'browser-preview:reload'>
+  stopBrowserPreview: IpcInvokeMethod<'browser-preview:stop'>
+  closeBrowserPreview: IpcInvokeMethod<'browser-preview:close'>
+  replaceBrowserPreviewForCapacity: IpcInvokeMethod<'browser-preview:replace-for-capacity'>
+  zoomBrowserPreview: IpcInvokeMethod<'browser-preview:zoom'>
+  setBrowserPreviewViewport: IpcInvokeMethod<'browser-preview:set-viewport'>
+  hardReloadBrowserPreview: IpcInvokeMethod<'browser-preview:hard-reload'>
+  setBrowserPreviewAppearance: IpcInvokeMethod<'browser-preview:set-appearance'>
+  setBrowserPreviewAudioMuted: IpcInvokeMethod<'browser-preview:set-audio-muted'>
+  openBrowserPreviewDevTools: IpcInvokeMethod<'browser-preview:open-devtools'>
+  clearBrowserPreviewCookies: IpcInvokeMethod<'browser-preview:clear-cookies'>
+  clearBrowserPreviewCache: IpcInvokeMethod<'browser-preview:clear-cache'>
+  captureBrowserPreviewScreenshot: IpcInvokeMethod<'browser-preview:capture-screenshot'>
+  revealBrowserPreviewArtifact: IpcInvokeMethod<'browser-preview:reveal-artifact'>
+  copyBrowserPreviewScreenshot: IpcInvokeMethod<'browser-preview:copy-screenshot'>
+  startBrowserPreviewRecording: IpcInvokeMethod<'browser-preview:start-recording'>
+  saveBrowserPreviewRecording: IpcInvokeMethod<'browser-preview:save-recording'>
+  stopBrowserPreviewRecording: IpcInvokeMethod<'browser-preview:stop-recording'>
+  pickBrowserPreviewElement: IpcInvokeMethod<'browser-preview:pick-element'>
+  cancelBrowserPreviewElementPick: IpcInvokeMethod<'browser-preview:cancel-pick-element'>
+  openBrowserPreviewPictureInPicture: IpcInvokeMethod<'browser-preview:open-picture-in-picture'>
+  closeBrowserPreviewPictureInPicture: IpcInvokeMethod<'browser-preview:close-picture-in-picture'>
+  registerBrowserPreviewOwner: IpcInvokeMethod<'browser-preview:register-owner'>
+  unregisterBrowserPreviewOwner: IpcInvokeMethod<'browser-preview:unregister-owner'>
+  acknowledgeBrowserPreviewOpenRequest: IpcInvokeMethod<'browser-preview:ack-open-request'>
+  setCurrentBrowserPreview: IpcInvokeMethod<'browser-preview:set-current'>
+  respondBrowserPreviewRecordingRequest: IpcInvokeMethod<'browser-preview:respond-recording-request'>
+  setBrowserPreviewShortcutBindings: IpcInvokeMethod<'browser-preview:set-shortcut-bindings'>
+  listBrowserImportSources: IpcInvokeMethod<'browser-preview:list-import-sources'>
+  importBrowserCookies: IpcInvokeMethod<'browser-preview:import-cookies'>
+  guidedImportBrowserCookies: IpcInvokeMethod<'browser-preview:guided-import-cookies'>
+  openBrowserImportFullDiskAccessSettings: IpcInvokeMethod<'browser-preview:open-full-disk-access-settings'>
+  clearBrowserProfileData: IpcInvokeMethod<'browser-preview:clear-profile-data'>
+  onBrowserPreviewState: IpcEventMethod<'browser-preview:state'>
+  onBrowserPreviewShortcut: IpcEventMethod<'browser-preview:shortcut'>
+  onBrowserPreviewKeyEvent: IpcEventMethod<'browser-preview:key-event'>
+  onBrowserPreviewOpenRequest: IpcEventMethod<'browser-preview:open-request'>
+  onBrowserPreviewOpenRequestCancellation: IpcEventMethod<'browser-preview:cancel-open-request'>
+  onBrowserPreviewRecordingRequest: IpcEventMethod<'browser-preview:recording-request'>
+  onBrowserPreviewRecordingCancel: IpcEventMethod<'browser-preview:recording-cancel'>
+}

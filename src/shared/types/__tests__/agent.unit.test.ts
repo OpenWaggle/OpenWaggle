@@ -2,19 +2,19 @@ import { ToolCallId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 import { isTextPart, isToolCallPart, type MessagePart } from '../agent'
 
-function textPart(text: string): MessagePart {
-  return { type: 'text', text }
+function textPart(text: string) {
+  return { type: 'text', text } satisfies MessagePart
 }
 
-function toolCallPart(name: string, id = 'tc-1'): MessagePart {
+function toolCallPart(name: string, id = 'tc-1') {
   return {
     type: 'tool-call',
     toolCall: { id: ToolCallId(id), name, args: {} },
-  }
+  } satisfies MessagePart
 }
 
-function reasoningPart(text: string): MessagePart {
-  return { type: 'reasoning', text }
+function reasoningPart(text: string) {
+  return { type: 'reasoning', text } satisfies MessagePart
 }
 
 describe('isTextPart', () => {

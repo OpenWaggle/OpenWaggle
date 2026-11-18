@@ -1,0 +1,23 @@
+# Separate Composer Invocations from Global Command Surfaces
+
+Status: accepted
+
+OpenWaggle previously treated `/` and `Cmd/Ctrl+K` as two entrances to nearly the same composer-adjacent palette. That made the surfaces difficult to explain, introduced a second search input while the user was already typing, and let a selection replace the entire prompt. Project navigation and file discovery also lacked the centered, keyboard-first flow users expect from coding-agent desktop applications.
+
+## Decision
+
+- `/` is stable composer syntax. It opens an input-less chooser derived from the active Lexical selection and offers prompt-scoped skills, saved Waggle presets, and extension slash contributions. Selecting an item consumes only the active slash token. The chooser also lists the GUI-only built-in text commands (`/compact`, `/fork`, `/clone`) first under Commands, mirroring Pi's slash-command set. Built-ins match by command name. Tab or a click completes the command so arguments such as compaction instructions can follow, and Enter submits a fully typed built-in only when it is the whole draft, rather than selecting a fuzzy skill match or sending a draft that merely mentions the command. Other application actions are discovered through the global palette. (Revised 2026-09-28: the original chooser hid `/compact`, so a project skill whose description mentioned "compact" captured Enter and manual compaction could not be discovered or reliably run.)
+- Waggle preset selection creates a one-shot decorator node in the composer. The invocation travels with one `AgentSendPayload`, renders as metadata on the user turn, and is cleared with the submitted draft. It does not enable a sticky mode.
+- The standard agent receives a visible native `waggle_invoke` tool. A successful call terminates the standard turn and hands a self-contained prompt plus resolved preset to Waggle in the same Pi session. Nested Waggle invocation is rejected.
+- `Cmd/Ctrl+K` opens a centered global command palette for application actions, compaction, navigation, sessions, projects, settings, extension commands, and extension panels. It does not list prompt skills or Waggle presets.
+- `Cmd/Ctrl+P` opens the centered project file picker, and `Cmd/Ctrl+N` starts a new session. These and the workspace shortcuts are persisted through a conflict-free shortcut registry. The three navigation shortcuts must remain assigned but may be remapped.
+- Project files are indexed and accessed by an Effect service in the main process. The renderer opens a route-backed right-side file surface for tree navigation, safe previews, line targeting, optimistic autosave, and external-editor handoff. The renderer never receives arbitrary filesystem authority.
+- The Waggle execution bar is transient. It is rendered only while a collaboration is pending or running.
+
+## Consequences
+
+- Prompt state remains owned by Lexical and scoped composer drafts; global actions remain owned by the application shell.
+- Skills keep their textual serialization, while Waggle invocations use explicit message metadata so coordination details do not pollute the prompt. A skill reference serializes as Pi's `/skill:<name>` command, with the `name` from the skill's frontmatter that Pi matches, rather than a bare `/name` (revised 2026-11-17): Pi expands a skill only from that prefix, so a bare `/name` was an extension-command lookup that a Pi extension command named after a project skill won, and the skill never loaded. Pi expands that prefix only as the message's leading token, so a reference the chooser inserts after the draft's own text keeps its chip and reaches the model as text without loading the skill's body. The slash menu also withholds a Pi extension command whose name is a name an enabled skill is offered under, so the skill keeps that name in the menu and the extension command has no row there, reachable only from a Session that enables no such skill; the folder a skill lives in is not one of those names, because Pi matches a skill by its frontmatter name alone. A same-named OpenWaggle extension slash contribution keeps its own row, because the skill's namespaced text never reaches it.
+- Standard-to-Waggle handoff adds no parallel transcript or copied context. The completed standard tool result is persisted before the chained Waggle run starts.
+- File reads and writes enforce project-root, realpath, and symlink confinement. Writes use an expected revision so external edits produce a visible conflict instead of silent overwrite.
+- Extension slash contributions remain composer-native; generic extension commands and panels are discoverable only from the global command palette.

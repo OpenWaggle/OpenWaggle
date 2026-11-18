@@ -1,0 +1,250 @@
+import { matchBy } from '@diegogbrisa/ts-match'
+import type { FollowUpId } from '@shared/types/brand'
+import {
+  type FollowUpQueuePauseReason,
+  MAX_FOLLOW_UP_QUEUE_ITEMS,
+} from '@shared/types/session-control-queue'
+
+export { MAX_FOLLOW_UP_QUEUE_ITEMS } from '@shared/types/session-control-queue'
+
+const REVISION_INCREMENT = 1
+export const MAX_FOLLOW_UP_QUEUE_BYTES = 32 * 1024 * 1024
+
+export interface FollowUpQueueItem {
+  readonly id: FollowUpId
+}
+
+interface SizedFollowUpQueueItem extends FollowUpQueueItem {
+  readonly intent: unknown
+}
+
+export interface FollowUpQueue<TItem extends FollowUpQueueItem> {
+  readonly state: 'running' | 'paused'
+  /** Set while paused: what paused it. A queue paused before this was recorded has none. */
+  readonly pauseReason?: FollowUpQueuePauseReason
+  readonly revision: number
+  readonly items: readonly TItem[]
+  /**
+   * Set while a failed Run's explicit retry waits behind a Follow-up edit hold: the retry is the
+   * first item accepted after this time (Session Control clock). Lease state, like the hold.
+   */
+  readonly deferredRetryAfter?: number
+}
+
+/**
+ * The queue state a queued Follow-up reports, so a caller learns that it waits behind a paused
+ * queue (and why) instead of assuming it runs next.
+ */
+export function queuedFollowUpQueueState(queue: FollowUpQueue<FollowUpQueueItem>) {
+  return queue.state === 'paused' && queue.pauseReason
+    ? { queueState: queue.state, pauseReason: queue.pauseReason }
+    : { queueState: queue.state }
+}
+
+export interface AppendFollowUp<TItem extends FollowUpQueueItem> {
+  readonly type: 'append'
+  readonly item: TItem
+}
+
+export interface WithdrawFollowUp {
+  readonly type: 'withdraw'
+  readonly followUpIds: readonly FollowUpId[]
+}
+
+export interface ReorderFollowUps {
+  readonly type: 'reorder'
+  readonly expectedRevision: number
+  readonly orderedFollowUpIds: readonly FollowUpId[]
+}
+
+export interface PauseFollowUpQueue {
+  readonly type: 'pause'
+  readonly expectedRevision: number
+  /** Defaults to `requested`: a caller asked for the pause. */
+  readonly reason?: FollowUpQueuePauseReason
+}
+
+export interface ResumeFollowUpQueue {
+  readonly type: 'resume'
+  readonly expectedRevision: number
+}
+
+export type FollowUpQueueMutation<TItem extends FollowUpQueueItem> =
+  | AppendFollowUp<TItem>
+  | WithdrawFollowUp
+  | ReorderFollowUps
+  | PauseFollowUpQueue
+  | ResumeFollowUpQueue
+
+export type FollowUpQueueMutationResult<TItem extends FollowUpQueueItem> =
+  | { readonly accepted: true; readonly queue: FollowUpQueue<TItem> }
+  | FollowUpQueueMutationRejection
+
+interface FollowUpQueueMutationRejection {
+  readonly accepted: false
+  readonly code:
+    | 'queue_revision_changed'
+    | 'follow_up_already_exists'
+    | 'queue_capacity_reached'
+    | 'queue_byte_capacity_reached'
+    | 'follow_up_not_found'
+    | 'queue_order_mismatch'
+    | 'queue_already_paused'
+    | 'queue_already_running'
+  readonly currentRevision: number
+}
+
+function acceptedQueue<TItem extends FollowUpQueueItem>(
+  queue: FollowUpQueue<TItem>,
+  items: readonly TItem[],
+) {
+  const result: FollowUpQueueMutationResult<TItem> = {
+    accepted: true,
+    queue: {
+      ...queue,
+      revision: queue.revision + REVISION_INCREMENT,
+      items,
+    },
+  }
+  return result
+}
+
+export function serializedBytes(value: unknown) {
+  return new TextEncoder().encode(JSON.stringify(value)).byteLength
+}
+
+function hasIntent(item: FollowUpQueueItem): item is SizedFollowUpQueueItem {
+  return 'intent' in item
+}
+
+function revisionRejection(queueRevision: number, expectedRevision: number) {
+  const rejection: FollowUpQueueMutationRejection | null =
+    expectedRevision === queueRevision
+      ? null
+      : {
+          accepted: false,
+          code: 'queue_revision_changed',
+          currentRevision: queueRevision,
+        }
+  return rejection
+}
+
+export function mutateFollowUpQueue<TItem extends FollowUpQueueItem>(
+  queue: FollowUpQueue<TItem>,
+  mutation: FollowUpQueueMutation<TItem>,
+) {
+  const result: FollowUpQueueMutationResult<TItem> = matchBy(mutation, 'type')
+    .with('append', (append) => {
+      if (queue.items.some((item) => item.id === append.item.id)) {
+        return {
+          accepted: false,
+          code: 'follow_up_already_exists',
+          currentRevision: queue.revision,
+        }
+      }
+      if (queue.items.length >= MAX_FOLLOW_UP_QUEUE_ITEMS) {
+        return {
+          accepted: false,
+          code: 'queue_capacity_reached',
+          currentRevision: queue.revision,
+        }
+      }
+      if (
+        hasIntent(append.item) &&
+        serializedBytes(append.item.intent) +
+          queue.items.reduce(
+            (bytes, item) => bytes + (hasIntent(item) ? serializedBytes(item.intent) : 0),
+            0,
+          ) >
+          MAX_FOLLOW_UP_QUEUE_BYTES
+      ) {
+        return {
+          accepted: false,
+          code: 'queue_byte_capacity_reached',
+          currentRevision: queue.revision,
+        }
+      }
+      return acceptedQueue(queue, [...queue.items, append.item])
+    })
+    .with('withdraw', (withdraw) => {
+      const selectedIds = new Set(withdraw.followUpIds)
+      if (
+        selectedIds.size === 0 ||
+        [...selectedIds].some((followUpId) => !queue.items.some((item) => item.id === followUpId))
+      ) {
+        return {
+          accepted: false,
+          code: 'follow_up_not_found',
+          currentRevision: queue.revision,
+        }
+      }
+      return acceptedQueue(
+        queue,
+        queue.items.filter((item) => !selectedIds.has(item.id)),
+      )
+    })
+    .with('reorder', (reorder) => {
+      const staleRevision = revisionRejection(queue.revision, reorder.expectedRevision)
+      if (staleRevision) return staleRevision
+      const orderedIds = new Set(reorder.orderedFollowUpIds)
+      const orderMatchesQueue =
+        reorder.orderedFollowUpIds.length === queue.items.length &&
+        orderedIds.size === queue.items.length &&
+        queue.items.every((item) => orderedIds.has(item.id))
+      if (!orderMatchesQueue) {
+        return {
+          accepted: false,
+          code: 'queue_order_mismatch',
+          currentRevision: queue.revision,
+        }
+      }
+      const itemsById = new Map(queue.items.map((item) => [item.id, item]))
+      const reorderedItems = reorder.orderedFollowUpIds.flatMap((followUpId) => {
+        const item = itemsById.get(followUpId)
+        return item ? [item] : []
+      })
+      return acceptedQueue(queue, reorderedItems)
+    })
+    .with('pause', (pause) => {
+      const staleRevision = revisionRejection(queue.revision, pause.expectedRevision)
+      if (staleRevision) return staleRevision
+      if (queue.state === 'paused') {
+        return {
+          accepted: false,
+          code: 'queue_already_paused',
+          currentRevision: queue.revision,
+        }
+      }
+      return {
+        accepted: true,
+        queue: {
+          ...queue,
+          state: 'paused',
+          pauseReason: pause.reason ?? 'requested',
+          revision: queue.revision + REVISION_INCREMENT,
+        },
+      }
+    })
+    .with('resume', (resume) => {
+      const staleRevision = revisionRejection(queue.revision, resume.expectedRevision)
+      if (staleRevision) return staleRevision
+      if (queue.state === 'running') {
+        return {
+          accepted: false,
+          code: 'queue_already_running',
+          currentRevision: queue.revision,
+        }
+      }
+      const { pauseReason: _pauseReason, ...runningQueue } = queue
+      return {
+        accepted: true,
+        queue: {
+          ...runningQueue,
+          state: 'running',
+          revision: queue.revision + REVISION_INCREMENT,
+        },
+      }
+    })
+    .exhaustive()
+  return result
+}

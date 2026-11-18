@@ -11,13 +11,17 @@ export function buildInitialComposerState() {
     draftInput: '',
     attachments: [],
     attachmentError: null,
+    selectedWagglePreset: null,
     activeDraftContextKey: null,
     scopedDrafts: {},
+    editedPendingDrafts: {},
     thinkingMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,
     slashHighlightIndex: 0,
+    activeSlashCommand: null,
     dismissedSlashToken: null,
+    slashMenuFilter: 'all' as const,
   }
 }
 

@@ -1,6 +1,14 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import {
+  sessionActiveRunRowSchema,
+  sessionBranchRowSchema,
+  sessionBranchStateRowSchema,
+  sessionSummaryRowSchema,
+  sessionTreeUiStateRowSchema,
+} from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionTree } from '@shared/types/session'
+import type { SessionContentTree } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import type { SessionNodeRow } from '../session-details'
 import { runStoreEffect } from '../store-runtime'
@@ -14,17 +22,13 @@ import {
   hydrateSessionSummary,
   hydrateUiState,
   interruptedRunsByBranchId,
+  sessionSummaryColumns,
   visibleNodeIdForHead,
 } from './hydration'
-import type {
-  SessionActiveRunRow,
-  SessionBranchRow,
-  SessionBranchStateRow,
-  SessionSummaryRow,
-  SessionTreeUiStateRow,
-} from './types'
+import { attachSessionLineage, loadSessionLineageRows } from './session-list'
+import type { SessionBranchRow, SessionBranchStateRow } from './types'
 
-export async function getSessionTree(sessionId: SessionId): Promise<SessionTree | null> {
+export async function getSessionTree(sessionId: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -32,11 +36,15 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
       const sessionRow = data.sessionRows[EMPTY_INDEX]
       if (!sessionRow) return null
 
-      const session = hydrateSessionSummary(sessionRow)
+      const session = attachSessionLineage(
+        [hydrateSessionSummary(sessionRow)],
+        yield* loadSessionLineageRows(sql, [String(sessionId)]),
+      )[EMPTY_INDEX]
+      if (!session) return null
       const nodes = buildSessionNodes(data.nodeRows)
       const interruptedRunByBranchId = interruptedRunsByBranchId(data.activeRunRows)
 
-      return {
+      const tree: SessionContentTree = {
         session,
         nodes,
         branches: buildTreeBranches(
@@ -51,6 +59,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
           ? hydrateUiState(data.uiStateRows[EMPTY_INDEX])
           : null,
       }
+      return tree
     }),
   )
 }
@@ -68,20 +77,13 @@ function loadSessionTreeRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
 }
 
 function loadSessionRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
-  return sql<SessionSummaryRow>`
+  return sql`
     SELECT
-      id,
-      title,
-      project_path,
-      archived,
-      created_at,
-      updated_at,
-      last_active_node_id,
-      last_active_branch_id
+      ${sessionSummaryColumns(sql)}
     FROM sessions
     WHERE id = ${sessionId}
     LIMIT 1
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
 }
 
 function loadNodeRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
@@ -106,7 +108,7 @@ function loadNodeRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
 }
 
 function loadBranchRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
-  return sql<SessionBranchRow>`
+  return sql`
     SELECT
       id,
       session_id,
@@ -120,12 +122,12 @@ function loadBranchRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
     FROM session_branches
     WHERE session_id = ${sessionId}
     ORDER BY created_at ASC
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionBranchRowSchema, 'session_branches')))
 }
 
 function loadBranchStateRows(sql: SqlClient.SqlClient, branchRows: readonly SessionBranchRow[]) {
   return branchRows.length > 0
-    ? sql<SessionBranchStateRow>`
+    ? sql`
         SELECT
           branch_id,
           future_mode,
@@ -134,26 +136,30 @@ function loadBranchStateRows(sql: SqlClient.SqlClient, branchRows: readonly Sess
           ui_state_json
         FROM session_branch_state
         WHERE branch_id IN ${sql.in(branchRows.map((branch) => branch.id))}
-      `
+      `.pipe(Effect.flatMap(decodeSqlRows(sessionBranchStateRowSchema, 'session_branch_state')))
     : Effect.succeed([])
 }
 
+/** The tree's UI state with its read receipt, as every other tree UI state read selects it. */
 function loadTreeUiRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
-  return sql<SessionTreeUiStateRow>`
+  return sql`
     SELECT
-      session_id,
+      session_tree_ui_state.session_id,
       expanded_node_ids_json,
       expanded_node_ids_touched,
       branches_sidebar_collapsed,
-      updated_at
+      session_visit_receipts.last_visited_at,
+      session_tree_ui_state.updated_at
     FROM session_tree_ui_state
-    WHERE session_id = ${sessionId}
+    LEFT JOIN session_visit_receipts
+      ON session_visit_receipts.session_id = session_tree_ui_state.session_id
+    WHERE session_tree_ui_state.session_id = ${sessionId}
     LIMIT 1
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionTreeUiStateRowSchema, 'session_tree_ui_state')))
 }
 
 function loadInterruptedActiveRunRows(sql: SqlClient.SqlClient, sessionId: SessionId) {
-  return sql<SessionActiveRunRow>`
+  return sql`
     SELECT
       run_id,
       session_id,
@@ -166,7 +172,7 @@ function loadInterruptedActiveRunRows(sql: SqlClient.SqlClient, sessionId: Sessi
     WHERE session_id = ${sessionId}
       AND status = ${'interrupted'}
     ORDER BY updated_at DESC
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionActiveRunRowSchema, 'session_active_runs')))
 }
 
 function buildTreeBranches(

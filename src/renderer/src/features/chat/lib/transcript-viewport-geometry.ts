@@ -1,0 +1,179 @@
+/** The layout the transcript viewport controller reads and writes, so its rules test without a DOM. */
+export interface ViewportGeometry {
+  getScrollTop(): number
+  setScrollTop(value: number): void
+  getClientHeight(): number
+  /** Scrollable height excluding the reserved end space. */
+  getContentHeight(): number
+  /** Reserves space after the last row so a sent message can sit near the top. */
+  setEndSpace(height: number): void
+  /** Whether the row with this key is mounted; unlike measuring it, this forces no layout. */
+  hasRow(key: string): boolean
+  /** Top of the row with this key relative to the viewport top, or `null` when not mounted. */
+  getRowTop(key: string): number | null
+  /** Height of the row with this key, or `null` when not mounted. */
+  getRowHeight(key: string): number | null
+  /** The first row whose bottom is below the viewport top. */
+  getFirstVisibleRow(): { readonly key: string; readonly top: number } | null
+}
+
+export const TRANSCRIPT_ROW_KEY_ATTRIBUTE = 'data-transcript-row-key'
+
+export interface TranscriptViewportElements {
+  readonly scroller: () => HTMLElement | null
+  readonly content: () => HTMLElement | null
+  readonly endSpace: () => HTMLElement | null
+}
+
+function rowElements(content: HTMLElement | null) {
+  const like: ArrayLike<HTMLElement> = content
+    ? content.querySelectorAll<HTMLElement>(`[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}]`)
+    : []
+  return like
+}
+
+/**
+ * The index of the first row whose bottom is below `top`, or `rows.length` when none is.
+ *
+ * Rows are stacked in document order, so their bottoms only grow: a binary search measures about
+ * log2(rows) of them. Walking from the first row measured every mounted row on each commit while
+ * the reader followed the live end, which was most of the streaming layout work.
+ */
+export function firstRowIndexBelow(rows: ArrayLike<HTMLElement>, top: number) {
+  let low = 0
+  let high = rows.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    const row = rows[middle]
+    if (row && row.getBoundingClientRect().bottom > top) high = middle
+    else low = middle + 1
+  }
+  return low
+}
+
+/** Keys of the rows intersecting the band from `top` to `bottom`, in order. */
+export function rowKeysWithin(content: HTMLElement | null, top: number, bottom: number) {
+  const keys = new Set<string>()
+  const rows = rowElements(content)
+  for (let index = firstRowIndexBelow(rows, top); index < rows.length; index += 1) {
+    const row = rows[index]
+    if (!row || row.getBoundingClientRect().top >= bottom) break
+    const key = row.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE)
+    if (key) keys.add(key)
+  }
+  return keys
+}
+
+/*
+ * The content column is at least as tall as the viewport, so when its rows and end space are
+ * shorter, the difference is empty slack below the end space. It is not content: counting it made
+ * a held turn look taller than it was, the end space came out short, and the browser clamped the
+ * sent message down the screen when the first message of a Session shrank its reply rows.
+ */
+function minHeightSlack(content: HTMLElement | null, endSpace: HTMLElement | null) {
+  if (!content || !endSpace) return 0
+  // Both edges in the same frame, so a positioned ancestor between them cannot skew the slack.
+  return Math.max(
+    0,
+    content.getBoundingClientRect().bottom - endSpace.getBoundingClientRect().bottom,
+  )
+}
+
+function queryRowElement(content: HTMLElement, key: string) {
+  return content.querySelector<HTMLElement>(
+    `[${TRANSCRIPT_ROW_KEY_ATTRIBUTE}="${CSS.escape(key)}"]`,
+  )
+}
+
+/**
+ * At most this many rows are remembered: a layout pass reads a handful (the held message, the
+ * anchored row, a restore target).
+ */
+export const ROW_ELEMENT_LOOKUP_CAPACITY = 8
+
+/**
+ * Row elements by key, checked on every use. A layout pass reads the same few rows several times
+ * (the held message's top and height, the anchored row), and each read searched the whole
+ * transcript with an attribute selector, on every streamed frame. A row keeps its element while
+ * its key stays mounted, so a found element is reused for as long as it is still that row.
+ *
+ * It forgets a row once it leaves the document, and keeps the most recently read few: keys read
+ * once (one per sent turn, anchors, restore targets) otherwise kept their unmounted rows'
+ * subtrees reachable for as long as the reader stayed on the Session.
+ */
+export function createRowElementLookup(
+  query: (content: HTMLElement, key: string) => HTMLElement | null = queryRowElement,
+) {
+  const found = new Map<string, HTMLElement>()
+  function forgetDetached() {
+    for (const [key, element] of found) if (!element.isConnected) found.delete(key)
+  }
+  function remember(key: string, row: HTMLElement) {
+    found.delete(key)
+    found.set(key, row)
+    for (const oldest of found.keys()) {
+      if (found.size <= ROW_ELEMENT_LOOKUP_CAPACITY) break
+      found.delete(oldest)
+    }
+  }
+  return {
+    find(content: HTMLElement | null, key: string) {
+      if (!content) return null
+      forgetDetached()
+      const cached = found.get(key)
+      if (cached?.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE) === key && content.contains(cached)) {
+        remember(key, cached)
+        return cached
+      }
+      const row = query(content, key)
+      if (row) remember(key, row)
+      else found.delete(key)
+      return row
+    },
+    /** How many rows it holds on to. */
+    size: () => found.size,
+  }
+}
+
+/** The browser-backed geometry the viewport controller reads and writes. */
+export function createDomViewportGeometry(elements: TranscriptViewportElements) {
+  const rowLookup = createRowElementLookup()
+  const rowElement = (content: HTMLElement | null, key: string) => rowLookup.find(content, key)
+  function viewportTop() {
+    return elements.scroller()?.getBoundingClientRect().top ?? 0
+  }
+
+  return {
+    getScrollTop: () => elements.scroller()?.scrollTop ?? 0,
+    setScrollTop: (value) => {
+      const scroller = elements.scroller()
+      if (scroller) scroller.scrollTop = value
+    },
+    getClientHeight: () => elements.scroller()?.clientHeight ?? 0,
+    getContentHeight: () => {
+      const scroller = elements.scroller()
+      if (!scroller) return 0
+      const endSpace = elements.endSpace()
+      const endSpaceHeight = endSpace?.offsetHeight ?? 0
+      return scroller.scrollHeight - endSpaceHeight - minHeightSlack(elements.content(), endSpace)
+    },
+    setEndSpace: (height) => {
+      const endSpace = elements.endSpace()
+      if (endSpace) endSpace.style.height = `${String(height)}px`
+    },
+    hasRow: (key) => rowElement(elements.content(), key) !== null,
+    getRowTop: (key) => {
+      const row = rowElement(elements.content(), key)
+      return row ? row.getBoundingClientRect().top - viewportTop() : null
+    },
+    getRowHeight: (key) =>
+      rowElement(elements.content(), key)?.getBoundingClientRect().height ?? null,
+    getFirstVisibleRow: () => {
+      const top = viewportTop()
+      const rows = rowElements(elements.content())
+      const row = rows[firstRowIndexBelow(rows, top)]
+      const key = row?.getAttribute(TRANSCRIPT_ROW_KEY_ATTRIBUTE)
+      return row && key ? { key, top: row.getBoundingClientRect().top - top } : null
+    },
+  } satisfies ViewportGeometry
+}

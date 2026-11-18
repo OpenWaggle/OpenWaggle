@@ -1,0 +1,140 @@
+/**
+ * Settings > MCP and the MCP CLI read and change the ADR 0051 file set through these shapes. They
+ * describe Pi's configuration as OpenWaggle merges it; nothing here is OpenWaggle-only state
+ * except a Session's MCP switch.
+ */
+
+export const MCP_EXPOSURE_VALUES = ['codemode', 'deferred', 'direct', 'hidden'] as const
+
+export type McpServerExposure = (typeof MCP_EXPOSURE_VALUES)[number]
+
+export const MCP_CONFIG_FILE_ID_VALUES = [
+  'pi-global',
+  'openwaggle-global',
+  'project-mcp-json',
+  'project-pi',
+  'project-openwaggle',
+] as const
+
+/** One of the five MCP files, lowest precedence first. */
+export type McpConfigFileKind = (typeof MCP_CONFIG_FILE_ID_VALUES)[number]
+
+export type McpConfigFileScope = 'global' | 'project'
+
+export type McpServerTransportKind = 'stdio' | 'http' | 'sse' | 'websocket'
+
+export interface McpConfigFileView {
+  readonly fileId: McpConfigFileKind
+  readonly path: string
+  readonly scope: McpConfigFileScope
+  readonly exists: boolean
+  /** OpenWaggle's own file for its scope: the default destination for new servers. */
+  readonly openWaggleOwned: boolean
+}
+
+export interface McpServerFileReference {
+  readonly fileId: McpConfigFileKind
+  readonly path: string
+}
+
+export interface McpConfiguredServerView {
+  readonly name: string
+  readonly transport: McpServerTransportKind
+  /** The command line or URL, for display. Never includes secret values. */
+  readonly target: string
+  readonly description?: string
+  readonly source: McpServerFileReference
+  readonly scope: McpConfigFileScope
+  readonly override?: McpServerFileReference
+  /** The override turned the server off; the file that defines it does not. */
+  readonly offByOverride?: true
+  readonly enabled: boolean
+  readonly exposure: McpServerExposure
+  readonly toolExposure: Readonly<Record<string, McpServerExposure>>
+  /** HTTP servers without an Authorization header or provider auth sign in with OAuth. */
+  readonly usesOAuth: boolean
+  /**
+   * The vault secrets its `env` or `headers` read, by name (never a value), sorted; absent when
+   * none. A server whose secret is missing is left out of Runs until the secret is added.
+   */
+  readonly vaultSecrets?: readonly string[]
+}
+
+export interface McpConfigurationView {
+  readonly projectPath: string | null
+  readonly files: readonly McpConfigFileView[]
+  readonly servers: readonly McpConfiguredServerView[]
+  /** Unreadable files and invalid entries, as Pi reports them. */
+  readonly errors: readonly string[]
+  /**
+   * Those of `errors` that a missing vault secret causes. Settings shows them on the servers'
+   * rows ("Needs secret X") rather than in the configuration errors; the CLI lists them all.
+   */
+  readonly missingSecretErrors?: readonly string[]
+  /** The servers those errors leave out: on, but reading a vault secret that is not saved. */
+  readonly missingSecretServers?: readonly string[]
+  /** Entries that are ignored without breaking anything, such as an orphaned OpenWaggle override. */
+  readonly warnings?: readonly string[]
+  /**
+   * OpenWaggle's override-only entries for a server no file defines any more. Removing the
+   * server by its name removes them.
+   */
+  readonly orphanedOverrides?: readonly {
+    readonly name: string
+    readonly fileId: McpConfigFileKind
+    readonly path: string
+  }[]
+}
+
+export type McpServerConnectionStateView =
+  | 'not-connected'
+  | 'connecting'
+  | 'connected'
+  | 'needs-sign-in'
+  | 'failed'
+  | 'disabled'
+
+export interface McpServerToolView {
+  readonly name: string
+  readonly title?: string
+  readonly description?: string
+  /** Exposure after `toolExposure` is applied. */
+  readonly exposure: McpServerExposure
+  /** The tool renders an MCP App (`ui://` resource). */
+  readonly hasApp: boolean
+}
+
+export interface McpServerInspection {
+  readonly name: string
+  readonly state: McpServerConnectionStateView
+  readonly tools: readonly McpServerToolView[]
+  readonly error?: string
+  readonly stderrTail?: string
+  readonly signedIn?: boolean
+}
+
+/**
+ * Where a server state read without connecting comes from: a Session's warm connection, the last
+ * check ("Check connection", `openwaggle mcp list`, or a Run listing its tools), or nothing yet.
+ */
+export type McpServerStatusSource = 'live' | 'last-check' | 'not-checked'
+
+/** A server's state as Settings > MCP shows it on open. Reading it never starts a server. */
+export interface McpServerStatusView {
+  readonly name: string
+  readonly source: McpServerStatusSource
+  /** The state and tools; absent when the server was never checked. */
+  readonly inspection?: McpServerInspection
+  /** When the last check happened (epoch milliseconds), for `last-check`. */
+  readonly checkedAt?: number
+  /** Whether OpenWaggle holds a sign-in, for OAuth servers. Read from the store, not the server. */
+  readonly signedIn?: boolean
+  /**
+   * The server is on but reads a vault secret that is not saved, so Runs leave it out. Nothing
+   * connected or failed: it is not checked until the secret is added.
+   */
+  readonly needsSecret?: boolean
+}
+
+/** Where a new server, a per-project switch, or an install goes. */
+export type McpWriteDestination = McpConfigFileKind

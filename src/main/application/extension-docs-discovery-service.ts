@@ -1,4 +1,3 @@
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { DocsListInput } from '@shared/types/docs'
 import * as Effect from 'effect/Effect'
 import type { DiscoveredExtensionPackage } from '../extensions/types'
@@ -13,33 +12,11 @@ import {
   extensionPackageDocs,
   packageLoadDiagnostic,
 } from './extension-docs-topic-model'
-
-function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
-  const normalizedProjectPaths: string[] = []
-  const seenProjectPaths = new Set<string>()
-  for (const projectPath of projectPaths ?? []) {
-    const normalized = projectPath.trim()
-    if (normalized.length > 0 && !seenProjectPaths.has(normalized)) {
-      seenProjectPaths.add(normalized)
-      normalizedProjectPaths.push(normalized)
-    }
-  }
-  return normalizedProjectPaths
-}
-
-function isGlobalPackage(extensionPackage: DiscoveredExtensionPackage) {
-  return extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-}
-
-function isProjectPackageForPath(
-  extensionPackage: DiscoveredExtensionPackage,
-  projectPath: string,
-) {
-  return (
-    extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND &&
-    extensionPackage.scope.projectPath === projectPath
-  )
-}
+import {
+  isGlobalPackage,
+  isProjectPackageForPath,
+  normalizeExtensionProjectPaths,
+} from './extension-package-listing'
 
 function listPackagesSafely(manager: ExtensionManagerServiceShape, projectPath: string | null) {
   return manager.listPackages({ projectPath }).pipe(
@@ -129,7 +106,9 @@ export function listExtensionDocs(input: DocsListInput) {
       return { topics: [], diagnostics: [] }
     }
 
-    const packageLookup = yield* loadExtensionDocPackages(normalizeProjectPaths(input.projectPaths))
+    const packageLookup = yield* loadExtensionDocPackages(
+      normalizeExtensionProjectPaths(input.projectPaths),
+    )
     const packagesWithLifecycle = yield* Effect.forEach(packageLookup.packages, loadLifecycle)
     const packageTopics = yield* Effect.forEach(packagesWithLifecycle, extensionPackageDocs)
     return {

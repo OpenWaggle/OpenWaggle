@@ -27,8 +27,8 @@ function session(input: {
   readonly id: SessionId
   readonly branches: readonly SessionBranch[]
   readonly collapsed?: boolean
-}): SessionSummary {
-  return {
+}) {
+  const summary: SessionSummary = {
     id: input.id,
     title: String(input.id),
     projectPath: '/tmp/project',
@@ -43,6 +43,7 @@ function session(input: {
       updatedAt: 3,
     },
   }
+  return summary
 }
 
 describe('buildSidebarBranchRows', () => {

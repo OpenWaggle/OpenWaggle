@@ -5,13 +5,43 @@ export function extensionPackagesQueryKey(projectPath: string | null) {
 }
 
 export const queryKeys = {
+  /** Every Project Actions query; a Host Session-state change refreshes them (B7/D9). */
+  projectActions: ['native-actions'] as const,
   wagglePresets: (projectPath: string | null) => ['wagglePresets', projectPath] as const,
   archivedSessions: ['archivedSessions'] as const,
-  archivedSessionBranches: ['archivedSessionBranches'] as const,
+  /** Settings > Archived items; each query appends its filter and sort. */
+  archivedItems: ['archivedItems'] as const,
+  sessionHives: ['sessionHives'] as const,
+  sessionHive: (id: SessionId) => ['sessionHives', id] as const,
+  /** Nested under the Hive root so the shared Hive event subscription refreshes it too. */
+  sessionHiveTree: (id: SessionId) => ['sessionHives', id, 'tree'] as const,
   extensionPackages: extensionPackagesQueryKey,
   sessions: ['sessions'] as const,
+  /** The GUI process's build or environment opt-out; fixed for the process's life. */
+  usageStatisticsBlock: ['usageStatisticsBlock'] as const,
   session: (id: SessionId | null) => ['session', id] as const,
   skills: (projectPath: string | null) => ['skills', projectPath] as const,
+  extensionCommands: (
+    sessionId: SessionId | null,
+    model: string | null,
+    projectPath: string | null = null,
+  ) => ['extensionCommands', sessionId, model, projectPath] as const,
+  agentDefinitions: (projectPath: string | null) => ['agentDefinitions', projectPath] as const,
+  agentDefinitionPreview: (projectPath: string | null, name: string | null) =>
+    ['agentDefinitionPreview', projectPath, name] as const,
   skillPreview: (projectPath: string | null, skillId: string | null) =>
     ['skillPreview', projectPath, skillId] as const,
+  workspaceFiles: (projectPath: string | null, query: string, limit: number) =>
+    ['workspaceFiles', projectPath, query, limit] as const,
+  workspaceContent: (projectPath: string | null, query: string, limit: number) =>
+    ['workspaceContent', projectPath, query, limit] as const,
+  workspaceFile: (projectPath: string | null, relativePath: string | null) =>
+    ['workspaceFile', projectPath, relativePath] as const,
+  /** Prefix of every source-control query; a configuration change invalidates all of them. */
+  sourceControl: ['sourceControl'] as const,
+  sourceControlHosts: ['sourceControl', 'hosts'] as const,
+  changeRequestOpenDestination: (projectPath: string | null) =>
+    ['sourceControl', 'openDestination', projectPath] as const,
+  /** Prefix of every Change request inspector query. */
+  changeRequestPanels: ['change-request-panel'] as const,
 }

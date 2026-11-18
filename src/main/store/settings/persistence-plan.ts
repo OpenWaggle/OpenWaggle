@@ -1,50 +1,117 @@
 import type { Settings } from '@shared/types/settings'
+import { appendDesktopNotificationSettingsWrites } from './desktop-notification-settings'
+import { appendDiffSettingsWrites } from './diff-appearance-settings-snapshot'
 import {
+  SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
+  SETTINGS_KEY_APPEARANCE_PREFERENCES,
+  SETTINGS_KEY_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
+  SETTINGS_KEY_BROWSER_DEFAULT_APPEARANCE,
+  SETTINGS_KEY_BROWSER_DEFAULT_PROFILE_ID,
+  SETTINGS_KEY_BROWSER_DEFAULT_VIEWPORT,
+  SETTINGS_KEY_BROWSER_DEFAULT_ZOOM_FACTOR,
+  SETTINGS_KEY_BROWSER_LINK_TARGET,
+  SETTINGS_KEY_BROWSER_PROFILES,
+  SETTINGS_KEY_BROWSER_RECORDING_FRAME_RATE,
+  SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
+  SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
+  SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
+  SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
   SETTINGS_KEY_ENABLED_MODELS,
+  SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
   SETTINGS_KEY_FAVORITE_MODELS,
+  SETTINGS_KEY_MULTI_AGENT_ENABLED,
+  SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
+  SETTINGS_KEY_PROJECT_PATH_ALIASES,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_SELECTED_MODELS_BY_PROJECT,
+  SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
+  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
+  SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
+  SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
+  SETTINGS_KEY_SHORTCUT_BINDINGS,
+  SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
-  SETTINGS_KEY_THINKING_LEVEL,
+  SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
-import { isValidThinkingLevel } from './sanitizers'
+import { appendPiRuntimeSettingsWrites } from './pi-runtime-settings'
+import { appendPiSessionContinuationSettingsWrites } from './pi-session-continuation-settings'
+import { appendSessionTitleSettingsWrites } from './session-title-settings'
+import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
+import { appendSourceControlSettingsWrites } from './source-control-settings'
+import { appendUsageStatisticsSettingsWrites } from './usage-statistics-settings'
+import { appendWorktreeRemovalSettingsWrites } from './worktree-removal-settings'
 
-export interface SettingsPatchWrite {
-  readonly key: string
-  readonly value: unknown
-}
+export type { SettingsPatchWrite } from './settings-patch-writes'
 
-function appendChangedSetting(
-  writes: SettingsPatchWrite[],
-  changed: boolean,
-  key: string,
-  value: unknown,
-) {
-  if (changed) writes.push({ key, value })
-}
-
-function appendThinkingLevelWrite(
+function appendBrowserSettingsWrites(
   writes: SettingsPatchWrite[],
   partial: Partial<Settings>,
   next: Settings,
 ) {
-  if (partial.thinkingLevel === undefined || !isValidThinkingLevel(partial.thinkingLevel)) return
-  writes.push({ key: SETTINGS_KEY_THINKING_LEVEL, value: next.thinkingLevel })
+  appendChangedSetting(
+    writes,
+    partial.browserLinkTarget !== undefined,
+    SETTINGS_KEY_BROWSER_LINK_TARGET,
+    next.browserLinkTarget,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserProfiles !== undefined,
+    SETTINGS_KEY_BROWSER_PROFILES,
+    next.browserProfiles,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserDefaultProfileId !== undefined || partial.browserProfiles !== undefined,
+    SETTINGS_KEY_BROWSER_DEFAULT_PROFILE_ID,
+    next.browserDefaultProfileId,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserDefaultViewport !== undefined,
+    SETTINGS_KEY_BROWSER_DEFAULT_VIEWPORT,
+    next.browserDefaultViewport,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserDefaultZoomFactor !== undefined,
+    SETTINGS_KEY_BROWSER_DEFAULT_ZOOM_FACTOR,
+    next.browserDefaultZoomFactor,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserDefaultAppearance !== undefined,
+    SETTINGS_KEY_BROWSER_DEFAULT_APPEARANCE,
+    next.browserDefaultAppearance,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserRecordingFrameRate !== undefined,
+    SETTINGS_KEY_BROWSER_RECORDING_FRAME_RATE,
+    next.browserRecordingFrameRate,
+  )
+  appendChangedSetting(
+    writes,
+    partial.browserAutoShowFloatingPreview !== undefined,
+    SETTINGS_KEY_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
+    next.browserAutoShowFloatingPreview,
+  )
+  appendChangedSetting(
+    writes,
+    partial.enableAgentBrowserAccess !== undefined,
+    SETTINGS_KEY_ENABLE_AGENT_BROWSER_ACCESS,
+    next.enableAgentBrowserAccess,
+  )
 }
 
-export function getInvalidThinkingLevel(partial: Partial<Settings>) {
-  if (partial.thinkingLevel === undefined || isValidThinkingLevel(partial.thinkingLevel)) {
-    return undefined
-  }
-
-  return partial.thinkingLevel
-}
-
-export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Settings) {
-  const writes: SettingsPatchWrite[] = []
-
+function appendGeneralSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
   appendChangedSetting(
     writes,
     partial.selectedModel !== undefined,
@@ -63,7 +130,12 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     SETTINGS_KEY_PROJECT_PATH,
     next.projectPath,
   )
-  appendThinkingLevelWrite(writes, partial, next)
+  appendChangedSetting(
+    writes,
+    partial.updateChannel !== undefined,
+    SETTINGS_KEY_UPDATE_CHANNEL,
+    next.updateChannel,
+  )
   appendChangedSetting(
     writes,
     partial.recentProjects !== undefined,
@@ -78,6 +150,12 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   )
   appendChangedSetting(
     writes,
+    partial.agentDefinitionTogglesByProject !== undefined,
+    SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
+    next.agentDefinitionTogglesByProject,
+  )
+  appendChangedSetting(
+    writes,
     partial.enabledModels !== undefined,
     SETTINGS_KEY_ENABLED_MODELS,
     next.enabledModels,
@@ -88,6 +166,119 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
     SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
     next.projectDisplayNames,
   )
+  appendChangedSetting(
+    writes,
+    partial.selectedModelsByProject !== undefined,
+    SETTINGS_KEY_SELECTED_MODELS_BY_PROJECT,
+    next.selectedModelsByProject,
+  )
+  appendChangedSetting(
+    writes,
+    partial.projectPathAliases !== undefined,
+    SETTINGS_KEY_PROJECT_PATH_ALIASES,
+    next.projectPathAliases,
+  )
+  appendChangedSetting(
+    writes,
+    partial.shortcutBindings !== undefined || partial.shortcutRules !== undefined,
+    SETTINGS_KEY_SHORTCUT_BINDINGS,
+    next.shortcutBindings,
+  )
+  appendChangedSetting(
+    writes,
+    partial.shortcutBindings !== undefined || partial.shortcutRules !== undefined,
+    SETTINGS_KEY_SHORTCUT_RULES,
+    next.shortcutRules,
+  )
+  appendChangedSetting(
+    writes,
+    partial.extensionPanelShortcutBindings !== undefined,
+    SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
+    next.extensionPanelShortcutBindings,
+  )
+  appendChangedSetting(
+    writes,
+    partial.defaultSessionEnvironmentMode !== undefined,
+    SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
+    next.defaultSessionEnvironmentMode,
+  )
+  appendChangedSetting(
+    writes,
+    partial.defaultAuthorizationMode !== undefined,
+    SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
+    next.defaultAuthorizationMode,
+  )
+  appendChangedSetting(
+    writes,
+    partial.compactionThresholdPercent !== undefined,
+    SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
+    next.compactionThresholdPercent,
+  )
+  appendChangedSetting(
+    writes,
+    partial.appearancePreferences !== undefined,
+    SETTINGS_KEY_APPEARANCE_PREFERENCES,
+    next.appearancePreferences,
+  )
+}
+
+function appendSessionHostSettingsWrites(
+  writes: SettingsPatchWrite[],
+  partial: Partial<Settings>,
+  next: Settings,
+) {
+  appendChangedSetting(
+    writes,
+    partial.sessionHostParentConcurrencyLimit !== undefined,
+    SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMIT,
+    next.sessionHostParentConcurrencyLimit,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostParentConcurrencyLimitsByProject !== undefined,
+    SETTINGS_KEY_SESSION_HOST_PARENT_CONCURRENCY_LIMITS_BY_PROJECT,
+    next.sessionHostParentConcurrencyLimitsByProject,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostRunCeiling !== undefined,
+    SETTINGS_KEY_SESSION_HOST_RUN_CEILING,
+    next.sessionHostRunCeiling,
+  )
+  appendChangedSetting(
+    writes,
+    partial.sessionHostIdleGracePeriodMs !== undefined,
+    SETTINGS_KEY_SESSION_HOST_IDLE_GRACE_PERIOD_MS,
+    next.sessionHostIdleGracePeriodMs,
+  )
+  appendChangedSetting(
+    writes,
+    partial.multiAgentEnabled !== undefined,
+    SETTINGS_KEY_MULTI_AGENT_ENABLED,
+    next.multiAgentEnabled,
+  )
+  appendChangedSetting(
+    writes,
+    partial.multiAgentEnabledByProject !== undefined,
+    SETTINGS_KEY_MULTI_AGENT_ENABLED_BY_PROJECT,
+    next.multiAgentEnabledByProject,
+  )
+}
+
+export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Settings) {
+  const writes: SettingsPatchWrite[] = []
+
+  appendGeneralSettingsWrites(writes, partial, next)
+  appendDiffSettingsWrites(writes, partial, next)
+  appendSessionHostSettingsWrites(writes, partial, next)
+  appendBrowserSettingsWrites(writes, partial, next)
+  appendUsageStatisticsSettingsWrites(writes, partial, next)
+  appendWorktreeRemovalSettingsWrites(writes, partial, next)
+  appendDesktopNotificationSettingsWrites(writes, partial, next)
+  appendPiRuntimeSettingsWrites(writes, partial, next)
+  appendSessionTitleSettingsWrites(writes, partial, next)
+  appendPiSessionContinuationSettingsWrites(writes, partial, next)
+  appendSourceControlSettingsWrites(writes, partial, next)
 
   return writes
 }

@@ -1,10 +1,15 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { SESSION_NODE_CONTENT_HASH_GUARD_TRIGGER } from './session-node-content-hash-schema'
+
+export {
+  CURRENT_SESSION_RESOURCE_SCHEMA_STATEMENTS,
+  SESSION_RESOURCE_BACKFILL_SCHEMA_STATEMENT,
+  SESSION_RESOURCE_CLEANUP_QUEUE_SCHEMA_STATEMENT,
+} from './database-session-resource-schema'
 
 const DEFAULT_EXTENSION_BUILD_STATUS = OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN
-const DEFAULT_EXTENSION_RELOAD_STATUS = OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED
 
-export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
-  `
+const SESSION_TABLE_STATEMENT = `
   CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     pi_session_id TEXT NOT NULL UNIQUE,
@@ -18,7 +23,10 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
     last_active_node_id TEXT,
     last_active_branch_id TEXT
   )
-  `,
+  `
+
+export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
+  SESSION_TABLE_STATEMENT,
   `
   CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
   ON sessions (updated_at DESC)
@@ -36,16 +44,18 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
     metadata_json TEXT NOT NULL,
     branch_hint_id TEXT,
     path_depth INTEGER NOT NULL,
-    created_order INTEGER NOT NULL
+    created_order INTEGER NOT NULL,
+    content_hash TEXT
   )
   `,
-  `
-  CREATE INDEX IF NOT EXISTS idx_session_nodes_session_created_order
-  ON session_nodes (session_id, created_order ASC)
-  `,
+  SESSION_NODE_CONTENT_HASH_GUARD_TRIGGER,
   `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_session_nodes_session_created_order_unique
   ON session_nodes (session_id, created_order)
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_nodes_active_branch_created_order
+  ON session_nodes (session_id, branch_hint_id, created_order)
   `,
   `
   CREATE TABLE IF NOT EXISTS session_branches (
@@ -93,6 +103,10 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
     runtime_json TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_session_active_runs_status_session
+  ON session_active_runs (status, session_id)
   `,
 ] as const
 
@@ -148,11 +162,57 @@ export const EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS = [
 export const EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS = [
   `
   ALTER TABLE extension_lifecycle_state
-  ADD COLUMN reload_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_RELOAD_STATUS}'
+  ADD COLUMN reload_status TEXT NOT NULL DEFAULT '${OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED}'
   `,
   `
   ALTER TABLE extension_lifecycle_state
   ADD COLUMN last_reloaded_at INTEGER
+  `,
+] as const
+
+/**
+ * Adds the session authorization-mode override.
+ *
+ * Nullable on purpose: `NULL` means the session holds no override and inherits its project
+ * default, then the global default. It never means `yolo`. Added as a new column rather than by
+ * rebuilding `sessions`, because `sessions` is the parent of cascading foreign keys and a rebuild
+ * under `PRAGMA foreign_keys = ON` would delete every node and pinned row with it.
+ */
+export const SESSION_AUTHORIZATION_MODE_OVERRIDE_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE sessions
+  ADD COLUMN authorization_mode_override TEXT
+    CHECK (authorization_mode_override IN ('yolo', 'ask-for-approval'))
+  `,
+] as const
+
+/** Pending Setup action dispatches, scoped to one Session worktree generation. */
+export const SESSION_WORKTREE_SETUP_MIGRATION_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS session_worktree_setup (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    worktree_path TEXT NOT NULL,
+    generation TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+  `,
+] as const
+
+/** Durable claim and acceptance receipt for crash-safe, at-most-once Setup dispatch. */
+export const SESSION_WORKTREE_SETUP_RECEIPT_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE session_worktree_setup
+  ADD COLUMN dispatch_state TEXT NOT NULL DEFAULT 'pending'
+    CHECK (dispatch_state IN ('pending', 'claimed', 'accepted'))
+  `,
+  `
+  ALTER TABLE session_worktree_setup
+  ADD COLUMN claim_token TEXT
+  `,
+  `
+  ALTER TABLE session_worktree_setup
+  ADD COLUMN accepted_at INTEGER
   `,
 ] as const
 
@@ -170,7 +230,7 @@ export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
     approved_build_plan_hash TEXT,
     build_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_BUILD_STATUS}',
     build_log TEXT,
-    reload_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_RELOAD_STATUS}',
+    reload_status TEXT NOT NULL DEFAULT '${OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED}',
     last_reloaded_at INTEGER,
     sdk_range TEXT,
     sdk_compatible INTEGER NOT NULL DEFAULT 0,

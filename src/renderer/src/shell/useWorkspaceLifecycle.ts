@@ -1,36 +1,205 @@
 import { SessionId } from '@shared/types/brand'
-import { useHotkeys } from '@tanstack/react-hotkeys'
+import type { ExtensionPanelShortcutBindings, ShortcutRules } from '@shared/types/shortcuts'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useChat } from '@/features/chat/hooks'
+import { focusPendingRequest } from '@/features/chat/lib'
 import { useDiffRouteNavigation } from '@/features/diff-panel/hooks'
 import { useGit, useGitRefresh } from '@/features/git/hooks'
-import { useProject, useSessionStatusMonitor, useSessions } from '@/features/sessions/hooks'
-import { api } from '@/shared/lib/ipc'
+import { useProjectActions, useRunProjectAction } from '@/features/project-actions'
+import {
+  useSessionHiveInvalidation,
+  useSessionResourceInvalidation,
+} from '@/features/session-summary'
+import { copySessionLink } from '@/features/sessions/commands'
+import {
+  useProject,
+  useSessionProjectPath,
+  useSessionStatusMonitor,
+  useSessions,
+  useViewedSessionId,
+} from '@/features/sessions/hooks'
+import { useSyntaxThemeCatalogStore } from '@/features/settings'
+import { usePreferencesStore } from '@/features/settings/state'
+import { usePinnedSessionShortcuts, useSidebarSearchShortcut } from '@/features/sidebar/hooks'
+import { terminalOwnerContext, useTerminalCommands } from '@/features/terminal'
+import { extensionContributionsQueryOptions } from '@/queries/extensions'
+import {
+  hasRightPanelController,
+  isExtensionRightPanelSurfaceId,
+  type RightPanelSurfaceId,
+  toggleRightPanelSurface,
+} from '@/shared/lib/right-panel-surfaces'
 import { useUIStore } from '@/shell/ui-store'
+import { railExtensionPanels } from './right-panel/right-panel-extension-panels'
+import {
+  rightPanelCloseIsActive,
+  rightPanelShortcutHandlers,
+  toggleOnChatPage,
+} from './right-panel/right-panel-shortcut-handlers'
+import type { ExtensionPanelShortcut } from './unified-shortcut-resolver'
+import { useSessionHostRefresh } from './useSessionHostRefresh'
+import {
+  type BuiltInShortcutHandlers,
+  useUnifiedShortcutCapture,
+} from './useUnifiedShortcutCapture'
+import {
+  focusWorkspacePreviewAddress,
+  refreshWorkspacePreview,
+  toggleWorkspacePreview,
+  zoomWorkspacePreview,
+} from './workspace-panel-actions'
 
-export function useWorkspaceLifecycle(): void {
+type PreviewShortcutHandlers = Pick<
+  BuiltInShortcutHandlers,
+  | 'preview.toggle'
+  | 'preview.refresh'
+  | 'preview.focusUrl'
+  | 'preview.zoomIn'
+  | 'preview.zoomOut'
+  | 'preview.resetZoom'
+>
+
+/**
+ * Routes a surface shortcut through the Right panel controller (ADR 0043). Until the shell
+ * registers one, the legacy panel toggle keeps the shortcut working.
+ */
+function toggleSurfaceOr(id: RightPanelSurfaceId, legacyToggle: () => void) {
+  return () => {
+    if (hasRightPanelController()) toggleRightPanelSurface(id)
+    else legacyToggle()
+  }
+}
+
+/** Only bindings of panels that can be shown now take part; any other key passes through. */
+function availableExtensionPanelShortcuts(
+  bindings: ExtensionPanelShortcutBindings,
+  available: ReadonlySet<string>,
+) {
+  const result: readonly ExtensionPanelShortcut[] = Object.entries(bindings).flatMap(
+    ([surfaceId, shortcut]) =>
+      isExtensionRightPanelSurfaceId(surfaceId) && available.has(surfaceId)
+        ? [{ surfaceId, shortcut }]
+        : [],
+  )
+  return result
+}
+
+/** Extension panel shortcuts are live exactly when the Panel rail offers the panel here. */
+function useAvailableExtensionPanelShortcuts(projectPath: string | null, sessionId: string | null) {
+  const bindings = usePreferencesStore((s) => s.settings.extensionPanelShortcutBindings)
+  // The same paths the Panel rail asks about (useRightPanelModel), so both agree on availability.
+  const workingPath = useGit().workingPath ?? projectPath
+  const projectPaths = workingPath ? [workingPath] : []
+  const { data: registry = null } = useQuery(
+    extensionContributionsQueryOptions(projectPaths, { sessionId }),
+  )
+  const available = railExtensionPanels(registry, projectPaths)
+    .filter((panel) => panel.status.kind === 'available')
+    .map((panel) => panel.id)
+  const availableKey = available.join('\n')
+  // A stable list keeps the capture effect from re-sending the browser preview bindings.
+  return useMemo(
+    () => availableExtensionPanelShortcuts(bindings, new Set(availableKey.split('\n'))),
+    [availableKey, bindings],
+  )
+}
+
+/**
+ * Without a shown Session there is no link to copy, so its rule is left out: the chord then
+ * reaches the focused field, including a page in the browser preview, which only claims the
+ * chords these rules register. A stable list keeps the preview bindings from being re-sent.
+ */
+function useActiveShortcutRules(shortcutRules: ShortcutRules, viewedSessionId: string | null) {
+  const hasViewedSession = viewedSessionId !== null
+  return useMemo(
+    () =>
+      hasViewedSession
+        ? shortcutRules
+        : shortcutRules.filter((rule) => rule.command !== 'session.copyLink'),
+    [hasViewedSession, shortcutRules],
+  )
+}
+
+function previewShortcutHandlers(
+  ownerKey: string,
+  showToast: (message: string, type: 'error') => void,
+) {
+  const run = (action: () => Promise<boolean>, fallback: string) => {
+    void action().catch((error: unknown) => {
+      showToast(error instanceof Error ? error.message : fallback, 'error')
+    })
+  }
+  const handlers: PreviewShortcutHandlers = {
+    'preview.toggle': toggleSurfaceOr('browser', () => void toggleWorkspacePreview(ownerKey)),
+    'preview.refresh': () =>
+      run(() => refreshWorkspacePreview(ownerKey), 'Preview could not reload.'),
+    'preview.focusUrl': () => {
+      if (!focusWorkspacePreviewAddress(ownerKey)) {
+        showToast('Open a browser preview first.', 'error')
+      }
+    },
+    'preview.zoomIn': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'in'), 'Preview could not zoom in.'),
+    'preview.zoomOut': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'out'), 'Preview could not zoom out.'),
+    'preview.resetZoom': () =>
+      run(() => zoomWorkspacePreview(ownerKey, 'reset'), 'Preview zoom could not reset.'),
+  }
+  return handlers
+}
+
+export function useWorkspaceLifecycle() {
+  useSessionResourceInvalidation()
+  useSessionHiveInvalidation()
   const { projectPath } = useProject()
   const {
     activeSessionId,
+    activeSession,
     startDraftSession,
     loadSessions: loadChatSessions,
     refreshSession,
     updateSessionTitle,
   } = useChat()
-  const { loadSessions: loadSessionTrees, refreshSessionTree } = useSessions()
-  const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
+  const {
+    loadSessions: loadSessionTrees,
+    refreshCatalogSessions,
+    refreshSessionTree,
+  } = useSessions()
+  const {
+    refreshStatus: refreshGitStatus,
+    refreshBranches: refreshGitBranches,
+    workingPath,
+    repositoryPath,
+  } = useGit()
 
   const navigate = useNavigate()
-  const toggleTerminal = useUIStore((s) => s.toggleTerminal)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
-  const toggleCommandPalette = useUIStore((s) => s.toggleCommandPalette)
+  const openCommandSurface = useUIStore((s) => s.openCommandSurface)
+  const closeCommandSurface = useUIStore((s) => s.closeCommandSurface)
+  const commandSurface = useUIStore((s) => s.commandSurface)
+  const showToast = useUIStore((s) => s.showToast)
+  const shortcutRules = usePreferencesStore((s) => s.settings.shortcutRules)
+  const loadSyntaxResources = useSyntaxThemeCatalogStore((state) => state.load)
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
-
+  const viewedSessionId = useViewedSessionId()
+  const activeShortcutRules = useActiveShortcutRules(shortcutRules, viewedSessionId)
   function startDraftSessionRoute() {
+    closeCommandSurface()
     startDraftSession(projectPath)
     void navigate({ to: '/' })
   }
+
+  useSessionHostRefresh({
+    activeSessionId,
+    loadChatSessions,
+    loadSessionTrees,
+    refreshCatalogSessions,
+    refreshSession,
+    refreshSessionTree,
+    updateSessionTitle,
+  })
 
   useEffect(() => {
     void loadChatSessions()
@@ -38,40 +207,67 @@ export function useWorkspaceLifecycle(): void {
   }, [loadChatSessions, loadSessionTrees])
 
   useEffect(() => {
-    void refreshGitStatus(projectPath)
-    void refreshGitBranches(projectPath)
-  }, [projectPath, refreshGitStatus, refreshGitBranches])
+    // Status follows the active session's working tree; the branch list is
+    // repository-level (ADR 0018).
+    void refreshGitStatus(workingPath)
+    void refreshGitBranches(repositoryPath)
+  }, [workingPath, repositoryPath, refreshGitStatus, refreshGitBranches])
 
-  // Subscribe to LLM-generated title updates from main process
   useEffect(() => {
-    return api.onSessionTitleUpdated(({ sessionId, title }) => {
-      updateSessionTitle(sessionId, title)
-    })
-  }, [updateSessionTitle])
-
-  useGitRefresh({
-    projectPath,
-    activeSessionId,
-    refreshGitStatus,
-    refreshGitBranches,
-    refreshSession,
-  })
+    void loadSyntaxResources(workingPath)
+  }, [loadSyntaxResources, workingPath])
+  useGitRefresh({ workingPath, repositoryPath, refreshGitStatus, refreshGitBranches })
 
   useEffect(() => {
     void refreshSessionTree(activeSessionId ? SessionId(String(activeSessionId)) : null)
   }, [activeSessionId, refreshSessionTree])
 
   useSessionStatusMonitor()
+  usePinnedSessionShortcuts()
+  useSidebarSearchShortcut()
 
-  useHotkeys(
-    [
-      { hotkey: 'Mod+J', callback: toggleTerminal },
-      { hotkey: 'Mod+N', callback: startDraftSessionRoute },
-      { hotkey: 'Mod+B', callback: toggleSidebar },
-      { hotkey: 'Mod+D', callback: toggleDiff },
-      { hotkey: 'Mod+K', callback: toggleCommandPalette },
-      { hotkey: 'Mod+Shift+Y', callback: toggleSessionTree },
-    ],
-    { preventDefault: true },
+  const terminalCommands = useTerminalCommands()
+  const terminalOwner = terminalOwnerContext(activeSession ?? null, projectPath ?? null)
+  const actionProjectPath = useSessionProjectPath()
+  const projectActions = useProjectActions(actionProjectPath).data ?? []
+  const runProjectAction = useRunProjectAction(actionProjectPath)
+  const extensionPanels = useAvailableExtensionPanelShortcuts(
+    projectPath ?? null,
+    activeSessionId ? String(activeSessionId) : null,
   )
+  useUnifiedShortcutCapture({
+    actions: projectActions,
+    builtInRules: activeShortcutRules,
+    extensionPanels,
+    handlers: {
+      'commandPalette.toggle': () =>
+        commandSurface === 'commands' ? closeCommandSurface() : openCommandSurface('commands'),
+      'filePicker.toggle': () =>
+        commandSurface === 'files' ? closeCommandSurface() : openCommandSurface('files'),
+      'chat.new': startDraftSessionRoute,
+      'terminal.toggle': terminalCommands.toggleTerminal,
+      'terminal.new': terminalCommands.newTerminal,
+      'terminal.split': terminalCommands.splitTerminal,
+      'terminal.splitVertical': terminalCommands.splitTerminalVertical,
+      'terminal.close': () => void terminalCommands.closeActiveTerminal(),
+      ...rightPanelShortcutHandlers({
+        ownerKey: terminalOwner.ownerKey,
+        newSideTerminal: terminalCommands.newSideTerminal,
+        showToast,
+      }),
+      'sidebar.toggle': toggleSidebar,
+      'diff.toggle': toggleSurfaceOr('changes', toggleDiff),
+      ...previewShortcutHandlers(terminalOwner.ownerKey, showToast),
+      'sessionTree.toggle': toggleSurfaceOr('session-tree', toggleSessionTree),
+      'request.focus': focusPendingRequest,
+      'session.copyLink': () => {
+        if (viewedSessionId) copySessionLink(viewedSessionId)
+      },
+    },
+    onRunProjectAction: (action) => void runProjectAction(action),
+    onToggleExtensionPanel: (id) => toggleOnChatPage(id, showToast),
+    shouldHandleBuiltIn: (command) =>
+      command !== 'rightPanel.close' || rightPanelCloseIsActive(terminalOwner.ownerKey),
+    terminalOpen: terminalCommands.panelOpen,
+  })
 }

@@ -2,54 +2,124 @@ import { describe, expect, it } from 'vitest'
 
 import { validatePackageReleaseGate } from '../package-release-gate'
 
-describe('Package Release Gate', () => {
-  const successfulRequiredChecks = {
-    checkResult: 'success',
-    commitPolicyResult: 'success',
-    testResult: 'success',
-  } as const
+const ALL_SUCCESS = {
+  candidateResult: 'success',
+  changesResult: 'success',
+  checkResult: 'success',
+  commitPolicyResult: 'success',
+  mcpConformanceResult: 'success',
+  rehearsalPackageResult: 'success',
+  rehearsalWebsiteResult: 'success',
+  testIntegrationComponentResult: 'success',
+  testUnitResult: 'success',
+} as const
 
-  it('requires every blocking check and additionally requires artifacts for Release Please PRs', () => {
+describe('Package Release Gate', () => {
+  it('passes the full tier when every job succeeded', () => {
+    expect(() => validatePackageReleaseGate({ results: ALL_SUCCESS, tier: 'full' })).not.toThrow()
+  })
+
+  it('passes the full tier when path-scoped rehearsals were skipped by an app-only merge result', () => {
     expect(() =>
       validatePackageReleaseGate({
-        ...successfulRequiredChecks,
-        artifactResult: 'skipped',
-        headRef: 'feature/docs',
-        rehearsalResult: 'success',
+        results: {
+          ...ALL_SUCCESS,
+          rehearsalPackageResult: 'skipped',
+          rehearsalWebsiteResult: 'skipped',
+        },
+        tier: 'full',
       }),
     ).not.toThrow()
+  })
 
+  it('passes the fast tier when the path-scoped rehearsals were skipped', () => {
     expect(() =>
       validatePackageReleaseGate({
-        ...successfulRequiredChecks,
-        artifactResult: 'skipped',
-        headRef: 'release-please--branches--main--components--packages',
-        rehearsalResult: 'success',
+        results: {
+          ...ALL_SUCCESS,
+          rehearsalPackageResult: 'skipped',
+          rehearsalWebsiteResult: 'skipped',
+        },
+        tier: 'fast',
       }),
-    ).toThrow('immutable package artifacts')
+    ).not.toThrow()
+  })
 
+  it('passes the fast tier on a push where the path-scoped changes job is skipped', () => {
+    // The `changes` job carries `if: github.event_name != 'push'`, so on a push to main it
+    // reports `skipped`. The fast tier must tolerate that (a changes job that actually runs
+    // and fails is still rejected by the generic non-success check).
     expect(() =>
       validatePackageReleaseGate({
-        ...successfulRequiredChecks,
-        artifactResult: 'success',
-        headRef: 'feature/docs',
-        rehearsalResult: 'failure',
+        results: {
+          ...ALL_SUCCESS,
+          changesResult: 'skipped',
+          rehearsalPackageResult: 'skipped',
+          rehearsalWebsiteResult: 'skipped',
+        },
+        tier: 'fast',
       }),
-    ).toThrow('rehearsal')
+    ).not.toThrow()
+  })
+
+  it('passes the release-pr tier when the app test suite is skipped on the version-bump PR', () => {
+    expect(() =>
+      validatePackageReleaseGate({
+        results: {
+          ...ALL_SUCCESS,
+          testUnitResult: 'skipped',
+          testIntegrationComponentResult: 'skipped',
+          mcpConformanceResult: 'skipped',
+          changesResult: 'skipped',
+          rehearsalPackageResult: 'skipped',
+          rehearsalWebsiteResult: 'skipped',
+        },
+        tier: 'release-pr',
+      }),
+    ).not.toThrow()
   })
 
   it.each([
-    ['commit policy', { ...successfulRequiredChecks, commitPolicyResult: 'failure' }],
-    ['typecheck and lint', { ...successfulRequiredChecks, checkResult: 'cancelled' }],
-    ['unit and component tests', { ...successfulRequiredChecks, testResult: 'skipped' }],
-  ])('fails when %s is not successful', (_name, results) => {
+    ['full', 'changesResult', 'failure', 'changed-surface detection'],
+    ['full', 'rehearsalPackageResult', 'failure', 'package consumer rehearsal'],
+    ['full', 'rehearsalWebsiteResult', 'cancelled', 'website and docs rehearsal'],
+    ['fast', 'testUnitResult', 'skipped', 'unit tests'],
+    ['fast', 'candidateResult', 'failure', 'package release candidate'],
+    // A pull request that changes packages or docs runs the rehearsals, and their failure fails it.
+    ['fast', 'rehearsalPackageResult', 'failure', 'package consumer rehearsal'],
+    ['fast', 'rehearsalWebsiteResult', 'cancelled', 'website and docs rehearsal'],
+    ['release-pr', 'checkResult', 'failure', 'typecheck and lint'],
+    ['release-pr', 'candidateResult', 'skipped', 'package release candidate'],
+  ] as const)('fails on tier %s when %s is %s', (tier, job, result, label) => {
     expect(() =>
       validatePackageReleaseGate({
-        ...results,
-        artifactResult: 'skipped',
-        headRef: 'feature/docs',
-        rehearsalResult: 'success',
+        results: { ...ALL_SUCCESS, [job]: result },
+        tier,
       }),
-    ).toThrow('did not succeed')
+    ).toThrow(label)
+  })
+
+  it('rejects a failed job even when the job is not required for the tier', () => {
+    expect(() =>
+      validatePackageReleaseGate({
+        results: { ...ALL_SUCCESS, rehearsalPackageResult: 'failure' },
+        tier: 'fast',
+      }),
+    ).toThrow('package consumer rehearsal did not succeed: failure.')
+  })
+
+  it('fails the full tier when change detection broke and left the rehearsals unknown', () => {
+    expect(() =>
+      validatePackageReleaseGate({
+        results: { ...ALL_SUCCESS, changesResult: 'failure', rehearsalPackageResult: 'skipped' },
+        tier: 'full',
+      }),
+    ).toThrow('changed-surface detection did not succeed: failure.')
+  })
+
+  it('rejects unknown tiers', () => {
+    expect(() => validatePackageReleaseGate({ results: ALL_SUCCESS, tier: 'everything' })).toThrow(
+      'Unknown package release gate tier',
+    )
   })
 })

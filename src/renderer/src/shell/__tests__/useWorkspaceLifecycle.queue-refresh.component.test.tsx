@@ -1,0 +1,93 @@
+import { SessionId } from '@shared/types/brand'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { useBackgroundRunStore } from '@/features/chat/state'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
+import {
+  getWorkspaceLifecycleMocks,
+  loadUseWorkspaceLifecycle,
+  resetWorkspaceLifecycleMocks,
+} from './useWorkspaceLifecycle.test-harness'
+
+const lifecycleMocks = getWorkspaceLifecycleMocks()
+
+describe('useWorkspaceLifecycle Follow-up queue refresh', () => {
+  let useWorkspaceLifecycle: Awaited<
+    ReturnType<typeof loadUseWorkspaceLifecycle>
+  >['useWorkspaceLifecycle']
+
+  // The hook's module graph is large and cold the first time: import it once, under a deadline.
+  beforeAll(async () => {
+    ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
+  }, COLD_IMPORT_TIMEOUT_MS)
+
+  beforeEach(() => {
+    resetWorkspaceLifecycleMocks()
+  })
+
+  it('refetches the Follow-up queue when a stopped Run settles, so returned steers reappear', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.invalidateQueries.mockClear()
+
+    const handler = lifecycleMocks.getSessionHostEventHandler()
+    if (!handler) throw new Error('Expected Session Host event subscription')
+    handler({
+      cursor: { hostInstanceId: 'host-1', sequence: 10 },
+      timestamp: 10,
+      payload: {
+        kind: 'session-state-changed',
+        sessionId: 'session-1',
+        stateRevision: 9,
+        operation: 'run-settled',
+        runId: 'run-stopped',
+        terminalStatus: 'interrupted',
+      },
+    })
+
+    await waitFor(() =>
+      expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ['sessions', 'follow-up-queue', 'session-1'],
+      }),
+    )
+  })
+
+  it('reconciles queued Run start marks after a resync, once the queues are invalidated', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.invalidateQueries.mockClear()
+    const resync = lifecycleMocks.getSessionHostResyncHandler()
+    if (!resync) throw new Error('Expected Session Host resync subscription')
+
+    act(() => resync({ reason: 'slow-consumer' }))
+
+    expect(lifecycleMocks.reconcileQueuedRunStarts).toHaveBeenCalledOnce()
+    const queuesInvalidated = lifecycleMocks.invalidateQueries.mock.invocationCallOrder[0]
+    const reconciled = lifecycleMocks.reconcileQueuedRunStarts.mock.invocationCallOrder[0]
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenNthCalledWith(1, {
+      queryKey: ['sessions', 'follow-up-queue'],
+    })
+    expect(queuesInvalidated).toBeLessThan(reconciled ?? 0)
+  })
+
+  it('drops the render snapshot of a Session the Host archived', async () => {
+    const workerId = SessionId('worker-session')
+    useBackgroundRunStore
+      .getState()
+      .applyRunRenderEvent(workerId, { type: 'agent_start', runId: 'run-1', timestamp: 1 })
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    const handler = lifecycleMocks.getSessionHostEventHandler()
+    if (!handler) throw new Error('Expected Session Host event subscription')
+
+    act(() =>
+      handler({
+        cursor: { hostInstanceId: 'host-1', sequence: 20 },
+        timestamp: 20,
+        payload: { kind: 'session-list-changed', sessionId: 'worker-session', change: 'archived' },
+      }),
+    )
+
+    expect(useBackgroundRunStore.getState().getRunRenderSnapshot(workerId)).toBeNull()
+  })
+})

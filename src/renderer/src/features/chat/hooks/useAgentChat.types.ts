@@ -9,7 +9,11 @@ import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleConfig } from '@shared/types/waggle'
+import type { AgentCompactionStatus } from '../lib/compaction-lifecycle'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
+import type { OptimisticSteeredTurnReturn } from './useOptimisticSteeredTurn'
+
+export type { AgentCompactionStatus } from '../lib/compaction-lifecycle'
 
 export type AgentChatStatus =
   | 'ready'
@@ -18,16 +22,8 @@ export type AgentChatStatus =
   | 'compacting'
   | 'retrying'
   | 'error'
-
-export type AgentCompactionStatus =
-  | { readonly type: 'compacting'; readonly reason: 'manual' | 'threshold' | 'overflow' }
-  | {
-      readonly type: 'retrying'
-      readonly attempt: number
-      readonly maxAttempts: number
-      readonly delayMs: number
-      readonly errorMessage: string
-    }
+  /** The agent ended the Run and the Host is still settling it: nothing left to stop. */
+  | 'finishing'
 
 export interface AgentChatReturn {
   messages: UIMessage[]
@@ -36,10 +32,9 @@ export interface AgentChatReturn {
   isLoading: boolean
   status: AgentChatStatus
   stop: () => void
-  steer: () => Promise<void>
   error: Error | undefined
   withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
-  previewSteeredUserTurn: (payload: AgentSendPayload) => () => void
+  previewSteeredUserTurn: OptimisticSteeredTurnReturn['previewSteeredUserTurn']
   backgroundStreaming: boolean
   streamSignalVersion: number
   compactionStatus: AgentCompactionStatus | null
@@ -55,11 +50,26 @@ export interface AgentChatReturn {
 export interface PendingRunWaiter {
   readonly resolve: () => void
   readonly reject: (error: Error) => void
+  /**
+   * Offer a Run's completion. A waiter that knows which Run it follows takes only that Run's
+   * completion (or one naming no Run) and passes an earlier Run's on to the send it displaced.
+   * Without it, any completion settles the waiter.
+   */
+  readonly complete?: (completion: RunCompletion) => RunCompletionRouting
 }
+
+export interface RunCompletion {
+  /** The Run that completed; absent for a completion of the whole Session (Stop, reconnect). */
+  readonly runId?: string
+  readonly error?: Error
+}
+
+/** `held` means the waiter does not know its Run yet and will decide once it does. */
+export type RunCompletionRouting = 'settled' | 'forwarded' | 'held'
 
 export interface AgentRunActions {
   readonly flushDeferredSessionSnapshot: () => void
-  readonly settlePendingRun: (nextError?: Error) => void
+  readonly settlePendingRun: (nextError?: Error, runId?: string) => RunCompletionRouting
 }
 
 export interface UpdateMessagesOptions {
@@ -76,14 +86,9 @@ export type SetAgentChatStatus = (status: AgentChatStatus) => void
 export type SetAgentChatError = (error: Error | undefined) => void
 export type SetBackgroundStreaming = (backgroundStreaming: boolean) => void
 export type SetCompactionStatus = (status: AgentCompactionStatus | null) => void
-export type SetAgentInteractionsBySessionId = (
-  interactionsBySessionId: Map<SessionId, readonly AgentLoopInteraction[]>,
-) => void
-export type SetAgentCustomMessagesBySessionId = (
-  messagesBySessionId: Map<SessionId, readonly AgentTransportCustomEvent[]>,
-) => void
-export type SetAgentInteractionEventsBySessionId = (
-  eventsBySessionId: Map<SessionId, readonly AgentInteractionEvent[]>,
+export type SetRunCompactionStatus = (
+  sessionId: SessionId,
+  status: AgentCompactionStatus | null,
 ) => void
 
 export interface AgentStreamEventContext {
@@ -93,23 +98,13 @@ export interface AgentStreamEventContext {
   readonly backgroundStreamingRef: MutableValueRef<boolean>
   readonly backgroundReconnectSessionIdRef: MutableValueRef<SessionId | null>
   readonly streamSignalVersionRef: MutableValueRef<number>
+  readonly compactionSummaryCountAtStartRef: MutableValueRef<number>
+  readonly compactionStatusRef: MutableValueRef<AgentCompactionStatus | null>
   readonly terminalRunErrorRef: MutableValueRef<Error | undefined>
-  readonly agentInteractionsBySessionIdRef: MutableValueRef<
-    Map<SessionId, readonly AgentLoopInteraction[]>
-  >
-  readonly agentCustomMessagesBySessionIdRef: MutableValueRef<
-    Map<SessionId, readonly AgentTransportCustomEvent[]>
-  >
-  readonly agentInteractionEventsBySessionIdRef: MutableValueRef<
-    Map<SessionId, readonly AgentInteractionEvent[]>
-  >
   readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
   readonly setError: SetAgentChatError
-  readonly setAgentInteractionsBySessionId: SetAgentInteractionsBySessionId
-  readonly setAgentCustomMessagesBySessionId: SetAgentCustomMessagesBySessionId
-  readonly setAgentInteractionEventsBySessionId: SetAgentInteractionEventsBySessionId
   readonly setStatus: SetAgentChatStatus
   readonly setCompactionStatus: SetCompactionStatus
   readonly setBackgroundStreaming: SetBackgroundStreaming
@@ -122,16 +117,22 @@ export interface SessionHydrationContext {
   readonly pendingRunWaiterRef: MutableValueRef<PendingRunWaiter | null>
   readonly terminalRunErrorRef: MutableValueRef<Error | undefined>
   readonly streamSignalVersionRef: MutableValueRef<number>
+  readonly compactionSummaryCountAtStartRef: MutableValueRef<number>
   readonly lastHydratedSessionIdRef: MutableValueRef<SessionId | null>
   readonly lastHydratedSnapshotKeyRef: MutableValueRef<string | null>
   readonly lastHydratedOptimisticKeyRef: MutableValueRef<string | null>
   readonly backgroundStreamingRef: MutableValueRef<boolean>
   readonly backgroundReconnectSessionIdRef: MutableValueRef<SessionId | null>
+  /** Counts reconnects; only the latest one's result may merge. */
+  readonly reconnectGenerationRef: MutableValueRef<number>
+  /** The Host event-stream resync the transcript last recovered from. */
+  readonly lastHydratedResyncRevisionRef: MutableValueRef<number>
   readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
   readonly setBackgroundStreaming: SetBackgroundStreaming
   readonly setCompactionStatus: SetCompactionStatus
+  readonly setRunCompactionStatus: SetRunCompactionStatus
   readonly setStatus: SetAgentChatStatus
   readonly setError: SetAgentChatError
 }
@@ -142,6 +143,22 @@ export interface SessionHydrationInput {
   readonly optimisticUserMessages: readonly UIMessage[]
   readonly hasActiveRun: boolean
   readonly cachedRenderMessages: readonly UIMessage[] | null
+  /** The cached messages are a seeded snapshot's: only the active Run's, none persisted yet. */
+  readonly cachedRenderSeeded: boolean
+  /** Ids of cached messages a settled Run left, persisted under other ids once the Session saved it. */
+  readonly cachedSettledMessageIds?: ReadonlySet<string>
+  /**
+   * Ids of cached rows a Run whose start was lost streamed over, before the Host named it. Read
+   * straight off the snapshot, an explicit undefined when it notes none.
+   */
+  readonly cachedNoticedMessageIds?: ReadonlySet<string> | undefined
+  readonly cachedCompactionStatus: AgentCompactionStatus | null
+  /** Counts Host event-stream resyncs: events may have been lost before each. */
+  readonly resyncRevision: number
+  /** Counts restores of the activity in progress when the renderer started. */
+  readonly activityRestoreRevision: number
+  /** Counts the Session's Runs the monitor learned of from what they streamed, their start lost. */
+  readonly unannouncedRunNotice: number
 }
 
 export interface SessionHydrationKeys {

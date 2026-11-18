@@ -3,12 +3,17 @@
 // Base units — used to derive all values in TIME_UNIT without repetition.
 const MS_PER_SECOND = 1000
 const SECONDS_PER_MINUTE = 60
+const MINUTES_PER_HOUR = 60
 const HOURS_PER_DAY = 24
+
+/** Largest delay Node timers preserve without coercing to one millisecond. */
+export const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
 
 /** Fundamental time unit constants — building blocks for derived values. */
 export const TIME_UNIT = {
   MILLISECONDS_PER_SECOND: MS_PER_SECOND,
   SECONDS_PER_MINUTE: SECONDS_PER_MINUTE,
+  MINUTES_PER_HOUR: MINUTES_PER_HOUR,
   HOURS_PER_DAY: HOURS_PER_DAY,
   /** Common durations in milliseconds — use these instead of raw numbers. */
   TWO_SECONDS_MS: 2 * MS_PER_SECOND,
@@ -20,7 +25,7 @@ export const TIME_UNIT = {
   TWO_MINUTES_MS: 2 * SECONDS_PER_MINUTE * MS_PER_SECOND,
   FIVE_MINUTES_MS: 5 * SECONDS_PER_MINUTE * MS_PER_SECOND,
   TEN_MINUTES_MS: 10 * SECONDS_PER_MINUTE * MS_PER_SECOND,
-  FOUR_HOURS_MS: 4 * SECONDS_PER_MINUTE * SECONDS_PER_MINUTE * MS_PER_SECOND,
+  FOUR_HOURS_MS: 4 * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MS_PER_SECOND,
 } as const
 
 /** Authentication timeouts */
@@ -35,6 +40,8 @@ export const AUTH_TIMEOUT = {
   CLIPBOARD_POLL_TIMEOUT_MS: TIME_UNIT.FIVE_MINUTES_MS,
   /** Auth lifecycle check interval */
   LIFECYCLE_INTERVAL_MS: TIME_UNIT.TWO_MINUTES_MS,
+  /** First auth lifecycle check, once the window has opened (it loads Pi in the window process) */
+  LIFECYCLE_FIRST_CHECK_DELAY_MS: TIME_UNIT.FIFTEEN_SECONDS_MS,
 } as const
 
 /** Voice model timeouts */

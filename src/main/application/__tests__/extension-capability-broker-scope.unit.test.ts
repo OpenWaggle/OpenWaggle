@@ -71,58 +71,36 @@ describe('invokeExtensionCapability scope boundaries', () => {
     })
   })
 
-  it('rejects project invocations outside the active project', async () => {
-    const extensionPackage = makeBrokerPackage()
-    const result = await runBroker({
-      invocation: makeProjectInvocation({
-        scope: { kind: 'project', projectPath: OTHER_PROJECT_PATH },
-      }),
-      packages: [extensionPackage],
-      lifecycles: [makeLifecycle(extensionPackage)],
-      currentProjectPath: PROJECT_PATH,
-    })
+  it.each([
+    { scope: { kind: 'project', projectPath: OTHER_PROJECT_PATH }, context: {} },
+    {
+      scope: { kind: 'session', projectPath: OTHER_PROJECT_PATH, sessionId: String(SESSION_ID) },
+      context: { sessionDetail: makeSessionDetail(OTHER_PROJECT_PATH) },
+    },
+    {
+      scope: {
+        kind: 'branch',
+        projectPath: OTHER_PROJECT_PATH,
+        sessionId: String(SESSION_ID),
+        branchId: String(BRANCH_ID),
+      },
+      context: { sessionTree: makeSessionTree(OTHER_PROJECT_PATH) },
+    },
+  ] as const)(
+    'rejects $scope.kind invocations outside the active project',
+    async ({ scope, context }) => {
+      const extensionPackage = makeBrokerPackage()
+      const result = await runBroker({
+        invocation: makeProjectInvocation({ scope }),
+        packages: [extensionPackage],
+        lifecycles: [makeLifecycle(extensionPackage)],
+        ...context,
+        currentProjectPath: PROJECT_PATH,
+      })
 
-    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE)
-  })
-
-  it('rejects session invocations outside the active project', async () => {
-    const extensionPackage = makeBrokerPackage()
-    const result = await runBroker({
-      invocation: makeProjectInvocation({
-        scope: {
-          kind: 'session',
-          projectPath: OTHER_PROJECT_PATH,
-          sessionId: String(SESSION_ID),
-        },
-      }),
-      packages: [extensionPackage],
-      lifecycles: [makeLifecycle(extensionPackage)],
-      sessionDetail: makeSessionDetail(OTHER_PROJECT_PATH),
-      currentProjectPath: PROJECT_PATH,
-    })
-
-    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE)
-  })
-
-  it('rejects branch invocations outside the active project', async () => {
-    const extensionPackage = makeBrokerPackage()
-    const result = await runBroker({
-      invocation: makeProjectInvocation({
-        scope: {
-          kind: 'branch',
-          projectPath: OTHER_PROJECT_PATH,
-          sessionId: String(SESSION_ID),
-          branchId: String(BRANCH_ID),
-        },
-      }),
-      packages: [extensionPackage],
-      lifecycles: [makeLifecycle(extensionPackage)],
-      sessionTree: makeSessionTree(OTHER_PROJECT_PATH),
-      currentProjectPath: PROJECT_PATH,
-    })
-
-    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE)
-  })
+      expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE)
+    },
+  )
 
   it('rejects session invocations whose session belongs to another project', async () => {
     const extensionPackage = makeBrokerPackage()

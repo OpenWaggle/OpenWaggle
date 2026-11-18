@@ -1,0 +1,653 @@
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import Database from 'better-sqlite3'
+import type { SupportedModelId } from '../../src/shared/types/llm'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './object-fields'
+
+const DATABASE_FILE_NAME = path.join('session-host', 'session-host.sqlite')
+const DB_WAIT_RETRY_DELAY_MS = 100
+const DB_WAIT_TIMEOUT_MS = 10_000
+const MAIN_BRANCH_NAME = 'main'
+const MESSAGE_ENTRY_TYPE = 'message'
+const USER_MESSAGE_KIND = 'user_message'
+const ASSISTANT_MESSAGE_KIND = 'assistant_message'
+const SYSTEM_MESSAGE_KIND = 'system_message'
+const STANDARD_FUTURE_MODE = 'standard'
+const WAGGLE_FUTURE_MODE = 'waggle'
+const LOCAL_ENVIRONMENT_MODE = 'local'
+const DEFAULT_BRANCH_UI_STATE_JSON = '{}'
+const EXPANDED_NODE_IDS_DEFAULT_JSON = '[]'
+const TREE_SIDEBAR_EXPANDED = 0
+const SQLITE_TRUE = 1
+const SQLITE_FALSE = 0
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null
+}
+
+interface SessionRowFixture {
+  readonly id: string
+  readonly branchId: string
+  readonly createdAt: number
+}
+
+export interface SeedSessionInput {
+  readonly title: string
+  readonly updatedAt: number
+  readonly messages: readonly unknown[]
+  readonly projectPath?: string | null
+  readonly executionModel?: SupportedModelId
+  readonly waggleConfig?: unknown
+  readonly archived?: boolean
+  /**
+   * Session environment columns (ADR 0010). A worktree-mode session with a
+   * worktree path makes the Session terminal bind to that worktree (ADR 0030)
+   * without the test having to run a real agent send.
+   */
+  readonly environmentMode?: 'local' | 'worktree'
+  readonly worktreePath?: string | null
+  /**
+   * Leave a run on the session's main branch recorded as interrupted.
+   *
+   * The one non-idle row state that can be seeded from the database: every other state is derived
+   * from live agent events. That makes it the only way an end-to-end test can prove the state
+   * chips and the project roll-up pips work, rather than asserting they are absent.
+   */
+  readonly interruptedRun?: boolean
+}
+
+export interface SeedHiveWorkerInput extends SeedSessionInput {
+  readonly delegationState:
+    | 'working'
+    | 'waiting'
+    | 'needs_attention'
+    | 'ready_for_review'
+    | 'revision_requested'
+    | 'accepted'
+    | 'cancelled'
+  readonly agentDefinitionName?: string
+  /** Why a `needs_attention` Worker needs it (migration 74); absent reads as a failed Run. */
+  readonly attentionCause?: 'run_failed' | 'worker_request'
+  /**
+   * The index of an earlier Worker in the same seed that spawned this one; absent means the
+   * Queen did. Lets a fixture show the Hive tree below its first level.
+   */
+  readonly parentWorkerIndex?: number
+}
+
+export interface SeedHiveResult {
+  readonly queenSessionId: string
+  readonly workerSessionIds: readonly string[]
+}
+
+export function getDatabasePath(userDataDir: string) {
+  return path.join(userDataDir, DATABASE_FILE_NAME)
+}
+
+function openDatabase(userDataDir: string) {
+  const database = new Database(getDatabasePath(userDataDir))
+  database.exec('PRAGMA foreign_keys = ON')
+  return database
+}
+
+/**
+ * Wait for the database file to exist and for the Pi session projection schema to be ready.
+ */
+async function waitForDatabase(userDataDir: string) {
+  const dbPath = getDatabasePath(userDataDir)
+  const startedAt = Date.now()
+
+  while (Date.now() - startedAt < DB_WAIT_TIMEOUT_MS) {
+    if (fs.existsSync(dbPath)) {
+      try {
+        const db = new Database(dbPath)
+        try {
+          db.prepare('SELECT 1 FROM sessions LIMIT 1').all()
+          db.prepare('SELECT 1 FROM session_nodes LIMIT 1').all()
+          return
+        } finally {
+          db.close()
+        }
+      } catch {
+        // Schema not ready yet — retry.
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, DB_WAIT_RETRY_DELAY_MS))
+  }
+
+  throw new Error('Database file did not become ready within timeout')
+}
+
+function mainBranchId(sessionId: string) {
+  return `${sessionId}:${MAIN_BRANCH_NAME}`
+}
+
+function fixtureWorkspaceId(projectPath: string) {
+  return `e2e-workspace-${crypto.createHash('sha256').update(projectPath).digest('hex').slice(0, 20)}`
+}
+
+function insertSessionRow(database: Database.Database) {
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  const branchId = mainBranchId(id)
+  database
+    .prepare(
+      `
+        INSERT INTO sessions (
+          id,
+          pi_session_id,
+          pi_session_file,
+          project_path,
+          title,
+          archived,
+          waggle_config_json,
+          created_at,
+          updated_at,
+          last_active_node_id,
+          last_active_branch_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    )
+    .run(
+      id,
+      crypto.randomUUID(),
+      null,
+      null,
+      'E2E Seed',
+      SQLITE_FALSE,
+      null,
+      now,
+      now,
+      null,
+      branchId,
+    )
+  const fixture: SessionRowFixture = { id, branchId, createdAt: now }
+  return fixture
+}
+
+function readStringField(record: Readonly<Record<string, unknown>>, key: string) {
+  const value = record[key]
+  if (typeof value !== 'string') {
+    throw new Error(`Expected string field "${key}" in session fixture`)
+  }
+  return value
+}
+
+function readOptionalStringField(record: Readonly<Record<string, unknown>>, key: string) {
+  const value = record[key]
+  const result: string | undefined = typeof value === 'string' ? value : undefined
+  return result
+}
+
+function readOptionalNumberField(record: Readonly<Record<string, unknown>>, key: string) {
+  const value = record[key]
+  const result: number | undefined =
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  return result
+}
+
+function readOptionalRecordField(record: Readonly<Record<string, unknown>>, key: string) {
+  const value = record[key]
+  const readonly: Readonly<Record<string, unknown>> | undefined = isRecord(value)
+    ? value
+    : undefined
+  return readonly
+}
+
+const messagePartsSchema = Schema.Struct({ parts: unknownField })
+
+function readParts(messageValue: Readonly<Record<string, unknown>>) {
+  const { parts } = objectFields(messagePartsSchema, messageValue) ?? {}
+  const result: readonly unknown[] = Array.isArray(parts) ? parts : []
+  return result
+}
+
+function messageKind(role: string) {
+  if (role === 'user') {
+    const result: string = USER_MESSAGE_KIND
+    return result
+  }
+  if (role === 'assistant') {
+    const result: string = ASSISTANT_MESSAGE_KIND
+    return result
+  }
+  if (role === 'system') {
+    const result: string = SYSTEM_MESSAGE_KIND
+    return result
+  }
+  throw new Error(`Unsupported session role in fixture: ${role}`)
+}
+
+function seedSessionRow(
+  database: Database.Database,
+  row: SessionRowFixture,
+  sessionInput: SeedSessionInput,
+  defaultProjectPath: string,
+) {
+  database.exec('BEGIN')
+
+  try {
+    const projectPath = sessionInput.projectPath ?? defaultProjectPath
+    const waggleConfigJson =
+      sessionInput.waggleConfig === undefined || sessionInput.waggleConfig === null
+        ? null
+        : JSON.stringify(sessionInput.waggleConfig)
+
+    const lastMessage = sessionInput.messages[sessionInput.messages.length - 1]
+    const lastMessageId = isRecord(lastMessage) ? readStringField(lastMessage, 'id') : null
+
+    database
+      .prepare(
+        `
+          UPDATE sessions
+          SET title = ?,
+              project_path = ?,
+              waggle_config_json = ?,
+              archived = ?,
+              environment_mode = ?,
+              worktree_path = ?,
+              updated_at = ?,
+              last_active_node_id = ?,
+              last_active_branch_id = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
+        sessionInput.title,
+        projectPath,
+        waggleConfigJson,
+        sessionInput.archived ? SQLITE_TRUE : SQLITE_FALSE,
+        sessionInput.environmentMode ?? LOCAL_ENVIRONMENT_MODE,
+        sessionInput.worktreePath ?? null,
+        sessionInput.updatedAt,
+        lastMessageId,
+        row.branchId,
+        row.id,
+      )
+
+    const workingPath =
+      sessionInput.environmentMode === 'worktree' && sessionInput.worktreePath
+        ? sessionInput.worktreePath
+        : projectPath
+    const workspaceKind = workingPath === projectPath ? 'local' : 'managed-worktree'
+    const workspaceId = fixtureWorkspaceId(
+      workingPath === projectPath ? projectPath : `${projectPath}\0${workingPath}`,
+    )
+    database
+      .prepare(
+        `INSERT OR IGNORE INTO workspace_resources (
+           id, project_path, kind, working_path, lifecycle_state, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, 'ready', ?, ?)`,
+      )
+      .run(
+        workspaceId,
+        projectPath,
+        workspaceKind,
+        workingPath,
+        row.createdAt,
+        sessionInput.updatedAt,
+      )
+    database
+      .prepare(
+        `INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
+         VALUES (?, ?, ?)`,
+      )
+      .run(row.id, workspaceId, row.createdAt)
+    database
+      .prepare(
+        `INSERT INTO session_execution_profiles (
+           session_id, profile_json, resolved_agent_snapshot_json,
+           authority_origin_caller_id, authorization_ceiling, created_at, updated_at
+         ) VALUES (?, ?, NULL, 'e2e:local-user', 'ask-for-approval', ?, ?)`,
+      )
+      .run(
+        row.id,
+        JSON.stringify({
+          modelId: sessionInput.executionModel ?? 'openai/gpt-5.4',
+          thinkingLevel: 'medium',
+        }),
+        row.createdAt,
+        sessionInput.updatedAt,
+      )
+    database
+      .prepare(
+        `INSERT INTO session_control_states (
+           session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+         ) VALUES (?, 0, NULL, 'running', 0, ?)`,
+      )
+      .run(row.id, sessionInput.updatedAt)
+
+    database.prepare('DELETE FROM session_nodes WHERE session_id = ?').run(row.id)
+
+    let parentId: string | null = null
+    for (const [messageIndex, messageValue] of sessionInput.messages.entries()) {
+      if (!isRecord(messageValue)) {
+        throw new Error('Session message fixture must be an object')
+      }
+
+      const messageId = readStringField(messageValue, 'id')
+      const role = readStringField(messageValue, 'role')
+      const model = readOptionalStringField(messageValue, 'model')
+      const createdAt = readOptionalNumberField(messageValue, 'createdAt') ?? sessionInput.updatedAt
+      const metadata = readOptionalRecordField(messageValue, 'metadata')
+      const parts = readParts(messageValue)
+
+      database
+        .prepare(
+          `
+            INSERT INTO session_nodes (
+              id,
+              session_id,
+              parent_id,
+              pi_entry_type,
+              kind,
+              role,
+              timestamp_ms,
+              content_json,
+              metadata_json,
+              branch_hint_id,
+              path_depth,
+              created_order
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          messageId,
+          row.id,
+          parentId,
+          MESSAGE_ENTRY_TYPE,
+          messageKind(role),
+          role,
+          createdAt,
+          JSON.stringify({ parts, model: model ?? null }),
+          metadata ? JSON.stringify(metadata) : '{}',
+          row.branchId,
+          messageIndex,
+          messageIndex,
+        )
+
+      parentId = messageId
+    }
+
+    database
+      .prepare(
+        `
+          INSERT INTO session_branches (
+            id,
+            session_id,
+            source_node_id,
+            head_node_id,
+            name,
+            is_main,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            head_node_id = excluded.head_node_id,
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run(
+        row.branchId,
+        row.id,
+        null,
+        parentId,
+        MAIN_BRANCH_NAME,
+        SQLITE_TRUE,
+        row.createdAt,
+        sessionInput.updatedAt,
+      )
+
+    database
+      .prepare(
+        `
+          INSERT INTO session_branch_state (
+            branch_id,
+            future_mode,
+            waggle_preset_id,
+            waggle_config_json,
+            last_active_at,
+            ui_state_json
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(branch_id) DO UPDATE SET
+            future_mode = excluded.future_mode,
+            waggle_config_json = excluded.waggle_config_json,
+            last_active_at = excluded.last_active_at
+        `,
+      )
+      .run(
+        row.branchId,
+        waggleConfigJson ? WAGGLE_FUTURE_MODE : STANDARD_FUTURE_MODE,
+        null,
+        waggleConfigJson,
+        sessionInput.updatedAt,
+        DEFAULT_BRANCH_UI_STATE_JSON,
+      )
+
+    database
+      .prepare(
+        `
+          INSERT INTO session_tree_ui_state (
+            session_id,
+            expanded_node_ids_json,
+            branches_sidebar_collapsed,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(session_id) DO UPDATE SET
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run(row.id, EXPANDED_NODE_IDS_DEFAULT_JSON, TREE_SIDEBAR_EXPANDED, sessionInput.updatedAt)
+
+    if (sessionInput.interruptedRun === true) seedInterruptedRun(database, row, sessionInput)
+
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
+}
+
+/** Returns the seeded session id, which live agent events have to be addressed to. */
+export async function seedSingleSession(userDataDir: string, sessionInput: SeedSessionInput) {
+  await waitForDatabase(userDataDir)
+  const database = openDatabase(userDataDir)
+  try {
+    const row = insertSessionRow(database)
+    seedSessionRow(database, row, sessionInput, userDataDir)
+    return row.id
+  } finally {
+    database.close()
+  }
+}
+
+export async function seedSessions(
+  userDataDir: string,
+  sessionInputs: readonly SeedSessionInput[],
+) {
+  await waitForDatabase(userDataDir)
+  const database = openDatabase(userDataDir)
+
+  try {
+    for (const sessionInput of sessionInputs) {
+      const row = insertSessionRow(database)
+      seedSessionRow(database, row, sessionInput, userDataDir)
+    }
+  } finally {
+    database.close()
+  }
+}
+
+/** Seed durable Hive lineage into the post-cutover Session Host database. */
+export async function seedHive(
+  userDataDir: string,
+  queenInput: SeedSessionInput,
+  workerInputs: readonly SeedHiveWorkerInput[],
+) {
+  await waitForDatabase(userDataDir)
+  const database = openDatabase(userDataDir)
+  try {
+    const queen = insertSessionRow(database)
+    seedSessionRow(database, queen, queenInput, userDataDir)
+    const workers = workerInputs.map((workerInput) => {
+      const row = insertSessionRow(database)
+      seedSessionRow(database, row, workerInput, userDataDir)
+      return { row, input: workerInput }
+    })
+    database.exec('BEGIN')
+    try {
+      const parentRunIds = new Map<string, string>()
+      const parentRunId = (parent: SessionRowFixture, updatedAt: number) => {
+        const existing = parentRunIds.get(parent.id)
+        if (existing) return existing
+        const runId = `e2e-parent-run-${parent.id}`
+        database
+          .prepare(
+            `INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+             VALUES (?, ?, 'completed', NULL, ?, ?)`,
+          )
+          .run(runId, parent.id, parent.createdAt, updatedAt)
+        parentRunIds.set(parent.id, runId)
+        return runId
+      }
+      const depths = new Map<string, number>([[queen.id, 0]])
+      for (const [index, { row, input }] of workers.entries()) {
+        const parent = workerParent(queen, workers, index)
+        const depth = (depths.get(parent.id) ?? 0) + 1
+        depths.set(row.id, depth)
+        const delegationId = `e2e-delegation-${row.id}`
+        database
+          .prepare(
+            `INSERT INTO session_spawn_lineage (
+               child_session_id, parent_session_id, parent_run_id,
+               hive_root_session_id, depth, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            row.id,
+            parent.id,
+            parentRunId(parent, queenInput.updatedAt),
+            queen.id,
+            depth,
+            row.createdAt,
+          )
+        database
+          .prepare(
+            `INSERT INTO delegation_contracts (
+               id, parent_session_id, child_session_id, state, attention_cause,
+               current_specification_revision, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+          )
+          .run(
+            delegationId,
+            parent.id,
+            row.id,
+            input.delegationState,
+            input.delegationState === 'needs_attention' ? (input.attentionCause ?? null) : null,
+            row.createdAt,
+            input.updatedAt,
+          )
+        database
+          .prepare(
+            `INSERT INTO delegation_specifications (
+               delegation_id, revision, specification_json, authored_by, created_at
+             ) VALUES (?, 1, ?, 'e2e:local-user', ?)`,
+          )
+          .run(
+            delegationId,
+            JSON.stringify({ objective: input.title, deliverables: [], acceptanceCriteria: [] }),
+            row.createdAt,
+          )
+        if (input.agentDefinitionName) {
+          database
+            .prepare(
+              `UPDATE session_execution_profiles
+               SET profile_json = ?, updated_at = ?
+               WHERE session_id = ?`,
+            )
+            .run(
+              JSON.stringify({
+                modelId: input.executionModel ?? 'openai/gpt-5.4',
+                thinkingLevel: 'medium',
+                agentDefinitionName: input.agentDefinitionName,
+              }),
+              input.updatedAt,
+              row.id,
+            )
+        }
+      }
+      database.exec('COMMIT')
+    } catch (error) {
+      database.exec('ROLLBACK')
+      throw error
+    }
+    const result: SeedHiveResult = {
+      queenSessionId: queen.id,
+      workerSessionIds: workers.map(({ row }) => row.id),
+    }
+    return result
+  } finally {
+    database.close()
+  }
+}
+
+function workerParent(
+  queen: SessionRowFixture,
+  workers: readonly { readonly row: SessionRowFixture; readonly input: SeedHiveWorkerInput }[],
+  index: number,
+) {
+  const parentIndex = workers[index]?.input.parentWorkerIndex
+  if (parentIndex === undefined) return queen
+  const parent = parentIndex < index ? workers[parentIndex] : undefined
+  if (!parent) {
+    throw new Error(`Hive fixture Worker ${index} must name an earlier Worker as its parent.`)
+  }
+  return parent.row
+}
+
+/** Seed the Host Run and branch projection together so exact filters agree with sidebar rows. */
+function seedInterruptedRun(
+  database: Database.Database,
+  row: SessionRowFixture,
+  sessionInput: SeedSessionInput,
+) {
+  const runId = `run-${row.id}`
+  database
+    .prepare(
+      `INSERT INTO session_runs (id, session_id, status, created_at, updated_at)
+       VALUES (?, ?, 'interrupted', ?, ?)`,
+    )
+    .run(runId, row.id, row.createdAt, sessionInput.updatedAt)
+  database
+    .prepare(
+      `
+        INSERT INTO session_active_runs (
+          run_id,
+          session_id,
+          branch_id,
+          run_mode,
+          status,
+          runtime_json,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(run_id) DO UPDATE SET status = excluded.status
+      `,
+    )
+    .run(
+      runId,
+      row.id,
+      row.branchId,
+      'classic',
+      'interrupted',
+      JSON.stringify({ model: 'openai/gpt-5' }),
+      sessionInput.updatedAt,
+    )
+}

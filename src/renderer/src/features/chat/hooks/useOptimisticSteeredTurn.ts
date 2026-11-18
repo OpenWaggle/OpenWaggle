@@ -1,18 +1,37 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, AgentSteerDeliveryReceipt } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
-import type { UIMessage } from '@shared/types/chat-ui'
-import { useEffect, useRef, useState } from 'react'
+import type { UIMessage, UIMessageMetadata } from '@shared/types/chat-ui'
+import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
+import { useEffect } from 'react'
+import {
+  type SteerIncorporatedContent,
+  selectOptimisticSteerPreviews,
+  useOptimisticSteerStore,
+} from '@/features/chat/state'
+import {
+  insertOptimisticSteeredUserTurn,
+  matchSteeredUserTurns,
+} from '../lib/steer-preview-matching'
+import { useSteerReceiptReconciliation } from './useSteerReceiptReconciliation'
 
-interface OptimisticSteeredUserTurn {
-  readonly id: string
-  readonly content: string
-  readonly baselineLength: number
-  readonly message: UIMessage
+export type SteerDeliveryState = NonNullable<UIMessageMetadata['steerDelivery']>
+
+export interface OptimisticSteerPreviewController {
+  readonly clear: () => void
+  readonly setDurableContent: (content: string) => void
+  readonly setReceipt: (
+    receipt: Extract<AgentSteerDeliveryReceipt, { delivery: 'queued' }> | null,
+  ) => void
+  readonly setDeliveryState: (state: SteerDeliveryState) => void
 }
 
-interface OptimisticSteeredTurnReturn {
+export interface OptimisticSteeredTurnReturn {
   readonly visibleMessages: UIMessage[]
-  readonly previewSteeredUserTurn: (payload: AgentSendPayload) => () => void
+  readonly previewSteeredUserTurn: (
+    payload: AgentSendPayload,
+    deliveryState: SteerDeliveryState,
+    incorporatedContent?: SteerIncorporatedContent,
+  ) => OptimisticSteerPreviewController
 }
 
 /**
@@ -23,114 +42,138 @@ interface OptimisticSteeredTurnReturn {
 export function useOptimisticSteeredTurn(
   hydratedMessages: UIMessage[],
   sessionId: SessionId | null,
-  isSessionIdle: boolean,
   buildClientUserMessage: (payload: AgentSendPayload) => string,
   messagesRef: React.RefObject<UIMessage[]>,
-): OptimisticSteeredTurnReturn {
-  const [optimisticSteeredUserTurn, setOptimisticSteeredUserTurn] =
-    useState<OptimisticSteeredUserTurn | null>(null)
+  isSessionIdle: boolean,
+) {
+  const optimisticSteeredUserTurns = useOptimisticSteerStore(
+    selectOptimisticSteerPreviews(sessionId),
+  )
+  useSteerReceiptReconciliation(sessionId, hydratedMessages, optimisticSteeredUserTurns)
 
-  const previousSessionIdRef = useRef(sessionId)
-
-  // Clear optimistic turn on session switch
+  // Clear optimistic turns as their real steered user messages arrive during
+  // the active turn. Native steering does not wait for the session to become idle.
+  const matchedOptimisticTurns = matchSteeredUserTurns(hydratedMessages, optimisticSteeredUserTurns)
+  const reconciledOptimisticTurns = optimisticSteeredUserTurns.map((turn) => {
+    const match = matchedOptimisticTurns.get(turn.id)
+    if (!match || match.provisional || turn.durableMessageId) return turn
+    return {
+      ...turn,
+      durableMessageId: match.messageId,
+      ...(match.createdOrder === undefined
+        ? {}
+        : { durableMessageCreatedOrder: match.createdOrder }),
+    }
+  })
+  const allOptimisticTurnsAreDurable =
+    reconciledOptimisticTurns.length > 0 &&
+    reconciledOptimisticTurns.every((turn) => turn.durableMessageId !== undefined)
+  const hasNewDurableMatch = reconciledOptimisticTurns.some(
+    (turn, index) => turn !== optimisticSteeredUserTurns[index],
+  )
   useEffect(() => {
-    if (previousSessionIdRef.current === sessionId) {
-      return
-    }
-    previousSessionIdRef.current = sessionId
-    setOptimisticSteeredUserTurn(null)
-  }, [sessionId])
+    if (!sessionId) return
+    if (!allOptimisticTurnsAreDurable && !hasNewDurableMatch) return
+    useOptimisticSteerStore
+      .getState()
+      .reconcile(sessionId, reconciledOptimisticTurns, allOptimisticTurnsAreDurable)
+  }, [allOptimisticTurnsAreDurable, hasNewDurableMatch, reconciledOptimisticTurns, sessionId])
 
-  // Clear optimistic turn when real message arrives
+  // A steer preview only represents delivery within the active run. A steer that run never
+  // incorporated returns to the Follow-up queue when it settles, so any preview that did not
+  // project into the transcript must disappear then. The store is session-scoped, which preserves
+  // previews across navigation.
   useEffect(() => {
-    if (!optimisticSteeredUserTurn) {
-      return
-    }
-    if (!isSessionIdle) {
-      return
-    }
-    if (hasMatchingSteeredUserTurn(hydratedMessages, optimisticSteeredUserTurn)) {
-      setOptimisticSteeredUserTurn(null)
-    }
-  }, [hydratedMessages, isSessionIdle, optimisticSteeredUserTurn])
+    if (!sessionId || !isSessionIdle) return
+    useOptimisticSteerStore.getState().clearSession(sessionId)
+  }, [isSessionIdle, sessionId])
 
   const visibleMessages = insertOptimisticSteeredUserTurn(
     hydratedMessages,
-    optimisticSteeredUserTurn,
+    optimisticSteeredUserTurns,
   )
 
   return {
     visibleMessages,
-    previewSteeredUserTurn: (payload: AgentSendPayload) => {
+    previewSteeredUserTurn: (
+      payload: AgentSendPayload,
+      deliveryState: SteerDeliveryState,
+      incorporatedContent?: SteerIncorporatedContent,
+    ) => {
+      const incorporated = incorporatedContent ?? {
+        text: payload.text.trim(),
+        attachmentCount: payload.attachments.length,
+      }
       const content = buildClientUserMessage(payload)
       const optimisticTurnId = createOptimisticTurnId()
-      setOptimisticSteeredUserTurn({
+      if (!sessionId) {
+        return {
+          clear: () => undefined,
+          setDurableContent: () => undefined,
+          setReceipt: () => undefined,
+          setDeliveryState: () => undefined,
+        }
+      }
+      useOptimisticSteerStore.getState().add(sessionId, {
         id: optimisticTurnId,
         content,
-        baselineLength: messagesRef.current.length,
-        message: createOptimisticUserMessage(content, optimisticTurnId),
+        incorporatedContent: incorporated,
+        durableContent: buildAgentPromptText(payload),
+        baselineMaxCreatedOrder: Math.max(
+          -1,
+          ...messagesRef.current.flatMap(
+            (message) => message.metadata?.sessionNodeCreatedOrder ?? [],
+          ),
+        ),
+        baselineUserMessageIds: new Set(
+          messagesRef.current.flatMap((message) => (message.role === 'user' ? [message.id] : [])),
+        ),
+        message: createOptimisticUserMessage(content, optimisticTurnId, deliveryState),
       })
-      return () => {
-        setOptimisticSteeredUserTurn((current) =>
-          current?.id === optimisticTurnId ? null : current,
-        )
+      return {
+        clear: () => {
+          useOptimisticSteerStore.getState().remove(sessionId, optimisticTurnId)
+        },
+        setDurableContent: (durableContent: string) => {
+          useOptimisticSteerStore.getState().update(sessionId, optimisticTurnId, (turn) => ({
+            ...turn,
+            durableContent,
+          }))
+        },
+        setReceipt: (receipt) => {
+          useOptimisticSteerStore.getState().update(sessionId, optimisticTurnId, (turn) => ({
+            ...turn,
+            receipt,
+          }))
+        },
+        setDeliveryState: (state: SteerDeliveryState) => {
+          useOptimisticSteerStore.getState().update(sessionId, optimisticTurnId, (turn) => ({
+            ...turn,
+            message: { ...turn.message, metadata: { steerDelivery: state } },
+          }))
+        },
       }
     },
-  }
+  } satisfies OptimisticSteeredTurnReturn
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
 
 function createOptimisticTurnId() {
-  const randomUUID = globalThis.crypto?.randomUUID
-  if (typeof randomUUID === 'function') {
-    return randomUUID.call(globalThis.crypto)
-  }
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
   return `optimistic-steer-${Date.now()}`
 }
 
-function createOptimisticUserMessage(content: string, id: string): UIMessage {
+function createOptimisticUserMessage(
+  content: string,
+  id: string,
+  deliveryState: SteerDeliveryState,
+) {
   return {
     id: `optimistic-steer-${id}`,
     role: 'user',
     parts: [{ type: 'text', content }],
     createdAt: new Date(),
-  }
-}
-
-function getUIMessageText(message: UIMessage) {
-  return message.parts
-    .filter(
-      (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
-        part.type === 'text',
-    )
-    .map((part) => part.content)
-    .join('\n\n')
-}
-
-function hasMatchingSteeredUserTurn(
-  messages: UIMessage[],
-  optimisticSteeredUserTurn: OptimisticSteeredUserTurn,
-) {
-  const suffix = messages.slice(optimisticSteeredUserTurn.baselineLength)
-  return suffix.some(
-    (message) =>
-      message.role === 'user' && getUIMessageText(message) === optimisticSteeredUserTurn.content,
-  )
-}
-
-function insertOptimisticSteeredUserTurn(
-  messages: UIMessage[],
-  optimisticSteeredUserTurn: OptimisticSteeredUserTurn | null,
-): UIMessage[] {
-  if (!optimisticSteeredUserTurn) {
-    return messages
-  }
-  if (hasMatchingSteeredUserTurn(messages, optimisticSteeredUserTurn)) {
-    return messages
-  }
-
-  const prefix = messages.slice(0, optimisticSteeredUserTurn.baselineLength)
-  const suffix = messages.slice(optimisticSteeredUserTurn.baselineLength)
-  return [...prefix, optimisticSteeredUserTurn.message, ...suffix]
+    metadata: { steerDelivery: deliveryState },
+  } satisfies UIMessage
 }

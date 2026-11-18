@@ -46,7 +46,7 @@ describe('waggle-store collaboration lifecycle behavior', () => {
     const state = useWaggleStore.getState()
     expect(state.activeCollaborationId).toBe(sessionId)
     expect(state.activeConfig).toBe(config)
-    expect(state.status).toBe('running')
+    expect(state.status).toBe('pending')
     expect(state.currentTurn).toBe(0)
     expect(state.currentAgentIndex).toBe(0)
     expect(state.currentAgentLabel).toBe('Architect')
@@ -106,5 +106,15 @@ describe('waggle-store collaboration lifecycle behavior', () => {
     expect(state.status).toBe('stopped')
     expect(state.activeConfig).toBe(config)
     expect(state.completedTurnMeta).toHaveLength(1)
+  })
+
+  it('does not stop a newer collaboration when an older session fails', () => {
+    const newerSessionId = SessionId('session-newer')
+    useWaggleStore.getState().startCollaboration(newerSessionId, makeConfig())
+
+    useWaggleStore.getState().stopCollaboration(SessionId('session-older'))
+
+    expect(useWaggleStore.getState().activeCollaborationId).toBe(newerSessionId)
+    expect(useWaggleStore.getState().status).toBe('pending')
   })
 })

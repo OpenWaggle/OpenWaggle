@@ -1,0 +1,134 @@
+import type { ActionManagementScope } from '@shared/types/action-management'
+import { type ActionRun, isActiveActionRun } from '@shared/types/action-runs'
+import { Copy, ExternalLink, RotateCw, Sparkles, Square, SquareTerminal } from 'lucide-react'
+import { useState } from 'react'
+import { setComposerTextValue } from '@/features/chat/lib'
+import { useComposerStore } from '@/features/composer/state'
+import { formatDisplayPath } from '@/shared/lib/display-path'
+import { api } from '@/shared/lib/ipc'
+import { Button } from '@/shared/ui/Button'
+import { useUIStore } from '@/shell/ui-store'
+import { openWorkspaceAction, openWorkspacePreview } from '@/shell/workspace-panel-actions'
+import { restartActionRun, stopActionRun } from '../lib/action-run-operations'
+import { resolvedActionCommand } from '../lib/native-action-display'
+import { openActionRunInTerminal } from '../lib/open-action-run-in-terminal'
+
+const REPAIR_OUTPUT_CHARACTERS = 12_000
+
+export function ActionRunControls(props: {
+  readonly scope: ActionManagementScope
+  readonly run: ActionRun
+  readonly output: string
+}) {
+  const { run, scope, output } = props
+  const { previewUrl } = run
+  const { sessionId } = scope
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  async function perform(operation: () => unknown) {
+    setBusy(true)
+    setError(null)
+    try {
+      await operation()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Action control failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function operate(operation: 'stop' | 'restart') {
+    const result =
+      operation === 'restart' ? await restartActionRun(scope, run) : await stopActionRun(scope, run)
+    if (result.type === 'run' && sessionId) {
+      openWorkspaceAction(sessionId, scope.projectPath, result.run.id)
+    }
+  }
+  function repairDraft() {
+    const workingDirectory = formatDisplayPath(run.invocation.cwd, [
+      run.workspacePath,
+      run.projectPath,
+    ])
+    const prompt = `Investigate the project action "${run.action.name}" in this workspace and on the current machine. Propose a compatible command with the project_actions tool's "propose" action so I can review and save it. Do not replace the saved action or launch a replacement automatically.\n\nAction ID: ${run.action.id}\nCommand: ${resolvedActionCommand(run.invocation)}\nWorking directory: ${workingDirectory}\nResult: ${run.status}, exit ${run.exitCode ?? 'unknown'}\n${run.error ?? ''}\n\nRetained output:\n${output.slice(-REPAIR_OUTPUT_CHARACTERS)}`
+    const current = useComposerStore.getState().input
+    setComposerTextValue(current.trim() ? `${current}\n\n${prompt}` : prompt)
+    useUIStore
+      .getState()
+      .showToast('Repair request added to your draft. Review it before sending.', 'success')
+  }
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        {isActiveActionRun(run) ? (
+          <Button
+            className="min-h-10"
+            disabled={busy}
+            onClick={() => void perform(() => operate('stop'))}
+          >
+            <Square className="size-3.5" />
+            Stop
+          </Button>
+        ) : null}
+        <Button
+          className="min-h-10"
+          disabled={busy || run.status === 'stopping'}
+          onClick={() => void perform(() => operate('restart'))}
+        >
+          <RotateCw className="size-3.5" />
+          Restart
+        </Button>
+        {previewUrl && sessionId ? (
+          <Button
+            className="min-h-10"
+            disabled={busy || !run.ready}
+            onClick={() => void perform(() => openWorkspacePreview(sessionId, previewUrl))}
+          >
+            <ExternalLink className="size-3.5" />
+            Open preview
+          </Button>
+        ) : null}
+        {scope.sessionId ? (
+          <Button
+            variant="ghost"
+            className="min-h-10"
+            disabled={!output && !isActiveActionRun(run)}
+            title="Open this output as a read-only terminal tab"
+            onClick={() => openActionRunInTerminal(scope, run)}
+          >
+            <SquareTerminal className="size-3.5" />
+            Open in terminal
+          </Button>
+        ) : null}
+        <Button
+          variant="ghost"
+          className="min-h-10"
+          disabled={busy || !output}
+          onClick={() => void perform(() => api.copyToClipboard(output))}
+        >
+          <Copy className="size-3.5" />
+          Copy output
+        </Button>
+        <Button
+          variant="ghost"
+          className="min-h-10"
+          disabled={busy}
+          onClick={() =>
+            void perform(() => api.copyToClipboard(resolvedActionCommand(run.invocation)))
+          }
+        >
+          Copy command
+        </Button>
+        {run.status === 'failed' || run.status === 'interrupted' ? (
+          <Button variant="ghost" className="min-h-10" onClick={repairDraft}>
+            <Sparkles className="size-3.5" />
+            Fix with agent
+          </Button>
+        ) : null}
+      </div>
+      {error ? (
+        <p role="alert" className="text-xs text-error-text">
+          {error}
+        </p>
+      ) : null}
+    </>
+  )
+}

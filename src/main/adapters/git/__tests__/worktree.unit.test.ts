@@ -1,0 +1,334 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { runWithGitMutationLock } from '../../../services/git/mutation-lock'
+
+const { isGitRepositoryMock, runGitMock } = vi.hoisted(() => ({
+  isGitRepositoryMock: vi.fn(async () => true),
+  runGitMock: vi.fn(async (_projectPath: string, _args: readonly string[]) => ({
+    code: 0,
+    stdout: '',
+    stderr: '',
+  })),
+}))
+
+vi.mock('../run-git', () => ({
+  isGitRepository: isGitRepositoryMock,
+  runGit: runGitMock,
+}))
+
+const {
+  createGitWorktree,
+  removeGitWorktree,
+  validateGitWorktreeRemoval,
+  listGitWorktrees,
+  parseWorktreeList,
+} = await import('../worktree')
+
+function gitResult(code: number, stdout = '', stderr = '') {
+  return { code, stdout, stderr }
+}
+
+describe('worktree service', () => {
+  beforeEach(() => {
+    isGitRepositoryMock.mockReset()
+    isGitRepositoryMock.mockResolvedValue(true)
+    runGitMock.mockReset()
+    runGitMock.mockResolvedValue(gitResult(0))
+  })
+
+  it('serializes create and remove mutations against the same checkout', async () => {
+    let releaseRepositoryProbe: (() => void) | undefined
+    isGitRepositoryMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            releaseRepositoryProbe = () => resolve(true)
+          }),
+      )
+      .mockResolvedValueOnce(true)
+
+    const creation = createGitWorktree('/repo', {
+      path: '/wt/x',
+      branch: 'feat',
+      baseRef: 'main',
+    })
+    await vi.waitFor(() => expect(isGitRepositoryMock).toHaveBeenCalledTimes(1))
+    const removal = removeGitWorktree('/repo', { path: '/wt/y' })
+
+    await Promise.resolve()
+    expect(isGitRepositoryMock).toHaveBeenCalledTimes(1)
+    releaseRepositoryProbe?.()
+    await Promise.all([creation, removal])
+    expect(isGitRepositoryMock).toHaveBeenCalledTimes(2)
+  })
+
+  describe('createGitWorktree', () => {
+    it('rejects an already-cancelled creation before running Git', async () => {
+      const controller = new AbortController()
+      controller.abort()
+
+      await expect(
+        createGitWorktree(
+          '/repo',
+          { path: '/wt/x', branch: 'feat', baseRef: 'main' },
+          { signal: controller.signal },
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError' })
+
+      expect(isGitRepositoryMock).not.toHaveBeenCalled()
+      expect(runGitMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates cancellation instead of classifying an aborted Git probe as a bad ref', async () => {
+      const controller = new AbortController()
+      runGitMock.mockImplementationOnce(async () => {
+        controller.abort()
+        return { ...gitResult(1), aborted: true }
+      })
+
+      await expect(
+        createGitWorktree(
+          '/repo',
+          { path: '/wt/x', branch: 'feat', baseRef: 'main' },
+          { signal: controller.signal },
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError' })
+    })
+
+    /**
+     * A session whose worktree directory was deleted out-of-band still owns its
+     * branch, because `worktree prune` clears the registration but not the ref.
+     * Creating with -b then fails ("a branch named ... already exists") and the
+     * session can never run again. Attach to the surviving branch instead, which
+     * also preserves any commits already made on it.
+     */
+    it('attaches to a surviving branch instead of failing to recreate it', async () => {
+      runGitMock.mockImplementation(async (_path: string, args: readonly string[]) => {
+        if (args[0] === 'rev-parse') return gitResult(0)
+        if (args[0] === 'worktree' && args[1] === 'prune') return gitResult(0)
+        if (args[0] === 'show-ref') return gitResult(0) // branch exists
+        return gitResult(0)
+      })
+
+      const result = await createGitWorktree('/repo', {
+        path: '/wt/x',
+        branch: 'ow/session-abc',
+        baseRef: 'main',
+      })
+
+      expect(result.ok).toBe(true)
+      const addCall = runGitMock.mock.calls
+        .map((call) => call[1])
+        .find((args: readonly string[]) => args[0] === 'worktree' && args[1] === 'add')
+      expect(addCall).toEqual(['worktree', 'add', '/wt/x', 'ow/session-abc'])
+      expect(addCall).not.toContain('-b')
+    })
+
+    it('creates a new branch when none survives', async () => {
+      runGitMock.mockImplementation(async (_path: string, args: readonly string[]) => {
+        if (args[0] === 'show-ref') return gitResult(1) // branch absent
+        return gitResult(0)
+      })
+
+      await createGitWorktree('/repo', { path: '/wt/x', branch: 'ow/new', baseRef: 'main' })
+
+      const addCall = runGitMock.mock.calls
+        .map((call) => call[1])
+        .find((args: readonly string[]) => args[0] === 'worktree' && args[1] === 'add')
+      expect(addCall).toEqual(['worktree', 'add', '--no-track', '-b', 'ow/new', '/wt/x', 'main'])
+    })
+
+    it('rejects non-git repositories before running commands', async () => {
+      isGitRepositoryMock.mockResolvedValue(false)
+      await expect(
+        createGitWorktree('/repo', { path: '/wt/x', branch: 'feat', baseRef: 'main' }),
+      ).resolves.toEqual({
+        ok: false,
+        code: 'not-git-repo',
+        message: 'Selected folder is not a Git repository.',
+      })
+      expect(runGitMock).not.toHaveBeenCalled()
+    })
+
+    it('verifies the base ref then adds the worktree with a new branch', async () => {
+      runGitMock
+        .mockResolvedValueOnce(gitResult(0)) // rev-parse verify
+        .mockResolvedValueOnce(gitResult(0)) // worktree prune
+        .mockResolvedValueOnce(gitResult(1)) // show-ref: branch absent, so create it
+        .mockResolvedValueOnce(gitResult(0)) // worktree add
+      await expect(
+        createGitWorktree('/repo', { path: ' /wt/x ', branch: ' feat ', baseRef: ' main ' }),
+      ).resolves.toEqual({ ok: true, message: 'Created worktree on feat.', path: '/wt/x' })
+
+      expect(runGitMock).toHaveBeenNthCalledWith(1, '/repo', [
+        'rev-parse',
+        '--verify',
+        'main^{commit}',
+      ])
+      expect(runGitMock).toHaveBeenNthCalledWith(2, '/repo', ['worktree', 'prune'])
+      // 4th call: rev-parse verify, worktree prune, show-ref branch probe, then add.
+      expect(runGitMock).toHaveBeenNthCalledWith(4, '/repo', [
+        'worktree',
+        'add',
+        '--no-track',
+        '-b',
+        'feat',
+        '/wt/x',
+        'main',
+      ])
+    })
+
+    it('maps an unresolvable base ref to base-ref-not-found', async () => {
+      runGitMock.mockResolvedValueOnce(gitResult(128, '', 'fatal: bad revision'))
+      await expect(
+        createGitWorktree('/repo', { path: '/wt/x', branch: 'feat', baseRef: 'nope' }),
+      ).resolves.toEqual({
+        ok: false,
+        code: 'base-ref-not-found',
+        message: 'Base ref "nope" could not be resolved.',
+      })
+    })
+
+    it('maps an existing worktree path to worktree-exists', async () => {
+      runGitMock
+        .mockResolvedValueOnce(gitResult(0)) // rev-parse verify
+        .mockResolvedValueOnce(gitResult(0)) // worktree prune
+        .mockResolvedValueOnce(gitResult(1)) // show-ref: branch absent
+        .mockResolvedValueOnce(gitResult(128, '', "fatal: '/wt/x' already exists")) // add
+      await expect(
+        createGitWorktree('/repo', { path: '/wt/x', branch: 'feat', baseRef: 'main' }),
+      ).resolves.toMatchObject({ ok: false, code: 'worktree-exists' })
+    })
+  })
+
+  describe('removeGitWorktree', () => {
+    it('waits for mutations of the target worktree as well as the repository', async () => {
+      const lockRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-remove-lock-'))
+      const repositoryPath = path.join(lockRoot, 'repository')
+      const worktreePath = path.join(lockRoot, 'worktree')
+      const nestedWorktreePath = path.join(worktreePath, 'src')
+      await Promise.all([
+        fs.mkdir(path.join(repositoryPath, '.git'), { recursive: true }),
+        fs.mkdir(nestedWorktreePath, { recursive: true }),
+      ])
+      await fs.writeFile(path.join(worktreePath, '.git'), 'gitdir: ../repository/.git/worktrees/x')
+      let releaseTarget: (() => void) | undefined
+      const targetGate = new Promise<void>((resolve) => {
+        releaseTarget = resolve
+      })
+      let markTargetStarted: (() => void) | undefined
+      const targetStarted = new Promise<void>((resolve) => {
+        markTargetStarted = resolve
+      })
+      const order: string[] = []
+      isGitRepositoryMock.mockImplementation(async () => {
+        order.push('removal')
+        return true
+      })
+      const targetMutation = runWithGitMutationLock(nestedWorktreePath, async () => {
+        markTargetStarted?.()
+        await targetGate
+        order.push('target mutation')
+      })
+      await targetStarted
+
+      const removal = removeGitWorktree(repositoryPath, { path: worktreePath })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      releaseTarget?.()
+      await Promise.all([targetMutation, removal])
+
+      expect(order).toEqual(['target mutation', 'removal'])
+      await fs.rm(lockRoot, { recursive: true, force: true })
+    })
+
+    it('removes without --force by default', async () => {
+      await expect(removeGitWorktree('/repo', { path: '/wt/x' })).resolves.toEqual({
+        ok: true,
+        message: 'Worktree removed.',
+        path: '/wt/x',
+      })
+      expect(runGitMock).toHaveBeenCalledWith('/repo', ['worktree', 'remove', '/wt/x'])
+    })
+
+    it('passes two force flags only when explicitly requested so locked worktrees can be removed', async () => {
+      await removeGitWorktree('/repo', { path: '/wt/x', force: true })
+      expect(runGitMock).toHaveBeenCalledWith('/repo', [
+        'worktree',
+        'remove',
+        '/wt/x',
+        '--force',
+        '--force',
+      ])
+    })
+
+    it('maps git dirty refusal to dirty-worktree', async () => {
+      runGitMock.mockResolvedValueOnce(
+        gitResult(128, '', "fatal: '/wt/x' contains modified or untracked files, use --force"),
+      )
+      await expect(removeGitWorktree('/repo', { path: '/wt/x' })).resolves.toMatchObject({
+        ok: false,
+        code: 'dirty-worktree',
+      })
+    })
+  })
+
+  describe('validateGitWorktreeRemoval', () => {
+    it('rejects a dirty registered worktree without removing it', async () => {
+      runGitMock
+        .mockResolvedValueOnce(
+          gitResult(
+            0,
+            'worktree /repo\0HEAD abc\0branch refs/heads/main\0\0' +
+              'worktree /wt/x\0HEAD def\0branch refs/heads/feat\0\0',
+          ),
+        )
+        .mockResolvedValueOnce(gitResult(0, ' M src/file.ts\n'))
+
+      await expect(validateGitWorktreeRemoval('/repo', { path: '/wt/x' })).resolves.toMatchObject({
+        ok: false,
+        code: 'dirty-worktree',
+      })
+      expect(runGitMock).not.toHaveBeenCalledWith('/repo', ['worktree', 'remove', '/wt/x'])
+    })
+
+    it('allows explicit force removal of a dirty registered worktree', async () => {
+      runGitMock.mockResolvedValueOnce(
+        gitResult(
+          0,
+          'worktree /repo\0HEAD abc\0branch refs/heads/main\0\0' +
+            'worktree /wt/x\0HEAD def\0branch refs/heads/feat\0\0',
+        ),
+      )
+
+      await expect(
+        validateGitWorktreeRemoval('/repo', { path: '/wt/x', force: true }),
+      ).resolves.toMatchObject({ ok: true })
+      expect(runGitMock).not.toHaveBeenCalledWith('/wt/x', [
+        'status',
+        '--porcelain=v1',
+        '--untracked-files=all',
+      ])
+    })
+  })
+
+  describe('parseWorktreeList / listGitWorktrees', () => {
+    it('parses porcelain -z output including main and detached worktrees', () => {
+      const stdout =
+        'worktree /repo\0HEAD abc123\0branch refs/heads/main\0\0' +
+        'worktree /wt/x\0HEAD def456\0branch refs/heads/feat\0\0' +
+        'worktree /wt/y\0HEAD ghi789\0detached\0\0'
+      expect(parseWorktreeList(stdout)).toEqual([
+        { path: '/repo', head: 'abc123', branch: 'main', isMain: true },
+        { path: '/wt/x', head: 'def456', branch: 'feat', isMain: false },
+        { path: '/wt/y', head: 'ghi789', branch: null, isMain: false },
+      ])
+    })
+
+    it('returns empty list for non-git repositories', async () => {
+      isGitRepositoryMock.mockResolvedValue(false)
+      await expect(listGitWorktrees('/repo')).resolves.toEqual({ worktrees: [] })
+    })
+  })
+})

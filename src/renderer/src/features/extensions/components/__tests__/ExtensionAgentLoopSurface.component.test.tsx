@@ -144,7 +144,9 @@ describe('ExtensionAgentLoopSurface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '#113' }))
 
-    expect(screen.getByText('Interaction · github.issue.select')).toBeInTheDocument()
+    // The heading, asserted by role. A count assertion would pin whatever duplication happens to
+    // exist and turn de-duplicating it into a failure.
+    expect(screen.getByRole('heading', { name: 'Select an issue' })).toBeInTheDocument()
     expect(onAction).toHaveBeenCalledWith('select-issue', 'issue-113')
   })
 
@@ -160,7 +162,7 @@ describe('ExtensionAgentLoopSurface', () => {
             kind: 'custom',
             customType: 'github.issue.approval',
             title: 'Custom desktop interaction',
-            description: 'This custom Pi interaction requires an OpenWaggle desktop renderer.',
+            description: 'This custom interaction requires an OpenWaggle desktop renderer.',
             state: 'pending',
             actions: [],
           },
@@ -173,9 +175,12 @@ describe('ExtensionAgentLoopSurface', () => {
 
     expect(screen.getByText('Custom desktop interaction renderer unavailable')).toBeInTheDocument()
     expect(
-      screen.getByText(/does not execute Pi TUI custom components inside Electron/),
+      screen.getByText(/does not execute terminal UI custom components inside Electron/),
     ).toBeInTheDocument()
-    expect(screen.getByText('custom-interaction')).toBeInTheDocument()
+    // The raw interaction id used to be printed here. It means nothing to a reader, so the card
+    // now shows a human lifecycle label and the id stays internal.
+    expect(screen.queryByText('custom-interaction')).not.toBeInTheDocument()
+    expect(screen.getByText('Waiting for a renderer')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject interaction' }))
 
@@ -205,7 +210,7 @@ describe('ExtensionAgentLoopSurface', () => {
             kind: 'custom',
             customType: 'github.issue.approval',
             title: 'Custom desktop interaction',
-            description: 'This custom Pi interaction requires an OpenWaggle desktop renderer.',
+            description: 'This custom interaction requires an OpenWaggle desktop renderer.',
             state: 'pending',
             actions: [],
           },

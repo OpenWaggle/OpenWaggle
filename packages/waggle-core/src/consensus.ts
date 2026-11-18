@@ -50,9 +50,7 @@ const AGREEMENT_PHRASES = [
   'no issues found',
 ] as const
 
-export function evaluateConsensus(
-  signals: readonly WaggleConsensusSignal[],
-): WaggleConsensusCheckResult {
+export function evaluateConsensus(signals: readonly WaggleConsensusSignal[]) {
   const strongest = signals.reduce<WaggleConsensusSignal | null>((best, signal) => {
     if (!best || signal.confidence > best.confidence) {
       return signal
@@ -61,39 +59,42 @@ export function evaluateConsensus(
   }, null)
 
   if (!strongest) {
-    return {
+    const result: WaggleConsensusCheckResult = {
       reached: false,
       confidence: NO_CONFIDENCE,
       reason: 'No consensus signals were observed.',
       signals,
     }
+    return result
   }
 
-  return {
+  const result: WaggleConsensusCheckResult = {
     reached: strongest.confidence >= CONFIDENCE_THRESHOLD,
     confidence: strongest.confidence,
     reason: strongest.reason,
     signals,
   }
+  return result
 }
 
 export function checkConsensus(
   lastTwoMessages: readonly [string, string],
   totalTurns: number,
   maxTurns: number,
-): WaggleConsensusCheckResult {
+) {
   const [previousText, currentText] = lastTwoMessages
 
   if (
     previousText.trim().length < MIN_SUBSTANTIVE_LENGTH ||
     currentText.trim().length < MIN_SUBSTANTIVE_LENGTH
   ) {
-    return {
+    const result: WaggleConsensusCheckResult = {
       reached: false,
       confidence: 0,
       reason: 'Insufficient content for consensus check',
       signals: [],
     }
+    return result
   }
 
   const signals: WaggleConsensusSignal[] = []
@@ -122,7 +123,13 @@ export function checkConsensus(
   }
 
   if (signals.length === 0) {
-    return { reached: false, confidence: 0, reason: 'No consensus signals detected', signals: [] }
+    const result: WaggleConsensusCheckResult = {
+      reached: false,
+      confidence: 0,
+      reason: 'No consensus signals detected',
+      signals: [],
+    }
+    return result
   }
 
   const totalWeight = signals.reduce((sum, signal) => sum + signal.confidence, 0)
@@ -132,15 +139,16 @@ export function checkConsensus(
   )
   const reached = averageConfidence >= CONSENSUS_THRESHOLD
 
-  return {
+  const result: WaggleConsensusCheckResult = {
     reached,
     confidence: Math.round(averageConfidence * PERCENT_BASE) / PERCENT_BASE,
     reason: reached ? topSignal.reason : 'Insufficient consensus signals',
     signals,
   }
+  return result
 }
 
-function checkExplicitAgreement(text: string): WaggleConsensusSignal | null {
+function checkExplicitAgreement(text: string) {
   const lower = text.toLowerCase()
   for (const phrase of AGREEMENT_PHRASES) {
     if (!lower.includes(phrase)) {
@@ -151,20 +159,18 @@ function checkExplicitAgreement(text: string): WaggleConsensusSignal | null {
       text.trim().length <= AGREEMENT_SHORT_MESSAGE_THRESHOLD
         ? EXPLICIT_AGREEMENT_CONFIDENCE
         : AGREEMENT_LONG_MESSAGE_CONFIDENCE
-    return {
+    const signal: WaggleConsensusSignal = {
       type: 'explicit-agreement',
       confidence,
       reason: `Explicit agreement detected: "${phrase}"`,
     }
+    return signal
   }
 
   return null
 }
 
-function checkContentSimilarity(
-  previousText: string,
-  currentText: string,
-): WaggleConsensusSignal | null {
+function checkContentSimilarity(previousText: string, currentText: string) {
   const previousSentences = extractSentences(previousText)
   const currentSentences = extractSentences(currentText)
   if (previousSentences.size === 0 || currentSentences.size === 0) {
@@ -184,17 +190,15 @@ function checkContentSimilarity(
     return null
   }
 
-  return {
+  const signal: WaggleConsensusSignal = {
     type: 'no-new-information',
     confidence: CONTENT_SIMILARITY_CONFIDENCE,
     reason: `High content overlap (Jaccard: ${String(Math.round(jaccard * PERCENT_BASE))}%)`,
   }
+  return signal
 }
 
-function checkShrinkingResponse(
-  previousText: string,
-  currentText: string,
-): WaggleConsensusSignal | null {
+function checkShrinkingResponse(previousText: string, currentText: string) {
   const previousLength = previousText.trim().length
   const currentLength = currentText.trim().length
   if (
@@ -205,11 +209,12 @@ function checkShrinkingResponse(
     return null
   }
 
-  return {
+  const signal: WaggleConsensusSignal = {
     type: 'no-new-information',
     confidence: SHRINKING_RESPONSE_CONFIDENCE,
     reason: 'Response significantly shorter than previous turn',
   }
+  return signal
 }
 
 function extractSentences(text: string) {

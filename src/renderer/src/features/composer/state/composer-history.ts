@@ -7,7 +7,7 @@ function isPromptHistoryEntry(entry: unknown): entry is string {
   return typeof entry === 'string' && entry.trim().length > 0
 }
 
-export function loadPromptHistory(): string[] {
+export function loadPromptHistory() {
   try {
     const stored = getStorage()?.getItem(PROMPT_HISTORY_KEY)
     if (!stored) return []

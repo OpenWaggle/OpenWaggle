@@ -1,12 +1,15 @@
 import { ChevronDown, ChevronRight, KeyRound, type LucideIcon, ShieldCheck } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useState } from 'react'
-import { useProviders } from '@/features/settings/hooks/useSettings'
+import type { ReactNode, RefObject } from 'react'
+import { useRef, useState } from 'react'
+import { useProviderCatalogRetry, useProviders } from '@/features/settings/hooks/useSettings'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { AvailableModelsSection } from './connections/AvailableModelsSection'
 import { OAuthProviderRow } from './connections/OAuthProviderRow'
 import { ProviderRow } from './connections/ProviderRow'
+import { SourceControlSection } from './connections/SourceControlSection'
+import { TitleModelSection } from './connections/TitleModelSection'
 
 interface AuthProviderGroupProps {
   readonly title: string
@@ -40,19 +43,19 @@ function AuthProviderGroup({
         aria-expanded={isOpen}
         className={cn(
           'flex w-full items-start justify-between gap-4 rounded-md p-1 text-left transition-colors',
-          'hover:bg-bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-light',
+          'hover:bg-bg-hover focus-visible:outline-none',
         )}
       >
         <div className="flex min-w-0 items-start gap-2.5">
           <Icon className="mt-0.5 size-4 shrink-0 text-text-tertiary" />
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-[16px] font-semibold text-text-primary">{title}</h3>
-              <span className="rounded-md border border-input-card-border bg-[#151a22] px-1.5 py-0.5 text-[11px] font-medium text-text-tertiary">
+              <h3 className="text-base font-semibold text-text-primary">{title}</h3>
+              <span className="rounded-md border border-border-light bg-bg px-1.5 py-0.5 text-xs font-medium text-text-tertiary">
                 {count}
               </span>
             </div>
-            <p className="max-w-[720px] text-[12px] leading-5 text-text-tertiary">{description}</p>
+            <p className="max-w-180 text-xs leading-5 text-text-tertiary">{description}</p>
           </div>
         </div>
         <Chevron className="mt-1 size-4 shrink-0 text-text-tertiary" />
@@ -60,13 +63,75 @@ function AuthProviderGroup({
 
       {isOpen &&
         (count > 0 ? (
-          <div className="overflow-hidden rounded-lg border border-border bg-[#111418]">
-            {children}
-          </div>
+          <div className="overflow-hidden rounded-lg border border-border bg-bg">{children}</div>
         ) : (
-          <p className="px-1 text-[13px] text-text-muted">{emptyText}</p>
+          <p className="px-1 text-xs text-text-muted">{emptyText}</p>
         ))}
     </div>
+  )
+}
+
+interface ProviderCatalogLoadErrorProps {
+  readonly loadError: string | null
+  /** Takes focus when a retry succeeds and the banner, with its focused button, goes away. */
+  readonly headingRef: RefObject<HTMLHeadingElement | null>
+}
+
+/**
+ * A provider catalog that failed to load, with a retry that reloads it and its sign-in accounts.
+ * The banner stays while the retry runs, so a failed retry leaves focus on Retry and says it failed,
+ * even when the error text is the same. A successful retry moves focus to the section heading,
+ * unless the user has moved it elsewhere meanwhile.
+ */
+function ProviderCatalogLoadError({ loadError, headingRef }: ProviderCatalogLoadErrorProps) {
+  const retryProviderCatalog = useProviderCatalogRetry()
+  const retryRef = useRef<HTMLButtonElement>(null)
+  const [retryingAfter, setRetryingAfter] = useState<string | null>(null)
+  const [failedRetries, setFailedRetries] = useState(0)
+  // The catalog loaded some other way, such as a saved API key, so a later failure starts anew.
+  if (loadError === null && retryingAfter === null && failedRetries !== 0) setFailedRetries(0)
+  const message = loadError ?? retryingAfter
+  if (message === null) return null
+  const retrying = retryingAfter !== null
+
+  async function retry() {
+    if (retrying || loadError === null) return
+    setRetryingAfter(loadError)
+    const loaded = await retryProviderCatalog()
+    setRetryingAfter(null)
+    if (!loaded) {
+      setFailedRetries((count) => count + 1)
+      return
+    }
+    const focused = document.activeElement
+    if (focused === null || focused === document.body || focused === retryRef.current) {
+      headingRef.current?.focus()
+    }
+  }
+
+  return (
+    <>
+      <div
+        role="alert"
+        aria-busy={retrying}
+        className="flex items-start justify-between gap-3 rounded-lg border border-error/25 bg-error/6 px-3 py-2"
+      >
+        <p className="min-w-0 text-sm text-error-text">Failed to load providers: {message}</p>
+        <Button
+          ref={retryRef}
+          variant="secondary"
+          aria-label="Retry loading providers"
+          aria-disabled={retrying || undefined}
+          onClick={() => void retry()}
+          className="shrink-0"
+        >
+          {retrying ? 'Retrying…' : 'Retry'}
+        </Button>
+      </div>
+      <span role="status" className="sr-only">
+        {failedRetries > 0 && !retrying ? `Retry ${failedRetries} failed.` : ''}
+      </span>
+    </>
   )
 }
 
@@ -76,34 +141,37 @@ export function ConnectionsSection() {
   const [oauthOpen, setOauthOpen] = useState(false)
   const apiKeyProviders = providerModels.filter((providerInfo) => providerInfo.auth.supportsApiKey)
   const oauthProviders = providerModels.filter((providerInfo) => providerInfo.auth.supportsOAuth)
-  const loadingText = 'Loading Pi providers…'
+  const loadingText = 'Loading providers…'
+  const headingRef = useRef<HTMLHeadingElement>(null)
 
   return (
-    <div className="space-y-6">
+    <SettingsSectionContainer className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-[20px] font-semibold text-text-primary">Connections</h2>
-        <p className="text-[13px] text-text-tertiary">
-          Manage the provider authentication methods available through Pi.
+        <h2
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-xl font-semibold text-text-primary focus-visible:outline-none"
+        >
+          Connections
+        </h2>
+        <p className="text-xs text-text-tertiary">
+          Manage provider authentication and source control hosts.
         </p>
       </div>
 
-      {loadError && (
-        <p className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error">
-          Failed to load providers: {loadError}
-        </p>
-      )}
+      <ProviderCatalogLoadError loadError={loadError} headingRef={headingRef} />
 
       {isLoading && providerModels.length === 0 && (
-        <p className="text-[13px] text-text-muted">Loading Pi providers…</p>
+        <p className="text-xs text-text-muted">Loading providers…</p>
       )}
 
       <AuthProviderGroup
         title="API Key Providers"
-        description="Use Pi's API-key, environment, or custom-provider auth for key-based access."
+        description="Use API-key, environment, or custom-provider auth for key-based access."
         count={apiKeyProviders.length}
         isOpen={apiKeysOpen}
         icon={KeyRound}
-        emptyText={isLoading ? loadingText : 'Pi did not report any API-key providers.'}
+        emptyText={isLoading ? loadingText : 'No API-key providers were reported.'}
         onToggle={() => setApiKeysOpen((open) => !open)}
       >
         {apiKeyProviders.map((providerInfo, index) => (
@@ -117,11 +185,11 @@ export function ConnectionsSection() {
 
       <AuthProviderGroup
         title="OAuth Providers"
-        description="Connect with Pi OAuth. OpenWaggle starts Pi's login flow and opens your browser."
+        description="Connect with OAuth. OpenWaggle starts the provider login flow and opens your browser."
         count={oauthProviders.length}
         isOpen={oauthOpen}
         icon={ShieldCheck}
-        emptyText={isLoading ? loadingText : 'Pi did not report any OAuth providers.'}
+        emptyText={isLoading ? loadingText : 'No sign-in providers are available.'}
         onToggle={() => setOauthOpen((open) => !open)}
       >
         {oauthProviders.map((providerInfo, index) => (
@@ -133,12 +201,16 @@ export function ConnectionsSection() {
         ))}
       </AuthProviderGroup>
 
+      <SourceControlSection />
+
       <AvailableModelsSection />
 
-      <p className="text-[13px] text-text-tertiary">
+      <TitleModelSection />
+
+      <p className="text-xs text-text-tertiary">
         API keys are stored locally on your machine and never sent anywhere except to the respective
         API providers.
       </p>
-    </div>
+    </SettingsSectionContainer>
   )
 }

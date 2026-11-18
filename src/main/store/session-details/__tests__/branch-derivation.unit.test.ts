@@ -1,0 +1,222 @@
+import { describe, expect, it } from 'vitest'
+import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
+import { deriveSessionBranchesForSnapshot } from '../branch-derivation'
+import type { SessionBranchRow } from '../types'
+
+function node(
+  id: string,
+  parentId: string | null,
+  kind: ProjectedSessionNodeInput['kind'],
+  createdOrder: number,
+  text?: string,
+) {
+  return {
+    id,
+    parentId,
+    piEntryType: kind === 'custom' ? 'custom' : 'message',
+    kind,
+    role: kind === 'user_message' ? 'user' : kind === 'assistant_message' ? 'assistant' : null,
+    timestampMs: createdOrder,
+    contentJson: JSON.stringify(text ? { parts: [{ type: 'text', text }] } : {}),
+    metadataJson: '{}',
+    pathDepth: 0,
+    createdOrder,
+  } satisfies ProjectedSessionNodeInput
+}
+
+function branchRow(
+  sessionId: string,
+  id: string,
+  name: string,
+  headNodeId: string,
+  isMain: boolean,
+) {
+  return {
+    id,
+    session_id: sessionId,
+    source_node_id: null,
+    head_node_id: headNodeId,
+    name,
+    is_main: isMain ? 1 : 0,
+    archived_at: null,
+    created_at: 1,
+    updated_at: 1,
+  } satisfies SessionBranchRow
+}
+
+describe('deriveSessionBranchesForSnapshot', () => {
+  it('adopts the active head as main when a replacement snapshot no longer contains the old main head', () => {
+    const sessionId = 'replacement-session'
+    const result = deriveSessionBranchesForSnapshot({
+      sessionId,
+      activeNodeId: 'new-assistant',
+      existingBranches: [
+        {
+          id: `${sessionId}:main`,
+          session_id: sessionId,
+          source_node_id: null,
+          head_node_id: 'missing-old-head',
+          name: 'main',
+          is_main: 1,
+          archived_at: null,
+          created_at: 1,
+          updated_at: 1,
+        },
+      ],
+      nodes: [
+        {
+          id: 'new-user',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'user_message',
+          role: 'user',
+          timestampMs: 2,
+          contentJson: JSON.stringify({ parts: [{ type: 'text', text: 'New question' }] }),
+          metadataJson: '{}',
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+        {
+          id: 'new-assistant',
+          parentId: 'new-user',
+          piEntryType: 'message',
+          kind: 'assistant_message',
+          role: 'assistant',
+          timestampMs: 3,
+          contentJson: JSON.stringify({ parts: [{ type: 'text', text: 'New answer' }] }),
+          metadataJson: '{}',
+          pathDepth: 1,
+          createdOrder: 1,
+        },
+      ],
+    })
+
+    expect(result).toMatchObject({
+      activeBranchId: `${sessionId}:main`,
+      activeNodeId: 'new-assistant',
+      branches: [
+        {
+          id: `${sessionId}:main`,
+          headNodeId: 'new-assistant',
+          isMain: true,
+        },
+      ],
+    })
+  })
+
+  it('gives a branch started inside a saved branch its own identity and name', () => {
+    const sessionId = 'nested-session'
+    const savedBranchId = `${sessionId}:branch:retry`
+    const result = deriveSessionBranchesForSnapshot({
+      sessionId,
+      activeNodeId: 'summary',
+      existingBranches: [
+        branchRow(sessionId, `${sessionId}:main`, 'main', 'main-answer', true),
+        branchRow(sessionId, savedBranchId, 'Branch 2', 'retry-answer', false),
+      ],
+      nodes: [
+        node('first', null, 'user_message', 0, 'first'),
+        node('first-answer', 'first', 'assistant_message', 1),
+        node('before-second', 'first-answer', 'custom', 2),
+        node('main-user', 'before-second', 'user_message', 3, 'second'),
+        node('main-answer', 'main-user', 'assistant_message', 4),
+        node('retry', 'before-second', 'custom', 5),
+        node('retry-user', 'retry', 'user_message', 6, 'retried second'),
+        node('retry-answer', 'retry-user', 'assistant_message', 7),
+        // A retry of "retried second" with a summary, which forks inside Branch 2.
+        node('summary', 'retry', 'branch_summary', 8),
+      ],
+    })
+
+    const ids = result.branches.map((branch) => branch.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(result.branches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: savedBranchId,
+          name: 'Branch 2',
+          headNodeId: 'retry-answer',
+        }),
+        expect.objectContaining({ headNodeId: 'summary', name: 'Branch 3' }),
+      ]),
+    )
+    expect(result.activeBranchId).not.toBe(savedBranchId)
+  })
+
+  it('keeps a saved branch when it grows past a retry row saved inside it', () => {
+    const sessionId = 'retry-inside-session'
+    const savedBranchId = `${sessionId}:branch:retry`
+    const retryRowId = `${sessionId}:branch:retry-point`
+    const result = deriveSessionBranchesForSnapshot({
+      sessionId,
+      activeNodeId: 'continued',
+      // A no-summary retry inside Branch 2 saved a row at the retried node, listed first.
+      existingBranches: [
+        branchRow(sessionId, `${sessionId}:main`, 'main', 'main-answer', true),
+        branchRow(sessionId, retryRowId, 'Branch 3', 'retry', false),
+        branchRow(sessionId, savedBranchId, 'Branch 2', 'retry-answer', false),
+      ],
+      nodes: [
+        node('first', null, 'user_message', 0, 'first'),
+        node('first-answer', 'first', 'assistant_message', 1),
+        node('before-second', 'first-answer', 'custom', 2),
+        node('main-user', 'before-second', 'user_message', 3, 'second'),
+        node('main-answer', 'main-user', 'assistant_message', 4),
+        node('retry', 'before-second', 'custom', 5),
+        node('retry-user', 'retry', 'user_message', 6, 'retried second'),
+        node('retry-answer', 'retry-user', 'assistant_message', 7),
+        node('continued', 'retry-answer', 'user_message', 8, 'continue Branch 2'),
+      ],
+    })
+
+    expect(result.activeBranchId).toBe(savedBranchId)
+    expect(result.branches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: savedBranchId, name: 'Branch 2', headNodeId: 'continued' }),
+      ]),
+    )
+  })
+
+  it('does not make a branch of cache refreshes left beside the conversation', () => {
+    // A file where a warming refresh was left as a sibling of the next message (before the fix).
+    const refresh = (id: string, parentId: string, createdOrder: number) => ({
+      ...node(id, parentId, 'custom', createdOrder),
+      piEntryType: 'usage',
+    })
+    const nodes = [
+      node('u1', null, 'user_message', 1, 'First'),
+      node('a1', 'u1', 'assistant_message', 2, 'Answer'),
+      refresh('warm-1', 'a1', 3),
+      refresh('warm-2', 'warm-1', 4),
+      node('u2', 'a1', 'user_message', 5, 'Next'),
+      node('a2', 'u2', 'assistant_message', 6, 'Next answer'),
+    ]
+
+    const derived = deriveSessionBranchesForSnapshot({
+      sessionId: 'session-with-refreshes',
+      nodes,
+      activeNodeId: 'a2',
+      existingBranches: [],
+    })
+
+    expect(derived.branches.map((branch) => branch.headNodeId)).toEqual(['a2'])
+  })
+
+  it('selects the conversation, not a refresh, when the refresh is the Pi leaf', () => {
+    const nodes = [
+      node('u1', null, 'user_message', 1, 'First'),
+      node('a1', 'u1', 'assistant_message', 2, 'Answer'),
+      { ...node('warm-1', 'a1', 'custom', 3), piEntryType: 'usage' },
+    ]
+
+    const derived = deriveSessionBranchesForSnapshot({
+      sessionId: 'session-warming',
+      nodes,
+      activeNodeId: 'warm-1',
+      existingBranches: [],
+    })
+
+    expect(derived.branches.map((branch) => branch.headNodeId)).toEqual(['a1'])
+    expect(derived.activeNodeId).toBe('a1')
+  })
+})

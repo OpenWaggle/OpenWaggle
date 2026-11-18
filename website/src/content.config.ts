@@ -1,91 +1,32 @@
-import { defineCollection } from 'astro:content';
-import type { Loader } from 'astro/loaders';
-import { z } from 'astro/zod';
+import { defineCollection } from 'astro:content'
+import type { Loader } from 'astro/loaders'
+import { z } from 'astro/zod'
+import { changelogAnchor, parseChangelog, scopeHeadingIds } from './lib/changelog'
+import { docsFrontmatterSchema, parseMarkdownFrontmatter } from './lib/docs-frontmatter'
 
-const DEFAULT_DOC_ORDER = 999;
-const DOCS_BASE_DIR = 'src/content/docs';
-const FRONTMATTER_OPEN_MARKER = '---\n';
-const FRONTMATTER_CLOSE_MARKER = '\n---\n';
+const DOCS_BASE_DIR = 'src/content/docs'
+// The repository's root changelog, which each release PR writes. The website lives one level down.
+const CHANGELOG_FILE = '../CHANGELOG.md'
 
 interface FsPromisesModule {
   readdir(
     directory: string,
     options: { readonly withFileTypes: true },
-  ): Promise<readonly { readonly name: string; isDirectory(): boolean }[]>;
-  readFile(filePath: string, encoding: 'utf8'): Promise<string>;
+  ): Promise<readonly { readonly name: string; isDirectory(): boolean }[]>
+  readFile(filePath: string, encoding: 'utf8'): Promise<string>
 }
 
 interface PathModule {
-  join(...paths: string[]): string;
-  relative(from: string, to: string): string;
-}
-
-interface ParsedMarkdownFile {
-  readonly data: Record<string, unknown>;
-  readonly content: string;
+  join(...paths: string[]): string
+  relative(from: string, to: string): string
 }
 
 function toPosixPath(pathValue: string) {
-  return pathValue.replaceAll('\\', '/');
+  return pathValue.replaceAll('\\', '/')
 }
 
 function entryIdFromPath(pathValue: string) {
-  return toPosixPath(pathValue).replace(/\.(md|mdx)$/u, '');
-}
-
-function parseFrontmatterValue(rawValue: string) {
-  const value = rawValue.trim();
-  if (/^-?\d+(?:\.\d+)?$/u.test(value)) {
-    return Number(value);
-  }
-  if (value === 'true') {
-    return true;
-  }
-  if (value === 'false') {
-    return false;
-  }
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
-
-function parseMarkdownFrontmatter(source: string): ParsedMarkdownFile {
-  const normalizedSource = source.replaceAll('\r\n', '\n');
-  if (!normalizedSource.startsWith(FRONTMATTER_OPEN_MARKER)) {
-    return { data: {}, content: normalizedSource };
-  }
-
-  const closingMarkerIndex = normalizedSource.indexOf(
-    FRONTMATTER_CLOSE_MARKER,
-    FRONTMATTER_OPEN_MARKER.length,
-  );
-  if (closingMarkerIndex < 0) {
-    return { data: {}, content: normalizedSource };
-  }
-
-  const frontmatter = normalizedSource.slice(FRONTMATTER_OPEN_MARKER.length, closingMarkerIndex);
-  const content = normalizedSource.slice(closingMarkerIndex + FRONTMATTER_CLOSE_MARKER.length);
-  const data: Record<string, unknown> = {};
-
-  for (const line of frontmatter.split('\n')) {
-    const separatorIndex = line.indexOf(':');
-    if (separatorIndex < 0) {
-      continue;
-    }
-
-    const key = line.slice(0, separatorIndex).trim();
-    if (!key) {
-      continue;
-    }
-
-    data[key] = parseFrontmatterValue(line.slice(separatorIndex + 1));
-  }
-
-  return { data, content };
+  return toPosixPath(pathValue).replace(/\.(md|mdx)$/u, '')
 }
 
 async function collectMarkdownEntries(
@@ -94,81 +35,141 @@ async function collectMarkdownEntries(
   directory: string,
   parent = '',
 ): Promise<string[]> {
-  const directoryEntries = await fs.readdir(directory, { withFileTypes: true });
-  const entryGroups = await Promise.all(directoryEntries.map(async (directoryEntry) => {
-    const relativePath = parent ? path.join(parent, directoryEntry.name) : directoryEntry.name;
-    const absolutePath = path.join(directory, directoryEntry.name);
+  const directoryEntries = await fs.readdir(directory, { withFileTypes: true })
+  const entryGroups = await Promise.all(
+    directoryEntries.map(async (directoryEntry) => {
+      const relativePath = parent ? path.join(parent, directoryEntry.name) : directoryEntry.name
+      const absolutePath = path.join(directory, directoryEntry.name)
 
-    if (directoryEntry.isDirectory()) {
-      return collectMarkdownEntries(fs, path, absolutePath, relativePath);
-    }
+      if (directoryEntry.isDirectory()) {
+        return collectMarkdownEntries(fs, path, absolutePath, relativePath)
+      }
 
-    if (/\.(md|mdx)$/u.test(directoryEntry.name)) {
-      return [relativePath];
-    }
+      if (/\.(md|mdx)$/u.test(directoryEntry.name)) {
+        return [relativePath]
+      }
 
-    return [];
-  }));
+      return []
+    }),
+  )
 
-  return entryGroups.flat();
+  return entryGroups.flat()
 }
 
-function docsMarkdownLoader(): Loader {
+function docsMarkdownLoader() {
   return {
     name: 'openwaggle-docs-markdown-loader',
-    load: async ({ config, generateDigest, parseData, renderMarkdown, store }) => {
-      const fs = process.getBuiltinModule('node:fs/promises');
-      const path = process.getBuiltinModule('node:path');
-      const url = process.getBuiltinModule('node:url');
+    load: async (context) => {
+      const { config, store } = context
+      const fs = process.getBuiltinModule('node:fs/promises')
+      const path = process.getBuiltinModule('node:path')
+      const url = process.getBuiltinModule('node:url')
 
-      const rootPath = url.fileURLToPath(config.root);
-      const docsPath = path.join(rootPath, DOCS_BASE_DIR);
-      const entries = await collectMarkdownEntries(fs, path, docsPath);
+      const rootPath = url.fileURLToPath(config.root)
+      const docsPath = path.join(rootPath, DOCS_BASE_DIR)
+      const entries = await collectMarkdownEntries(fs, path, docsPath)
 
-      store.clear();
+      store.clear()
 
-      const loadedEntries = await Promise.all(entries.sort().map(async (entry) => {
-        const filePath = path.join(docsPath, entry);
-        const source = await fs.readFile(filePath, 'utf8');
-        const parsed = parseMarkdownFrontmatter(source);
-        const id = entryIdFromPath(entry);
-        const normalizedFilePath = toPosixPath(path.relative(rootPath, filePath));
-        const [data, rendered] = await Promise.all([
-          parseData({
+      const loadedEntries = await Promise.all(
+        entries.sort().map(async (entry) => {
+          const filePath = path.join(docsPath, entry)
+          const source = await fs.readFile(filePath, 'utf8')
+          const parsed = parseMarkdownFrontmatter(source)
+          const id = entryIdFromPath(entry)
+          const normalizedFilePath = toPosixPath(path.relative(rootPath, filePath))
+          const [data, rendered] = await Promise.all([
+            context.parseData({
+              id,
+              data: parsed.data,
+              filePath: normalizedFilePath,
+            }),
+            context.renderMarkdown(parsed.content, {
+              fileURL: url.pathToFileURL(filePath),
+            }),
+          ])
+
+          return {
             id,
-            data: parsed.data,
+            data,
+            body: parsed.content,
             filePath: normalizedFilePath,
-          }),
-          renderMarkdown(parsed.content, {
-            fileURL: url.pathToFileURL(filePath),
-          }),
-        ]);
-
-        return {
-          id,
-          data,
-          body: parsed.content,
-          filePath: normalizedFilePath,
-          digest: generateDigest(source),
-          rendered,
-        };
-      }));
+            digest: context.generateDigest(source),
+            rendered,
+          }
+        }),
+      )
 
       for (const entry of loadedEntries) {
-        store.set(entry);
+        // MDX entries compile their own imports/components through the MDX
+        // integration at render time; pre-rendering them here would emit raw
+        // import statements as text. Markdown entries still pre-render.
+        const isMdx = (entry.filePath ?? '').endsWith('.mdx')
+        store.set(isMdx ? { ...entry, rendered: undefined, deferredRender: true } : entry)
       }
     },
-  };
+  } satisfies Loader
 }
 
 const docs = defineCollection({
   loader: docsMarkdownLoader(),
-  schema: z.object({
-    title: z.string(),
-    description: z.string().optional(),
-    order: z.number().default(DEFAULT_DOC_ORDER),
-    section: z.string(),
-  }),
-});
+  schema: docsFrontmatterSchema,
+})
 
-export const collections = { docs };
+/**
+ * One entry per released version in the root CHANGELOG.md, rendered through the same Markdown
+ * pipeline as the docs. `order` keeps the file's newest-first order, which the store does not.
+ */
+function changelogLoader() {
+  return {
+    name: 'openwaggle-changelog-loader',
+    load: async (context) => {
+      const { config, store } = context
+      const fs = process.getBuiltinModule('node:fs/promises')
+      const path = process.getBuiltinModule('node:path')
+      const url = process.getBuiltinModule('node:url')
+
+      const rootPath = url.fileURLToPath(config.root)
+      const filePath = path.join(rootPath, CHANGELOG_FILE)
+      const source = await fs.readFile(filePath, 'utf8')
+      const fileURL = url.pathToFileURL(filePath)
+      const normalizedFilePath = toPosixPath(path.relative(rootPath, filePath))
+
+      const loadedEntries = await Promise.all(
+        parseChangelog(source).map(async (entry, order) => {
+          const id = changelogAnchor(entry.version)
+          const [data, rendered] = await Promise.all([
+            context.parseData({
+              id,
+              data: { version: entry.version, date: entry.date, order },
+              filePath: normalizedFilePath,
+            }),
+            context.renderMarkdown(entry.body, { fileURL }),
+          ])
+          return {
+            id,
+            data,
+            body: entry.body,
+            filePath: normalizedFilePath,
+            digest: context.generateDigest(`${entry.version}\n${entry.date ?? ''}\n${entry.body}`),
+            rendered: { ...rendered, html: scopeHeadingIds(rendered.html, id) },
+          }
+        }),
+      )
+
+      store.clear()
+      for (const entry of loadedEntries) store.set(entry)
+    },
+  } satisfies Loader
+}
+
+const changelog = defineCollection({
+  loader: changelogLoader(),
+  schema: z.object({
+    version: z.string(),
+    date: z.string().optional(),
+    order: z.number().int().nonnegative(),
+  }),
+})
+
+export const collections = { docs, changelog }

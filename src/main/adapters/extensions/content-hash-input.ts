@@ -1,42 +1,23 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { OpenWaggleExtensionManifest } from '@shared/schemas/extensions'
 import type { ContentHashInput } from './package-files'
 
-interface ManifestEntryContribution {
-  readonly entry: string
-}
-
-export interface ManifestContentHashSource {
-  readonly builtArtifacts: readonly string[]
-  readonly contributions?: {
-    readonly routes?: readonly ManifestEntryContribution[]
-    readonly settingsSections?: readonly ManifestEntryContribution[]
-    readonly sidePanels?: readonly ManifestEntryContribution[]
-    readonly dialogs?: readonly ManifestEntryContribution[]
-    readonly transcriptRenderers?: readonly ManifestEntryContribution[]
-    readonly toolRenderers?: readonly ManifestEntryContribution[]
-    readonly customMessageRenderers?: readonly ManifestEntryContribution[]
-    readonly interactionRenderers?: readonly ManifestEntryContribution[]
-    readonly statusWidgets?: readonly ManifestEntryContribution[]
-  }
-  readonly trusted?: {
-    readonly main?: string
-    readonly renderer?: string
-  }
-  readonly runtimeRequirements?: readonly {
-    readonly command?: string
-  }[]
-}
+/** The manifest fields the content hash reads, as a decoded manifest carries them. */
+export type ManifestContentHashSource = Pick<
+  OpenWaggleExtensionManifest,
+  'builtArtifacts' | 'contributions' | 'trusted' | 'runtimeRequirements'
+>
 
 function pushContributionEntryPaths(
   entryPaths: string[],
-  contributions: readonly ManifestEntryContribution[] | undefined,
+  contributions: readonly { readonly entry: string }[] | undefined,
 ) {
   for (const contribution of contributions ?? []) {
     entryPaths.push(contribution.entry)
   }
 }
 
-function getContributionEntryPaths(manifest: ManifestContentHashSource): readonly string[] {
+function getContributionEntryPaths(manifest: ManifestContentHashSource) {
   const contributions = manifest.contributions
   if (!contributions) {
     return []
@@ -61,7 +42,7 @@ function pushIfPresent(paths: string[], pathValue: string | undefined) {
   }
 }
 
-export function getManifestContentHashInput(manifest: ManifestContentHashSource): ContentHashInput {
+export function getManifestContentHashInput(manifest: ManifestContentHashSource) {
   const runtimeFiles: string[] = []
 
   for (const entryPath of getContributionEntryPaths(manifest)) {
@@ -73,9 +54,15 @@ export function getManifestContentHashInput(manifest: ManifestContentHashSource)
     pushIfPresent(runtimeFiles, requirement.command)
   }
 
+  const optionalFiles: string[] = []
+  for (const sidePanel of manifest.contributions?.sidePanels ?? []) {
+    if (typeof sidePanel.icon === 'object') optionalFiles.push(sidePanel.icon.svg)
+  }
+
   return {
     builtArtifacts: manifest.builtArtifacts,
     runtimeFiles,
+    ...(optionalFiles.length > 0 ? { optionalFiles } : {}),
   }
 }
 

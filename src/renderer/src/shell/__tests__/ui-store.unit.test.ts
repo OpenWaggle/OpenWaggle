@@ -12,8 +12,9 @@ describe('useUIStore unit', () => {
       diffRefreshKey: 0,
       toastMessage: null,
       toastData: null,
-      commandPaletteOpen: false,
+      slashCommandMenuOpen: false,
       feedbackModalOpen: false,
+      workspaceTreeOpen: true,
     })
   })
 
@@ -48,16 +49,13 @@ describe('useUIStore unit', () => {
     })
   })
 
-  describe('command palette', () => {
-    it('opens, closes, and toggles commandPaletteOpen', () => {
-      useUIStore.getState().openCommandPalette()
-      expect(useUIStore.getState().commandPaletteOpen).toBe(true)
+  describe('slash command menu', () => {
+    it('opens and closes slashCommandMenuOpen', () => {
+      useUIStore.getState().openSlashCommandMenu()
+      expect(useUIStore.getState().slashCommandMenuOpen).toBe(true)
 
-      useUIStore.getState().closeCommandPalette()
-      expect(useUIStore.getState().commandPaletteOpen).toBe(false)
-
-      useUIStore.getState().toggleCommandPalette()
-      expect(useUIStore.getState().commandPaletteOpen).toBe(true)
+      useUIStore.getState().closeSlashCommandMenu()
+      expect(useUIStore.getState().slashCommandMenuOpen).toBe(false)
     })
   })
 
@@ -68,6 +66,18 @@ describe('useUIStore unit', () => {
       useUIStore.getState().clearToast()
 
       expect(useUIStore.getState().toastMessage).toBeNull()
+    })
+  })
+
+  describe('workspace navigator', () => {
+    it('shares one collapsible state between code surfaces', () => {
+      expect(useUIStore.getState().workspaceTreeOpen).toBe(true)
+
+      useUIStore.getState().toggleWorkspaceTree()
+      expect(useUIStore.getState().workspaceTreeOpen).toBe(false)
+
+      useUIStore.getState().toggleWorkspaceTree()
+      expect(useUIStore.getState().workspaceTreeOpen).toBe(true)
     })
   })
 })

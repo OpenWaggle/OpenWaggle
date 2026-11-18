@@ -7,6 +7,7 @@
 @import "@fontsource/inter/600.css";
 @import "./prose.css";
 @import "../../../packages/extension-react/styles.css";
+@import "./extension-theme.css";
 
 @theme {
   /* Surfaces */

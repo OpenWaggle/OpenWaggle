@@ -76,17 +76,35 @@ describe('Pi entry projection', () => {
         thinkingLevel: 'xhigh',
       }),
     ).toMatchObject({ kind: 'thinking_level_change', role: null })
-    expect(
-      projectionForPiEntry({
-        ...base('compaction'),
-        type: 'compaction',
-        summary: 'summary',
-        firstKeptEntryId: 'kept',
-        tokensBefore: 12,
-        details: { source: 'test' },
-        fromHook: true,
-      }),
-    ).toMatchObject({ kind: 'compaction_summary', role: null })
+    const compactionProjection = projectionForPiEntry({
+      ...base('compaction'),
+      type: 'compaction',
+      summary: 'summary',
+      firstKeptEntryId: 'kept',
+      tokensBefore: 12,
+      details: {
+        schemaVersion: 1,
+        mechanism: 'native',
+        identity: {
+          api: 'openai-responses',
+          provider: 'openai',
+          baseUrl: 'https://api.openai.com/v1',
+          modelId: 'gpt-5.2',
+        },
+        items: [{ type: 'compaction', encrypted_content: 'opaque' }],
+      },
+      fromHook: true,
+      reason: 'threshold',
+    })
+    expect(compactionProjection).toMatchObject({ kind: 'compaction_summary', role: null })
+    expect(JSON.parse(compactionProjection.contentJson)).toEqual({
+      summary: 'summary',
+      firstKeptEntryId: 'kept',
+      tokensBefore: 12,
+      fromHook: true,
+      reason: 'threshold',
+    })
+    expect(compactionProjection.contentJson).not.toContain('opaque')
     expect(
       projectionForPiEntry({
         ...base('branch'),
@@ -117,6 +135,33 @@ describe('Pi entry projection', () => {
       kind: 'session_info',
       role: null,
     })
+  })
+
+  it.each([
+    ['no content', []],
+    ['an empty text block', [{ type: 'text' as const, text: '' }]],
+  ])('keeps an interrupted response with %s out of the transcript', (_label, content) => {
+    const entry = assistantMessage('aborted', 'prompt', '')
+    const projection = projectionForPiEntry({
+      ...entry,
+      message: { ...entry.message, content, stopReason: 'aborted' },
+    })
+
+    expect(projection).toMatchObject({ kind: 'custom', role: null })
+    expect(JSON.parse(projection.contentJson)).toMatchObject({
+      role: 'assistant',
+      stopReason: 'aborted',
+    })
+  })
+
+  it('keeps what an interrupted response had already streamed', () => {
+    const entry = assistantMessage('aborted', 'prompt', 'Partial answer')
+    const projection = projectionForPiEntry({
+      ...entry,
+      message: { ...entry.message, stopReason: 'aborted' },
+    })
+
+    expect(projection).toMatchObject({ kind: 'assistant_message', role: 'assistant' })
   })
 
   it('projects visible Waggle custom messages as user messages', () => {
@@ -231,5 +276,45 @@ describe('Pi entry projection', () => {
       ['child', 1, 1],
       ['grandchild', 2, 2],
     ])
+  })
+
+  it('attributes every branch node to its nearest durable Run boundary', () => {
+    const entries = [
+      { ...base('old-root'), type: 'session_info', name: 'Before Session Control' },
+      {
+        ...base('run-1-boundary', 'old-root'),
+        type: 'custom',
+        customType: 'openwaggle-run-boundary',
+        data: { version: 1, runId: 'run-1' },
+      },
+      userMessage('run-1-user', 'run-1-boundary', 'First turn'),
+      {
+        ...base('run-2-boundary', 'run-1-user'),
+        type: 'custom',
+        customType: 'openwaggle-run-boundary',
+        data: { version: 1, runId: 'run-2' },
+      },
+      assistantMessage('run-2-assistant', 'run-2-boundary', 'Second turn'),
+      assistantMessage('run-1-branch', 'run-1-user', 'First-turn branch'),
+    ] satisfies SessionEntry[]
+
+    const snapshot = projectPiSessionSnapshot({
+      sessionManager: { getEntries: () => entries, getLeafId: () => 'run-2-assistant' },
+    })
+    const runIds = Object.fromEntries(
+      snapshot.nodes.map((node) => [
+        node.id,
+        JSON.parse(node.metadataJson).openWaggle?.runId ?? null,
+      ]),
+    )
+
+    expect(runIds).toEqual({
+      'old-root': null,
+      'run-1-boundary': 'run-1',
+      'run-1-user': 'run-1',
+      'run-2-boundary': 'run-2',
+      'run-2-assistant': 'run-2',
+      'run-1-branch': 'run-1',
+    })
   })
 })

@@ -1,9 +1,8 @@
-import { seedSingleSession } from '../e2e/support/session-fixtures'
+import { SupportedModelId } from '@shared/types/brand'
+import { seedSingleSession } from './support/session-fixtures'
 
 export const PROJECT_NAME = 'OpenWaggle'
 export const THREAD_TITLE = 'review this waggle fix before merge'
-export const THREAD_LIST_MATCHER = /review this waggle/i
-
 const THREAD_PROMPT =
   'I just fixed the waggle streaming regression. Please review the changes, challenge the risky parts, and tell me whether this branch is ready to merge.'
 const WAGGLE_MAX_TURNS_SAFETY = 5
@@ -19,10 +18,29 @@ const FINAL_ADVOCATE_TURN_NUMBER = 4
 
 type AgentLabel = 'Advocate' | 'Critic'
 
+/**
+ * Each agent runs its own model. Waggle configs only accept provider-qualified model ids: a bare
+ * id fails the branch's config schema, and the transcript then drops every turn's attribution.
+ */
+const ADVOCATE_MODEL = SupportedModelId('anthropic/claude-opus-4-6')
+const CRITIC_MODEL = SupportedModelId('anthropic/claude-sonnet-4-6')
+const AGENT_MODELS: Readonly<Record<AgentLabel, SupportedModelId>> = {
+  Advocate: ADVOCATE_MODEL,
+  Critic: CRITIC_MODEL,
+}
+/**
+ * The preset the seeded prompt started, shown as the chip on the user message: a project preset
+ * with its own agents, colours and models, not one of the built-in presets.
+ */
+const WAGGLE_INVOCATION = {
+  presetId: 'merge-review',
+  presetName: 'Merge Review',
+  source: 'user',
+} as const
+
 interface MarketingAssistantTurn {
   readonly id: string
   readonly label: AgentLabel
-  readonly model: string
   readonly offsetMs: number
   readonly turnNumber: number
   readonly lines: readonly string[]
@@ -32,7 +50,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-1',
     label: 'Advocate',
-    model: 'claude-opus-4-6',
     offsetMs: OPENING_ADVOCATE_OFFSET_MS,
     turnNumber: 0,
     lines: [
@@ -56,7 +73,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-2',
     label: 'Critic',
-    model: 'claude-sonnet-4-6',
     offsetMs: FIRST_CRITIC_OFFSET_MS,
     turnNumber: 1,
     lines: [
@@ -74,7 +90,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-3',
     label: 'Advocate',
-    model: 'claude-opus-4-6',
     offsetMs: SECOND_ADVOCATE_OFFSET_MS,
     turnNumber: SECOND_ADVOCATE_TURN_NUMBER,
     lines: [
@@ -92,7 +107,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-4',
     label: 'Critic',
-    model: 'claude-sonnet-4-6',
     offsetMs: SECOND_CRITIC_OFFSET_MS,
     turnNumber: SECOND_CRITIC_TURN_NUMBER,
     lines: [
@@ -110,7 +124,6 @@ const MARKETING_ASSISTANT_TURNS: readonly MarketingAssistantTurn[] = [
   {
     id: 'website-assistant-5',
     label: 'Advocate',
-    model: 'claude-opus-4-6',
     offsetMs: FINAL_ADVOCATE_OFFSET_MS,
     turnNumber: FINAL_ADVOCATE_TURN_NUMBER,
     lines: [
@@ -132,59 +145,110 @@ function makeWaggleMetadata(agentLabel: AgentLabel, turnNumber: number) {
     agentIndex: isAdvocate ? 0 : 1,
     agentLabel,
     agentColor: isAdvocate ? 'blue' : 'amber',
-    agentModel: isAdvocate ? 'claude-opus-4-6' : 'claude-sonnet-4-6',
+    agentModel: AGENT_MODELS[agentLabel],
     turnNumber,
   }
 }
 
-function buildMarketingMessages(now: number) {
-  return [
+/** The seeded branch's Waggle config, as the Waggle Mode editor would save it. */
+export const MARKETING_WAGGLE_CONFIG = {
+  mode: 'sequential',
+  agents: [
     {
-      id: 'website-user-1',
-      role: 'user',
-      createdAt: now - USER_MESSAGE_OFFSET_MS,
-      parts: [{ type: 'text', text: THREAD_PROMPT }],
+      label: 'Advocate',
+      model: ADVOCATE_MODEL,
+      roleDescription: 'Argues for the strongest technical case',
+      color: 'blue',
     },
-    ...MARKETING_ASSISTANT_TURNS.map((turn) => ({
-      id: turn.id,
-      role: 'assistant',
-      model: turn.model,
-      createdAt: now - turn.offsetMs,
-      metadata: { waggle: makeWaggleMetadata(turn.label, turn.turnNumber) },
-      parts: [{ type: 'text', text: turn.lines.join('\n') }],
-    })),
-  ]
+    {
+      label: 'Critic',
+      model: CRITIC_MODEL,
+      roleDescription: 'Challenges assumptions and validates evidence',
+      color: 'amber',
+    },
+  ],
+  stop: {
+    primary: 'consensus',
+    maxTurnsSafety: WAGGLE_MAX_TURNS_SAFETY,
+  },
+}
+
+export function marketingPrompt(now: number) {
+  return {
+    id: 'website-user-1',
+    role: 'user',
+    createdAt: now - USER_MESSAGE_OFFSET_MS,
+    metadata: { waggleInvocation: WAGGLE_INVOCATION },
+    parts: [{ type: 'text', text: THREAD_PROMPT }],
+  }
+}
+
+export function marketingReplies(now: number) {
+  return MARKETING_ASSISTANT_TURNS.map((turn) => ({
+    id: turn.id,
+    role: 'assistant',
+    model: AGENT_MODELS[turn.label],
+    createdAt: now - turn.offsetMs,
+    metadata: { waggle: makeWaggleMetadata(turn.label, turn.turnNumber) },
+    parts: [{ type: 'text', text: turn.lines.join('\n') }],
+  }))
 }
 
 export async function seedMarketingSession(userDataDir: string, projectPath: string) {
   console.info('[website-shots] seeding marketing session')
   const now = Date.now()
 
-  await seedSingleSession(userDataDir, {
+  return seedSingleSession(userDataDir, {
     title: THREAD_TITLE,
     projectPath,
     updatedAt: now,
-    waggleConfig: {
-      mode: 'sequential',
-      agents: [
-        {
-          label: 'Advocate',
-          model: 'claude-opus-4-6',
-          roleDescription: 'Argues for the strongest technical case',
-          color: 'blue',
-        },
-        {
-          label: 'Critic',
-          model: 'claude-sonnet-4-6',
-          roleDescription: 'Challenges assumptions and validates evidence',
-          color: 'amber',
-        },
-      ],
-      stop: {
-        primary: 'consensus',
-        maxTurnsSafety: WAGGLE_MAX_TURNS_SAFETY,
+    executionModel: ADVOCATE_MODEL,
+    waggleConfig: MARKETING_WAGGLE_CONFIG,
+    messages: [marketingPrompt(now), ...marketingReplies(now)],
+  })
+}
+
+export const BROWSER_THREAD_TITLE = 'Review the dashboard'
+const BROWSER_USER_OFFSET_MS = 2_000
+const BROWSER_ASSISTANT_OFFSET_MS = 1_000
+
+/** The Session the Browser preview screenshot opens its preview in. */
+export async function seedBrowserSession(userDataDir: string, projectPath: string) {
+  const now = Date.now()
+  return seedSingleSession(userDataDir, {
+    title: BROWSER_THREAD_TITLE,
+    projectPath,
+    updatedAt: now - BROWSER_USER_OFFSET_MS,
+    messages: [
+      {
+        id: 'website-browser-user-1',
+        role: 'user',
+        createdAt: now - BROWSER_USER_OFFSET_MS,
+        parts: [
+          {
+            type: 'text',
+            text: "Let's review the dashboard in the browser. I want to check the layout before we make more changes.",
+          },
+        ],
       },
-    },
-    messages: buildMarketingMessages(now),
+      {
+        id: 'website-browser-assistant-1',
+        role: 'assistant',
+        model: 'gpt-5.4',
+        createdAt: now - BROWSER_ASSISTANT_OFFSET_MS,
+        parts: [
+          {
+            type: 'text',
+            text: [
+              'Use the browser beside this conversation to inspect the page.',
+              '',
+              'You can select an element, capture a region, or draw on the page and attach it to your next message.',
+              '',
+              'What would you like to adjust?',
+            ].join('\n'),
+          },
+        ],
+      },
+    ],
   })
 }

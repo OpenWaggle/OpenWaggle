@@ -1,9 +1,10 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useComposerStore } from '@/features/composer/state'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 
 export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+  return ipcErrorMessage(error)
 }
 
 export function clearComposerDraftsForSessions(sessions: readonly Pick<SessionSummary, 'id'>[]) {

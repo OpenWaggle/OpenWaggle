@@ -1,10 +1,10 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
-import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
+import type { OAuthFlowStatus, OAuthInputPrompt, OAuthProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
-import { shell } from 'electron'
+import { openExternal } from '../desktop-ui'
+import { runGuiEffect } from '../gui-runtime'
 import { createLogger } from '../logger'
 import { ProviderOAuthService } from '../ports/provider-oauth-service'
-import { runAppEffect } from '../runtime'
 
 const logger = createLogger('auth')
 
@@ -25,9 +25,10 @@ const inFlightOAuthFlows = new Map<OAuthProvider, InFlightOAuthFlow>()
 const canceledOAuthFlows = new Set<OAuthProvider>()
 const lifecycleConnectivity = new Map<OAuthProvider, boolean>()
 let authLifecycleTimer: ReturnType<typeof setInterval> | null = null
+let authLifecycleFirstCheck: ReturnType<typeof setTimeout> | null = null
 let authLifecycleTickInFlight = false
 
-export function submitCode(provider: OAuthProvider, code: string): void {
+export function submitCode(provider: OAuthProvider, code: string) {
   const handler = pendingInputHandlers.get(provider)
   if (handler) {
     pendingInputHandlers.delete(provider)
@@ -35,10 +36,7 @@ export function submitCode(provider: OAuthProvider, code: string): void {
   }
 }
 
-export async function startOAuth(
-  provider: OAuthProvider,
-  emitStatus: StatusEmitter,
-): Promise<void> {
+export async function startOAuth(provider: OAuthProvider, emitStatus: StatusEmitter) {
   if (inFlightOAuthFlows.has(provider)) {
     const message = 'A sign-in attempt is already in progress for this provider.'
     emitStatus({ type: 'error', provider, message })
@@ -54,10 +52,7 @@ export async function startOAuth(
   await flowPromise
 }
 
-export async function cancelOAuth(
-  provider: OAuthProvider,
-  emitStatus: StatusEmitter,
-): Promise<void> {
+export async function cancelOAuth(provider: OAuthProvider, emitStatus: StatusEmitter) {
   const flow = inFlightOAuthFlows.get(provider)
   if (!flow) {
     emitStatus({ type: 'idle' })
@@ -79,22 +74,37 @@ export async function cancelOAuth(
   logger.info('OAuth flow cancelled', { provider })
 }
 
-export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
+function stopAuthLifecycleTimers() {
   if (authLifecycleTimer) {
     clearInterval(authLifecycleTimer)
+    authLifecycleTimer = null
   }
+  if (authLifecycleFirstCheck) {
+    clearTimeout(authLifecycleFirstCheck)
+    authLifecycleFirstCheck = null
+  }
+}
 
-  void runAuthLifecycleTick(emitStatus)
+/**
+ * Watches for OAuth sign-ins that expire while the app runs. The first check waits until the
+ * window has opened: it loads Pi and builds a model runtime in this process (≈95 ms of the main
+ * thread on a cold start, W11), and the window lists the accounts itself once Settings load.
+ */
+export function startAuthLifecycle(emitStatus: StatusEmitter) {
+  stopAuthLifecycleTimers()
+
+  authLifecycleFirstCheck = setTimeout(() => {
+    authLifecycleFirstCheck = null
+    void runAuthLifecycleTick(emitStatus)
+  }, AUTH_TIMEOUT.LIFECYCLE_FIRST_CHECK_DELAY_MS)
+  authLifecycleFirstCheck.unref?.()
   authLifecycleTimer = setInterval(() => {
     void runAuthLifecycleTick(emitStatus)
   }, AUTH_TIMEOUT.LIFECYCLE_INTERVAL_MS)
   authLifecycleTimer.unref?.()
 
   return () => {
-    if (authLifecycleTimer) {
-      clearInterval(authLifecycleTimer)
-      authLifecycleTimer = null
-    }
+    stopAuthLifecycleTimers()
     lifecycleConnectivity.clear()
   }
 }
@@ -105,25 +115,36 @@ async function runOAuthFlow(
   signal: AbortSignal,
 ) {
   emitStatus({ type: 'in-progress', provider })
+  // The latest sign-in link and its instructions, shown with every later prompt so a user whose
+  // browser runs elsewhere (copy-code sign-in) can open it there.
+  let link: { readonly authUrl: string; readonly instructions?: string } | null = null
+  const awaitingInput = (prompt?: OAuthInputPrompt) =>
+    ({
+      type: 'awaiting-code',
+      provider,
+      ...link,
+      ...(prompt ? { prompt } : {}),
+    }) satisfies OAuthFlowStatus
 
   try {
-    await runAppEffect(
+    await runGuiEffect(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         yield* authService.login(provider, {
-          onAuthUrl: (url, usesCallbackServer) => {
-            void shell.openExternal(url).catch((error) => {
+          onAuthUrl: (url, instructions) => {
+            link = { authUrl: url, ...(instructions ? { instructions } : {}) }
+            void openExternal(url).catch((error: unknown) => {
               logger.warn('Failed to open OAuth URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),
               })
             })
-            if (usesCallbackServer) {
-              emitStatus({ type: 'awaiting-code', provider })
-            }
+            // A sign-in that finishes in the browser asks nothing more, so its instructions and
+            // link are all there is to show while it waits.
+            emitStatus(awaitingInput())
           },
           onDeviceCode: (deviceCode) => {
-            void shell.openExternal(deviceCode.verificationUri).catch((error) => {
+            void openExternal(deviceCode.verificationUri).catch((error: unknown) => {
               logger.warn('Failed to open OAuth device-code URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),
@@ -136,16 +157,16 @@ async function runOAuthFlow(
             emitStatus({ type: 'awaiting-selection', provider, selection })
             return createOAuthInputPromise(provider)
           },
-          onPrompt: async () => {
-            emitStatus({ type: 'awaiting-code', provider })
-            return createOAuthInputPromise(provider)
+          onPrompt: async (prompt, promptSignal) => {
+            emitStatus(awaitingInput(prompt))
+            return createOAuthInputPromise(provider, { signal: promptSignal, emitStatus })
           },
           onProgress: () => {
             emitStatus({ type: 'in-progress', provider })
           },
-          onManualCodeInput: () => {
-            emitStatus({ type: 'awaiting-code', provider })
-            return createOAuthInputPromise(provider)
+          onManualCodeInput: (prompt, promptSignal) => {
+            emitStatus(awaitingInput(prompt))
+            return createOAuthInputPromise(provider, { signal: promptSignal, emitStatus })
           },
           signal,
         })
@@ -180,7 +201,15 @@ async function runOAuthFlow(
   }
 }
 
-function createOAuthInputPromise(provider: OAuthProvider) {
+/**
+ * The answer the user types or pastes. `signal` aborts when the sign-in no longer needs it, such
+ * as when the browser callback finished it first: the field goes away and the sign-in shows as in
+ * progress again.
+ */
+function createOAuthInputPromise(
+  provider: OAuthProvider,
+  cancellation?: { readonly signal: AbortSignal | undefined; readonly emitStatus: StatusEmitter },
+) {
   const existingPending = pendingInputHandlers.get(provider)
   if (existingPending) {
     pendingInputHandlers.delete(provider)
@@ -190,7 +219,18 @@ function createOAuthInputPromise(provider: OAuthProvider) {
   }
 
   const inputPromise = new Promise<string>((resolve, reject) => {
-    pendingInputHandlers.set(provider, { resolve, reject })
+    const pending = { resolve, reject }
+    pendingInputHandlers.set(provider, pending)
+    cancellation?.signal?.addEventListener(
+      'abort',
+      () => {
+        if (pendingInputHandlers.get(provider) !== pending) return
+        pendingInputHandlers.delete(provider)
+        reject(new Error('The sign-in no longer needs this answer.'))
+        cancellation.emitStatus({ type: 'in-progress', provider })
+      },
+      { once: true },
+    )
   })
   void inputPromise.catch(() => {})
   return inputPromise
@@ -201,7 +241,7 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter) {
   authLifecycleTickInFlight = true
 
   try {
-    const providerStates = await runAppEffect(
+    const providerStates = await runGuiEffect(
       Effect.gen(function* () {
         const authService = yield* ProviderOAuthService
         const providers = yield* authService.listProviders()
@@ -238,7 +278,7 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter) {
 }
 
 async function logoutOAuthProvider(provider: OAuthProvider) {
-  await runAppEffect(
+  await runGuiEffect(
     Effect.gen(function* () {
       const authService = yield* ProviderOAuthService
       yield* authService.logout(provider)
@@ -246,14 +286,14 @@ async function logoutOAuthProvider(provider: OAuthProvider) {
   )
 }
 
-export async function disconnect(provider: OAuthProvider): Promise<void> {
+export async function disconnect(provider: OAuthProvider) {
   await logoutOAuthProvider(provider)
 
   logger.info('Disconnected OAuth provider', { provider })
 }
 
-export async function getAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo> {
-  return runAppEffect(
+export async function getAccountInfo(provider: OAuthProvider) {
+  return runGuiEffect(
     Effect.gen(function* () {
       const authService = yield* ProviderOAuthService
       return yield* authService.getAccountInfo(provider)

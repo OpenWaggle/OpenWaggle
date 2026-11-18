@@ -1,20 +1,25 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
-import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { type RefObject, useEffect, useId, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { formatContextWindow } from '@/shared/lib/format-tokens'
 import { Button } from '@/shared/ui/Button'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
-import { ProviderModelIcon, resolveIconColor } from './provider-icon'
+import { ProviderModelIcon } from './provider-icon'
 import type { FlatModel } from './types'
+import { useListFocusReturn } from './useListFocusReturn'
 
 interface ModelSelectorProps {
-  value: SupportedModelId
+  value: SupportedModelId | undefined
   onChange: (model: SupportedModelId) => void
   settings: Settings
   providerModels: ProviderInfo[]
   className?: string
+  disabled?: boolean
+  fallbackLabel?: string
+  title?: string
 }
 
 /**
@@ -31,7 +36,9 @@ function toFlatModel(group: ProviderInfo, model: ProviderInfo['models'][number])
     name: model.name.trim() || model.modelId,
     provider: group.provider,
     providerName: group.displayName,
-    contextWindowLabel: model.contextWindow ? formatContextWindow(model.contextWindow) : undefined,
+    ...(model.contextWindow
+      ? { contextWindowLabel: formatContextWindow(model.contextWindow) }
+      : {}),
   } satisfies FlatModel
 }
 
@@ -87,23 +94,105 @@ interface SelectedModelIconProps {
 }
 
 function SelectedModelIcon({ provider }: SelectedModelIconProps) {
-  const color = resolveIconColor(provider)
-  return <ProviderModelIcon provider={provider} className="size-3.5 shrink-0" style={{ color }} />
+  return <ProviderModelIcon provider={provider} className="size-3.5 shrink-0" />
 }
 
+interface ModelSelectorTriggerProps {
+  readonly triggerRef: RefObject<HTMLButtonElement | null>
+  readonly disabled: boolean
+  readonly title: string | undefined
+  /** Whether the popup is open, and its role: a listbox of models, or a dialog saying why none. */
+  readonly popup: { readonly open: boolean; readonly role: 'listbox' | 'dialog' }
+  readonly label: string
+  readonly provider: FlatModel['provider'] | undefined
+  readonly onToggle: () => void
+  readonly onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void
+}
+
+/** Focusable while disabled, with `title` as its description then: why it is unavailable. */
+function ModelSelectorTrigger({
+  triggerRef,
+  disabled,
+  title,
+  popup,
+  label,
+  provider,
+  onToggle,
+  onKeyDown,
+}: ModelSelectorTriggerProps) {
+  const reasonId = useId()
+  const describedReason = disabled && title ? title : undefined
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        variant="unstyled"
+        type="button"
+        onClick={() => {
+          if (!disabled) onToggle()
+        }}
+        onKeyDown={onKeyDown}
+        aria-disabled={disabled || undefined}
+        aria-describedby={describedReason ? reasonId : undefined}
+        title={title}
+        aria-expanded={popup.open}
+        aria-haspopup={popup.role}
+        className={cn(
+          'no-drag flex h-6.5 items-center gap-1.5 rounded-md border border-button-border px-2.5 transition-colors',
+          disabled ? 'cursor-not-allowed opacity-80' : 'hover:bg-bg-hover hover:text-text-primary',
+          provider ? 'text-text-secondary' : 'text-text-muted',
+        )}
+      >
+        {provider && <SelectedModelIcon provider={provider} />}
+        <span className="max-w-45 truncate text-xs @max-xl/composer-toolbar:max-w-20">{label}</span>
+        {!disabled ? (
+          <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
+        ) : null}
+      </Button>
+      {describedReason ? (
+        <span id={reasonId} className="sr-only">
+          {describedReason}
+        </span>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * The model picker. While `disabled` it stays focusable (`aria-disabled`) and `title` becomes its
+ * description, so keyboard and screen reader users can reach the reason it is unavailable. A list
+ * open when it becomes disabled closes, and focus inside the list returns to the trigger.
+ */
 export function ModelSelector({
   value,
   onChange,
   settings,
   providerModels,
   className,
+  disabled = false,
+  fallbackLabel,
+  title,
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
+  // Disabling closes the list rather than hiding it, so it cannot reopen when re-enabled.
+  if (disabled && isOpen) setIsOpen(false)
   const ref = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const forgetListFocus = useListFocusReturn({
+    disabled,
+    rootRef: ref,
+    listRef: dropdownRef,
+    triggerRef,
+  })
 
   const flatModels = buildFlatModels(providerModels, settings)
   const selectedModel = flatModels.find((m) => m.id === value)
+
+  function closeList() {
+    forgetListFocus()
+    setIsOpen(false)
+  }
 
   // Outside-click handler
   useEffect(() => {
@@ -113,6 +202,7 @@ export function ModelSelector({
       if (!(event.target instanceof Node)) return
       if (ref.current?.contains(event.target)) return
       if (dropdownRef.current?.contains(event.target)) return
+      forgetListFocus()
       setIsOpen(false)
     }
 
@@ -120,21 +210,28 @@ export function ModelSelector({
     return () => {
       document.removeEventListener('mousedown', onMouseDown)
     }
-  }, [isOpen])
+  }, [isOpen, forgetListFocus])
 
   function selectModel(model: FlatModel) {
     onChange(model.id)
-    setIsOpen(false)
+    closeList()
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  function handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {
       event.preventDefault()
-      setIsOpen(false)
+      closeList()
+      triggerRef.current?.focus()
     }
   }
 
   function triggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (disabled) return
+    if (event.key === 'Escape' && isOpen) {
+      event.preventDefault()
+      closeList()
+      return
+    }
     if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
       event.preventDefault()
       setIsOpen(true)
@@ -143,26 +240,21 @@ export function ModelSelector({
 
   return (
     <div ref={ref} className={cn('relative', className)}>
-      <Button
-        variant="unstyled"
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
+      <ModelSelectorTrigger
+        triggerRef={triggerRef}
+        disabled={disabled}
+        title={title}
+        popup={{ open: isOpen, role: flatModels.length > 0 ? 'listbox' : 'dialog' }}
+        label={selectedModel?.name ?? fallbackLabel ?? 'Select model'}
+        provider={selectedModel?.provider}
+        onToggle={() => {
+          if (isOpen) closeList()
+          else setIsOpen(true)
+        }}
         onKeyDown={triggerKeyDown}
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
-        className={cn(
-          'no-drag flex h-[26px] items-center gap-[5px] rounded-md border border-button-border px-2.5 transition-colors hover:bg-bg-hover hover:text-text-primary',
-          selectedModel ? 'text-text-secondary' : 'text-text-muted',
-        )}
-      >
-        {selectedModel && <SelectedModelIcon provider={selectedModel.provider} />}
-        <span className="max-w-[180px] truncate text-[12px]">
-          {selectedModel?.name ?? 'Select model'}
-        </span>
-        <span className="text-[9px] text-text-tertiary">&#x2228;</span>
-      </Button>
+      />
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <ModelSelectorDropdown
           dropdownRef={dropdownRef}
           models={flatModels}

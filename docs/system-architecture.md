@@ -9,7 +9,7 @@ The main process owns runtime execution, persistence, provider configuration, au
 Layering follows the hexagonal model:
 
 - `src/main/domain/` contains pure business logic.
-- `src/main/ports/` defines Effect service ports such as `AgentKernelService`, `SessionRepository`, `SessionProjectionRepository`, `SessionTreePreferencesService`, `ProviderService`, `ProviderAuthService`, `ProviderOAuthService`, `ProviderProbeService`, `WagglePresetsRepository`, and `StandardsService`.
+- `src/main/ports/` defines Effect service ports such as `AgentKernelService`, `SessionRepository`, `SessionProjectionRepository`, `SessionTreePreferencesService`, `ProviderService`, `ProviderAuthService`, `ProviderOAuthService`, `ProviderProbeService`, and `WagglePresetsRepository`.
 - `src/main/adapters/` implements ports. OpenWaggle desktop app Pi SDK imports are confined to `src/main/adapters/pi/`; dedicated Pi packages under `packages/pi-*` may import Pi SDKs internally.
 - `src/main/application/` orchestrates runs through ports.
 - `src/main/ipc/` handles Electron IPC and emits transport events.
@@ -34,6 +34,10 @@ Detailed renderer rules live in `docs/renderer-architecture.md`.
 
 Session-tree and branch navigation use typed IPC channels such as `sessions:get-workspace`, `sessions:navigate-tree`, `sessions:rename-branch`, `sessions:archive-branch`, `sessions:restore-branch`, `sessions:update-tree-ui-state`, `pi-settings:get-tree-filter-mode`, `pi-settings:set-tree-filter-mode`, and `pi-settings:get-branch-summary-skip-prompt`.
 
+## Git Working Tree
+
+Diff-panel Git mutations cross typed preload and IPC channels and execute Git with argument arrays, never interpolated shell commands. `Stage all` stages every modified, deleted, and untracked path in the repository, even when the selected project path is a repository subdirectory. `Revert all` requires a main-process-owned native confirmation and an existing `HEAD`; after confirmation it restores tracked and staged changes to `HEAD`, then permanently removes untracked files and directories across the repository. Ignored files and nested Git repositories are retained. Before mutation, the main process refuses the operation without changing files when a retained or otherwise untracked path obstructs restoring a tracked `HEAD` path. A cleanup failure after tracked restoration is reported as a partial revert so the renderer can warn the user and refresh status and diff state.
+
 ## Sessions
 
 Pi sessions and OpenWaggle sessions are projected into:
@@ -45,6 +49,14 @@ Pi sessions and OpenWaggle sessions are projected into:
 - `session_tree_ui_state`
 
 Session trees, branches, Waggle metadata, and future-mode state are explicit projection data over the Pi session graph.
+
+## One SQLite library
+
+OpenWaggle opens its own SQLite files with better-sqlite3 only (#371). That covers the Session Host database and its cutover staging, legacy and recovery copies, the ownership lock files, and the test and benchmark code that runs Host modules. The Host's runtime connection goes through `@effect/sql-sqlite-node`, and every other connection to these files goes through `openHostSqliteDatabase` (`src/main/session-host/host-sqlite-database.ts`). Code that needs the live database inside the Host, such as the upgrade-blocker check in the handshake and `host stop`, uses the Host's existing connection through the app runtime and does not open a second one.
+
+The rule exists because each SQLite library carries its own copy of SQLite. POSIX advisory locks belong to the process, not to a connection, and one copy does not track the other copy's locks. When one copy closes its file descriptor, it drops the other copy's locks on that file, and another process can then write at the same time ([How To Corrupt An SQLite Database File, section 2.2.1](https://www.sqlite.org/howtocorrupt.html#_multiple_copies_of_sqlite_linked_into_the_same_application)). `host-sqlite-database.integration.test.ts` checks that a second connection in the Host's process leaves the Host's write lock held. With a `node:sqlite` reader, that lock was released.
+
+Node and Electron always ship `node:sqlite`, and dependencies such as undici load it for feature detection. That is safe: the hazard needs two copies with the same file open. `bun run check:repository-standards` rejects `node:sqlite` and other SQLite libraries anywhere under `src/`, `scripts/` and `packages/`, Worker source strings included. The only exception is `src/main/browser-import/`, which reads the browsers' own cookie and profile databases and never opens OpenWaggle's files. The root `overrides` entry for `better-sqlite3` under `@effect/sql-sqlite-node` keeps one better-sqlite3 build in the process, and `host-sqlite-database.unit.test.ts` checks it.
 
 ## Waggle Presets
 
@@ -64,7 +76,7 @@ Pi's resource loader is the runtime source of truth for skills and context files
 
 ## MCP
 
-MCP support is provided through Pi's extension system using the `pi-mcp-adapter` package source. The main process owns MCP config file reads/writes behind `McpConfigService`; the renderer only sees typed IPC DTOs. The effective MCP config merges global standard, global Pi, project standard, `.agents`, project Pi, and `.openwaggle/agent/mcp.json` sources before being passed to Pi for the next run. The Pi adapter scopes adapter startup and session binding to the generated MCP config and an isolated adapter cwd, then emits `session_shutdown` before disposal so MCP server state follows Pi's extension lifecycle.
+OpenWaggle has no MCP client of its own (ADR 0051). Every Pi session it creates loads Pi's built-in MCP, codemode, and tool-search extensions, and OpenWaggle supplies their plug-in points: configuration read from `~/.pi/agent/mcp.json`, `~/.openwaggle/mcp.json`, project `.mcp.json`, `.pi/mcp.json`, and `.openwaggle/mcp.json`, with vault secrets resolved; transports leased from a per-Session connection pool in the Session Host (the MCP transport layer, which adds sampling, elicitation, roots, and MCP App resources); vault-first OAuth state; and a companion Pi extension for approval and MCP App descriptors. There is no trust layer: adding a project is the only trust decision. Main-process code reaches MCP through the `McpConfigurationService`, `McpServerRuntimeService`, `McpAppRuntimeService`, `McpImportService`, `McpRegistryService`, and `McpSecretVaultService` ports. See `docs/mcp-runtime.md`.
 
 ## OpenWaggle Extensions
 

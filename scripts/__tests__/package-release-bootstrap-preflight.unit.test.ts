@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import {
   commandKey,
-  compatibleRuleset,
   createDependencies,
   PACKAGE_NAMES,
   successful,
@@ -30,11 +32,9 @@ describe('package release namespace bootstrap preflight', () => {
       environment: 'pending',
       ruleset: 'pending',
     })
-    expect(result.nextAction).toBe('Run pnpm package-release:bootstrap --execute.')
+    expect(result.nextAction).toBe('Run bun run package-release:bootstrap --execute.')
     expect(requests).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ mutates: true }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ mutates: true })]),
     )
     expect(requests.map(commandKey)).toContain(
       'gh api --hostname github.com repos/OpenWaggle/OpenWaggle/rulesets?includes_parents=false&per_page=100 --paginate --slurp',
@@ -108,9 +108,7 @@ describe('package release namespace bootstrap preflight', () => {
       dependencies,
     )
 
-    expect(result.blockers).toContain(
-      'npm account 2FA must be enabled in auth-and-writes mode.',
-    )
+    expect(result.blockers).toContain('npm account 2FA must be enabled in auth-and-writes mode.')
     expect(requests.filter((request) => request.mutates)).toEqual([])
   })
 

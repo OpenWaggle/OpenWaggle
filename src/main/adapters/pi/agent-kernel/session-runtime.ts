@@ -3,15 +3,20 @@ import {
   type AgentSessionServices,
   type CreateAgentSessionResult,
   type CreateAgentSessionRuntimeFactory,
+  createAgentSessionFromServices,
   createAgentSessionRuntime,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
+import { DEFAULT_COMPACTION_THRESHOLD_PERCENT } from '@shared/types/settings'
 import type { AgentKernelSessionInput } from '../../../ports/agent-kernel-service'
 import { getPiAgentDir, type PiModel } from '../pi-provider-catalog'
+import { resolvePiSessionDirectory } from '../pi-session-directory'
 import {
   createOpenWaggleAgentSessionFromServices,
   disposeOpenWagglePiSession,
 } from '../pi-session-lifecycle'
+import { physicalPath } from '../pi-session-project-paths'
+import { idleCacheWarming } from './pi-idle-cache-warming'
 import {
   createIsolatedPiProjectRuntime,
   createPiProjectModelRuntimeWithoutOpenWaggleExtensions,
@@ -19,7 +24,13 @@ import {
   type PiProjectRuntimeIsolationOptions,
   type PiRuntimeExtensionIsolationInput,
 } from './runtime-extension-isolation'
-import { createSessionManagerForSession, resolveSessionProjectPath } from './session-manager'
+import {
+  createReadOnlySessionManagerForSession,
+  createSessionManagerForSession,
+  resolveSessionWorkingPath,
+} from './session-manager'
+import { sessionFallbackModelReference } from './session-model-fallback'
+import { piSessionFileField } from './pi-session-file-field'
 
 export type PiSessionOperation<T> = (session: AgentSession) => T | Promise<T>
 
@@ -67,17 +78,23 @@ export async function withPiSession<T>(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
   operation: PiSessionOperation<T>,
 ) {
-  const projectPath = resolveSessionProjectPath(input.session)
+  await idleCacheWarming.release(input.session.id)
+  const projectPath = resolveSessionWorkingPath(input.session)
   const { session } = await createSessionWithActivationIsolation({
     operation: 'Pi session initialization',
     extensionIsolation: input,
     runtimeOptions: {
       projectPath,
       modelReference: input.model,
+      ...sessionFallbackModelReference(input.session),
+      compactionThresholdPercent:
+        input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     },
     createSession: async ({ services, model }) => {
-      const sessionManager = createSessionManagerForSession(input.session, projectPath)
+      const sessionManager = createSessionManagerForSession(input.session, projectPath, {
+        forRun: false,
+      })
       return createOpenWaggleAgentSessionFromServices({
         services,
         model,
@@ -93,15 +110,75 @@ export async function withPiSession<T>(
   }
 }
 
+/**
+ * Runs a read, such as context usage or a snapshot, against an in-memory copy of the Session's Pi
+ * file. Nothing it does reaches the file, and extensions are not bound, so they see no session
+ * start or shutdown for a session that is only being looked at. It does not release a warming
+ * session either, since it does not open the file.
+ */
+export async function withReadOnlyPiSession<T>(
+  input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+  operation: PiSessionOperation<T>,
+) {
+  const projectPath = resolveSessionWorkingPath(input.session)
+  const sessionManager = await createReadOnlySessionManagerForSession(input.session, projectPath)
+  const { session } = await createSessionWithActivationIsolation({
+    operation: 'Pi session read',
+    extensionIsolation: input,
+    runtimeOptions: {
+      projectPath,
+      modelReference: input.model,
+      ...sessionFallbackModelReference(input.session),
+      compactionThresholdPercent:
+        input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
+      ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    },
+    createSession: ({ services, model }) =>
+      createAgentSessionFromServices({ services, model, sessionManager }),
+  })
+
+  try {
+    return await operation(session)
+  } finally {
+    session.dispose()
+  }
+}
+
+/**
+ * A reusable runtime over the Session's Pi file. `sessionManager` replaces the one that opens the
+ * file, such as an in-memory copy for a fork, which must not write to its source.
+ */
 export async function createPiSessionRuntime(
   input: AgentKernelSessionInput & PiRuntimeExtensionIsolationInput,
+  hooks: {
+    readonly sessionManager?: SessionManager
+    /**
+     * Runs once Pi branched a fork in `sessionManager`, before the fork's session starts and its
+     * extensions see it, so the fork can be written. The manager it returns, if any, is the one the
+     * fork's session runs on.
+     */
+    readonly beforeForkStarts?: (
+      sessionManager: SessionManager,
+    ) => Promise<SessionManager | undefined>
+  } = {},
 ) {
-  const projectPath = resolveSessionProjectPath(input.session)
-  const initialSessionManager = createSessionManagerForSession(input.session, projectPath)
-  const createRuntime: CreateAgentSessionRuntimeFactory = async (options) => {
+  await idleCacheWarming.release(input.session.id)
+  const projectPath = resolveSessionWorkingPath(input.session)
+  const initialSessionManager =
+    hooks.sessionManager ??
+    createSessionManagerForSession(input.session, projectPath, { forRun: false })
+  const createRuntime: CreateAgentSessionRuntimeFactory = async (requested) => {
+    const forkManager =
+      requested.sessionStartEvent?.reason === 'fork'
+        ? await hooks.beforeForkStarts?.(requested.sessionManager)
+        : undefined
+    const options = forkManager ? { ...requested, sessionManager: forkManager } : requested
     const runtimeOptions = {
       projectPath: options.cwd,
       modelReference: input.model,
+      ...sessionFallbackModelReference(input.session),
+      compactionThresholdPercent:
+        input.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
     } satisfies PiProjectRuntimeIsolationOptions
     const selectedRuntime = await createIsolatedPiProjectRuntime({
@@ -115,7 +192,7 @@ export async function createPiSessionRuntime(
         services: selectedRuntime.runtime.services,
         model: selectedRuntime.runtime.model,
         sessionManager: options.sessionManager,
-        sessionStartEvent: options.sessionStartEvent,
+        ...(options.sessionStartEvent ? { sessionStartEvent: options.sessionStartEvent } : {}),
       })
 
       return sessionRuntimeWithDiagnostics(selectedRuntime, sessionRuntime)
@@ -130,7 +207,7 @@ export async function createPiSessionRuntime(
         services: fallbackRuntime.services,
         model: fallbackRuntime.model,
         sessionManager: options.sessionManager,
-        sessionStartEvent: options.sessionStartEvent,
+        ...(options.sessionStartEvent ? { sessionStartEvent: options.sessionStartEvent } : {}),
       })
 
       return {
@@ -149,9 +226,14 @@ export async function createPiSessionRuntime(
 }
 
 export async function createPiSession(projectPath: string) {
-  const sessionManager = SessionManager.create(projectPath)
+  // Where `pi --resume` looks for this folder's sessions, so it can continue this one too.
+  // Headed and filed under the physical folder, as `pi` run there would be.
+  const sessionManager = SessionManager.create(
+    physicalPath(projectPath),
+    resolvePiSessionDirectory(projectPath),
+  )
   return {
     piSessionId: sessionManager.getSessionId(),
-    piSessionFile: sessionManager.getSessionFile(),
+    ...piSessionFileField(sessionManager.getSessionFile()),
   }
 }

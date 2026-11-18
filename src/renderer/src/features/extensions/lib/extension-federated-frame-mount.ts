@@ -13,6 +13,7 @@ import {
   postFrameMessage,
 } from './extension-frame-host'
 import { handleFrameInvoke } from './extension-frame-invocation'
+import { createExtensionFrameSyntaxRequests } from './extension-frame-syntax-requests'
 
 const EXTERNAL_LINK_PROTOCOLS = new Set(['http:', 'https:'])
 const logger = createRendererLogger('extension-frame')
@@ -42,11 +43,11 @@ interface MountExtensionFrameInput {
   readonly surfacePayloadJson?: string
 }
 
-export function missingEntryPathStatus(): MountStatus {
+export function missingEntryPathStatus() {
   return {
     kind: 'error',
     message: 'Extension contribution is missing its runtime module entry path.',
-  }
+  } satisfies MountStatus
 }
 
 export function supportsExtensionExecutionPlacement(entry: ExtensionContributionRegistryEntry) {
@@ -79,6 +80,8 @@ export function federatedModuleMountKey(
     entry.execution ?? '',
     entry.packagePath,
     entry.contentHash,
+    entry.sessionId ?? '',
+    entry.invocationBinding ?? '',
     entry.projectPaths,
     entry.networkOrigins ?? [],
     moduleUrl,
@@ -90,7 +93,7 @@ export function federatedModuleSurfacePayloadJson(surfacePayload: JsonValue | un
   return surfacePayload === undefined ? undefined : JSON.stringify(surfacePayload)
 }
 
-function surfacePayloadFromJson(surfacePayloadJson: string | undefined): JsonValue | undefined {
+function surfacePayloadFromJson(surfacePayloadJson: string | undefined) {
   if (surfacePayloadJson === undefined) {
     return undefined
   }
@@ -129,6 +132,12 @@ async function openFrameExternalUrl(url: string) {
   }
 }
 
+function unregisterExtensionFrameLogged(frameId: string, registrationId: string) {
+  void api
+    .unregisterExtensionFrame({ frameId, registrationId })
+    .catch((error: unknown) => logger.warn('Unregister failed', { error: String(error) }))
+}
+
 function registerProtocolFrame(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly frame: HTMLIFrameElement
@@ -141,14 +150,11 @@ function registerProtocolFrame(input: {
     .registerExtensionFrame({
       frameId: input.frameId,
       bootstrapUrl: absoluteRendererUrl(extensionFrameBootstrapUrl),
-      networkOrigins: input.entry.networkOrigins,
+      ...(input.entry.networkOrigins && { networkOrigins: input.entry.networkOrigins }),
     })
     .then((result) => {
       if (!input.isActive()) {
-        void api.unregisterExtensionFrame({
-          frameId: input.frameId,
-          registrationId: result.registrationId,
-        })
+        unregisterExtensionFrameLogged(input.frameId, result.registrationId)
         return
       }
 
@@ -168,10 +174,7 @@ function registerProtocolFrame(input: {
 
   return () => {
     if (registrationId !== null) {
-      void api.unregisterExtensionFrame({
-        frameId: input.frameId,
-        registrationId,
-      })
+      unregisterExtensionFrameLogged(input.frameId, registrationId)
     }
   }
 }
@@ -179,12 +182,91 @@ function registerProtocolFrame(input: {
 export function initialMountStatus(input: {
   readonly frameRuntimeSupported: boolean
   readonly moduleUrl: string | null
-}): MountStatus {
+}) {
   if (!input.frameRuntimeSupported) {
-    return { kind: 'idle' }
+    return { kind: 'idle' } satisfies MountStatus
   }
 
-  return input.moduleUrl === null ? missingEntryPathStatus() : { kind: 'loading' }
+  return input.moduleUrl === null ? missingEntryPathStatus() : ({ kind: 'loading' } as const)
+}
+
+interface FrameMountRuntime {
+  active: boolean
+  configured: boolean
+  reportedHeight: number | null
+  readonly syntaxRequests: ReturnType<typeof createExtensionFrameSyntaxRequests>
+}
+
+function createFrameMessageHandler(
+  input: MountExtensionFrameInput,
+  runtime: FrameMountRuntime,
+  frameConfig: ReturnType<typeof extensionFrameConfig>,
+) {
+  function reportMountStatus(status: MountStatus) {
+    input.reportStatus({ mountKey: input.mountKey, status })
+  }
+
+  function reportFrameHeight(height: number) {
+    if (!Number.isFinite(height) || height <= 0) return
+    const nextHeight = Math.ceil(height)
+    if (runtime.reportedHeight === nextHeight) return
+    runtime.reportedHeight = nextHeight
+    input.reportHeight?.(nextHeight)
+  }
+
+  function configureFrame(frameWindow: Window) {
+    if (runtime.configured) return
+    runtime.configured = true
+    postFrameMessage(frameWindow, input.frameId, { type: 'configure', config: frameConfig })
+  }
+
+  return function handleFrameMessage(event: MessageEvent<unknown>) {
+    const currentFrameWindow = input.getCurrentFrameWindow()
+    if (!runtime.active || !currentFrameWindow || event.source !== currentFrameWindow) return
+    const frameMessage = decodeExtensionFrameMessage(event.data, input.frameId)
+    if (frameMessage === null) return
+
+    matchBy(frameMessage, 'type')
+      .with('ready', () => configureFrame(currentFrameWindow))
+      .with('mounted', () => reportMountStatus({ kind: 'mounted' }))
+      .with('error', 'cleanup-error', (message) => {
+        reportMountStatus({ kind: 'error', message: message.message })
+      })
+      .with('open-external', (message) => {
+        void openFrameExternalUrl(message.url)
+      })
+      .with('resize', (message) => reportFrameHeight(message.height))
+      .with('surface-action', (message) => {
+        input.onSurfaceAction?.(message.actionId, message.payload)
+      })
+      .with('syntax-highlight', (message) => {
+        runtime.syntaxRequests.highlight(
+          message.requestId,
+          message.input,
+          () => runtime.active,
+          (result) => {
+            postFrameMessage(currentFrameWindow, input.frameId, {
+              type: 'syntax-highlight-result',
+              requestId: message.requestId,
+              result,
+            })
+          },
+        )
+      })
+      .with('syntax-highlight-cancel', (message) =>
+        runtime.syntaxRequests.cancel(message.requestId),
+      )
+      .with('invoke', (message) => {
+        void handleFrameInvoke({
+          entry: input.entry,
+          frameId: input.frameId,
+          frameWindow: currentFrameWindow,
+          message,
+          shouldPostResult: () => runtime.active,
+        })
+      })
+      .exhaustive()
+  }
 }
 
 export function mountExtensionFrame(input: MountExtensionFrameInput) {
@@ -192,26 +274,30 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
     return
   }
 
-  let active = true
-  let configured = false
-  let reportedHeight: number | null = null
+  const runtime: FrameMountRuntime = {
+    active: true,
+    configured: false,
+    reportedHeight: null,
+    syntaxRequests: createExtensionFrameSyntaxRequests(),
+  }
   const frame = input.frame
   const resolvedModuleUrl = input.moduleUrl
   if (!frame || resolvedModuleUrl === null) {
     return () => {
-      active = false
+      runtime.active = false
     }
   }
   const mountModuleUrl = resolvedModuleUrl
+  const surfacePayload = surfacePayloadFromJson(input.surfacePayloadJson)
   const frameConfig = extensionFrameConfig({
     entry: input.entry,
     moduleUrl: mountModuleUrl,
-    surfacePayload: surfacePayloadFromJson(input.surfacePayloadJson),
+    ...(surfacePayload === undefined ? {} : { surfacePayload }),
   })
 
   if (!frame.contentWindow) {
     queueMicrotask(() => {
-      if (!active) {
+      if (!runtime.active) {
         return
       }
       input.reportStatus({
@@ -220,92 +306,24 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
       })
     })
     return () => {
-      active = false
+      runtime.active = false
     }
   }
 
-  function reportMountStatus(status: MountStatus) {
-    input.reportStatus({ mountKey: input.mountKey, status })
-  }
-
-  function reportFrameHeight(height: number) {
-    if (!Number.isFinite(height) || height <= 0) {
-      return
-    }
-
-    const nextHeight = Math.ceil(height)
-    if (reportedHeight === nextHeight) {
-      return
-    }
-
-    reportedHeight = nextHeight
-    input.reportHeight?.(nextHeight)
-  }
-
-  function configureFrame(frameWindow: Window) {
-    if (configured) {
-      return
-    }
-
-    configured = true
-    postFrameMessage(frameWindow, input.frameId, {
-      type: 'configure',
-      config: frameConfig,
-    })
-  }
-
-  function handleFrameMessage(event: MessageEvent<unknown>) {
-    const currentFrameWindow = input.getCurrentFrameWindow()
-    if (!active || !currentFrameWindow || event.source !== currentFrameWindow) {
-      return
-    }
-    const frameMessage = decodeExtensionFrameMessage(event.data, input.frameId)
-    if (frameMessage === null) {
-      return
-    }
-
-    matchBy(frameMessage, 'type')
-      .with('ready', () => {
-        configureFrame(currentFrameWindow)
-      })
-      .with('mounted', () => {
-        reportMountStatus({ kind: 'mounted' })
-      })
-      .with('error', 'cleanup-error', (message) => {
-        reportMountStatus({ kind: 'error', message: message.message })
-      })
-      .with('open-external', (message) => {
-        void openFrameExternalUrl(message.url)
-      })
-      .with('resize', (message) => {
-        reportFrameHeight(message.height)
-      })
-      .with('surface-action', (message) => {
-        input.onSurfaceAction?.(message.actionId, message.payload)
-      })
-      .with('invoke', (message) => {
-        void handleFrameInvoke({
-          entry: input.entry,
-          frameId: input.frameId,
-          frameWindow: currentFrameWindow,
-          message,
-          shouldPostResult: () => active,
-        })
-      })
-      .exhaustive()
-  }
+  const handleFrameMessage = createFrameMessageHandler(input, runtime, frameConfig)
 
   window.addEventListener('message', handleFrameMessage)
   const unregisterProtocolFrame = registerProtocolFrame({
     entry: input.entry,
     frame,
     frameId: input.frameId,
-    isActive: () => active,
-    reportMountStatus,
+    isActive: () => runtime.active,
+    reportMountStatus: (status) => input.reportStatus({ mountKey: input.mountKey, status }),
   })
 
   return () => {
-    active = false
+    runtime.active = false
+    runtime.syntaxRequests.dispose()
     const currentFrameWindow = frame.contentWindow
     if (currentFrameWindow) {
       postFrameMessage(currentFrameWindow, input.frameId, { type: 'dispose' })

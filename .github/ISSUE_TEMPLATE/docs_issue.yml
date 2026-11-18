@@ -1,0 +1,26 @@
+name: Documentation issue
+description: Point out missing, unclear, or wrong documentation.
+labels: [documentation, needs-triage]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page link
+      description: The docs page or document that has the problem.
+      placeholder: https://openwaggle.ai/docs/...
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is missing, unclear, or wrong
+      description: The instruction you tried, and where it lost you.
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: The correction you suggest
+      description: The wording or command that works, if you have it.
+    validations:
+      required: false

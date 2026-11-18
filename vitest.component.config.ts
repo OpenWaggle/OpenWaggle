@@ -1,7 +1,17 @@
 import { resolve } from 'node:path'
-import react from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
+import {
+  BUN_RUNTIME_ALIASES,
+  COMPONENT_TIER_TIMEOUTS,
+  REUSED_WORKER_SETUP,
+  REUSED_WORKERS,
+  TEST_REPORTERS,
+  TEST_TEMPORARY_ROOT_SETUP,
+  TEST_TIME_ZONE_ENV,
+} from './scripts/test-support/vitest-tier-options'
 
 /**
  * Stub `*.svg?react` imports in jsdom tests — SVGR data-URIs are not
@@ -26,21 +36,38 @@ function svgStubPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [svgStubPlugin(), react()],
+  /*
+   * The React Compiler runs in the app build, so component tests without it are testing
+   * different output than ships. That gap hid a real defect: a component reading rows
+   * from a library-owned tree instance that mutates in place had its mapped result
+   * memoised by the compiler and rendered zero rows in the app, while the un-compiled
+   * test rendered them correctly and passed.
+   */
+  plugins: [svgStubPlugin(), react(), babel({ presets: [reactCompilerPreset()] })],
   resolve: {
     alias: {
+      ...BUN_RUNTIME_ALIASES,
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
-      '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src/index.ts'),
+      '@openwaggle/extension-sdk': resolve('packages/extension-sdk/src'),
       '@openwaggle/extension-react': resolve('packages/extension-react/src/index.tsx'),
       '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
       '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
     },
   },
   test: {
+    reporters: TEST_REPORTERS,
     environment: 'jsdom',
-    include: ['src/**/*.component.test.tsx'],
-    setupFiles: ['src/renderer/src/test-setup.ts'],
+    ...REUSED_WORKERS,
+    globalSetup: [TEST_TEMPORARY_ROOT_SETUP],
+    ...COMPONENT_TIER_TIMEOUTS,
+    env: TEST_TIME_ZONE_ENV,
+    include: ['src/**/*.component.test.tsx', 'packages/**/*.component.test.tsx'],
+    setupFiles: [
+      REUSED_WORKER_SETUP,
+      'scripts/test-support/isolate-user-home.ts',
+      'src/renderer/src/test-setup.ts',
+    ],
     coverage: {
       enabled: false,
     },

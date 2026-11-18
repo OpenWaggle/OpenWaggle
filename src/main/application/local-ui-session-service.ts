@@ -1,0 +1,285 @@
+import { matchBy } from '@diegogbrisa/ts-match'
+import {
+  SESSION_ALREADY_DELETED_MESSAGE,
+  SESSION_NOT_ARCHIVED_MESSAGE,
+} from '@shared/types/archived-items'
+import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
+import type {
+  LocalSessionCommandPayload,
+  LocalSessionCommandResult,
+} from '@shared/types/local-session-protocol'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import { FOLLOW_UP_EDIT_HOLD_LEASE_MS } from '../domain/session-control/follow-up-edit-lease'
+import { FollowUpEditHoldRepository } from '../ports/follow-up-edit-hold-repository'
+import { SessionControlAttachmentService } from '../ports/session-control-attachment-service'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SessionRepository } from '../ports/session-repository'
+import { publishSessionHostEvent } from '../session-host/session-host-events'
+import { dismissInterruptedAgentRun } from './agent-run-service'
+import { navigateAgentSessionTree } from './agent-session-service'
+import { withSessionDesktopRemoval } from './session-desktop-removal'
+import { deleteSessionWithVisualizations } from './session-visualization-deletion'
+
+type LocalUiPayload = Extract<LocalSessionCommandPayload, { contract: 'local-ui-v1' }>
+type LocalAttachmentsPayload = Extract<
+  LocalSessionCommandPayload,
+  { contract: 'local-attachments-v1' }
+>
+
+function requireLocalUser(caller: LocalSessionCallerIdentity, operation: string) {
+  return caller.callerId === 'gui:local-user'
+    ? Effect.void
+    : Effect.fail(new Error(`${operation} requires the GUI Local-user identity.`))
+}
+
+function updateTreeUiState(
+  sessionRepository: SessionRepository['Type'],
+  sessionId: SessionId,
+  command: Extract<LocalUiPayload['request']['command'], { operation: 'update-tree-ui-state' }>,
+) {
+  if (
+    command.patch.expandedNodeIds === undefined &&
+    command.patch.branchesSidebarCollapsed === undefined &&
+    command.patch.lastVisitedAt === undefined
+  ) {
+    return Effect.fail(new Error('Session tree UI state patch must include at least one field.'))
+  }
+  return sessionRepository
+    .updateTreeUiState(sessionId, {
+      ...(command.patch.expandedNodeIds
+        ? { expandedNodeIds: command.patch.expandedNodeIds.map(SessionNodeId) }
+        : {}),
+      ...(command.patch.branchesSidebarCollapsed !== undefined
+        ? { branchesSidebarCollapsed: command.patch.branchesSidebarCollapsed }
+        : {}),
+      ...(command.patch.lastVisitedAt !== undefined
+        ? { lastVisitedAt: command.patch.lastVisitedAt }
+        : {}),
+    })
+    .pipe(Effect.as({ effect: 'tree-ui-state-updated' as const }))
+}
+
+/**
+ * Fails unless the session is archived. Settings > Archived items deletes only what is still in
+ * the archive: checked first, before any run is stopped, and again inside the removal fence.
+ */
+function requireStillArchived(sessionId: SessionId) {
+  return Effect.gen(function* () {
+    const states = yield* (yield* SessionRepository).readArchivedItemStates([
+      { kind: 'session', sessionId },
+    ])
+    const state = states.get(`session:${String(sessionId)}`)
+    if (state === undefined) return yield* Effect.fail(new Error(SESSION_ALREADY_DELETED_MESSAGE))
+    if (state === null) return yield* Effect.fail(new Error(SESSION_NOT_ARCHIVED_MESSAGE))
+  })
+}
+
+type LocalUiCommand = LocalUiPayload['request']['command']
+type LocalUiResult = Extract<LocalSessionCommandResult, { contract: 'local-ui-v1' }>
+type RenewFollowUpEditHoldCommand = Extract<
+  LocalUiCommand,
+  { operation: 'renew-follow-up-edit-hold' }
+>
+
+/**
+ * Renews a Follow-up edit hold of the desktop user. It changes only the lease, so it is neither
+ * journaled nor published: renewal runs every few seconds while an edit is open.
+ */
+function renewFollowUpEditHold(
+  caller: LocalSessionCallerIdentity,
+  command: RenewFollowUpEditHoldCommand,
+) {
+  return Effect.gen(function* () {
+    const holds = yield* Effect.serviceOption(FollowUpEditHoldRepository)
+    const renewed = Option.isSome(holds)
+      ? yield* holds.value.renew({
+          sessionId: command.sessionId,
+          followUpId: command.followUpId,
+          holdId: command.holdId,
+          holderCallerId: caller.callerId,
+        })
+      : false
+    return renewed
+      ? ({
+          effect: 'follow-up-edit-hold-renewed',
+          // The lease runs on the Host's monotonic clock; this is its wall-clock estimate.
+          leaseExpiresAt: Date.now() + FOLLOW_UP_EDIT_HOLD_LEASE_MS,
+        } as const)
+      : ({ effect: 'follow-up-edit-hold-lost' } as const)
+  })
+}
+
+function executeLocalUiMutation(command: Exclude<LocalUiCommand, RenewFollowUpEditHoldCommand>) {
+  return Effect.gen(function* () {
+    const sessionId = SessionId(command.sessionId)
+    const projection = yield* SessionProjectionRepository
+    const sessionRepository = yield* SessionRepository
+    return yield* matchBy(command, 'operation')
+      .with('pin', () =>
+        projection.pinSession(sessionId).pipe(Effect.as({ effect: 'pinned' as const })),
+      )
+      .with('unpin', () =>
+        projection.unpinSession(sessionId).pipe(Effect.as({ effect: 'unpinned' as const })),
+      )
+      .with('move-pin', (move) =>
+        projection
+          .movePinnedSession({
+            sessionId,
+            afterSessionId: move.afterSessionId ? SessionId(move.afterSessionId) : null,
+            beforeSessionId: move.beforeSessionId ? SessionId(move.beforeSessionId) : null,
+          })
+          .pipe(Effect.as({ effect: 'pin-moved' as const })),
+      )
+      .with('dismiss-interrupted-run', ({ runId }) =>
+        dismissInterruptedAgentRun({ sessionId, runId }).pipe(
+          Effect.as({ effect: 'interrupted-run-dismissed' as const }),
+        ),
+      )
+      .with('navigate-tree', (navigate) =>
+        navigateAgentSessionTree({
+          sessionId,
+          model: SupportedModelId(navigate.model),
+          targetNodeId: SessionNodeId(navigate.targetNodeId),
+          ...(navigate.options?.summarize !== undefined
+            ? { summarize: navigate.options.summarize }
+            : {}),
+          ...(navigate.options?.customInstructions
+            ? { customInstructions: navigate.options.customInstructions }
+            : {}),
+        }).pipe(Effect.map((navigation) => ({ effect: 'tree-navigated' as const, navigation }))),
+      )
+      .with('rename-branch', (rename) => {
+        const name = rename.name.trim()
+        return name
+          ? sessionRepository
+              .renameBranch(sessionId, SessionBranchId(rename.branchId), name)
+              .pipe(Effect.as({ effect: 'branch-renamed' as const }))
+          : Effect.fail(new Error('Session branch name cannot be empty.'))
+      })
+      .with('archive-branch', ({ branchId }) =>
+        sessionRepository
+          .archiveBranch(sessionId, SessionBranchId(branchId))
+          .pipe(Effect.as({ effect: 'branch-archived' as const })),
+      )
+      .with('restore-branch', ({ branchId }) =>
+        sessionRepository
+          .restoreBranch(sessionId, SessionBranchId(branchId))
+          .pipe(Effect.as({ effect: 'branch-restored' as const })),
+      )
+      .with('update-tree-ui-state', (update) =>
+        updateTreeUiState(sessionRepository, sessionId, update),
+      )
+      .with('delete', ({ removingProject, requireArchived }) => {
+        const stillArchived = requireArchived ? requireStillArchived(sessionId) : Effect.void
+        return stillArchived.pipe(
+          Effect.zipRight(
+            withSessionDesktopRemoval(
+              sessionId,
+              deleteSessionWithVisualizations(sessionId, {
+                ...(removingProject ? { removingProject } : {}),
+                ...(requireArchived ? { requireArchived } : {}),
+              }),
+              'delete',
+              stillArchived,
+            ),
+          ),
+          Effect.as({ effect: 'session-deleted' as const }),
+        )
+      })
+      .exhaustive()
+  })
+}
+
+/**
+ * Whether a command changes only the Session's catalog entry, its pin or its read receipt, and
+ * neither its transcript nor its tree: windows then refresh the entry without reading the
+ * Session again. Opening a Session writes its read receipt, and the full refresh that event
+ * caused read the Session being opened a second time (v1 performance, session open).
+ */
+export function changesOnlySessionCatalogEntry(
+  command: Exclude<LocalUiCommand, RenewFollowUpEditHoldCommand>,
+) {
+  if (command.operation === 'pin' || command.operation === 'unpin') return true
+  if (command.operation === 'move-pin') return true
+  return (
+    command.operation === 'update-tree-ui-state' &&
+    command.patch.lastVisitedAt !== undefined &&
+    command.patch.expandedNodeIds === undefined &&
+    command.patch.branchesSidebarCollapsed === undefined
+  )
+}
+
+export function executeLocalUiSessionCommand(input: {
+  readonly caller: LocalSessionCallerIdentity
+  readonly payload: LocalUiPayload
+}) {
+  return Effect.gen(function* () {
+    yield* requireLocalUser(input.caller, 'Local UI commands')
+    const command = input.payload.request.command
+    const sessionId = command.sessionId
+    if (command.operation === 'renew-follow-up-edit-hold') {
+      const renewal = yield* renewFollowUpEditHold(input.caller, command)
+      const renewed: LocalUiResult = {
+        contract: 'local-ui-v1',
+        response: { requestId: input.payload.request.requestId, sessionId, ...renewal },
+      }
+      return renewed
+    }
+    const outcome = yield* executeLocalUiMutation(command)
+    if (outcome.effect !== 'session-deleted') {
+      publishSessionHostEvent({
+        kind: 'session-list-changed',
+        sessionId,
+        change: 'updated',
+        ...(changesOnlySessionCatalogEntry(command) ? { catalogOnly: true as const } : {}),
+      })
+    }
+    const result: LocalUiResult = {
+      contract: 'local-ui-v1',
+      response: {
+        requestId: input.payload.request.requestId,
+        effect: outcome.effect,
+        sessionId,
+        ...('navigation' in outcome ? { navigation: outcome.navigation } : {}),
+      },
+    }
+    return result
+  })
+}
+
+/** A requested attachment with absent optional fields left absent instead of undefined. */
+function attachmentPreparationEntry(entry: LocalAttachmentsPayload['request']['entries'][number]) {
+  return {
+    path: entry.path,
+    ...(entry.origin === undefined ? {} : { origin: entry.origin }),
+    ...(entry.browserPreview === undefined ? {} : { browserPreview: entry.browserPreview }),
+    ...(entry.browserAnnotationText === undefined
+      ? {}
+      : { browserAnnotationText: entry.browserAnnotationText }),
+  }
+}
+
+export function prepareLocalGuiAttachments(input: {
+  readonly caller: LocalSessionCallerIdentity
+  readonly payload: LocalAttachmentsPayload
+}) {
+  return Effect.gen(function* () {
+    yield* requireLocalUser(input.caller, 'Local attachment preparation')
+    if (!input.caller.workingDirectory) {
+      return yield* Effect.fail(new Error('Attachment preparation requires a working directory.'))
+    }
+    const service = yield* SessionControlAttachmentService
+    const attachments = yield* service.prepare({
+      baseDirectory: input.caller.workingDirectory,
+      entries: input.payload.request.entries.map(attachmentPreparationEntry),
+      ownerCallerId: input.caller.callerId,
+      requestId: input.payload.request.requestId,
+    })
+    return {
+      contract: 'local-attachments-v1',
+      response: { requestId: input.payload.request.requestId, attachments },
+    } as const
+  })
+}

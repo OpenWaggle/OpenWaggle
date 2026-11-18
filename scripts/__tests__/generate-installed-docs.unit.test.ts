@@ -4,10 +4,26 @@ import lifecyclePath from 'node:path'
 import { safeDecodeUnknown } from '@shared/schema'
 import { installedDocsManifestSchema } from '@shared/schemas/docs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { INSTALL_COMMAND } from '../../website/src/lib/install-command'
 import {
   generateInstalledDocs,
   rewriteInstalledDocumentationLinks,
 } from '../installed-docs-generator'
+import { aliasesFor } from '../installed-docs-generator-model'
+import { documentationVersionFromPackageVersion } from '../package-documentation-model'
+
+/** The docs line a package alias resolves to: its manifest version's major.minor, which a release moves. */
+async function currentPackageLine(slug: string) {
+  const manifest: unknown = JSON.parse(
+    await lifecycleFs.readFile(lifecyclePath.join('packages', slug, 'package.json'), 'utf8'),
+  )
+  const version =
+    typeof manifest === 'object' && manifest !== null && 'version' in manifest
+      ? manifest.version
+      : undefined
+  if (typeof version !== 'string') throw new Error(`packages/${slug}/package.json has no version.`)
+  return documentationVersionFromPackageVersion(version)
+}
 
 let tempDir = ''
 
@@ -30,6 +46,22 @@ afterEach(async () => {
 })
 
 describe('installed docs generator output', () => {
+  it('fills in the install command placeholders the website fills in', async () => {
+    const installation = await lifecycleFs.readFile(
+      lifecyclePath.join(
+        outputRoot(),
+        'topics',
+        'openwaggle',
+        'getting-started',
+        'installation.md',
+      ),
+      'utf8',
+    )
+
+    expect(installation).toContain(`\`\`\`bash\n${INSTALL_COMMAND}\n\`\`\``)
+    expect(installation).not.toContain('{{install-')
+  })
+
   it('preserves query and hash fragments when rewriting the documentation root', () => {
     expect(
       rewriteInstalledDocumentationLinks(
@@ -95,6 +127,44 @@ describe('installed docs generator output', () => {
     ).toBe(true)
   })
 
+  it('adds the aliases frontmatter of a page to its topic aliases', async () => {
+    const rawManifest = await lifecycleFs.readFile(
+      lifecyclePath.join(outputRoot(), 'index.json'),
+      'utf8',
+    )
+    const parsed: unknown = JSON.parse(rawManifest)
+    const decoded = safeDecodeUnknown(installedDocsManifestSchema, parsed)
+    if (!decoded.success) {
+      throw new Error(decoded.issues.join('; '))
+    }
+    const sessionSummary = decoded.data.topics.find(
+      (topic) => topic.topic === 'openwaggle:using-openwaggle/session-summary',
+    )
+
+    expect(sessionSummary?.aliases).toEqual(
+      expect.arrayContaining(['session hub', 'hub', 'session resources']),
+    )
+  })
+
+  it('splits aliases frontmatter on commas, trimmed, lowercased, without blanks or repeats', () => {
+    expect(
+      aliasesFor({
+        slug: 'using-openwaggle/example',
+        title: 'Example',
+        section: 'Using OpenWaggle',
+        source: 'openwaggle',
+        extraAliases: ' Session Hub, ,hub ,example, HUB',
+      }),
+    ).toEqual([
+      'using-openwaggle/example',
+      'example',
+      'openwaggle/using-openwaggle/example',
+      'using openwaggle',
+      'session hub',
+      'hub',
+    ])
+  })
+
   it('expands website-only package install elements for agent-readable Markdown', async () => {
     const packageGuide = await lifecycleFs.readFile(
       lifecyclePath.join(
@@ -123,9 +193,10 @@ describe('installed docs generator output', () => {
       'overview.md',
     )
     const packageOverview = await lifecycleFs.readFile(packageOverviewPath, 'utf8')
+    const sdkLine = await currentPackageLine('extension-sdk')
 
     expect(packageOverview).toContain(
-      '[`@openwaggle/extension-sdk`](./extension-sdk/0.1/index.md)',
+      `[\`@openwaggle/extension-sdk\`](./extension-sdk/${sdkLine}/index.md)`,
     )
     expect(packageOverview).toContain(
       '[OpenWaggle Extensions](../extending/openwaggle-extensions.md)',
@@ -136,7 +207,7 @@ describe('installed docs generator output', () => {
       lifecycleFs.stat(
         lifecyclePath.resolve(
           lifecyclePath.dirname(packageOverviewPath),
-          './extension-sdk/0.1/index.md',
+          `./extension-sdk/${sdkLine}/index.md`,
         ),
       ),
     ).resolves.toBeDefined()
@@ -159,16 +230,12 @@ describe('installed docs generator output', () => {
         .filter((destination) => destination !== undefined)
 
       for (const destination of destinations) {
-        if (
-          destination.startsWith('#') ||
-          /^[a-z][a-z\d+.-]*:/iu.test(destination)
-        ) {
+        if (destination.startsWith('#') || /^[a-z][a-z\d+.-]*:/iu.test(destination)) {
           continue
         }
-        expect(
-          destination.startsWith('/'),
-          `${topic.topic} retains a website-root link`,
-        ).toBe(false)
+        expect(destination.startsWith('/'), `${topic.topic} retains a website-root link`).toBe(
+          false,
+        )
         const localPath = destination.split(/[?#]/u, 1)[0]
         if (!localPath) continue
         await expect(

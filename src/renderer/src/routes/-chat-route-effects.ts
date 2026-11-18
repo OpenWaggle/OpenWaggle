@@ -1,10 +1,14 @@
-import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
-import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { RepositoryPath, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useEffect, useRef } from 'react'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useGitStore } from '@/features/git/state'
 import { useSessionStatusStore, useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
+import { createRendererLogger } from '@/shared/lib/logger'
+
+const logger = createRendererLogger('chat-route')
 
 interface ChatRouteEffectsParams {
   readonly branchId: string | null
@@ -15,6 +19,102 @@ interface ChatRouteEffectsParams {
 
 function sessionIdFromRoute(sessionId: string) {
   return SessionId(sessionId)
+}
+
+/** Shows the routed Session's workspace, read once for the route (session open latency). */
+function useRouteWorkspace(
+  sessionId: SessionId | null,
+  branchId: SessionBranchId | null,
+  nodeId: SessionNodeId | null,
+) {
+  const showSessionWorkspace = useSessionStore((state) => state.showSessionWorkspace)
+  useEffect(() => {
+    void showSessionWorkspace(sessionId, { branchId, nodeId })
+  }, [showSessionWorkspace, branchId, nodeId, sessionId])
+}
+
+interface StoreFollowsRouteInput {
+  readonly activeSessionId: SessionId | null
+  readonly diffOpen: boolean
+  readonly hasActiveSession: boolean
+  readonly hasDraftSession: boolean
+  readonly navigate: ReturnType<typeof useNavigate>
+  readonly routeSessionId: SessionId | null
+  readonly routeSessionMissing: boolean
+}
+
+/** Keeps the chat store's Session and the routed one together, redirecting where the route has none. */
+function useStoreFollowsRoute({
+  activeSessionId,
+  diffOpen,
+  hasActiveSession,
+  hasDraftSession,
+  navigate,
+  routeSessionId,
+  routeSessionMissing,
+}: StoreFollowsRouteInput) {
+  const setActiveSession = useChatStore((state) => state.setActiveSession)
+  /** The route Session this effect last followed; `undefined` before the first run. */
+  const followedRouteSessionId = useRef<SessionId | null | undefined>(undefined)
+  /** The store's Session when this effect last ran; `undefined` before the first run. */
+  const seenActiveSessionId = useRef<SessionId | null | undefined>(undefined)
+  const routerStatus = useRouterState({ select: (state) => state.status })
+  const seenRouterStatus = useRef(routerStatus)
+
+  useEffect(() => {
+    const routeChanged = followedRouteSessionId.current !== routeSessionId
+    followedRouteSessionId.current = routeSessionId
+    const storeMoved = seenActiveSessionId.current !== activeSessionId
+    seenActiveSessionId.current = activeSessionId
+    // A navigation settled with the store still elsewhere: the one the store's selection started
+    // was blocked, failed or never came, so the route stands.
+    const navigationSettled =
+      seenRouterStatus.current !== 'idle' && routerStatus === 'idle' && !storeMoved
+    seenRouterStatus.current = routerStatus
+    if (routeSessionId === null) {
+      if (!hasDraftSession && activeSessionId !== null && hasActiveSession) {
+        void navigate({
+          to: '/sessions/$sessionId',
+          params: { sessionId: String(activeSessionId) },
+          replace: true,
+          search: diffOpen ? { diff: 1 } : {},
+        })
+      }
+      return
+    }
+
+    if (hasDraftSession) {
+      void navigate({ to: '/', replace: true })
+      return
+    }
+
+    if (routeSessionMissing) {
+      setActiveSession(null)
+      void navigate({ to: '/', replace: true })
+      return
+    }
+
+    // The store follows the route when the route moves. A Session selected in the store first
+    // (the sidebar sets it, then navigates) is not switched back while its navigation lands:
+    // that read the Session being left again, its detail, workspace and context usage. Once a
+    // navigation settles and the route still names another Session, the store follows the route.
+    if (
+      activeSessionId !== routeSessionId &&
+      (routeChanged || activeSessionId === null || navigationSettled)
+    ) {
+      setActiveSession(routeSessionId)
+    }
+  }, [
+    activeSessionId,
+    diffOpen,
+    hasActiveSession,
+    hasDraftSession,
+    navigate,
+    routeSessionId,
+    routeSessionMissing,
+    routerStatus,
+    setActiveSession,
+  ])
 }
 
 export function useChatRouteEffects({
@@ -28,7 +128,6 @@ export function useChatRouteEffects({
   const activeSessionId = useChatStore((state) => state.activeSessionId)
   const activeSession = useChatStore((state) => state.activeSession)
   const draftSession = useChatStore((state) => state.draftSession)
-  const setActiveSession = useChatStore((state) => state.setActiveSession)
   const routeSessionDetail = useChatStore((state) =>
     routeSessionId === null ? null : (state.sessionById.get(routeSessionId) ?? null),
   )
@@ -39,81 +138,81 @@ export function useChatRouteEffects({
   const setProjectPath = usePreferencesStore((state) => state.setProjectPath)
   const refreshGitStatus = useGitStore((state) => state.refreshStatus)
   const refreshGitBranches = useGitStore((state) => state.refreshBranches)
-  const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const clearDraftBranchForSession = useSessionStore((state) => state.clearDraftBranchForSession)
-
-  useEffect(() => {
-    if (routeSessionId === null) {
-      if (draftSession === null && activeSessionId !== null && activeSession !== null) {
-        void navigate({
-          to: '/sessions/$sessionId',
-          params: { sessionId: String(activeSessionId) },
-          replace: true,
-          search: diffOpen ? { diff: 1 } : {},
-        })
-      }
-      return
-    }
-
-    if (draftSession !== null) {
-      void navigate({ to: '/', replace: true })
-      return
-    }
-
-    if (routeSessionMissing) {
-      setActiveSession(null)
-      void navigate({ to: '/', replace: true })
-      return
-    }
-
-    if (activeSessionId !== routeSessionId) {
-      setActiveSession(routeSessionId)
-    }
-    useSessionStatusStore.getState().markVisited(routeSessionId)
-  }, [
-    activeSession,
+  const hasActiveSession = activeSession !== null
+  const hasDraftSession = draftSession !== null
+  useStoreFollowsRoute({
     activeSessionId,
     diffOpen,
-    draftSession,
+    hasActiveSession,
+    hasDraftSession,
     navigate,
     routeSessionId,
     routeSessionMissing,
-    setActiveSession,
-  ])
+  })
+
+  const visitedSessionId = !hasDraftSession && !routeSessionMissing ? routeSessionId : null
+  useEffect(() => {
+    // Host receipt events reload Session detail. Only navigation marks a visit,
+    // otherwise each fresh detail would persist another receipt indefinitely.
+    if (visitedSessionId !== null) useSessionStatusStore.getState().markVisited(visitedSessionId)
+  }, [visitedSessionId])
 
   const routeSessionTreeId = routeSessionId ? SessionId(String(routeSessionId)) : null
   const routeBranchId = branchId ? SessionBranchId(branchId) : null
   const routeNodeId = nodeId ? SessionNodeId(nodeId) : null
 
+  const lastRoutedBranch = useRef<{
+    readonly draftBranch: typeof draftBranch
+    readonly routeBranchId: SessionBranchId | null
+  } | null>(null)
   useEffect(() => {
+    const previous = lastRoutedBranch.current
+    lastRoutedBranch.current = { draftBranch, routeBranchId }
+    if (!draftBranch) return
+    // A retry sets its draft before the route drops the branch it was started from, so that
+    // branch is still routed on the draft's first render. Clearing on that stale route lost
+    // every retry started on a non-main branch, and its message went to the branch head.
+    const unchanged =
+      previous?.draftBranch === draftBranch && previous.routeBranchId === routeBranchId
+    const startedOnThisRoute =
+      previous !== null &&
+      previous.draftBranch !== draftBranch &&
+      previous.routeBranchId === routeBranchId
+    const routeMovedToBranch = routeBranchId !== null && !unchanged && !startedOnThisRoute
     if (
-      draftBranch &&
-      (routeSessionTreeId === null || draftBranch.sessionId !== routeSessionTreeId || routeBranchId)
+      routeSessionTreeId === null ||
+      draftBranch.sessionId !== routeSessionTreeId ||
+      routeMovedToBranch
     ) {
       useBranchSummaryStore.getState().clearPrompt()
       clearDraftBranchForSession(draftBranch.sessionId)
     }
   }, [clearDraftBranchForSession, draftBranch, routeBranchId, routeSessionTreeId])
 
-  useEffect(() => {
-    void refreshSessionWorkspace(routeSessionTreeId, {
-      branchId: routeBranchId,
-      nodeId: routeNodeId,
-    })
-  }, [refreshSessionWorkspace, routeBranchId, routeNodeId, routeSessionTreeId])
+  useRouteWorkspace(routeSessionTreeId, routeBranchId, routeNodeId)
 
   const routeProjectPath = routeSessionDetail?.projectPath ?? null
   const nextProjectPath = draftSession?.projectPath ?? routeProjectPath ?? projectPath
+  const workingPath = resolveSessionWorkingDir(activeSession, nextProjectPath)
 
   useEffect(() => {
     if (draftSession === null && routeProjectPath !== null && routeProjectPath !== projectPath) {
-      void setProjectPath(routeProjectPath)
+      // The route fires this action with `void`, so a transient Settings IPC failure would
+      // otherwise float as an unhandled renderer rejection (Sentry issue OPENWAGGLE-6). The
+      // store keeps the previous project and the next route change retries the write.
+      void setProjectPath(routeProjectPath).catch((error: unknown) => {
+        logger.warn('Failed to follow the routed Session project', { error: String(error) })
+      })
     }
   }, [draftSession, projectPath, routeProjectPath, setProjectPath])
 
   useEffect(() => {
-    void refreshGitStatus(nextProjectPath)
-    void refreshGitBranches(nextProjectPath)
-  }, [nextProjectPath, refreshGitBranches, refreshGitStatus])
+    // Status follows the active session's working tree (its worktree in worktree mode);
+    // the branch list is repository-level. resolveSessionWorkingDir is the sole producer
+    // of a WorkingPath, so status can never be fed a bare repository path here.
+    void refreshGitStatus(workingPath)
+    void refreshGitBranches(nextProjectPath === null ? null : RepositoryPath(nextProjectPath))
+  }, [workingPath, nextProjectPath, refreshGitBranches, refreshGitStatus])
 }

@@ -15,7 +15,7 @@ const THIRD_TURN = 2
 const LOW_CONFIDENCE = 0.2
 const HIGH_CONFIDENCE = 0.9
 
-function config(): WaggleConfig {
+function config() {
   return {
     mode: 'sequential',
     agents: [
@@ -33,7 +33,7 @@ function config(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: MAX_TURNS_SAFETY },
-  }
+  } satisfies WaggleConfig
 }
 
 describe('waggle-core', () => {

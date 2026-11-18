@@ -1,11 +1,11 @@
-import type { SessionNode } from '@shared/types/session'
+import type { SessionTreeNode } from '@shared/types/session'
 import type { SessionTreeRow, SessionTreeRowsView } from '../model'
 
-function isActivePathNode(node: SessionNode, activePathIds: ReadonlySet<string>) {
+function isActivePathNode(node: SessionTreeNode, activePathIds: ReadonlySet<string>) {
   return activePathIds.has(String(node.id))
 }
 
-function isExpandedNode(node: SessionNode, expandedNodeIds: readonly SessionNode['id'][]) {
+function isExpandedNode(node: SessionTreeNode, expandedNodeIds: readonly SessionTreeNode['id'][]) {
   return expandedNodeIds.some((expandedNodeId) => String(expandedNodeId) === String(node.id))
 }
 

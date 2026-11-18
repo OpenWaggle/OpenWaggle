@@ -1,0 +1,93 @@
+import type { SessionSummary } from '@shared/types/session'
+import { CalendarClock, CornerDownRight, GitBranch, ListTree, Split, Terminal } from 'lucide-react'
+import { useScheduledTaskLaunchedBy } from '@/features/scheduled-tasks'
+import { useRunningTerminalCount } from '@/features/terminal'
+import { cn } from '@/shared/lib/cn'
+import { useSessionGitBranch } from '../hooks/useSessionGitIndicators'
+import {
+  buildSessionProvenance,
+  type SessionProvenanceIndicator,
+  type SessionProvenanceKind,
+} from '../lib/session-provenance'
+
+/**
+ * One glyph per provenance concept, fixed by ADR 0020.
+ *
+ * Deliberately not the conventional git icons for worktree and clone. Four node-and-edge
+ * glyphs from the same family are mutually unreadable at this size, so each concept takes
+ * the most legible silhouette that nothing else in either icon family uses.
+ */
+const PROVENANCE_ICON: Record<
+  SessionProvenanceKind,
+  React.ComponentType<{ className?: string }>
+> = {
+  'git-branch': GitBranch,
+  worktree: Split,
+  'cloned-from': CornerDownRight,
+  'scheduled-task': CalendarClock,
+  'conversation-branches': ListTree,
+  terminal: Terminal,
+}
+
+function ProvenanceIndicator({ indicator }: { readonly indicator: SessionProvenanceIndicator }) {
+  const Icon = PROVENANCE_ICON[indicator.kind]
+
+  return (
+    <span
+      role="img"
+      title={indicator.description}
+      aria-label={indicator.description}
+      className={cn(
+        'flex h-4 shrink-0 items-center gap-0.5',
+        indicator.kind === 'terminal' ? 'text-progress' : 'text-text-tertiary',
+      )}
+    >
+      {/* Pulsed on an HTML box: an SVG's animation repaints on the main thread every frame. */}
+      <span
+        className={cn(
+          'grid size-2.5 place-items-center',
+          indicator.kind === 'terminal' ? 'animate-pulse motion-reduce:animate-none' : null,
+        )}
+      >
+        <Icon className="size-2.5" />
+      </span>
+      {indicator.count === undefined ? null : (
+        <span className="text-xs tabular-nums">{indicator.count}</span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * What kind of session this row describes: its branch, whether it owns a worktree, where it
+ * came from, how many conversation branches it has, whether a terminal is alive.
+ *
+ * Provenance stays muted except for a live descendant process. Running terminal
+ * work uses the progress tone plus a terminal glyph and count, so the status is
+ * visible without relying on colour alone.
+ *
+ * The branch name is not rendered. It was the widest thing on the second line and the user
+ * can read it in the session itself, so it lives in the tooltip and the accessible name,
+ * ready for a richer hover card later.
+ */
+export function SessionProvenanceIndicators({ session }: { readonly session: SessionSummary }) {
+  const gitBranch = useSessionGitBranch(session)
+  const terminalCount = useRunningTerminalCount(String(session.id))
+  const scheduledTaskName = useScheduledTaskLaunchedBy(String(session.id))
+  const indicators = buildSessionProvenance({
+    session,
+    gitBranch,
+    terminalCount,
+    scheduledTaskName,
+  })
+
+  if (indicators.length === 0) return null
+
+  return (
+    <>
+      {indicators.map((indicator) => (
+        <ProvenanceIndicator key={indicator.kind} indicator={indicator} />
+      ))}
+    </>
+  )
+}

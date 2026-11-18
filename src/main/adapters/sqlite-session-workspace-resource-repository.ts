@@ -1,0 +1,270 @@
+import * as SqlClient from '@effect/sql/SqlClient'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import {
+  type ManagedWorktreeRemovalAdmission,
+  type SessionWorkspaceResource,
+  SessionWorkspaceResourceRepository,
+} from '../ports/session-workspace-resource-repository'
+import { listWorkspaceOccupants } from './sqlite-workspace-occupants'
+
+interface WorkspaceRow {
+  readonly id: string
+  readonly project_path: string
+  readonly kind: SessionWorkspaceResource['kind']
+  readonly working_path: string
+  readonly pending: number
+  readonly worktree_branch: string | null
+}
+
+interface BindingCountRow {
+  readonly binding_count: number
+}
+
+interface RemovalCandidateRow {
+  readonly id: string
+  readonly project_path: string
+  readonly working_path: string
+}
+
+interface RemovalWorkspaceRow extends RemovalCandidateRow {
+  readonly lifecycle_state: string
+  readonly binding_count: number
+  /** Bindings whose Session is not archived or still has an active Run. */
+  readonly active_binding_count: number
+}
+
+interface ChangesRow {
+  readonly changes: number
+}
+
+function repositoryError(message: string, cause: unknown) {
+  return new Error(message, { cause })
+}
+
+function loadRemovalWorkspace(sql: SqlClient.SqlClient, resourceId: string) {
+  return sql<RemovalWorkspaceRow>`
+    SELECT resources.id, resources.project_path, resources.working_path,
+      resources.lifecycle_state, COUNT(bindings.session_id) AS binding_count,
+      COUNT(CASE WHEN sessions.archived = 0 OR states.active_run_id IS NOT NULL
+        OR sessions.id IS NULL THEN bindings.session_id END) AS active_binding_count
+    FROM workspace_resources AS resources
+    LEFT JOIN session_workspace_bindings AS bindings ON bindings.workspace_id = resources.id
+    LEFT JOIN sessions ON sessions.id = bindings.session_id
+    LEFT JOIN session_control_states AS states ON states.session_id = bindings.session_id
+    WHERE resources.id = ${resourceId} AND resources.kind = ${'managed-worktree'}
+    GROUP BY resources.id
+    LIMIT 1
+  `
+}
+
+function admitManagedWorktreeRemoval(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly resourceId?: string
+    readonly reservationId: string
+    readonly projectPath: string
+    readonly workingPath: string
+    readonly admitArchivedBindings?: boolean
+  },
+) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      const existing = input.resourceId
+        ? (yield* loadRemovalWorkspace(sql, input.resourceId))[0]
+        : undefined
+      if (existing) {
+        const blockingBindings = input.admitArchivedBindings
+          ? existing.active_binding_count
+          : existing.binding_count
+        if (blockingBindings > 0 || existing.lifecycle_state !== 'ready') {
+          return { status: 'unavailable' } as const
+        }
+        // The count was read in this transaction, so the state change cannot race a binding.
+        yield* sql`
+          UPDATE workspace_resources SET lifecycle_state = ${'releasing'}, updated_at = ${Date.now()}
+          WHERE id = ${existing.id} AND lifecycle_state = ${'ready'}
+        `
+        const changed = (yield* sql<ChangesRow>`SELECT changes() AS changes`)[0]?.changes ?? 0
+        return changed === 1
+          ? ({
+              status: 'reserved',
+              resourceId: existing.id,
+              createdReservation: false,
+            } satisfies ManagedWorktreeRemovalAdmission)
+          : ({ status: 'unavailable' } satisfies ManagedWorktreeRemovalAdmission)
+      }
+      const now = Date.now()
+      yield* sql`
+        INSERT OR IGNORE INTO workspace_resources (
+          id, project_path, kind, working_path, lifecycle_state, worktree_branch,
+          worktree_base_ref, created_at, updated_at
+        ) VALUES (
+          ${input.reservationId}, ${input.projectPath}, ${'managed-worktree'},
+          ${input.workingPath}, ${'releasing'}, ${null}, ${null}, ${now}, ${now}
+        )
+      `
+      const changed = (yield* sql<ChangesRow>`SELECT changes() AS changes`)[0]?.changes ?? 0
+      return changed === 1
+        ? ({
+            status: 'reserved',
+            resourceId: input.reservationId,
+            createdReservation: true,
+          } satisfies ManagedWorktreeRemovalAdmission)
+        : ({ status: 'unavailable' } satisfies ManagedWorktreeRemovalAdmission)
+    }),
+  )
+}
+
+function finalizeManagedWorktreeRemoval(
+  sql: SqlClient.SqlClient,
+  input: {
+    readonly resourceId: string
+    readonly createdReservation: boolean
+    readonly removed: boolean
+  },
+) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      if (input.removed || input.createdReservation) {
+        yield* sql`
+          DELETE FROM workspace_resources
+          WHERE id = ${input.resourceId} AND lifecycle_state = ${'releasing'}
+            AND NOT EXISTS (
+              SELECT 1 FROM session_workspace_bindings WHERE workspace_id = ${input.resourceId}
+            )
+        `
+      }
+      /*
+       * A Workspace that archived Sessions are still bound to stays, `ready` with its folder gone:
+       * an unarchived Session then meets the missing-worktree choice (recreate it from its branch,
+       * or work in the current checkout) instead of losing its binding (ADR 0060).
+       */
+      yield* sql`
+        UPDATE workspace_resources SET lifecycle_state = ${'ready'}, updated_at = ${Date.now()}
+        WHERE id = ${input.resourceId} AND lifecycle_state = ${'releasing'}
+      `
+    }),
+  )
+}
+
+export const SqliteSessionWorkspaceResourceRepositoryLive = Layer.effect(
+  SessionWorkspaceResourceRepository,
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    return SessionWorkspaceResourceRepository.of({
+      countBindings: (workspaceId, excludingSessionId) =>
+        Effect.gen(function* () {
+          const rows = yield* sql<{ readonly count: number }>`SELECT COUNT(*) AS count
+          FROM session_workspace_bindings
+          WHERE workspace_id = ${workspaceId}
+            AND (${excludingSessionId ?? null} IS NULL OR session_id != ${excludingSessionId ?? null})`
+          return rows[0]?.count ?? 0
+        }).pipe(
+          Effect.mapError(
+            (cause) => new Error('Failed to inspect durable Workspace bindings.', { cause }),
+          ),
+        ),
+      countActiveBindings: (workspaceId, excludingSessionId) =>
+        Effect.gen(function* () {
+          const rows = yield* sql<{ readonly count: number }>`SELECT COUNT(*) AS count
+          FROM session_workspace_bindings bindings JOIN sessions ON sessions.id = bindings.session_id
+          WHERE bindings.workspace_id = ${workspaceId} AND sessions.archived = 0
+            AND (${excludingSessionId ?? null} IS NULL OR sessions.id != ${excludingSessionId ?? null})`
+          return rows[0]?.count ?? 0
+        }).pipe(
+          Effect.mapError(
+            (cause) => new Error('Failed to inspect active Workspace bindings.', { cause }),
+          ),
+        ),
+      listManagedWorktreeRemovalCandidates: () =>
+        sql<RemovalCandidateRow>`
+          SELECT id, project_path, working_path
+          FROM workspace_resources
+          WHERE kind = ${'managed-worktree'}
+        `.pipe(
+          Effect.map((rows) =>
+            rows.map((row) => ({
+              id: row.id,
+              projectPath: row.project_path,
+              workingPath: row.working_path,
+            })),
+          ),
+          Effect.mapError((cause) =>
+            repositoryError('Failed to list managed worktree resources.', cause),
+          ),
+        ),
+      admitManagedWorktreeRemoval: (input) =>
+        admitManagedWorktreeRemoval(sql, input).pipe(
+          Effect.mapError((cause) =>
+            repositoryError('Failed to reserve managed worktree removal.', cause),
+          ),
+        ),
+      listWorkspaceOccupants: () => listWorkspaceOccupants(sql),
+      finalizeManagedWorktreeRemoval: (input) =>
+        finalizeManagedWorktreeRemoval(sql, input).pipe(
+          Effect.mapError((cause) =>
+            repositoryError('Failed to finalize managed worktree removal.', cause),
+          ),
+        ),
+      countManagedWorktreeBindings: (input) =>
+        Effect.gen(function* () {
+          const rows = yield* sql<BindingCountRow>`
+            SELECT COUNT(bindings.session_id) AS binding_count
+            FROM workspace_resources AS resources
+            LEFT JOIN session_workspace_bindings AS bindings
+              ON bindings.workspace_id = resources.id
+            WHERE resources.project_path = ${input.projectPath}
+              AND resources.working_path = ${input.workingPath}
+              AND resources.kind = ${'managed-worktree'}
+          `
+          return rows[0]?.binding_count ?? 0
+        }).pipe(
+          Effect.mapError(
+            (cause) => new Error('Failed to inspect managed worktree bindings.', { cause }),
+          ),
+        ),
+      getById: (workspaceId) =>
+        Effect.gen(function* () {
+          const rows =
+            yield* sql<WorkspaceRow>`SELECT id, project_path, kind, working_path, worktree_branch,
+              lifecycle_state = 'pending' AS pending FROM workspace_resources WHERE id = ${workspaceId} LIMIT 1`
+          const row = rows[0]
+          return row
+            ? {
+                id: row.id,
+                projectPath: row.project_path,
+                kind: row.kind,
+                workingPath: row.working_path,
+                pending: row.pending === 1,
+                worktreeBranch: row.worktree_branch,
+              }
+            : null
+        }).pipe(Effect.mapError((cause) => new Error('Failed to read Workspace.', { cause }))),
+      getBound: (sessionId) =>
+        Effect.gen(function* () {
+          const rows = yield* sql<WorkspaceRow>`
+            SELECT resources.id, resources.project_path, resources.kind,
+              resources.working_path, resources.worktree_branch, resources.lifecycle_state = 'pending' AS pending
+            FROM session_workspace_bindings AS bindings
+            JOIN workspace_resources AS resources ON resources.id = bindings.workspace_id
+            WHERE bindings.session_id = ${sessionId}
+            LIMIT 1
+          `
+          const row = rows[0]
+          return row
+            ? {
+                id: row.id,
+                projectPath: row.project_path,
+                kind: row.kind,
+                workingPath: row.working_path,
+                pending: row.pending === 1,
+                worktreeBranch: row.worktree_branch,
+              }
+            : null
+        }).pipe(
+          Effect.mapError((cause) => new Error('Failed to read Session Workspace.', { cause })),
+        ),
+    })
+  }),
+)

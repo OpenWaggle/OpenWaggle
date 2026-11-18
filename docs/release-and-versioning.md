@@ -2,44 +2,416 @@
 
 ## Git Hooks
 
-Husky is configured with a `pre-push` hook that runs only when pushing to `main`:
+Husky is configured with a `pre-push` hook. Pushes to `main` run the heavyweight gates:
 
-- `pnpm check`
-- `pnpm format`
-- `pnpm test:all` (includes headless Playwright e2e)
+- `bun run prepush:main` (`bun run check`, `bun run format`, and `bun run test:all`, which runs the unit, integration, component, and MCP conformance tests; there is no E2E suite)
+
+Feature-branch pushes run `bun run verify`: conventional-commit policy against the `origin/main` merge base, typecheck, lint, and unit tests. This keeps deterministic failures out of CI entirely; `--no-verify` remains available to humans for exceptional cases.
 
 ## CI/CD
 
-Every push to `main` and every PR runs CI for typechecking, linting, and tests. The current release workflow is still Conventional Commit derived: when release-eligible commits land on `main`, CI determines the version bump and opens a generated version PR. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for all required checks, and squash-merges through normal `main` protection. If `main` advances, it updates the release branch and repeats exact-head CI before retrying the merge. The same run verifies the protected merge SHA and version, pushes only its tag, builds platform artifacts, and publishes a GitHub Release with checksums. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
+CI is not tiered behind a merge queue (ADR 0033 refines ADR 0029). Pull requests and pushes to `main` run the same gate: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, plus the always-present Package Release Gate that aggregates them. The `main` ruleset also requires `license/cla`, the CLA Assistant status check (ADR 0067). A pull request that changes packages also runs the Package Consumer Rehearsal, and one that changes the website or docs runs the Website & Docs Rehearsal; the gate accepts a rehearsal skipped because its paths did not change and fails one that ran and did not succeed. There is no Electron E2E and no merge queue; a PR merges directly once the required checks pass. A non-gating nightly canary (`.github/workflows/nightly.yml`) builds and smokes the packaged app on macOS/Linux/Windows.
 
-The workflow currently publishes unsigned platform artifacts. Public distribution still depends on platform trust work such as macOS notarization and Windows code signing.
+Dispatched CI runs accept a `ci_tier` input — `full` (default, release validation) or `fast`.
+
+Manual `full` CI also calls the same-commit Session Performance workflow and requires its success in the Package Release Gate. Dispatch the registered `ci.yml` from the branch containing the candidate, with `head_sha` equal to that branch's exact 40-character commit SHA and `ci_tier=full`. This works before the standalone performance workflow is registered on `main`. The benchmark runs `bun run benchmark:session-release`, including the embedding checks, 100,000-Session vector index, and 10,000,000-message database corpus. Fast and visual CI do not run it; merge groups retain the separate Session Performance workflow without a duplicate CI invocation. Standalone manual performance dispatches remain available once GitHub registers that workflow.
+
+Dispatched Commit Policy checks the commits after the candidate's merge base with the fetched `origin/main`. This preserves upstream-sync attribution even when `main` advances after the branch sync. Missing history, unrelated histories, or multiple merge bases fail the job; manual runs never substitute an empty range start. Merge-queue runs use their immutable event `base_sha` and synthetic merge head. Pull-request titles remain validated by pull-request CI, which has the authoritative title metadata.
+
+The release workflow is Conventional Commit derived: when release-eligible commits land on `main`, `release.yml` opens a generated release PR with `gh pr create`. The PR changes exactly `package.json`, for the version, and `CHANGELOG.md`, for the version's entry (see "Release Notes" below); `scripts/app-release-state.ts` validates the version transition, and `scripts/app-release-tree.ts` builds and verifies the release files. Release Please is used only for the npm packages. GitHub creates that PR's CI in approval-required state because the PR uses `GITHUB_TOKEN`; the release workflow reruns that PR-associated run for the exact head, waits for it, and leaves the green PR open as an explicit maintainer gate. Release PR creation uses bounded retries and checks for an exact same-repository PR after each failed mutation so a transient or ambiguous GitHub API error cannot strand a valid release branch. The workflow checks fetched Git ancestry to detect a stale release branch, including when GitHub reports its merge state as `UNKNOWN` or `BLOCKED`. Before synchronizing, it checks that the branch changes nothing but the release files against the branch's merge base. A sync merges `main` in with GitHub's update-branch, first pushing a commit that takes `main`'s release files when `main` changed one, so the merge cannot conflict, and then pushes a commit that writes the release files again. It then checks the exact release tree against the pinned current `main`. If `main` advances during CI, the workflow updates the release branch and repeats exact-head CI. The workflow never merges its own version PR. A maintainer merges the green release PR directly, like any other PR; there is no merge queue (ADR 0033). The release run then verifies the exact release commit, by building its release files again from its parent, and its same-repository release PR, pushes only its tag, builds platform artifacts, and uploads them with checksums to a draft GitHub Release. `scripts/verify-release-assets.ts` checks that the draft holds exactly the built files, each fully uploaded at its built size, with the update metadata (`*.yml`) and `SHA256SUMS.txt` byte-identical; only then does the job publish the release and verify it again. Publishing before the uploads finish let `1.0.0-beta.25`'s update checks get a 404 for `beta-mac.yml`. A rerun that finds the release already published only verifies it. Preparation runs share a coalescing concurrency group, while every publication run is keyed by its immutable merge SHA so a later `main` push cannot replace a queued release. Reruns adopt compatible existing release branches, PRs, protected merge commits, and tags while rejecting conflicting state.
+
+### Required-Check Settings Runbook
+
+The workflow's job set and the repository ruleset must stay in sync. Apply these settings in the same admin window as the merge — between merge and swap, open PRs wait on a check that no longer reports (an administrator can use the ruleset's emergency bypass if something must land in that window):
+
+1. `Settings → Rules → Rulesets → OpenWaggle main protections → required_status_checks`: set the required contexts to `Commit Policy`, `Typecheck & Lint`, `Unit Tests`, `Integration & Component Tests`, `MCP Conformance`, `Package Release Gate`, `license/cla` (ADR 0067).
+2. Remove the `merge_queue` rule from the same ruleset (ADR 0033): PRs merge directly once the required checks pass.
+
+macOS release artifacts are signed and notarized when the signing secrets below are configured; Windows and Linux artifacts are unsigned.
+
+Platform trust for v1:
+
+- macOS Developer ID signing and notarization block `1.0.0`. They must be in the release workflow before the first RC, so the RC validation window exercises the same signing pipeline that Stable ships with. macOS in-app updates require a signed app.
+- The signing identity is an individual Apple Developer Program membership. macOS installs an update only when it is signed by the same team as the running app, so changing the signing team later may require a one-time manual reinstall for macOS users.
+- The first signed macOS build, `1.0.0-beta.1`, shipped during Beta. Moving to it from an unsigned `0.x` build may need a one-time manual reinstall.
+- Required GitHub Actions secrets: `MACOS_CERTIFICATE_P12_BASE64` (the Developer ID Application
+  certificate exported as `.p12`, base64-encoded), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`,
+  `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`. Without them Alpha and Beta macOS builds stay
+  unsigned. The release workflow refuses an RC or Stable version without them in the version job,
+  before it opens a release PR or pushes a tag, and `build-macos` checks again before it builds. The
+  electron-builder config (`scripts/mac-signing.ts`) only chooses how to sign and never fails,
+  because every electron-builder command, including `postinstall`, loads it. When configured,
+  the release workflow verifies each app and each DMG with `codesign`, `stapler`, and `spctl` before upload. electron-builder signs the DMG (`dmg.sign`) but only notarizes the app, so `patches/dmg-builder@26.17.0.patch` also notarizes and staples every DMG it signed, before the blockmap and the update metadata record the DMG's size and checksum.
+- The macOS build depends on the GitHub runner. notarytool needs its network while it waits for
+  Apple's verdict, stapler needs it to fetch the ticket afterwards, and `hdiutil` needs a working
+  disk-image device to build the DMG.
+  `patches/dmg-builder@26.17.0.patch` handles the `hdiutil` case first. When a `dmgbuild` call
+  fails with `Device not configured`, `Resource busy`, or `Resource temporarily unavailable`, it
+  retries that call alone, up to five attempts with 30 s to 4 min of backoff, and does not
+  notarize again. Re-create the patch when `dmg-builder` changes version.
+- When `scripts/macos-build-failure.ts` identifies a failed macOS build as notarytool losing its
+  connection to Apple (a transport error or an Apple 5xx), as stapler losing its connection to
+  Apple's ticket service after notarization succeeded (a transport error), or as one of those
+  `hdiutil` errors failing `dmgbuild`, the whole build rebuilds and resubmits, up to three attempts in total. The
+  job turns off Spotlight indexing once and stops XProtect before each attempt, because `hdiutil`
+  fails under concurrent disk activity on hosted runners. A rejected submission, a credential
+  error, or any other failure fails the first attempt. A notary rejection or credential error
+  fails it even if the log also has a transient error from the other architecture. A third
+  runner failure fails the job. Rerunning the failed jobs reuses the version job's result, but a
+  rerun uses the workflow as it was at the release commit. A workflow fix only reaches the next
+  release.
+- Windows code signing does not block `1.0.0`; it is tracked as post-v1 work (ADR 0069). Windows installers are unsigned, so SmartScreen warns on the first install of every version: Microsoft documents that an unsigned file starts at zero reputation and cannot carry reputation to the next release, so the warning does not fade as the app gains users. The SignPath Foundation declined the project's application in November 2026 for lack of public visibility signals and invited a reapplication once it has them, which is the free path. Azure Artifact Signing ($9.99/month Basic, 5,000 signatures) is the paid path, triggered by a sponsor covering it or by evidence that the warning costs Windows installs. The release publishes `SHA256SUMS.txt` for every artifact including the Windows installer, which is what a reader checks in place of a signature. EV certificates are not a path because Microsoft's SmartScreen documentation states EV no longer bypasses it.
+- Linux AppImage artifacts are not signed.
 
 ## Versioning
 
-OpenWaggle uses semver with prerelease stages. The current release train is `0.3.0-alpha.N`.
+OpenWaggle uses semver with release channels. The `0.x` prerelease trains end without a Stable
+release: the first Stable release is `1.0.0`, reached through the `1.0.0-<stage>.N` prerelease
+train. From `1.0.0` onward, semver is a compatibility promise to users: a change that breaks a
+covered surface requires a major version.
+
+### v1 release train path
+
+The `1.0.0` line starts at Beta; there is no `1.0.0-alpha.N` stage, because the `0.x` alpha
+builds already served as the alpha stage.
+
+1. `1.0.0-beta.1` is the first `1.0.0` build and the first signed macOS build, so the one-time
+   manual reinstall from unsigned `0.x` builds coincides with the new version line.
+2. Remaining v1 work lands as further `1.0.0-beta.N` builds.
+3. `1.0.0-rc.1` starts the release-candidate freeze once v1 work is complete and macOS signing is
+   in the release workflow.
+4. `1.0.0` Stable follows the RC validation window.
+
+### RC freeze and promotion guard
+
+During RC, `main` is frozen for app code: merge only release-blocker fixes, each of which cuts the
+next `1.0.0-rc.N` and restarts the validation window. The Stable promotion dispatch fails closed
+unless the content of `main` equals the content of the last published RC, except for the root
+`package.json` version and non-app paths (`website/**` except the bundled user docs under
+`website/src/content/docs/**`, `docs/**`, `.agents/**`, and top-level `*.md` except
+`THIRD_PARTY_NOTICES.md`, which ships inside the app). Renames count on both sides, so moving app
+code into an ignored path still blocks. The last published RC is the newest `vX.Y.Z-rc.N` tag with a
+published (non-draft) GitHub release. The workflow pushes a release tag before its builds run, so a
+tag can exist for a build that never shipped: `v1.0.0-beta.33` through `beta.35` have tags and no
+releases. The guard reads the release list from the GitHub API and fails if it cannot. A minor or
+patch with `X.Y.Z-rc.N` tags but no published RC also fails, so an RC train whose builds never
+shipped cannot drop its freeze; publish an RC or delete the stray tags. A non-release change to app
+code during RC, such as a `chore(deps):` lockfile bump, blocks promotion until it is reverted or
+released as the next RC. A new major version (`X.0.0`) cannot be released without a published
+`X.0.0-rc.N` release, including one computed from a breaking-change merge; later minors and patches
+may release straight to Stable. The guard runs before any Stable release PR exists and again before
+tagging. The guard blocks promotion only; it does not block merges.
+
+### After 1.0.0
+
+OpenWaggle keeps one release line. Release-eligible merges to `main` prepare the next Stable
+version (`1.0.1`, `1.1.0`, `2.0.0`), and the maintainer decides the cadence by when the release PR
+is merged. There is no rolling Beta and no maintenance branch.
+
+A Beta or Alpha line such as `1.2.0-beta.1` opens only by explicit `target_version` dispatch, for a
+risky minor or a new major train. While it is open, Stable cannot receive a separate fix: a fix
+ships as the next prerelease and reaches Stable through promotion. Open a prerelease line only when
+it is expected to be promoted within about a week.
+
+### v1 scope and release blockers
+
+`1.0.0-rc.1` may start only when all of these are done:
+
+- macOS signing and notarization run in the release workflow.
+- RC builds reach Beta and Alpha update channels automatically.
+- The in-app update restart asks for confirmation while an agent run is active.
+- The release docs and release skill match the v1 release policy.
+- Scheduled tasks (Heartbeats and Launch schedules, ADR 0057 and ADR 0058) shipped in a Beta build:
+  their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions,
+  and Background start become covered surfaces at `1.0.0`.
+- No release blocker is open.
+
+`1.0.0` Stable additionally requires hand-written `CHANGELOG.md` notes for the whole v1 train
+under `## [Unreleased]`; these can be written during the RC window.
+
+Everything else, including open feature, reliability-polish, dependency-pinning, and coverage
+issues, is post-v1. For Scheduled tasks that includes webhook triggers, cloud runs, project-shared
+tasks, importing Codex automations, scheduled Waggles, keep-awake, and a tray icon. A **release blocker** is any known bug that loses user data, prevents launch,
+or blocks updating, at any stage. An open release blocker prevents entering RC; during RC it cuts a
+new `1.0.0-rc.N` and restarts the validation window. A bug whose persisted data is intact and only
+presents incorrectly is not a release blocker.
+
+GitHub tracking: the `v1.0.0` milestone holds only the work that blocks RC, and the
+`release-blocker` label marks release blockers. Issues outside the milestone are post-v1 by
+default; there is no `post-v1` label.
+
+### v1 compatibility promise
+
+| Surface | Covered | Rule within one major version |
+|---------|---------|-------------------------------|
+| User data (sessions, settings, projects, credentials, Session Host database) | Yes | Every later release opens data written by any earlier release of the same major, migrating forward automatically. Downgrades are unsupported. |
+| `openwaggle` CLIs (`hive`, `access`, `schedules`, `agents`, `mcp`, `recovery`, `status`, `host`), including machine output, and `update --check --json`, which `install.sh` reads. `run` and the rest of `update` are covered by the error kinds row, and `run --jsonl` events by the watch records row | Yes | Commands, flags, and the `--json`/`--jsonl` envelopes stay compatible, including the envelope `command` (the command path after `openwaggle`, such as `hive list`) and the optional `code` of a `type: "error"` envelope, which is present when a Session Host refusal caused the failure. Its values are Session Host refusal codes and may grow. Additive fields are allowed; removing or renaming one is breaking. See [ADR 0063](adr/0063-cli-machine-output-contract.md). |
+| CLI error kinds and exit codes | Yes | Every refusal carries the `kind` the Session Host assigns. A refusal code keeps its kind, and so its exit code, within a major. New kinds and new codes may be added. |
+| `hive watch --jsonl` and `hive exports-watch --jsonl` records, and the `event` records of `run --jsonl` | Partly | Covered: the `cursor`, `event` and `resync-required` record kinds, cursor and resume behavior, `timestamp`, `event.kind`, `event.sessionId`, and the resync `reason` values. New kinds may be added and consumers ignore unknown ones. Not covered: the bodies of `session-transport` and `session-waggle-transport` events, which follow Pi; use `hive read` or `hive status` for a stable view. |
+| Session Control through the OpenWaggle MCP server's `openwaggle_hive` tool | Yes | Existing contract versions keep their semantics. Adding a new contract version beside the old one is not breaking. |
+| Agent-definition schema | Yes | A definition valid under the first release of the major stays valid. |
+| Scheduled tasks (Heartbeats and Launch schedules): their contract, `schedules:*` capabilities, `openwaggle schedules` CLI, agent tool actions, and Background start | Yes | The task contract, `schedules:*` capabilities, `openwaggle schedules` commands and machine output, agent tool actions, and the Background start setting stay compatible. `schedules export` prints a `schemaVersion` 1 `scheduled-tasks` envelope, and every 1.x `schedules import` also reads the bare array that pre-1.0 betas exported. Any change to the export's shape, including an added field, raises its `schemaVersion`, so an older `import` refuses the file clearly instead of misreading it. A later `import` keeps reading every earlier version. Additive fields are allowed; removing or renaming one is breaking. |
+| Supported platforms: macOS 13.4 or later (Apple silicon and Intel), Windows 10 or later (x64), Linux x64 with glibc 2.35 or later | Yes | Dropping a platform or raising its stated minimum is breaking, except as described in [Supported platform minimums](#supported-platform-minimums). |
+| Extension host contract | No | Governed by `@openwaggle/extension-sdk`'s own semver; `0.x` may break. |
+| Pi-owned resources (Pi extensions, skills, prompts) | No | Follow Pi's compatibility; a Pi upgrade that breaks them is not an OpenWaggle major. |
+| UI layout, copy, default settings, keybindings | No | May change in any release. |
+
+To retire a covered field or command, ship the replacement beside it and remove the old one only in
+the next major version.
 
 | Stage | Example Version | What Happens On Release |
 |-------|-----------------|-------------------------|
-| Alpha | `0.3.0-alpha.N` | Increments `alpha.N+1` on release-eligible changes. |
-| Beta | `0.3.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
-| Stable | `0.3.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
+| Beta | `1.0.0-beta.N` | Increments `beta.N+1` on release-eligible changes. |
+| RC | `1.0.0-rc.N` | Increments `rc.N+1` on release-eligible changes. During the RC freeze those are release-blocker fixes only. |
+| Stable | `1.0.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
 
-To transition stages, manually set the version in `package.json` and commit as `chore(release): <message>`.
+The `1.0.0` line has no Alpha stage. A later prerelease line opened by `target_version` dispatch,
+such as `2.0.0-alpha.1`, increments the same way as Beta.
+
+Stage transitions use the same protected release PR as ordinary releases. Never
+retag a prerelease or edit a GitHub release to simulate promotion.
+
+Prepare an explicit forward transition from `main` with:
+
+```bash
+gh workflow run release.yml --ref main -f target_version=1.0.0
+```
+
+Manual release dispatches are accepted only from `main` and require an explicit target. The
+workflow rejects equal versions, downgrades, and backwards channel movement, then creates the
+normal release PR. A maintainer must merge that green PR before its tag and artifacts publish.
+The same path can later open a new prerelease line such as `2.0.0-alpha.1`.
+
+Pass `target_version` as the bare version, without a leading `v`: `1.0.0-rc.1`, not
+`v1.0.0-rc.1`. The tag gets its `v` from the workflow.
+
+A dispatched transition PR does not hold `main`. If a `feat:` or `fix:` merge lands on `main`
+after the dispatch and before its PR merges, that push starts an ordinary release run, which opens
+a competing release PR for the next version of the current stage (for example `1.0.0-beta.26`
+beside the dispatched `1.0.0-rc.1`). Pause merges to `main` from the dispatch until the transition
+PR merges. If a competing PR opens anyway, close it without merging and dispatch
+`target_version` again from the new `main`, so the transition PR includes that merge.
+
+Update eligibility is monotonic: Stable receives Stable; Beta receives Beta, RC, and Stable; Alpha
+receives Alpha, Beta, RC, and Stable. The app lists releases and selects the newest eligible
+non-downgrade version whose platform channel metadata (such as `beta-mac.yml`) is already
+uploaded, then points the updater at that release's metadata, so RC does not
+depend on electron-updater's GitHub-provider channel rules (which treat RC as a custom channel). An
+RC build with no saved preference defaults to Beta. Release packaging publishes the matching
+metadata aliases for every eligible automatic channel because electron-builder does not generate
+the cross-channel aliases for its GitHub provider. The app and
+CLI persist one shared channel and explicitly disable downgrades. The app re-reads that
+authoritative channel before installing a downloaded release and invalidates a release that is no
+longer eligible. Automatic install on ordinary app quit is disabled on every platform so all
+downloads pass through the explicit, authoritative restart action.
+
+The shell installer (`curl -fsSL https://openwaggle.ai/install | bash`; `/install`, `/install/` and
+`/install.sh` are `302` redirects in `website/public/_redirects` to `scripts/install.sh` on `main`)
+changes the saved channel only when `OPENWAGGLE_CHANNEL` is set, the same rule as
+`openwaggle update --channel`. On a re-run without it, the script asks the installed app for its
+saved channel with `openwaggle update --check --json` (the `savedChannel` field of the result, or of
+the error envelope when only the release check failed or passed its 30 second limit), installs the
+newest release on that channel, and writes no channel intent. The check reads the channel from the
+Session Host first, so it may start the installed version's Host; the script stops waiting after 60
+seconds, and Ctrl-C stops the check too. A kept channel with no release yet (Stable before `1.0.0`)
+reports up to date and exits 0 without changes. A fresh install, an installed version up to
+`1.0.0-beta.37` (which has no `--json` check), an installed version the script cannot read, or a
+failed or timed-out read uses the default channel and saves it, and for an existing install the
+script says so. A saved channel is a one-time Session Host intent, the selected policy channel
+rather than one inferred from the downloaded artifact's version. With no Stable release yet the
+default is Beta, so an install during Beta or RC never saves Alpha. `OPENWAGGLE_RELEASE_TAG` is a
+one-time install that never reads or changes the channel. A channel with no eligible release, such
+as Stable before `1.0.0`, is reported as up to date rather than as a failed check.
+`openwaggle update --check` never changes the saved channel, with or without `--json`, and
+`openwaggle update --version` refuses a version older than the installed one.
+
+`install.sh` refuses an older version too, after it resolves the channel or from
+`OPENWAGGLE_RELEASE_TAG`, and exits with status 2 before it downloads anything, quits the app, or
+stops the Session Host, because the older Session Host refuses a database a newer one has migrated
+and the app would not open. It reads the installed version from `Info.plist` on macOS. On Linux it
+takes the newer of the `version` file beside the AppImage and the AppImage's own
+`X-AppImage-Version`, because an in-app update replaces the AppImage in place and leaves the file
+behind. The installed version reinstalls, and an install whose version is unknown proceeds as
+before.
+
+### Supported platform minimums
+
+| Platform | Minimum from `1.0.0` | Guard threshold |
+|----------|----------------------|-----------------|
+| macOS | 13.4 (Ventura), Apple silicon and Intel | No Mach-O for the app's architecture needs a macOS newer than 13.4. The main executable and `LSMinimumSystemVersion` stay at 12.0. |
+| Windows | Windows 10, x64 (NSIS installer) | No x64 PE declares an OS or subsystem version newer than 10.0. |
+| Linux | x64 with glibc 2.35, for example Ubuntu 22.04, Debian 12 and Fedora 36 or later. The AppImage is x64 only. | No x64 ELF needs a symbol version newer than `GLIBC_2.35`, `GLIBCXX_3.4.30` or `CXXABI_1.3.13`, which Ubuntu 22.04 provides. |
+
+Each minimum is the oldest version on which every feature works. The thresholds live in one
+module, `scripts/supported-platform-floor.ts`, and `scripts/check-native-platform-floor.ts` reads
+every native binary in each packaged app after its build and fails the release before upload when
+one needs a newer OS. It also fails when a pack ships a binary for another platform or
+architecture, or lacks a per-platform package that one of its packages declares for the pack's own
+platform and architecture in `optionalDependencies` (such as `@img/sharp-darwin-x64`). The
+`1.0.0` betas' Intel macOS app shipped only the arm64 builds of sharp, `@napi-rs/keyring` and
+`@mariozechner/clipboard`, because the arm64 release runner installed one architecture.
+The release build jobs now run `bun install --cpu=arm64 --cpu=x64` to install both CPU architectures, and
+`scripts/electron-builder-native-prebuilds.ts` keeps only the packed one. The
+Linux release build runs on `ubuntu-22.04`, because native modules link against the build host's
+glibc and libstdc++; `1.0.0-beta.25`, built on Ubuntu 24.04, shipped a `node-pty` that needed glibc
+2.38.
+
+macOS 12 through 13.3 can still launch the app. `LSMinimumSystemVersion` stays at 12.0 so that an
+existing macOS 12 install that updates itself is never left with an app that will not open. Those
+versions are unsupported: onnxruntime, which semantic Session search and voice input load on
+demand, needs macOS 13.4.
+
+Raising a stated minimum is breaking, with one exception. A raise is not breaking when the OS
+vendor has ended support for that version (Apple no longer ships security updates for it,
+Microsoft's end of support, or the distribution's end of standard support), or when the Electron or
+Chromium upgrade that drops it is needed to stay on a supported Electron line. Such a raise ships in
+a minor version, its release notes name it, and the previous release's notes announce it when
+possible.
+
+### Differential update downloads
+
+Releases publish `.blockmap` files beside the macOS zip and DMG and the Windows installer (the
+AppImage embeds its own), so electron-updater downloads only the blocks that changed. GitHub
+release downloads reject multi-range requests with HTTP 501, so the app's feed sets
+`useMultipleRangeRequest: false` and fetches single ranges, as electron-updater's GitHub provider
+does. A simulated one-line release change downloaded 8.0 MB of a 354.7 MB macOS zip. The macOS and
+Windows updaters diff against the previously downloaded update, so the first in-app update after a
+manual install, or after a release without blockmaps, is a full download; later ones are
+differential. `builder-debug.yml` is a local build dump and is not published.
+
+### Update restart and relaunch
+
+Updates download automatically in the background; installing is always a user action: **Restart
+to update** in the app, `openwaggle update`, or the install script (`curl … | bash`). Quitting the
+app never installs a downloaded update.
+
+- An update restart never silently interrupts an agent run. The one exception is a run that starts
+  while the update already shows as installing, the seconds macOS takes to unpack it before the app
+  quits; the Session Host interrupts it at its stop deadline (ADR 0047). When the user chooses
+  **Restart to update** and the Session Host has active runs in any session (window, Worker, or CLI-started),
+  the app offers **Restart when idle** (default), **Restart now**, and **Cancel**.
+- Active runs include standalone compactions; a Session counts once.
+- **Restart when idle** installs once the Session Host has no active run. Runs started after the
+  choice also count. The wait has no timeout and survives periodic or manual update checks,
+  including a check that fails transiently; it ends only when no eligible update remains, for
+  example after the Update channel changes. **Restart now** during such a check waits up to 30
+  seconds for it; if the check is still running, nothing is interrupted and any Restart when idle
+  wait continues. The update
+  action stays visible with the number of runs it is waiting for, so the user can still choose
+  **Restart now**.
+- **Restart now** stops active runs and compactions through normal cancellation, recording them as
+  interrupted, waits up to 30 seconds for them to settle, and then installs. A run that does not
+  stop in that time, such as a queued Follow-up that starts meanwhile, is ended by the restart.
+- With no active runs, the restart installs immediately without a dialog.
+- Every install releases the Session Host before the app is replaced, the same way for all three
+  actions (ADR 0047). The Host runs from the app bundle, and macOS Squirrel refuses to replace a
+  bundle while any process from it is running ("App Still Running"); a Host left running would
+  also keep serving the old version's code. The installer sends the Host an update stop, and the
+  Host gives it a 10-second deadline. At the deadline it interrupts any Run still active, which
+  ends as interrupted, and gives it 3 seconds to settle; running Actions, CLI waits, and exports
+  end with the Host. The desktop app waits up to 20 seconds for the Host process to exit on
+  macOS; on Windows and Linux it only requests the stop, because those installers replace the app
+  themselves. `openwaggle update` and the install script always wait for it. An ordinary quit
+  leaves the Host running.
+- In a terminal, `openwaggle host stop --update` is that stop. With active agent runs it asks
+  whether to wait for them (default), stop them now, or cancel, mirroring **Restart when idle**,
+  **Restart now**, and **Cancel**. Stop now leaves them to the Host's 10-second deadline, so they
+  end interrupted within 13 seconds instead of at once. Ctrl-C cancels; `openwaggle update` never
+  installs on quit, only through its explicit install. It asks on the terminal, so it works under `curl … | bash`;
+  without one it waits for the runs. It leaves a Host alone while the desktop app is open.
+- The app shows **Installing** as soon as the restart begins, because macOS unpacks and verifies
+  the update before it quits; relaunching the old version meanwhile makes the install fail. If the
+  installer reports an error, or the app has not quit after 3 minutes, the update shows as ready
+  again with the reason. After the next launch, when the same update is ready again, the app says
+  that it did not install, and says when another OpenWaggle process, such as
+  `openwaggle mcp serve` or `openwaggle hive wait`, was the reason.
+- The app relaunches automatically after installing an update, and after a fresh install where an
+  installer runs. This follows `pingdotgg/t3code`:
+  - In-app updates install silently and force a relaunch on every platform
+    (`quitAndInstall(isSilent: true, isForceRunAfter: true)`); Windows shows no installer wizard.
+  - The Windows NSIS installer is one-click and launches the app when it finishes.
+  - The macOS `.dmg` is drag-to-Applications and does not auto-launch. There is no `.pkg`.
+  - A downloaded Linux AppImage is launched by opening it.
+- `install.sh` launches the app when it finishes, because it is OpenWaggle's one-command desktop
+  install (t3code's shell installer installs only its CLI, so it sets no precedent here). It skips
+  the launch without a graphical session (SSH, CI, or Linux without `$DISPLAY` or
+  `$WAYLAND_DISPLAY`), with `--no-launch`, or with `OPENWAGGLE_NO_LAUNCH=1`. On macOS it quits the
+  running desktop window process (the app's only `Foreground` process; the detached Session Host
+  and CLI processes share the bundle id but are `UIElement`) with `SIGTERM`, which Electron handles
+  as a normal quit. Then it runs the installed version's `openwaggle host stop --update`, and only
+  then replaces the bundle. If the user cancels there, it reopens the app and changes nothing. An
+  installed version older than `--update` gets a plain `host stop --wait`, bounded to 20 seconds;
+  one before 1.0.0-beta.1 has no `host` command and is never run (the script reads its version
+  from `Info.plist`, from the `version` file it writes beside the AppImage, or from the
+  AppImage's own desktop entry).
+  On Linux the installer stops the Host the same way before it replaces the AppImage atomically.
+  A running app keeps running, and keeps its Host; the installer tells the user to quit it and run
+  `openwaggle host stop --update`, because a quit alone leaves the old Host for the new app.
+  Ctrl-C while the stop waits cancels the update and reopens a quit app. If another process, such
+  as `openwaggle mcp serve`, starts a Host again after a second stop, the macOS script does not
+  replace the bundle; the Linux script and `openwaggle update` warn and continue.
+- `openwaggle update` never opens a window the user did not have open and never installs under a
+  running desktop app. If the app is running, a channel update only reports the available version
+  and tells the user to install it from **Settings > General > About & Updates**, where **Check
+  now** and **Restart to update** protect active runs and relaunch the app. An exact `--version`
+  install refuses while the app is open. With the app closed, Windows and Linux stop the Session
+  Host as `host stop --update` does, then install silently without launching it. macOS installs
+  through the bundled install script, which stops the Host itself, because Squirrel.Mac always
+  relaunches the app after an in-app install. The desktop-app check uses the single-instance lock,
+  so it cannot see an app started with `OPENWAGGLE_DISABLE_SINGLE_INSTANCE=1` (automation only).
 
 ### Protected release recovery
 
-The failed `0.3.0-alpha.44` direct-push attempt created a remote tag whose commit never reached protected `main`. Recovery intentionally sets the root version on `main` to `0.3.0-alpha.44` in a `chore(release):` reconciliation commit. That subject skips both release-PR generation and tag publication. The existing orphan tag is preserved for auditability; the next release-eligible change increments the reconciled root version and publishes `0.3.0-alpha.45` from a version PR that passed exact-head CI. Do not delete, move, or reuse the orphan tag.
+The failed `0.3.0-alpha.44` direct-push attempt created a remote tag whose commit never reached protected `main`. Recovery intentionally sets the root version on `main` to `0.3.0-alpha.44` in a `chore(release):` reconciliation commit. That subject skips both release-PR generation and tag publication. The existing orphan tag is preserved for auditability; the next release-eligible change increments the reconciled root version and publishes `0.3.0-alpha.45` only after a maintainer merges the version PR that passed exact-head CI. Do not delete, move, or reuse the orphan tag.
 
 ## Release Notes
 
-Release intent metadata is planned but not implemented yet. Until committed release-intent files exist, product-impacting PRs should include reviewer-facing release notes in the PR body:
+Conventional Commits are the app's release intent: they decide whether a merge produces a release
+and, for Stable versions, whether it is a patch, minor, or major. OpenWaggle does not use separate
+release-intent files. A change that breaks a covered surface must use a `!` Conventional Commit
+title so it produces a major version.
+
+Every release PR writes its version's entry in the root `CHANGELOG.md` (ADR 0070), and the GitHub
+Release publishes that entry (`scripts/app-release-notes.ts write`). The website renders the same
+file at [openwaggle.ai/changelog](https://openwaggle.ai/changelog/), with an RSS feed.
+
+- The entry is `## [X.Y.Z] - YYYY-MM-DD`, right under `## [Unreleased]`. It lists the Conventional
+  Commits since the previous `v*` tag (the bump step's range) under Breaking changes (a `!` or a
+  `BREAKING CHANGE` footer, any type), Features (`feat`), Fixes (`fix`) and Performance (`perf`),
+  one line per commit with its scope and a link to its PR (or to the commit when the subject has no
+  PR number). Other types are left out. A squash
+  merge's subject is the PR title for a multi-commit PR and the commit subject for a single-commit
+  one; a rebase merge lists each of its commits, linked to the commit.
+- Hand-written notes for users go under `## [Unreleased]` on `main`, with headings other than the
+  generated ones, such as `### Highlights` or `### Upgrade notes`. A Stable release PR moves them to
+  the top of its entry and empties the section; a prerelease leaves them for the next Stable
+  release, so notes written during a Beta or RC line ship with the Stable version.
+- A new major version (`X.0.0`) needs those notes. No release PR, branch, or tag is created for one
+  without them: an ordinary merge records a notice and waits, while a `target_version` dispatch or a
+  merged release commit fails. Every other version opens its release PR right away.
+- A release PR waits until the current version's tag was in the run's checkout. The merged
+  release's publication run pushes that tag, and an entry or bump computed before it would repeat
+  that release's changes. An ordinary push records a notice and the next push to `main` opens the
+  PR; a `target_version` dispatch fails, so dispatch again once the publication run finishes.
+- The release PR's files are generated. The workflow writes them in commits that change nothing
+  else and verifies the PR by building them again from its base. CI's Commit Policy job runs the
+  same check on every `app-release-v*` PR head, so a hand edit or GitHub's **Update branch** fails
+  CI until the next push to `main` writes the files again; edit `## [Unreleased]` on `main`
+  instead. Released entries are not rewritten.
+- `CHANGELOG.md` has an entry for every published `1.0.0-beta.N`, backfilled from the tag ranges
+  between published releases; earlier `0.x` builds remain listed in GitHub Releases.
+- The `1.0.0` entry starts with notes for the whole v1 train, not only the last RC.
+
+Product-impacting PRs should still include reviewer-facing release notes in the PR body, and their
+title should read as a changelog line:
 
 - User-visible feature or behavior changes.
 - Relevant docs updates.
 - Validation evidence.
 - Known remaining scope or follow-up work.
 
-Do not rely on commit subjects alone for large product changes such as Session Tree, branch lifecycle, resource precedence, or provider/auth behavior.
+Planned post-v1 guard: a CI check that fails when a PR changes a covered surface's contract without
+a `!` title.
 
 ## Npm Package Publishing
 
@@ -54,15 +426,15 @@ The first publishable package set is:
 
 ### Package release safety contract
 
-Package releases fail before merge. Every pull request reports an always-present `Package Release Gate` and performs the complete release rehearsal on the exact pull request head: Node.js `22.19.0` and `24`, npm/pnpm/Yarn/Bun consumers, ESM/CommonJS/browser imports, tarball allowlists and metadata, generated package docs, public API compatibility, and installed-agent docs.
+Package releases fail before merge. Every pull request reports an always-present `Package Release Gate` and `Package Release Candidate`. `check` validates tarball allowlists and metadata, generated package docs and public API compatibility on every pull request. A pull request that changes packages, `bun.lock`, `bunfig.toml`, the package scripts or the Release Please configuration also runs the Package Consumer Rehearsal on its exact head: Node.js `22.19.0` with npm, pnpm, Yarn and Bun consumers and ESM/CommonJS/browser imports. One that changes the website, docs or packages runs the Website & Docs Rehearsal on Node.js `24`: the versioned site build, its tests and the installed-agent docs. A full-tier dispatch and the Release Please branch run both. The consumer tools never run inside the repository: pnpm refuses a directory whose `package.json` pins another package manager, the repository pins Bun, and Yarn would take the repository for its project, so `scripts/package-consumer-tools.ts` runs them from its tool root and `bun run package:smoke` builds each consumer project in a temporary directory outside the repository. An unprivileged classifier makes the artifact job's intentional skip explicit for ordinary pull requests. Only the trusted coordinated Release Please branch grants artifact permissions and executes repository checkout, build, smoke, attestation, and upload steps; the candidate aggregator fails unless the artifact result matches the classification.
 
-The Release Please pull request is the final release candidate. Its green gate builds each final-version tarball once, records the Git tree identity and SHA-256 digest, and uploads the immutable artifacts with GitHub provenance. Merging that pull request is an explicit maintainer decision; release pull requests are never auto-merged and repository rules have no routine release bypass.
+The Release Please pull request is the final release candidate. Its green gate builds each final-version tarball once, records the Git tree identity and SHA-256 digest, and uploads the immutable artifacts with GitHub provenance. The repository pins the exact Release Please runtime embedded in the immutable action revision and preflight-tests its generated changelog shape and coordinated PR-title policy. For every upgrade, inspect that revision's `dist/index.js` for the exact runtime version. Dependency metadata alone is not evidence because upstream dependency bumps and bundle rebuilds can be separate commits. Update the root exact pin and lockfile, `scripts/release-please-contract.ts`, workflow SHA, validator fixtures and tests, and workflow AST hash together. Merging that pull request is an explicit maintainer decision; release pull requests are never auto-merged and repository rules have no routine release bypass.
 
 After merge, publication must not rebuild, regenerate docs, or rerun quality checks. The publish workflow resolves the successful release-candidate artifact for the merged Git tree, verifies its provenance against `.github/workflows/ci.yml` and the selected source SHA and workflow run, verifies tree identity, digest, package/version plan, OIDC identity, dependency availability, and unpublished npm state, then publishes that exact tarball through npm Trusted Publishing. Every npm integrity and dependency observation uses bounded retries for transient registry/network failures only; deterministic content or response failures fail immediately and belong in the pre-merge gate.
 
-Publish bases before dependents. A release plan that changes `@openwaggle/extension-sdk` must also release `@openwaggle/extension-react`, and a plan that changes `@openwaggle/waggle-core` must also release `@openwaggle/pi-waggle`; base-only plans fail before artifact preparation or promotion. After npm accepts and serves the exact version, create the immutable package tag and only then publish the matching GitHub Release. A GitHub Release must never claim availability before npm does.
+Publish bases before dependents. A release plan that changes `@openwaggle/extension-sdk` must also release `@openwaggle/extension-react`, and a plan that changes `@openwaggle/waggle-core` must also release `@openwaggle/pi-waggle`; base-only plans fail before artifact preparation or promotion. After npm accepts and serves the exact version, create the immutable package tag and only then publish the matching GitHub Release. A GitHub Release must never claim availability before npm does. Once promotion has created every tag, the `mark-release-tagged` job relabels the merged release pull request from `autorelease: pending` to `autorelease: tagged`. Release Please does that itself only when it creates GitHub Releases, which `skip-github-release: true` turns off, and it refuses to open the next release pull request while any merged release pull request among the 200 most recently updated still has `autorelease: pending` ("There are untagged, merged release PRs outstanding - aborting", run 40071078024 on 2026-10-24, caused by #136).
 
-The website guide under `website/src/content/docs/packages/<package>/<major>.<minor>/` is the canonical published package documentation. Published lines remain immutable; authors prepare a future line under `website/src/content/package-docs-next/<package>/`. `pnpm package-docs:update` generates committed package READMEs and current API-reference pages; `pnpm check` fails on drift. When Release Please crosses a major.minor boundary, its workflow promotes that pending source into the resolved version directory, removes the pending source, commits the result to the release branch, and validates that exact head. Package READMEs are self-contained npm landing pages with four tested package-manager commands and absolute documentation/support links. Installed agent docs expand website-only components into ordinary Markdown from the same source.
+The website guide under `website/src/content/docs/packages/<package>/<major>.<minor>/` is the canonical published package documentation. Published lines remain immutable; authors prepare a future line under `website/src/content/package-docs-next/<package>/`. `bun run package-docs:update` generates committed package READMEs and current API-reference pages; `bun run check` fails on drift. An API-reference page's generated marker records the package version whose declarations it lists and the SHA-256 of the page without the marker. The page is generated again only when that version changes, which happens on the Release Please branch, so a published version's page never lists unreleased exports; the API snapshot in `scripts/api-snapshots/` tracks those. Until then the page is frozen, and `bun run check` fails when its content no longer matches the recorded hash, so a hand edit fails; the check does not render the page again from the package's tagged API snapshot. When Release Please crosses a major.minor boundary, its workflow promotes that pending source into the resolved version directory, removes the pending source, commits the result to the release branch, and validates that exact head. Because that promotion runs after merge, the Commit Policy check (`scripts/package-release-lines.ts`) predicts each package's next version with the pinned Release Please runtime, from the Conventional Commits since its released manifest version (its `<component>-v<version>` tag, or the release commit while that tag does not exist yet) and the pull request title, and fails a pull request that would open a new line without pending docs. Package READMEs are self-contained npm landing pages with four tested package-manager commands and absolute documentation/support links. Installed agent docs expand website-only components into ordinary Markdown from the same source.
 
 Package documentation uses exact `major.minor` lines, keeps historical lines immutable, and exposes an unversioned latest alias. A canonical docs change that changes a generated README, API reference, package metadata, install guidance, or supported public contract requires at least a patch release for the affected package. Website-only editorial changes that do not alter generated package surfaces do not release an npm package. Internal API snapshot tooling remains a compatibility gate and is not user-facing documentation.
 
@@ -72,11 +444,11 @@ These packages use the MIT license, independent semver versions, Node.js `>=22.1
 
 `@openwaggle/extension-react` must not bundle React. It declares `react` and `react-dom` as peer dependencies with initial ranges of `^19.0.0`, while `@openwaggle/extension-sdk` is a normal dependency that publishes as a caret semver range. The package should also list React, React DOM, and their type packages as package-local dev dependencies for build and test coverage; those dev dependencies must not appear in the published runtime dependency graph.
 
-`@openwaggle/pi-waggle` must not publish wildcard Pi peer dependencies. It declares explicit Pi peer ranges for the Pi API line it was built against. The initial ranges are `@earendil-works/pi-coding-agent: ^0.80.6` and `@earendil-works/pi-tui: ^0.80.6`, with exact package-local dev dependencies on `0.80.6` for build and test coverage.
+`@openwaggle/pi-waggle` follows Pi's package contract for host-provided packages: the Pi SDK packages it imports and `typebox` are peer dependencies with a `"*"` range and are not bundled. Exact package-local dev dependencies pin the versions used for build and test coverage: the Pi SDKs come from the `pi-runtime` catalog, and `typebox` from the `pi-extension-host` catalog the app uses too, which `check:pi-runtime` holds at the version Pi supplies at runtime. This keeps a Pi-installed package on the host's single SDK instance while making compatibility changes visible through package QA; `bun run package:smoke` fails when a host-provided package moves into `dependencies`, which Pi warns about on every start. Before a Waggle package release, run the [Pi Waggle release checklist](pi-waggle-release-checklist.md).
 
 `@openwaggle/waggle-core` must remain runtime-neutral reusable policy. It must not import Pi SDK packages, Electron, Node built-ins, OpenWaggle renderer stores, or app services. Pi-specific bindings, renderers, commands, and extension registration belong in `@openwaggle/pi-waggle`.
 
-Package import boundaries must be enforced by repository standards checks that run under `pnpm check`. The checks should fail if `packages/extension-sdk/**` imports Electron, Node built-ins, Pi SDK packages, renderer stores, or main-process services; if `packages/waggle-core/**` imports Pi SDK packages, Electron, Node built-ins, renderer stores, or app services; if `packages/extension-react/**` imports OpenWaggle renderer components or app CSS/Tailwind internals; or if `packages/pi-waggle/**` imports Electron, renderer stores, or app services.
+Package import boundaries must be enforced by repository standards checks that run under `bun run check`. The checks should fail if `packages/extension-sdk/**` imports Electron, Node built-ins, Pi SDK packages, renderer stores, or main-process services; if `packages/waggle-core/**` imports Pi SDK packages, Electron, Node built-ins, renderer stores, or app services; if `packages/extension-react/**` imports OpenWaggle renderer components or app CSS/Tailwind internals; or if `packages/pi-waggle/**` imports Electron, renderer stores, or app services.
 
 All public package source lives under `packages/*`. The first package directories are `packages/extension-sdk`, `packages/extension-react`, `packages/waggle-core`, and `packages/pi-waggle`. Each package owns its `src/` API source, emits built JavaScript and TypeScript declarations to package-local output, and publishes from its package directory. Do not create parallel package copies outside `packages/*`, and do not publish raw TypeScript source as the runtime contract.
 
@@ -84,7 +456,7 @@ Package builds should follow the `ts-match` plain TypeScript model by default: T
 
 Public imports are limited to each package's explicit `package.json` exports. Documented top-level and subpath exports are supported; deep imports into `src/`, `dist/`, `dist-cjs/`, or other internal files are not part of the public contract. Export smoke tests should validate every documented export and reject accidental reliance on private deep paths.
 
-`@openwaggle/extension-sdk` should export public Effect Schema boundary values directly for manifests, contributions, broker payloads, docs discovery, and agent-loop DTOs. It should also provide helper APIs for common workflows such as defining and validating extension manifests so beginner authoring does not require direct Effect Schema usage. Effect Schema is the primary runtime schema contract for `0.1.0`; JSON Schema may be generated later as an additional artifact, but it should not replace the canonical Effect Schema boundary in the first release.
+`@openwaggle/extension-sdk` publishes TypeScript types and result helpers, not Effect Schema values ([ADR 0066](adr/0066-the-extension-sdk-public-api-is-types-and-result-helpers.md)). Its Effect schemas live in `src/internal/`, which no export reaches. The host imports them through the `@openwaggle/extension-sdk/*` source alias, and the public types are printed from them by `bun run extension-sdk-types:generate`. Every runtime check is a `validate*` helper on the `./validation` entry that returns `{ success, value }` or `{ success: false, issues: { path, message }[] }` and never throws, and the broker SDK factories for tests are on `./testing`. Every other entry must bundle without Effect, which `scripts/__tests__/extension-sdk-runtime-bundles.integration.test.ts` checks, and no published declaration may import `effect`, which the `api-snapshots` step checks. The manifest's JSON Schema is published at `website/public/schemas/openwaggle-extension-manifest-v1.schema.json`.
 
 `@openwaggle/extension-sdk` must remain browser-safe. It must not import Electron, Node built-ins, OpenWaggle main-process services, renderer stores, or Pi SDK packages. Runtime helpers should operate on the brokered SDK/context values passed to extension mount code rather than reaching into host internals.
 
@@ -113,7 +485,7 @@ Package tarballs should exclude repository and development artifacts:
 - build caches
 - generated source maps unless a later package decision explicitly enables them
 
-Package validation should include API surface snapshots for every publishable package. Snapshot checks should compare the committed public TypeScript declaration surface against the newly built package output so unintended public API changes fail before publish. Prefer API Extractor-style declaration reports if they work cleanly with the four package outputs; otherwise use a deterministic repository-owned declaration snapshot script. In either case, `pnpm check` should fail on snapshot drift unless the snapshot update is intentionally committed in the same PR. Export smoke tests and package manager smoke tests still run; the API snapshot is the compatibility guard for the declaration shape.
+Package validation should include API surface snapshots for every publishable package. Snapshot checks should compare the committed public TypeScript declaration surface against the newly built package output so unintended public API changes fail before publish. Prefer API Extractor-style declaration reports if they work cleanly with the four package outputs; otherwise use a deterministic repository-owned declaration snapshot script. In either case, `bun run check` should fail on snapshot drift unless the snapshot update is intentionally committed in the same PR. Export smoke tests and package manager smoke tests still run; the API snapshot is the compatibility guard for the declaration shape.
 
 The first explicit export maps should be minimal:
 
@@ -146,6 +518,8 @@ The first explicit export maps should be minimal:
 - `@openwaggle/pi-waggle/renderers`
 - `@openwaggle/pi-waggle/stop-policy`
 
+`@openwaggle/extension-sdk` 0.3 removed `/manifest` and `/broker` and added the `/validation` and `/testing` tooling entries ([ADR 0066](adr/0066-the-extension-sdk-public-api-is-types-and-result-helpers.md)). Its current export map is the one in `packages/extension-sdk/package.json`.
+
 Adding, removing, or changing a public export path is a package-contract change and must be reflected in semver and package release notes.
 
 The first public publish uses the maintainer-owned `@openwaggle` npm organization scope. Do not publish these packages under a temporary personal scope.
@@ -160,7 +534,7 @@ Package publishing should follow the `ts-match` release model:
 - `fix` produces a patch, `feat` produces a minor, and a breaking change produces a minor while the package is below `1.0.0`; after `1.0.0`, a breaking change produces a major.
 - Direct package release intent is package-impact scoped. Release Please considers release-eligible Conventional Commits that touch `packages/<name>/**` or change that package's generated README/API/metadata source. App, unrelated website pages, general documentation, fixtures, and workflow-only changes do not release npm packages.
 - Conventional Commit validation starts at the package-release bootstrap baseline and applies to every authored commit landing on `main`. Pull request titles must also be valid Conventional Commit subjects because GitHub uses them as squash commit subjects.
-- Generated merge subjects are accepted only when the merge does not change a publishable package. A merge that changes `packages/*` must carry explicit Conventional Commit release intent. Generated `Revert "..."` subjects are not exempt; use an explicit subject such as `revert(extension-sdk): restore the previous manifest contract`.
+- Generated merge subjects are accepted when the merge does not change a publishable package, or when every incoming parent is already contained in the base branch. The second case is the update-branch merge a long-lived pull request makes to sync with `main`: any `packages/*` changes it carries are already released on the base with their own release commits, so the pull request owes no bump for them. A merge that brings `packages/*` changes **not** yet on the base must still carry explicit Conventional Commit release intent. Generated `Revert "..."` subjects are not exempt; use an explicit subject such as `revert(extension-sdk): restore the previous manifest contract`.
 - Repository settings disable merge commits while preserving squash and rebase. Squash a one-intent PR with a Conventional Commit title. Rebase a mixed-intent PR when its app and package changes need separate Conventional Commits or different package release impacts.
 - The Release Please `node-workspace` plugin patch-bumps and updates a dependent package when its OpenWaggle dependency releases.
 - Packages ship built dual output from plain TypeScript builds: ESM, CommonJS, and TypeScript declarations. Package source and consumer-smoke fixtures remain TypeScript; CommonJS compatibility is exercised from TypeScript with Node's `createRequire`, and `.js`/`.cjs` files exist only as ignored compiler output or published artifacts.
@@ -170,8 +544,8 @@ Package publishing should follow the `ts-match` release model:
 - Publish `extension-sdk` and `waggle-core` before `extension-react` and `pi-waggle`, respectively, and verify each base version is resolvable before publishing its dependent.
 - The release job runs on Node 24 with pinned npm `11.18.0` until that pin is deliberately updated. Do not install `npm@latest` during a release.
 - The protected GitHub `npm` environment has no npm secrets or required reviewers, accepts deployments only from `main`, and prevents concurrent package release runs.
-- The additive `main` ruleset requires pull requests and current green CI, allows only squash and rebase, and blocks force pushes and deletion without a routine bypass. Release Please package PRs remain open until a maintainer or explicitly authorized agent chooses to merge them. Repository settings disable merge commits so GitHub cannot synthesize a package-changing merge subject that passes PR checks but fails the commit policy on `main`.
-- Recovery reruns the failed Package Release workflow so it retains the original push identity and promotes the same attested release-candidate artifact. Publication resumes only missing package versions whose registry integrity still matches and never rebuilds or replaces an existing version.
+- The additive `main` ruleset requires pull requests and green CI (Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Package Release Gate, `license/cla`) before a PR merges directly (ADR 0033, no merge queue). It allows only squash and rebase, and blocks force pushes and deletion without a routine bypass. Release Please package PRs remain open until a maintainer or explicitly authorized agent chooses to merge them. Repository settings disable merge commits so GitHub cannot synthesize a package-changing merge subject that passes PR checks but fails the commit policy on `main`.
+- Recovery dispatches the Package Release workflow from `main` with the exact merged release commit SHA. The workflow verifies that commit is reachable from `origin/main`, finds the newest first-parent commit that changed a package manifest and uses its parent as the pre-release baseline, matches the merged release Git tree to the successful attested release-candidate artifact, and resumes only missing package versions whose registry integrity still matches. Recovery never rebuilds or replaces an existing version.
 - A bad published version is deprecated and followed by a corrected patch. Do not overwrite or routinely unpublish immutable package history.
 - Normal package releases are stable semver versions published to `latest`. The workflow does not support `next`, `beta`, or `rc` channels until a separate prerelease policy is accepted; the setup-only `bootstrap` tag is the sole exception.
 - Package-only publishing does not require full desktop app release validation unless the same change touches app behavior.
@@ -184,8 +558,8 @@ Package publishing should follow the `ts-match` release model:
 npm Trusted Publishing can only be configured after a package record exists. The repository therefore provides one resumable bootstrap command with two modes:
 
 ```bash
-pnpm package-release:bootstrap
-pnpm package-release:bootstrap --execute
+bun run package-release:bootstrap
+bun run package-release:bootstrap --execute
 ```
 
 The default mode is read-only and reports every intended registry and GitHub change. `--execute` requires a clean, up-to-date `main`, authenticated npm and GitHub sessions, npm 2FA, and pinned npm `11.18.0` or a deliberately approved newer version.

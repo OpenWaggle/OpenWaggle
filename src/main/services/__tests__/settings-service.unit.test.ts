@@ -2,20 +2,58 @@ import { SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SettingsStoreReadError } from '../../errors'
 
-const { getSettingsMock, updateSettingsMock, initializeSettingsStoreMock, flushSettingsStoreMock } =
-  vi.hoisted(() => ({
-    getSettingsMock: vi.fn(),
-    updateSettingsMock: vi.fn(),
-    initializeSettingsStoreMock: vi.fn(),
-    flushSettingsStoreMock: vi.fn(),
-  }))
+const {
+  getSettingsMock,
+  updateSettingsDurablyMock,
+  updateSkillToggleDurablyMock,
+  updateAgentDefinitionToggleDurablyMock,
+  updateSelectedModelDurablyMock,
+  migrateSelectedModelDurablyMock,
+  deleteSelectedModelDurablyMock,
+  initializeSettingsStoreMock,
+  refreshSettingsStoreMock,
+  flushSettingsStoreMock,
+  isAppDatabaseClientIsolatedMock,
+  invokeConfiguredHostUiMock,
+  hydrateSettingsStoreFromHostMock,
+} = vi.hoisted(() => ({
+  getSettingsMock: vi.fn(),
+  updateSettingsDurablyMock: vi.fn(),
+  updateSkillToggleDurablyMock: vi.fn(),
+  updateAgentDefinitionToggleDurablyMock: vi.fn(),
+  updateSelectedModelDurablyMock: vi.fn(),
+  migrateSelectedModelDurablyMock: vi.fn(),
+  deleteSelectedModelDurablyMock: vi.fn(),
+  initializeSettingsStoreMock: vi.fn(),
+  refreshSettingsStoreMock: vi.fn(),
+  flushSettingsStoreMock: vi.fn(),
+  isAppDatabaseClientIsolatedMock: vi.fn(() => false),
+  invokeConfiguredHostUiMock: vi.fn(),
+  hydrateSettingsStoreFromHostMock: vi.fn(),
+}))
+
+vi.mock('../../application/gui-session-command-router', () => ({
+  invokeConfiguredHostUi: invokeConfiguredHostUiMock,
+}))
+
+vi.mock('../database-access-mode', () => ({
+  isAppDatabaseClientIsolated: isAppDatabaseClientIsolatedMock,
+}))
 
 vi.mock('../../store/settings', () => ({
   getSettings: getSettingsMock,
-  updateSettings: updateSettingsMock,
+  updateSettingsDurably: updateSettingsDurablyMock,
+  updateSkillToggleDurably: updateSkillToggleDurablyMock,
+  updateAgentDefinitionToggleDurably: updateAgentDefinitionToggleDurablyMock,
+  updateSelectedModelDurably: updateSelectedModelDurablyMock,
+  migrateSelectedModelDurably: migrateSelectedModelDurablyMock,
+  deleteSelectedModelDurably: deleteSelectedModelDurablyMock,
   initializeSettingsStore: initializeSettingsStoreMock,
+  refreshSettingsStore: refreshSettingsStoreMock,
   flushSettingsStoreForTests: flushSettingsStoreMock,
+  hydrateSettingsStoreFromHost: hydrateSettingsStoreFromHostMock,
 }))
 
 import { SettingsService } from '../settings-service'
@@ -23,17 +61,51 @@ import { SettingsService } from '../settings-service'
 describe('SettingsService.Live', () => {
   beforeEach(() => {
     getSettingsMock.mockReset()
-    updateSettingsMock.mockReset()
+    updateSettingsDurablyMock.mockReset()
+    updateSkillToggleDurablyMock.mockReset()
+    updateAgentDefinitionToggleDurablyMock.mockReset()
     initializeSettingsStoreMock.mockReset()
+    refreshSettingsStoreMock.mockReset()
     flushSettingsStoreMock.mockReset()
+    isAppDatabaseClientIsolatedMock.mockReset().mockReturnValue(false)
+    invokeConfiguredHostUiMock
+      .mockReset()
+      .mockResolvedValue({ handled: true, result: DEFAULT_SETTINGS })
+    hydrateSettingsStoreFromHostMock.mockReset()
+    updateSettingsDurablyMock.mockResolvedValue(undefined)
+    updateSkillToggleDurablyMock.mockResolvedValue(undefined)
+    updateAgentDefinitionToggleDurablyMock.mockResolvedValue(undefined)
+    refreshSettingsStoreMock.mockResolvedValue(undefined)
+    initializeSettingsStoreMock.mockResolvedValue(undefined)
+    flushSettingsStoreMock.mockResolvedValue(undefined)
+    getSettingsMock.mockReturnValue(DEFAULT_SETTINGS)
   })
 
-  it('delegates get to getSettings()', async () => {
+  it('refreshes the Host snapshot without reading the GUI isolated database', async () => {
+    isAppDatabaseClientIsolatedMock.mockReturnValue(true)
+    getSettingsMock.mockReturnValue(DEFAULT_SETTINGS)
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        return yield* service.get()
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+
+    expect(refreshSettingsStoreMock).not.toHaveBeenCalled()
+    expect(initializeSettingsStoreMock).not.toHaveBeenCalled()
+    expect(getSettingsMock).toHaveBeenCalledOnce()
+    expect(invokeConfiguredHostUiMock).toHaveBeenCalledWith('settings:get', [])
+    expect(hydrateSettingsStoreFromHostMock).toHaveBeenCalledWith(DEFAULT_SETTINGS)
+  })
+
+  it('refreshes durable state before delegating get to getSettings()', async () => {
     const settings = {
       ...DEFAULT_SETTINGS,
       selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
     }
     getSettingsMock.mockReturnValue(settings)
+    refreshSettingsStoreMock.mockResolvedValue(undefined)
 
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -43,10 +115,54 @@ describe('SettingsService.Live', () => {
     )
 
     expect(result).toBe(settings)
+    expect(refreshSettingsStoreMock).toHaveBeenCalledOnce()
+    expect(initializeSettingsStoreMock).toHaveBeenCalledOnce()
     expect(getSettingsMock).toHaveBeenCalledOnce()
   })
 
-  it('delegates update to updateSettings()', async () => {
+  it('surfaces a typed settings read failure and retries on the next get', async () => {
+    const failure = new SettingsStoreReadError({
+      operation: 'decode',
+      message: 'Saved browser settings are invalid.',
+    })
+    getSettingsMock.mockImplementationOnce(() => {
+      throw failure
+    })
+    getSettingsMock.mockReturnValueOnce(DEFAULT_SETTINGS)
+
+    const read = () =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const service = yield* SettingsService
+          return yield* service.get()
+        }).pipe(Effect.provide(SettingsService.Live)),
+      )
+
+    await expect(read()).rejects.toThrow('Saved browser settings are invalid.')
+    await expect(read()).resolves.toBe(DEFAULT_SETTINGS)
+    expect(initializeSettingsStoreMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not write before a settings read succeeds', async () => {
+    getSettingsMock.mockImplementation(() => {
+      throw new SettingsStoreReadError({
+        operation: 'read',
+        message: 'Settings database unavailable.',
+      })
+    })
+
+    await expect(
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const service = yield* SettingsService
+          yield* service.update({ updateChannel: 'beta' })
+        }).pipe(Effect.provide(SettingsService.Live)),
+      ),
+    ).rejects.toThrow('Settings database unavailable')
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates every update to updateSettingsDurably()', async () => {
     const partial = { selectedModel: SupportedModelId('openai/gpt-4o') }
 
     await Effect.runPromise(
@@ -56,12 +172,139 @@ describe('SettingsService.Live', () => {
       }).pipe(Effect.provide(SettingsService.Live)),
     )
 
-    expect(updateSettingsMock).toHaveBeenCalledWith(partial)
+    expect(updateSettingsDurablyMock).toHaveBeenCalledWith(partial)
+  })
+
+  it('delegates skill updates to the atomic durable toggle operation', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.setSkillEnabled === undefined) throw new Error('Missing atomic skill updates')
+        yield* service.setSkillEnabled('/tmp/project', 'review', false)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(updateSkillToggleDurablyMock).toHaveBeenCalledWith('/tmp/project', 'review', false)
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates Agent definition updates to the atomic durable toggle operation', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.setAgentDefinitionEnabled === undefined) {
+          throw new Error('Missing atomic Agent definition updates')
+        }
+        yield* service.setAgentDefinitionEnabled('/tmp/project', 'reviewer', false)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(updateAgentDefinitionToggleDurablyMock).toHaveBeenCalledWith(
+      '/tmp/project',
+      'reviewer',
+      false,
+    )
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates project model writes to the queue-safe durable model operation', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.setProjectModel === undefined) {
+          throw new Error('Missing queue-safe project model updates')
+        }
+        yield* service.setProjectModel('/tmp/project', 'openai/gpt-4.1')
+        yield* service.setProjectModel('/tmp/project', null)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(updateSelectedModelDurablyMock).toHaveBeenNthCalledWith(
+      1,
+      '/tmp/project',
+      'openai/gpt-4.1',
+    )
+    expect(updateSelectedModelDurablyMock).toHaveBeenNthCalledWith(2, '/tmp/project', null)
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates legacy model migration to the queue-safe insert-if-absent operation', async () => {
+    migrateSelectedModelDurablyMock.mockResolvedValue(true)
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.migrateProjectModel === undefined) {
+          throw new Error('Missing queue-safe legacy model migration')
+        }
+        const inserted = yield* service.migrateProjectModel('/tmp/project', 'legacy/file')
+        expect(inserted).toBe(true)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(migrateSelectedModelDurablyMock).toHaveBeenCalledWith('/tmp/project', 'legacy/file')
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates project model removal to the queue-safe durable delete', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        if (service.removeProjectModel === undefined) {
+          throw new Error('Missing queue-safe project model removal')
+        }
+        yield* service.removeProjectModel('/tmp/project')
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+    expect(deleteSelectedModelDurablyMock).toHaveBeenCalledWith('/tmp/project')
+    expect(updateSettingsDurablyMock).not.toHaveBeenCalled()
+  })
+
+  it('does not replace missing GUI hydration with isolated database defaults', async () => {
+    isAppDatabaseClientIsolatedMock.mockReturnValue(true)
+    getSettingsMock.mockImplementation(() => {
+      throw new SettingsStoreReadError({ operation: 'read', message: 'Host settings not ready.' })
+    })
+    await expect(
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const service = yield* SettingsService
+          yield* service.initialize()
+        }).pipe(Effect.provide(SettingsService.Live)),
+      ),
+    ).rejects.toThrow('Host settings not ready.')
+    expect(initializeSettingsStoreMock).not.toHaveBeenCalled()
+    expect(refreshSettingsStoreMock).not.toHaveBeenCalled()
+  })
+
+  it('awaits durable persistence for browser profile updates', async () => {
+    const partial = {
+      browserProfiles: [{ id: 'work', name: 'Work', kind: 'persistent' as const }],
+    }
+    updateSettingsDurablyMock.mockResolvedValue(undefined)
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        yield* service.update(partial)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+
+    expect(updateSettingsDurablyMock).toHaveBeenCalledWith(partial)
+  })
+
+  it('surfaces durable browser profile persistence failures', async () => {
+    const failure = new Error('settings database unavailable')
+    updateSettingsDurablyMock.mockRejectedValue(failure)
+
+    await expect(
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const service = yield* SettingsService
+          yield* service.update({
+            browserProfiles: [{ id: 'work', name: 'Work', kind: 'persistent' }],
+          })
+        }).pipe(Effect.provide(SettingsService.Live)),
+      ),
+    ).rejects.toThrow('settings database unavailable')
   })
 
   it('delegates initialize to initializeSettingsStore()', async () => {
-    initializeSettingsStoreMock.mockResolvedValue(undefined)
-
     await Effect.runPromise(
       Effect.gen(function* () {
         const service = yield* SettingsService
@@ -73,8 +316,6 @@ describe('SettingsService.Live', () => {
   })
 
   it('delegates flushForTests to flushSettingsStoreForTests()', async () => {
-    flushSettingsStoreMock.mockResolvedValue(undefined)
-
     await Effect.runPromise(
       Effect.gen(function* () {
         const service = yield* SettingsService

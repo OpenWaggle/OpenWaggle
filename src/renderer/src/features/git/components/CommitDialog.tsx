@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { useState } from 'react'
 import { useEscapeHotkey } from '@/shared/hooks/useEscapeHotkey'
 import { Button } from '@/shared/ui/Button'
+import { ModalDialog } from '@/shared/ui/ModalDialog'
 import { CommitDialogBody, CommitDialogFooter } from './CommitDialogContent'
 
 interface CommitDialogProps {
@@ -81,13 +82,8 @@ export function CommitDialog({
   const canSubmit = !!projectPath && !!message.trim() && selectedPaths.size > 0 && !isCommitting
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Commit changes"
-    >
-      <div className="w-full max-w-[620px] rounded-xl border border-border-light bg-bg-secondary shadow-2xl">
+    <ModalDialog label="Commit changes" onClose={onClose}>
+      <div>
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">Commit changes</h2>
           <Button
@@ -122,6 +118,6 @@ export function CommitDialog({
           onCommit={() => void handleCommit()}
         />
       </div>
-    </div>
+    </ModalDialog>
   )
 }

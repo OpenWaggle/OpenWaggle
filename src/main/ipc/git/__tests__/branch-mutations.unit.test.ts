@@ -10,13 +10,7 @@ vi.mock('../shared', () => ({
   runGit: runGitMock,
 }))
 
-const {
-  checkoutGitBranch,
-  createGitBranch,
-  deleteGitBranch,
-  renameGitBranch,
-  setGitBranchUpstream,
-} = await import('../branch-mutations')
+const { checkoutGitBranch, createGitBranch } = await import('../branch-mutations')
 
 function gitResult(code: number, stdout = '', stderr = '') {
   return { code, stdout, stderr }
@@ -44,7 +38,8 @@ describe('git branch mutations', () => {
   it('validates, creates, and optionally checks out new branches', async () => {
     runGitMock
       .mockResolvedValueOnce(gitResult(0))
-      .mockResolvedValueOnce(gitResult(1))
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0, 'origin\n'))
       .mockResolvedValueOnce(gitResult(0))
       .mockResolvedValueOnce(gitResult(0))
 
@@ -58,18 +53,59 @@ describe('git branch mutations', () => {
       'feature',
     ])
     expect(runGitMock).toHaveBeenNthCalledWith(2, '/repo', [
-      'show-ref',
-      '--verify',
-      '--quiet',
-      'refs/heads/feature',
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/heads',
+      'refs/remotes',
     ])
-    expect(runGitMock).toHaveBeenNthCalledWith(3, '/repo', ['branch', 'feature', 'main'])
-    expect(runGitMock).toHaveBeenNthCalledWith(4, '/repo', ['checkout', 'feature'])
+    expect(runGitMock).toHaveBeenNthCalledWith(3, '/repo', ['remote'])
+    expect(runGitMock).toHaveBeenNthCalledWith(4, '/repo', ['branch', 'feature', 'main'])
+    expect(runGitMock).toHaveBeenNthCalledWith(5, '/repo', ['checkout', 'feature'])
+  })
+
+  it('allows a branch whose name is only a suffix of a nested remote branch', async () => {
+    runGitMock
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0, 'refs/remotes/origin/team/feature\n'))
+      .mockResolvedValueOnce(gitResult(0, 'origin\n'))
+      .mockResolvedValueOnce(gitResult(0))
+
+    await expect(createGitBranch('/repo', { name: 'feature', checkout: false })).resolves.toEqual({
+      ok: true,
+      message: 'Created feature.',
+    })
+  })
+
+  it('rejects an exact remote branch name collision', async () => {
+    runGitMock
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0, 'refs/remotes/origin/feature\n'))
+      .mockResolvedValueOnce(gitResult(0, 'origin\n'))
+
+    await expect(createGitBranch('/repo', { name: 'feature', checkout: false })).resolves.toEqual({
+      ok: false,
+      code: 'branch-exists',
+      message: 'Branch "feature" conflicts with existing ref "feature".',
+    })
+  })
+
+  it('finds remote collisions after a slash-containing configured remote name', async () => {
+    runGitMock
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0, 'refs/remotes/team/fork/feature\n'))
+      .mockResolvedValueOnce(gitResult(0, 'team\nteam/fork\n'))
+
+    await expect(createGitBranch('/repo', { name: 'feature', checkout: false })).resolves.toEqual({
+      ok: false,
+      code: 'branch-exists',
+      message: 'Branch "feature" conflicts with existing ref "feature".',
+    })
   })
 
   it('checks out remote tracking branches and prevents mismatched local tracking reuse', async () => {
     runGitMock
       .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0, 'origin\n'))
       .mockResolvedValueOnce(gitResult(0))
       .mockResolvedValueOnce(gitResult(0, 'origin/other\n'))
 
@@ -80,25 +116,42 @@ describe('git branch mutations', () => {
     })
   })
 
-  it('maps git failures from rename, delete, and upstream mutations', async () => {
-    runGitMock.mockResolvedValue(gitResult(1, '', 'fatal: not a valid object name: bad'))
+  it('derives the local tracking branch from the longest configured remote name', async () => {
+    runGitMock
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0, 'team\nteam/fork\norigin\n'))
+      .mockResolvedValueOnce(gitResult(1))
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0))
+      .mockResolvedValueOnce(gitResult(0))
 
-    await expect(renameGitBranch('/repo', { from: 'old', to: 'bad name' })).resolves.toEqual({
-      ok: false,
-      code: 'invalid-name',
-      message: 'Branch name is invalid.',
+    await expect(checkoutGitBranch('/repo', { name: 'team/fork/feature' })).resolves.toEqual({
+      ok: true,
+      message: 'Switched to tracking branch team/fork/feature.',
     })
-    await expect(deleteGitBranch('/repo', { name: 'bad', force: true })).resolves.toEqual({
-      ok: false,
-      code: 'invalid-name',
-      message: 'Branch name is invalid.',
-    })
-    await expect(
-      setGitBranchUpstream('/repo', { name: 'bad', upstream: 'origin/bad' }),
-    ).resolves.toEqual({
-      ok: false,
-      code: 'invalid-name',
-      message: 'Branch name is invalid.',
-    })
+
+    expect(runGitMock).toHaveBeenCalledWith('/repo', [
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/heads/feature',
+    ])
+    expect(runGitMock).not.toHaveBeenCalledWith('/repo', [
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/heads/fork/feature',
+    ])
+    expect(runGitMock).toHaveBeenCalledWith('/repo', [
+      'config',
+      'branch.feature.remote',
+      'team/fork',
+    ])
+    expect(runGitMock).toHaveBeenCalledWith('/repo', [
+      'config',
+      'branch.feature.merge',
+      'refs/heads/feature',
+    ])
   })
 })

@@ -1,4 +1,3 @@
-import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { DOUBLE_FACTOR } from '@shared/constants/math'
@@ -6,12 +5,6 @@ import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/stand
 import { isEnoent } from '@shared/utils/node-error'
 import { normalizeSkillId as normalizeSkillIdValue } from '@shared/utils/skill-id'
 import { isPathInside } from '../utils/paths'
-
-interface ParsedSkillDocument {
-  readonly name: string
-  readonly description: string
-  readonly body: string
-}
 
 export type LoadedSkillDefinition = SkillDiscoveryItem
 
@@ -40,7 +33,7 @@ function resolveSkillRoots(projectPath: string) {
 export async function loadSkillCatalog(
   projectPath: string,
   toggles: Readonly<Record<string, boolean>> = {},
-): Promise<LoadedSkillCatalog> {
+) {
   const seenSkillIds = new Set<string>()
   const allSkills: LoadedSkillDefinition[] = []
 
@@ -49,9 +42,11 @@ export async function loadSkillCatalog(
     if (folderEntries === null) continue
 
     const rootSkills = await Promise.all(
-      folderEntries
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => loadSkillMetadata(projectPath, skillsRoot, entry.name, toggles)),
+      folderEntries.flatMap((entry) =>
+        entry.isDirectory()
+          ? [loadSkillMetadata(projectPath, skillsRoot, entry.name, toggles)]
+          : [],
+      ),
     )
 
     for (const skill of rootSkills) {
@@ -70,7 +65,7 @@ export async function loadSkillCatalog(
   }
 }
 
-export function toSkillCatalogResult(catalog: LoadedSkillCatalog): SkillCatalogResult {
+export function toSkillCatalogResult(catalog: LoadedSkillCatalog) {
   return catalog
 }
 
@@ -78,7 +73,7 @@ export async function loadSkillInstructions(
   projectPath: string,
   skillId: string,
   toggles: Readonly<Record<string, boolean>> = {},
-): Promise<LoadedSkillInstructions> {
+) {
   const canonicalSkillId = normalizeRequestedSkillId(skillId)
 
   // Search all skill roots for the requested skill
@@ -86,10 +81,9 @@ export async function loadSkillInstructions(
     const folderEntries = await readDirectoryEntries(skillsRoot)
     if (folderEntries === null) continue
 
-    const matchingFolders = folderEntries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .filter((folderName) => normalizeSkillId(folderName) === canonicalSkillId)
+    const matchingFolders = folderEntries.flatMap((entry) =>
+      entry.isDirectory() && normalizeSkillId(entry.name) === canonicalSkillId ? [entry.name] : [],
+    )
 
     if (matchingFolders.length === 0) continue
 
@@ -121,7 +115,7 @@ export async function loadSkillInstructions(
         enabled,
         loadStatus: 'ok',
         instructions: parsed.body,
-      }
+      } satisfies LoadedSkillInstructions
     } catch (error) {
       throw new Error(formatSkillError(projectPath, folderName, error), { cause: error })
     }
@@ -135,7 +129,7 @@ function createDefaultSkillDefinition(
   folderPath: string,
   skillPath: string,
   enabled: boolean,
-): SkillDiscoveryItem {
+) {
   return {
     id: skillId,
     name: skillId,
@@ -145,7 +139,7 @@ function createDefaultSkillDefinition(
     hasScripts: false,
     enabled,
     loadStatus: 'error',
-  }
+  } satisfies SkillDiscoveryItem
 }
 
 async function loadSkillMetadata(
@@ -153,7 +147,7 @@ async function loadSkillMetadata(
   skillsRoot: string,
   folderName: string,
   toggles: Readonly<Record<string, boolean>>,
-): Promise<LoadedSkillDefinition> {
+) {
   const folderPath = path.join(skillsRoot, folderName)
   const skillPath = path.join(folderPath, 'SKILL.md')
   const skillId = normalizeSkillId(folderName)
@@ -164,25 +158,30 @@ async function loadSkillMetadata(
   try {
     const raw = await readSkillFileWithinProject(projectPath, skillPath)
     const parsed = parseSkillDocument(raw)
-    return {
+    const definition: LoadedSkillDefinition = {
       ...base,
       name: parsed.name,
       description: parsed.description,
       hasScripts,
       loadStatus: 'ok',
     }
+    return definition
   } catch (error) {
-    return {
+    const definition: LoadedSkillDefinition = {
       ...base,
       hasScripts,
       loadError: formatSkillError(projectPath, folderName, error),
     }
+    return definition
   }
 }
 
 async function readSkillFileWithinProject(projectPath: string, skillPath: string) {
-  const projectRootReal = await resolveRealPath(projectPath)
-  const skillRealPath = await resolveRealPath(skillPath)
+  // Independent path resolutions — run them concurrently.
+  const [projectRootReal, skillRealPath] = await Promise.all([
+    resolveRealPath(projectPath),
+    resolveRealPath(skillPath),
+  ])
 
   if (!isPathInside(projectRootReal, skillRealPath)) {
     throw new Error('SKILL.md resolves outside the project directory (symlink)')
@@ -217,7 +216,7 @@ async function hasScriptsFolder(folderPath: string) {
   }
 }
 
-export function normalizeRequestedSkillId(skillId: string): string {
+export function normalizeRequestedSkillId(skillId: string) {
   const canonicalSkillId = skillId.trim().toLowerCase()
   if (!canonicalSkillId) {
     throw new Error('skillId is required')
@@ -230,11 +229,11 @@ export function normalizeRequestedSkillId(skillId: string): string {
   return canonicalSkillId
 }
 
-export function normalizeSkillId(folderName: string): string {
+export function normalizeSkillId(folderName: string) {
   return normalizeSkillIdValue(folderName)
 }
 
-function parseSkillDocument(markdown: string): ParsedSkillDocument {
+function parseSkillDocument(markdown: string) {
   const trimmed = markdown.trimStart()
   const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(trimmed)
   if (!frontmatterMatch) {
@@ -248,8 +247,8 @@ function parseSkillDocument(markdown: string): ParsedSkillDocument {
   const body = (frontmatterMatch[DOUBLE_FACTOR] ?? '').trim()
   const fields = parseFrontmatterFields(frontmatter)
 
-  const name = fields.name?.trim()
-  const description = fields.description?.trim()
+  const name = fields.get('name')?.trim()
+  const description = fields.get('description')?.trim()
   if (!name) {
     throw new Error('SKILL.md frontmatter requires "name"')
   }
@@ -261,7 +260,7 @@ function parseSkillDocument(markdown: string): ParsedSkillDocument {
 }
 
 function parseFrontmatterFields(frontmatter: string) {
-  const fields: Record<string, string> = {}
+  const fields = new Map<string, string>()
   const lines = frontmatter.split('\n')
   for (const line of lines) {
     const trimmed = line.trim()
@@ -270,7 +269,7 @@ function parseFrontmatterFields(frontmatter: string) {
     if (separator <= 0) continue
     const key = trimmed.slice(0, separator).trim()
     const rawValue = trimmed.slice(separator + 1).trim()
-    fields[key] = stripQuotes(rawValue)
+    fields.set(key, stripQuotes(rawValue))
   }
   return fields
 }
@@ -285,7 +284,7 @@ function stripQuotes(value: string) {
   return value
 }
 
-async function readDirectoryEntries(dirPath: string): Promise<Dirent[] | null> {
+async function readDirectoryEntries(dirPath: string) {
   try {
     return await fs.readdir(dirPath, { withFileTypes: true })
   } catch (error) {

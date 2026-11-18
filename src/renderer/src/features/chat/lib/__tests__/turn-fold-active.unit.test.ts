@@ -1,0 +1,79 @@
+import type { UIMessage } from '@shared/types/chat-ui'
+import { describe, expect, it } from 'vitest'
+import { applyTurnFolds } from '../turn-fold'
+import type { ChatRow, MessageChatRow } from '../types-chat-row'
+
+function row(id: string, role: UIMessage['role'], part: UIMessage['parts'][number]) {
+  return {
+    type: 'message',
+    message: { id, role, parts: [part] },
+    isStreaming: false,
+    isRunActive: false,
+    showTurnDivider: false,
+  } satisfies MessageChatRow
+}
+
+describe('applyTurnFolds during an active run', () => {
+  it('keeps settled turns folded while leaving the active final turn open', () => {
+    const rows: ChatRow[] = [
+      row('u1', 'user', { type: 'text', content: 'First' }),
+      row('a1', 'assistant', {
+        type: 'tool-call',
+        id: 'tool-1',
+        name: 'edit',
+        arguments: '{}',
+        state: 'done',
+      }),
+      row('a2', 'assistant', { type: 'text', content: 'First done.' }),
+      row('u2', 'user', { type: 'text', content: 'Second' }),
+      row('a3', 'assistant', {
+        type: 'tool-call',
+        id: 'tool-2',
+        name: 'edit',
+        arguments: '{}',
+        state: 'done',
+      }),
+    ]
+
+    const result = applyTurnFolds(rows, {
+      isLoading: true,
+      settledRunDurationMs: null,
+      turnDurationsByAnchorMessageId: new Map([['a2', 5_000]]),
+      interrupted: false,
+      expandedTurnKeys: new Set(),
+    })
+
+    expect(result[1]).toMatchObject({ type: 'turn-fold', label: 'Worked for 5s' })
+    expect(result.at(-1)).toBe(rows.at(-1))
+    expect(result.filter((candidate) => candidate.type === 'turn-fold')).toHaveLength(1)
+  })
+
+  it('keeps the running turn open while a steer the agent has not read renders after it', () => {
+    const steer = row('u3-steer', 'user', { type: 'text', content: 'Also check tests' })
+    const rows: ChatRow[] = [
+      row('u1', 'user', { type: 'text', content: 'First' }),
+      row('a1', 'assistant', { type: 'text', content: 'First done.' }),
+      row('u2', 'user', { type: 'text', content: 'Second' }),
+      row('a2', 'assistant', {
+        type: 'tool-call',
+        id: 'tool-2',
+        name: 'edit',
+        arguments: '{}',
+        state: 'done',
+      }),
+      { ...row('a3', 'assistant', { type: 'text', content: 'Working on it' }), isStreaming: true },
+      { ...steer, message: { ...steer.message, metadata: { steerDelivery: 'sending' } } },
+    ]
+
+    const result = applyTurnFolds(rows, {
+      isLoading: true,
+      settledRunDurationMs: null,
+      turnDurationsByAnchorMessageId: new Map(),
+      interrupted: false,
+      expandedTurnKeys: new Set(),
+    })
+
+    expect(result.filter((candidate) => candidate.type === 'turn-fold')).toHaveLength(0)
+    expect(result).toEqual(rows)
+  })
+})

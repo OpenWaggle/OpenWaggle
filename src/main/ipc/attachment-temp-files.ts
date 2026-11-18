@@ -1,9 +1,10 @@
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { PERCENT_BASE } from '@shared/constants/math'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { TIME_UNIT } from '@shared/constants/time'
-import { app } from 'electron'
+import { ensureTempAttachmentsDirectory } from '../utils/attachment-temp-directory'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 
@@ -11,28 +12,45 @@ const logger = createLogger('ipc/attachments')
 const MILLISECONDS_PER_HOUR =
   TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.MILLISECONDS_PER_SECOND
 const TEMP_ATTACHMENT_RETENTION_MS = TIME_UNIT.HOURS_PER_DAY * MILLISECONDS_PER_HOUR
-const TEMP_ATTACHMENTS_DIRECTORY_NAME = 'temp-attachments'
 const TEMP_PROMPT_FILENAME_PREFIX = 'prompt-'
 const TEMP_PROMPT_FILENAME_EXTENSION = '.md'
-export const TEMP_PROMPT_MIME_TYPE = 'text/markdown'
 const TEMP_TEXT_ATTACHMENT_WRITE_CHUNK_BYTES = 32 * BYTES_PER_KIBIBYTE
 export const TEXT_ATTACHMENT_MAX_SIZE_MB =
   ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)
-const TEMP_PROMPT_FILENAME_PATTERN = /^prompt-\d+\.md$/
+// Every name the app writes into the directory, so the cleanup below can reach it: a prompt's
+// markdown, a window-prepared image copy (a decoded HEIC, a pasted screenshot) and an isolated
+// Session resource copy. A name that is not listed here is left alone, so adding a writer means
+// adding its prefix (`writeTempAttachment`'s prefix argument).
+const TEMP_ATTACHMENT_FILENAME_PATTERN =
+  /^(?:prompt-\d+\.md|(?:attachment|resource)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[a-z0-9]+)$/u
+/** A directory holding one named prompt file (`createTempPromptPath`). */
+const TEMP_PROMPT_DIRECTORY_PATTERN = /^prompt-\d+-[0-9a-f]{8}$/u
+const TEMP_PROMPT_DIRECTORY_SUFFIX_BYTES = 4
 
 function describeUnknownError(error: unknown) {
   return error instanceof Error ? { message: error.message } : { message: String(error) }
 }
 
-export function buildTempPromptFilename(timestamp: number) {
+function buildTempPromptFilename(timestamp: number) {
   return `${TEMP_PROMPT_FILENAME_PREFIX}${String(timestamp)}${TEMP_PROMPT_FILENAME_EXTENSION}`
 }
 
-export async function ensureTempAttachmentsDirectory() {
-  const tempAttachmentsDir = path.join(app.getPath('userData'), TEMP_ATTACHMENTS_DIRECTORY_NAME)
-  await fs.mkdir(tempAttachmentsDir, { recursive: true })
-  return tempAttachmentsDir
+/**
+ * The path a prompt attachment is written to. The Host names an attachment after its file, so a
+ * prompt with a display name (the composer's `Pasted Text 1.md`) gets a directory of its own to
+ * hold a file of exactly that name; without one it is `prompt-<time>.md`.
+ */
+export async function createTempPromptPath(name: string | undefined, timestamp = Date.now()) {
+  const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
+  if (name === undefined) return path.join(tempAttachmentsDir, buildTempPromptFilename(timestamp))
+  const directory = path.join(
+    tempAttachmentsDir,
+    `${TEMP_PROMPT_FILENAME_PREFIX}${String(timestamp)}-${randomBytes(TEMP_PROMPT_DIRECTORY_SUFFIX_BYTES).toString('hex')}`,
+  )
+  await fs.mkdir(directory, { recursive: true })
+  return path.join(directory, name)
 }
+
 export async function cleanupTempAttachments() {
   const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
   const entries = await fs.readdir(tempAttachmentsDir)
@@ -40,14 +58,16 @@ export async function cleanupTempAttachments() {
 
   const staleBefore = Date.now() - TEMP_ATTACHMENT_RETENTION_MS
   for (const entry of entries) {
-    if (!TEMP_PROMPT_FILENAME_PATTERN.test(entry)) continue
+    const isDirectory = TEMP_PROMPT_DIRECTORY_PATTERN.test(entry)
+    if (!isDirectory && !TEMP_ATTACHMENT_FILENAME_PATTERN.test(entry)) continue
 
     const filePath = path.join(tempAttachmentsDir, entry)
     try {
       const stats = await fs.stat(filePath)
-      if (!stats.isFile()) continue
+      if (isDirectory ? !stats.isDirectory() : !stats.isFile()) continue
       if (stats.mtimeMs >= staleBefore) continue
-      await fs.unlink(filePath)
+      if (isDirectory) await fs.rm(filePath, { recursive: true, force: true })
+      else await fs.unlink(filePath)
     } catch (error) {
       logger.warn(
         `Failed to clean up stale prompt attachment: ${entry}`,

@@ -9,6 +9,12 @@ on:
       - packages/extension-react/**
       - packages/waggle-core/**
       - packages/pi-waggle/**
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact merged package release commit to resume
+        required: true
+        type: string
 
 concurrency:
   group: package-release
@@ -20,6 +26,7 @@ permissions:
 jobs:
   release-please:
     name: Maintain coordinated package release PR
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -28,59 +35,92 @@ jobs:
     steps:
       - name: Create or update the coordinated package release PR
         id: release
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        uses: googleapis/release-please-action@0b6b3fc0186a2f7118bfd88fab9ea481e1839504 # v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           skip-github-release: true
 
+      - name: Resolve coordinated package release PR
+        id: release-pr
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        env:
+          PR_JSON: ${{ steps.release.outputs.pr }}
+        run: |
+          set -euo pipefail
+          HEAD_BRANCH=$(jq -er '.headBranchName' <<<"$PR_JSON")
+          echo "head_branch=$HEAD_BRANCH" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         with:
           fetch-depth: 0
-          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          ref: ${{ steps.release-pr.outputs.head_branch }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         with:
-          version: 11.6.0
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
+
+      # This job writes the release PR's package docs, so it installs without the package cache.
+      - uses: ./.github/actions/bun-install
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        with:
+          package-cache: "false"
+        env:
+          HUSKY: "0"
 
       - name: Synchronize versioned package documentation
+        id: docs
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
-          RELEASE_PR_HEAD: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          HUSKY: "0"
+          RELEASE_PR_HEAD: ${{ steps.release-pr.outputs.head_branch }}
         run: |
           set -euo pipefail
-          pnpm install --frozen-lockfile
-          pnpm package-docs:update
-          if [ -z "$(git status --porcelain --untracked-files=all)" ]; then exit 0; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- packages website/src/content
-          git diff --cached --check
-          git commit -m "fix(packages): synchronize release documentation"
-          git push origin "HEAD:$RELEASE_PR_HEAD"
+          bun run package-docs:update
+          # bun.lock records each workspace package's version, which Release Please's bump leaves stale.
+          bun install --lockfile-only
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A -- packages website/src/content bun.lock
+            git diff --cached --check
+            git commit -m "fix(packages): synchronize release documentation and lockfile"
+            git push origin "HEAD:$RELEASE_PR_HEAD"
+          fi
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Validate CI for the exact release PR head
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
+          EXPECTED_HEAD_SHA: ${{ steps.docs.outputs.head_sha }}
           GH_TOKEN: ${{ github.token }}
           PR_JSON: ${{ steps.release.outputs.pr }}
         run: |
           set -euo pipefail
           PR_NUMBER=$(jq -er '.number' <<<"$PR_JSON")
           EXPECTED_HEAD_REF=$(jq -er '.headBranchName' <<<"$PR_JSON")
-          PR_DETAILS=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
-          HEAD_REF=$(jq -er '.head.ref' <<<"$PR_DETAILS")
-          HEAD_SHA=$(jq -er '.head.sha' <<<"$PR_DETAILS")
-          test "$HEAD_REF" = "$EXPECTED_HEAD_REF"
-          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          # The pull request API can still report the previous head for a few seconds after the
+          # documentation push, so wait until it reports the exact commit the previous step pushed or checked out.
+          HEAD_SHA=""
+          for HEAD_ATTEMPT in $(seq 1 24); do
+            PR_DETAILS=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+            HEAD_REF=$(jq -er '.head.ref' <<<"$PR_DETAILS")
+            HEAD_SHA=$(jq -er '.head.sha' <<<"$PR_DETAILS")
+            test "$HEAD_REF" = "$EXPECTED_HEAD_REF"
+            if [ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ]; then break; fi
+            echo "Waiting for Release Please PR head $EXPECTED_HEAD_SHA; the API reports $HEAD_SHA (${HEAD_ATTEMPT}/24)."
+            sleep 5
+          done
+          test "$HEAD_SHA" = "$EXPECTED_HEAD_SHA"
 
           RUN_ID=""
           for RUN_ATTEMPT in $(seq 1 12); do
@@ -138,7 +178,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       artifact_name: ${{ steps.plan.outputs.artifact_name }}
+      before_sha: ${{ steps.context.outputs.before_sha }}
       has_release: ${{ steps.plan.outputs.has_release }}
+      source_sha: ${{ steps.context.outputs.source_sha }}
       source_tree: ${{ steps.plan.outputs.source_tree }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -154,9 +196,17 @@ jobs:
       - name: Require exact release planning Node
         run: node --version | grep -Fx v24.14.0
 
+      - name: Resolve immutable package release context
+        id: context
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_SHA: ${{ github.sha }}
+          RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-context.ts "$GITHUB_EVENT_NAME" "$EVENT_BEFORE" "$EVENT_SHA" "$RECOVERY_RELEASE_SHA" "$GITHUB_REF"
+
       - name: Resolve exact merged package plan
         id: plan
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ github.event.before }}" "${{ github.sha }}" "$RUNNER_TEMP/package-release-plan.json"
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ steps.context.outputs.before_sha }}" "${{ steps.context.outputs.source_sha }}" "$RUNNER_TEMP/package-release-plan.json"
 
 
   publish:
@@ -164,7 +214,7 @@ jobs:
     needs:
       - release-please
       - release-plan
-    if: ${{ needs.release-plan.outputs.has_release == 'true' }}
+    if: ${{ always() && needs.release-plan.result == 'success' && needs.release-plan.outputs.has_release == 'true' && ((github.event_name == 'push' && needs.release-please.result == 'success') || (github.event_name == 'workflow_dispatch' && needs.release-please.result == 'skipped')) }}
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -189,7 +239,7 @@ jobs:
           test "$(npm --version)" = "11.18.0"
 
       - name: Recreate exact merged package plan
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ github.event.before }}" "${{ github.sha }}" "$RUNNER_TEMP/package-release-plan.json"
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ needs.release-plan.outputs.before_sha }}" "${{ needs.release-plan.outputs.source_sha }}" "$RUNNER_TEMP/package-release-plan.json"
 
       - name: Locate successful Release Please PR artifacts
         id: artifact
@@ -210,4 +260,40 @@ jobs:
         env:
           EXPECTED_ARTIFACT_SOURCE_SHA: ${{ steps.artifact.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
+          RECOVERY_RELEASE_SHA: ${{ inputs.release_sha }}
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-promote.ts "$RUNNER_TEMP/package-release-plan.json" "$RUNNER_TEMP/package-release-artifacts"
+
+  mark-release-tagged:
+    name: Mark the merged release PR as tagged
+    needs:
+      - release-plan
+      - publish
+    if: ${{ always() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Relabel the merged release PR from autorelease pending to tagged
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.release-plan.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          # skip-github-release leaves Release Please's label untouched, and a merged release PR still
+          # labelled "autorelease: pending" makes every later Release Please run abort.
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          PULLS=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA/pulls")
+          PR_NUMBER=$(jq -r 'map(select(.merged_at != null and .base.ref == "main" and .head.ref == "release-please--branches--main")) | first | .number // ""' <<<"$PULLS")
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No merged Release Please PR is associated with $SOURCE_SHA."
+            exit 1
+          fi
+          LABELS=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" --jq '.[].name')
+          if ! grep -Fxq "autorelease: tagged" <<<"$LABELS"; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=autorelease: tagged" > /dev/null
+          fi
+          if grep -Fxq "autorelease: pending" <<<"$LABELS"; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels/autorelease%3A%20pending" > /dev/null
+          fi
+          echo "Marked release PR #$PR_NUMBER as autorelease: tagged."

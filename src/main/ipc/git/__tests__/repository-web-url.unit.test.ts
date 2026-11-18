@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest'
+import { repositoryWebUrl } from '../repository-web-url'
+
+describe('repositoryWebUrl', () => {
+  it('normalizes HTTPS remotes without treating the scheme colon as SCP syntax', () => {
+    expect(repositoryWebUrl('https://github.com/OpenWaggle/OpenWaggle.git')).toBe(
+      'https://github.com/OpenWaggle/OpenWaggle',
+    )
+    expect(repositoryWebUrl('https://gitlab.example:8443/group/project.git')).toBe(
+      'https://gitlab.example:8443/group/project',
+    )
+  })
+
+  it('normalizes SSH URL and SCP-style remotes', () => {
+    expect(repositoryWebUrl('ssh://git@gitlab.com/group/project.git')).toBe(
+      'https://gitlab.com/group/project',
+    )
+    expect(repositoryWebUrl('ssh://git@gitlab.example:2222/group/project.git')).toBe(
+      'https://gitlab.example/group/project',
+    )
+    expect(repositoryWebUrl('git@gitlab.com:group/project.git')).toBe(
+      'https://gitlab.com/group/project',
+    )
+  })
+
+  it('rejects local and unsupported URL transports instead of rewriting them as hosted repositories', () => {
+    expect(repositoryWebUrl('file://github.com/tmp/victim.git')).toBeNull()
+    expect(repositoryWebUrl('ext://git@github.com/team/project.git')).toBeNull()
+    expect(repositoryWebUrl('ftp://gitlab.com/team/project.git')).toBeNull()
+  })
+})

@@ -4,14 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '../session-store'
 
 const mockApi = {
-  listSessions: vi.fn(),
+  listSessionCatalogPage: vi.fn(),
+  listHiveSessionCatalogPage: vi.fn(),
+  listPinnedSessions: vi.fn(),
+  listSessionsByIds: vi.fn(),
   getSessionTree: vi.fn(),
   getSessionWorkspace: vi.fn(),
 }
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
-    listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    listSessionCatalogPage: (...args: unknown[]) => mockApi.listSessionCatalogPage(...args),
+    listHiveSessionCatalogPage: (...args: unknown[]) => mockApi.listHiveSessionCatalogPage(...args),
+    listPinnedSessions: (...args: unknown[]) => mockApi.listPinnedSessions(...args),
+    listSessionsByIds: (...args: unknown[]) => mockApi.listSessionsByIds(...args),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionWorkspace: (...args: unknown[]) => mockApi.getSessionWorkspace(...args),
   },
@@ -20,6 +26,12 @@ vi.mock('@/shared/lib/ipc', () => ({
 function resetStore() {
   useSessionStore.setState({
     sessions: [],
+    archivedSessions: [],
+    hiveSessions: [],
+    hiveContextSessionId: null,
+    sessionsNextCursor: null,
+    hiveWorkersNextCursor: null,
+    sessionsLoadingMore: false,
     activeSessionTree: null,
     activeWorkspace: null,
     draftBranch: null,
@@ -27,7 +39,7 @@ function resetStore() {
   })
 }
 
-function makeSession(id: string, title = 'Session'): SessionSummary {
+function makeSession(id: string, title = 'Session') {
   return {
     id: SessionId(id),
     title,
@@ -36,12 +48,12 @@ function makeSession(id: string, title = 'Session'): SessionSummary {
     updatedAt: 2,
     lastActiveNodeId: null,
     lastActiveBranchId: null,
-  }
+  } satisfies SessionSummary
 }
 
-function makeTree(id: string): SessionTree {
+function makeTree(id: string) {
   const session = makeSession(id)
-  return {
+  const tree: SessionTree = {
     session,
     nodes: [],
     branches: [
@@ -66,27 +78,33 @@ function makeTree(id: string): SessionTree {
     ],
     uiState: null,
   }
+  return tree
 }
 
-function makeWorkspace(id: string): SessionWorkspace {
+function makeWorkspace(id: string) {
   const tree = makeTree(id)
   const activeBranchState = tree.branchStates[0]
   if (!activeBranchState) {
     throw new Error('Expected test tree to include an active branch state')
   }
 
-  return {
+  const workspace: SessionWorkspace = {
     tree,
     activeBranchId: tree.branches[0]?.id ?? null,
     activeNodeId: null,
     activeBranchState,
     transcriptPath: [],
   }
+  return workspace
 }
 
 describe('useSessionStore unit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockApi.listSessionCatalogPage.mockResolvedValue({ sessions: [] })
+    mockApi.listHiveSessionCatalogPage.mockResolvedValue({ context: [], workers: [] })
+    mockApi.listPinnedSessions.mockResolvedValue([])
+    mockApi.listSessionsByIds.mockResolvedValue([])
     resetStore()
   })
 
@@ -95,11 +113,90 @@ describe('useSessionStore unit', () => {
   })
 
   it('loads sessions from IPC', async () => {
-    mockApi.listSessions.mockResolvedValue([makeSession('s1'), makeSession('s2')])
+    mockApi.listSessionCatalogPage.mockImplementation(async (archived: boolean) => ({
+      sessions: archived
+        ? [{ ...makeSession('s3'), archived: true }]
+        : [makeSession('s1'), makeSession('s2')],
+    }))
 
     await useSessionStore.getState().loadSessions()
 
     expect(useSessionStore.getState().sessions).toHaveLength(2)
+    expect(useSessionStore.getState().archivedSessions).toHaveLength(1)
+  })
+
+  it('reads the catalog once for loads in the same task (boot fetch dedupe)', async () => {
+    mockApi.listSessionCatalogPage.mockResolvedValue({ sessions: [makeSession('s1')] })
+
+    await Promise.all([
+      useSessionStore.getState().loadSessions(),
+      useSessionStore.getState().loadSessions(),
+    ])
+
+    // One active page and one archived page, not two of each.
+    expect(mockApi.listSessionCatalogPage).toHaveBeenCalledTimes(2)
+    expect(mockApi.listPinnedSessions).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not let an older catalog request overwrite a newer refresh', async () => {
+    let resolveOlder: (sessions: readonly SessionSummary[]) => void = () => undefined
+    const olderRequest = new Promise<readonly SessionSummary[]>((resolve) => {
+      resolveOlder = resolve
+    })
+    mockApi.listSessionCatalogPage
+      .mockImplementationOnce((archived: boolean) =>
+        archived
+          ? Promise.resolve({ sessions: [] })
+          : olderRequest.then((sessions) => ({ sessions })),
+      )
+      .mockResolvedValueOnce({ sessions: [] })
+      .mockResolvedValueOnce({ sessions: [makeSession('newer')] })
+      .mockResolvedValueOnce({ sessions: [] })
+
+    const first = useSessionStore.getState().loadSessions()
+    // A load asked for after the first started (a later task) reads again once it is done.
+    await Promise.resolve()
+    const second = useSessionStore.getState().loadSessions()
+    resolveOlder([makeSession('older')])
+    await first
+    await second
+
+    expect(useSessionStore.getState().sessions.map((session) => session.id)).toEqual(['newer'])
+  })
+
+  it('appends keyset pages without duplicating Sessions', async () => {
+    mockApi.listSessionCatalogPage.mockImplementation(
+      async (archived: boolean, _limit: number, cursor?: string) => {
+        if (archived) return { sessions: [] }
+        if (cursor) return { sessions: [makeSession('s2'), makeSession('s3')] }
+        return { sessions: [makeSession('s1'), makeSession('s2')], nextCursor: 'next' }
+      },
+    )
+
+    await useSessionStore.getState().loadSessions()
+    await useSessionStore.getState().loadMoreSessions()
+
+    expect(useSessionStore.getState().sessions.map((session) => session.id)).toEqual([
+      's1',
+      's2',
+      's3',
+    ])
+  })
+
+  it('loads focused Hive context independently from the global page', async () => {
+    mockApi.listHiveSessionCatalogPage.mockResolvedValue({
+      context: [makeSession('queen')],
+      workers: [makeSession('worker')],
+      nextCursor: 'more-workers',
+    })
+
+    await useSessionStore.getState().loadHiveSessions(SessionId('queen'))
+
+    expect(useSessionStore.getState().hiveSessions.map((session) => session.id)).toEqual([
+      'queen',
+      'worker',
+    ])
+    expect(useSessionStore.getState().hiveWorkersNextCursor).toBe('more-workers')
   })
 
   it('refreshes the active tree for the selected session', async () => {
@@ -144,7 +241,9 @@ describe('useSessionStore unit', () => {
 
     await useSessionStore.getState().refreshSessionWorkspace(SessionId('s1'), selection)
 
-    expect(mockApi.getSessionWorkspace).toHaveBeenCalledWith(SessionId('s1'), selection)
+    expect(mockApi.getSessionWorkspace).toHaveBeenCalledWith(SessionId('s1'), selection, {
+      window: { minEntries: 200 },
+    })
     expect(useSessionStore.getState().activeWorkspace).toEqual(workspace)
     expect(useSessionStore.getState().activeSessionTree).toEqual(workspace.tree)
   })

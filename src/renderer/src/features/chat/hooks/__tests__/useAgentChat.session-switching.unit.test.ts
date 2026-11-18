@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 
+import type { AgentSendReport } from '@shared/types/agent'
 import type { BackgroundRunSnapshot } from '@shared/types/background-run'
 import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { getUIMessageText } from '../../lib/useAgentChat.utils'
+import { useOptimisticSteerStore } from '../../state/optimistic-steer-store'
 import {
   apiMock,
   createDeferred,
@@ -22,6 +24,38 @@ import {
 describe('useAgentChat session switching', () => {
   installUseAgentChatTestLifecycle()
 
+  it('retains a pending steer when returning from an idle Session before active hydration', async () => {
+    const activeId = SessionId('active-steer-session')
+    const idleId = SessionId('idle-steer-session')
+    hasActiveRunMock.mockImplementation((id) => id === activeId)
+    const activeSession = createSessionWithIdAndMessages(activeId, 1, [])
+    const idleSession = createSessionWithIdAndMessages(idleId, 1, [])
+    const { result, rerender } = renderHook(
+      ({ session }) => useAgentChat(session.id, session, SupportedModelId('test-model')),
+      { initialProps: { session: activeSession } },
+    )
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    act(() => {
+      useOptimisticSteerStore.getState().beginPromotion(activeId, 'queued-steer')
+      result.current.previewSteeredUserTurn(
+        { ...SEND_PAYLOAD, text: 'Keep this steer visible' },
+        'waiting-for-compaction',
+      )
+    })
+    rerender({ session: idleSession })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    rerender({ session: activeSession })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    expect(result.current.messages.map(getUIMessageText)).toContain('Keep this steer visible')
+    expect(useOptimisticSteerStore.getState().pendingPromotions.get(activeId)).toEqual([
+      'queued-steer',
+    ])
+    act(() => {
+      useOptimisticSteerStore.getState().clearSession(activeId)
+      useOptimisticSteerStore.getState().finishPromotion(activeId, 'queued-steer')
+    })
+  })
+
   it('does not wipe an active run render snapshot with stale render output during a switch', async () => {
     const sessionA = SessionId('session-a')
     const sessionB = SessionId('session-b')
@@ -29,6 +63,7 @@ describe('useAgentChat session switching', () => {
     hasActiveRunMock.mockImplementation((id: SessionId) => id === sessionB)
     apiMock.getBackgroundRun.mockReturnValue(backgroundRun.promise)
     runRenderSnapshots.set('session-b', {
+      compactionStatus: null,
       updatedAt: 1,
       messages: [
         {
@@ -53,7 +88,7 @@ describe('useAgentChat session switching', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: sessionA,
@@ -100,8 +135,9 @@ describe('useAgentChat session switching', () => {
   })
 
   it('does not cache an active session transcript under another active session during a switch', async () => {
-    const sendA = createDeferred<void>()
-    const sendB = createDeferred<void>()
+    // Both sends resolve with main's report of the run, as the real channel does.
+    const sendA = createDeferred<AgentSendReport>()
+    const sendB = createDeferred<AgentSendReport>()
     apiMock.sendMessage.mockReturnValueOnce(sendA.promise).mockReturnValueOnce(sendB.promise)
 
     const sessionA = SessionId('session-a')
@@ -115,7 +151,7 @@ describe('useAgentChat session switching', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: sessionA,
@@ -216,8 +252,8 @@ describe('useAgentChat session switching', () => {
     ])
 
     await act(async () => {
-      sendA.resolve(undefined)
-      sendB.resolve(undefined)
+      sendA.resolve({ outcome: 'delivered' })
+      sendB.resolve({ outcome: 'delivered' })
     })
   })
 })

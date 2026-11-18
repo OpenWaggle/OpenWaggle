@@ -1,106 +1,71 @@
-import { safeDecodeUnknown } from '@shared/schema'
-import { projectPreferencesSchema } from '@shared/schemas/validation'
-import { THINKING_LEVELS } from '@shared/types/settings'
-import { includes } from '@shared/utils/validation'
+import fs from 'node:fs/promises'
 import * as Effect from 'effect/Effect'
-import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
-import {
-  getProjectPreferences,
-  type ProjectPreferences,
-  setProjectPreferences,
-} from '../config/project-config'
+import { listGrantsForProject } from '../application/agent-authorization-grants'
+import { browserWindowFromWebContents, showMessageBox, showOpenDialog } from '../desktop-ui'
+import { takeOpenProjectRequest } from '../open-project-requests'
+import type { OpenDialogRequest } from '../ports/desktop-shell/dialogs'
+import { takeOpenSessionLinkRequest } from '../session-link-requests'
 import { validateProjectPath } from './project-path-validation'
-import { typedHandle } from './typed-ipc'
+import { hostHandle, typedHandle } from './typed-ipc'
 
-function createProjectFolderDialogOptions(): OpenDialogOptions {
+function createProjectFolderDialogOptions() {
   return {
     properties: ['openDirectory'],
     title: 'Select Project Folder',
-  }
+  } satisfies OpenDialogRequest
 }
 
-function isCanonicalModelRef(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed || trimmed.startsWith('/') || trimmed.endsWith('/')) {
-    return false
-  }
-  return trimmed.includes('/')
-}
-
-function validateProjectPreferences(preferences: unknown) {
-  const result = safeDecodeUnknown(projectPreferencesSchema, preferences)
-  if (!result.success) {
-    return Effect.fail(new Error(`Invalid project preferences: ${result.issues.join('; ')}`))
-  }
-
-  const model = result.data.model?.trim()
-  if (model !== undefined && !isCanonicalModelRef(model)) {
-    return Effect.fail(new Error('Project preference model must be a provider/model ref.'))
-  }
-
-  const { thinkingLevel } = result.data
-  if (thinkingLevel !== undefined && !includes(THINKING_LEVELS, thinkingLevel)) {
-    return Effect.fail(new Error('Project preference thinking level is invalid.'))
-  }
-
-  const validatedPreferences: ProjectPreferences = {
-    ...(model !== undefined ? { model } : {}),
-    ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
-  }
-  return Effect.succeed(validatedPreferences)
-}
-
-export function registerProjectHandlers(): void {
+export function registerProjectHandlers() {
   typedHandle('project:select-folder', (event) =>
     Effect.gen(function* () {
-      const ownerWindow = BrowserWindow.fromWebContents(event.sender)
+      const ownerWindow = browserWindowFromWebContents(event.sender)
       const dialogOptions = createProjectFolderDialogOptions()
-      const result = yield* Effect.promise(() =>
-        ownerWindow
-          ? dialog.showOpenDialog(ownerWindow, dialogOptions)
-          : dialog.showOpenDialog(dialogOptions),
-      )
+      const result = yield* Effect.promise(() => showOpenDialog(ownerWindow, dialogOptions))
 
       if (result.canceled || result.filePaths.length === 0) {
         return null
       }
 
-      return result.filePaths[0] ?? null
+      const pickedPath = result.filePaths[0] ?? null
+      if (!pickedPath) return null
+      // Store the canonical path so later project-model reads, writes, and removals all key the
+      // same identity even when the user picked the folder through a symlink.
+      return yield* Effect.promise(() => fs.realpath(pickedPath).catch(() => pickedPath))
     }),
   )
 
-  typedHandle('project-config:get-preferences', (_event, projectPath: string) =>
+  typedHandle('project:take-open-request', () => Effect.sync(takeOpenProjectRequest))
+  typedHandle('app:take-open-session-link-request', () => Effect.sync(takeOpenSessionLinkRequest))
+
+  hostHandle('project-config:get-preferences')
+
+  hostHandle('project-config:set-preferences')
+
+  hostHandle('project-config:remove-project-model')
+
+  typedHandle('authorization-grants:list', (_event, projectPath: string) =>
     Effect.gen(function* () {
       const validatedProjectPath = yield* validateProjectPath(projectPath)
-      if (!validatedProjectPath) {
-        return null
-      }
-      const prefs = yield* Effect.promise(() => getProjectPreferences(validatedProjectPath))
-      return prefs ?? null
+      if (!validatedProjectPath) return []
+      const grants = yield* Effect.promise(() => listGrantsForProject(validatedProjectPath))
+      return [...grants]
     }),
   )
 
-  typedHandle('project-config:set-preferences', (_event, projectPath: string, preferences) =>
-    Effect.gen(function* () {
-      const validatedProjectPath = yield* validateProjectPath(projectPath)
-      if (!validatedProjectPath) {
-        return yield* Effect.fail(new Error('Project path is required.'))
-      }
-      const validatedPreferences = yield* validateProjectPreferences(preferences)
-      yield* Effect.promise(() => setProjectPreferences(validatedProjectPath, validatedPreferences))
-    }),
-  )
+  hostHandle('authorization-grants:grant')
+
+  hostHandle('authorization-grants:revoke')
 
   typedHandle('dialog:confirm', (_event, message: string, detail?: string) =>
     Effect.gen(function* () {
       const result = yield* Effect.promise(() =>
-        dialog.showMessageBox({
+        showMessageBox(null, {
           type: 'warning',
           buttons: ['Cancel', 'Confirm'],
           defaultId: 0,
           cancelId: 0,
           message,
-          detail,
+          ...(detail === undefined ? {} : { detail }),
         }),
       )
       return result.response === 1

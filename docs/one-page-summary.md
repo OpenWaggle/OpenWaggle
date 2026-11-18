@@ -16,14 +16,14 @@ The flagship feature. Configure two AI agents with different models and roles, t
 ## Key Features
 
 ### Pi-Derived Provider Support
-Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage`:
+Provider/model/auth metadata comes from Pi `ModelRuntime`:
 - API-key providers, environment/custom provider credentials, and cloud providers are surfaced from Pi metadata.
-- OAuth providers are whatever Pi reports through its auth storage.
+- OAuth providers are whatever Pi reports through its provider metadata.
 - Model ids are provider-qualified (`provider/modelId`) so the same hosted model through different providers remains distinct.
 
 ### Pi-Native Coding Agent Toolkit
 - **Native Pi tools** — read, write, edit, search/listing, and shell activity provided by Pi
-- **MCP through Pi** — optional MCP support powered by the `pi-mcp-adapter` extension
+- **First-party MCP** — optional, scoped MCP with modern and legacy protocol support, trust, Tasks, Apps, prompts, resources, and explicit context control
 - **Tool timeline** — OpenWaggle renders Pi-emitted tool calls without a parallel runtime layer
 - **Session Tree** — Pi session nodes and branches projected into a right-side tree navigation surface
 - **Skills/resources** — Pi-native project resource loading with `.openwaggle > .pi > .agents` precedence
@@ -33,7 +33,11 @@ Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage`:
 - **Attachments** — drag-and-drop text files, PDFs (text extraction), images (OCR)
 - **Voice input** — local Whisper transcription (audio never leaves your machine)
 - **Slash commands** — type `/` to reference cataloged skills, start Waggle, or run `/compact`
-- **Built-in terminal** — full PTY terminal emulation with xterm.js (toggle with `Ctrl+J`)
+- **Built-in terminal** — session-bound xterm.js PTYs with tabs, split panes, bottom/right-panel
+  docking, shell/environment fidelity, process-aware close protection, safe links,
+  selection-to-chat, and persisted scrollback (toggle with `Ctrl+J`)
+- **Browser preview** — Session-owned native tabs with persistent or Incognito profiles, responsive
+  viewports, captures, and approved agent control in the same page the user sees
 
 ### Local-First & Secure
 - Sessions and settings are stored locally; Pi credentials are resolved by Pi auth storage/environment/custom provider configuration
@@ -50,7 +54,7 @@ Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage`:
 | Renderer | React 19, Zustand (state), Tailwind CSS v4 |
 | Validation | Effect Schema (runtime + compile-time types) |
 | Bundler | Vite + electron-vite |
-| Testing | Vitest, Testing Library, Playwright E2E |
+| Testing | Vitest and Testing Library (unit, integration, component); no E2E suite (ADR 0033) |
 
 **Three-Process Architecture:**
 - **Main** — Node.js Pi runtime adapters, persistence, IPC handlers
@@ -70,8 +74,8 @@ Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage`:
 ```bash
 git clone https://github.com/OpenWaggle/OpenWaggle.git
 cd openwaggle
-pnpm install
-pnpm dev
+bun install
+bun run dev
 ```
 
 1. Open Settings → Connections
@@ -83,7 +87,7 @@ pnpm dev
 
 **Developer Preview** — Functional for local development, active iteration on core features.
 
-Platform builds (macOS .dmg, Windows NSIS, Linux AppImage) produce local artifacts but require signing/notarization work for public distribution.
+The release workflow publishes macOS .dmg/.zip (Developer ID signed and notarized), Windows NSIS, and Linux AppImage artifacts; Windows and Linux are unsigned.
 
 ---
 

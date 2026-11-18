@@ -1,155 +1,45 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
-import { Schema, safeDecodeUnknown } from '@shared/schema'
-import { SupportedModelId } from '@shared/types/brand'
-import type { SessionTreeFilterMode } from '@shared/types/session'
-import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
-import { testCredentials } from '../application/provider-test-service'
-import { createLogger } from '../logger'
-import { ActiveProjectChangeService } from '../ports/active-project-change-service'
+import { getSettingsOperation } from '../application/settings-operations'
+import { refreshDesktopNotificationBadge } from '../desktop-notification-presenter'
 import { SessionTreePreferencesService } from '../ports/session-tree-preferences-service'
-import { SettingsService } from '../services/settings-service'
+import { createAppCliShimService } from '../services/cli-shim-service'
+import { getAppCliShimStatus } from '../services/cli-shim-startup'
 import { validateProjectPath } from './project-path-validation'
-import { typedHandle } from './typed-ipc'
-
-const logger = createLogger('ipc-settings')
-
-function isString(value: string | undefined) {
-  return value !== undefined
-}
-
-function validateSettingsProjectPath(projectPath: string | null | undefined) {
-  return validateProjectPath(projectPath).pipe(
-    Effect.map((validated) => ({ ok: true as const, value: validated ?? null })),
-    Effect.catchAll((error) =>
-      Effect.succeed({
-        ok: false as const,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    ),
-  )
-}
-
-function validateRecentProjectPaths(projects: readonly string[] | undefined) {
-  if (!projects) {
-    return Effect.succeed(undefined)
-  }
-
-  return Effect.forEach(projects, (projectPath) =>
-    validateProjectPath(projectPath).pipe(
-      Effect.catchAll((error) =>
-        Effect.sync(() => {
-          logger.warn('Dropping invalid recent project path', {
-            projectPath,
-            error: error instanceof Error ? error.message : String(error),
-          })
-          return undefined
-        }),
-      ),
-    ),
-  ).pipe(Effect.map((validatedProjects) => validatedProjects.filter(isString)))
-}
-
-function isTreeFilterMode(value: unknown): value is SessionTreeFilterMode {
-  return isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)
-}
+import { hostHandle, typedHandle } from './typed-ipc'
 
 function validateTreeFilterMode(value: unknown) {
-  return isTreeFilterMode(value)
-    ? Effect.succeed(value)
-    : Effect.fail(new Error('Invalid tree filter mode'))
+  if (isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)) {
+    return Effect.succeed(value)
+  }
+  return Effect.fail(new Error('Invalid tree filter mode'))
 }
 
-const settingsUpdateSchema = Schema.Struct({
-  selectedModel: Schema.optional(Schema.String),
-  favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
-  recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
-  skillTogglesByProject: Schema.optional(
-    Schema.mutable(
-      Schema.Record({
-        key: Schema.String,
-        value: Schema.mutable(
-          Schema.Record({
-            key: Schema.String,
-            value: Schema.Boolean,
-          }),
-        ),
-      }),
-    ),
-  ),
-  projectDisplayNames: Schema.optional(
-    Schema.mutable(
-      Schema.Record({
-        key: Schema.String,
-        value: Schema.String,
-      }),
-    ),
-  ),
-})
+/**
+ * The attached GUI reads Usage statistics enablement from its Host-hydrated settings cache, so a
+ * change to the switch must reach that cache now rather than at the next unrelated settings read:
+ * error reports from this process must stop as soon as the user turns statistics off. Desktop
+ * notification settings drive this process's badge and focus rule the same way.
+ */
+function rehydrateAfterUsageStatisticsChange(result: unknown, raw: unknown) {
+  if (!isMatching({ ok: true }, result)) return Effect.void
+  if (isMatching({ desktopNotifications: P.any }, raw)) {
+    // The badge and the focus rule read Settings → Notifications from this process too.
+    return getSettingsOperation().pipe(
+      Effect.tap(() => refreshDesktopNotificationBadge()),
+      Effect.asVoid,
+    )
+  }
+  if (!isMatching({ usageStatisticsEnabled: P.boolean }, raw)) return Effect.void
+  return Effect.asVoid(getSettingsOperation())
+}
 
 function registerSettingsCrudHandlers() {
-  typedHandle('settings:get', () =>
-    Effect.gen(function* () {
-      const settings = yield* SettingsService
-      return yield* settings.get()
-    }),
-  )
-
-  typedHandle('settings:update', (_event, raw: unknown) =>
-    Effect.gen(function* () {
-      const result = safeDecodeUnknown(settingsUpdateSchema, raw)
-      if (!result.success) {
-        const error = result.issues.join('; ')
-        logger.warn('Invalid settings update payload', { error })
-        return { ok: false, error } satisfies { ok: false; error: string }
-      }
-
-      const projectPathValidation = yield* validateSettingsProjectPath(result.data.projectPath)
-      if (!projectPathValidation.ok) {
-        logger.warn('Invalid settings project path', { error: projectPathValidation.error })
-        return { ok: false, error: projectPathValidation.error } satisfies {
-          ok: false
-          error: string
-        }
-      }
-
-      const recentProjects = yield* validateRecentProjectPaths(result.data.recentProjects)
-
-      const settings = yield* SettingsService
-      yield* settings.update({
-        ...result.data,
-        projectPath:
-          result.data.projectPath !== undefined ? projectPathValidation.value : undefined,
-        recentProjects,
-        selectedModel:
-          result.data.selectedModel !== undefined
-            ? SupportedModelId(result.data.selectedModel)
-            : undefined,
-        favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
-        enabledModels: result.data.enabledModels?.map(SupportedModelId),
-      })
-      if (result.data.projectPath !== undefined) {
-        const projectChanges = yield* ActiveProjectChangeService
-        yield* projectChanges.reconcileTrustedMainExtensions(projectPathValidation.value)
-      }
-      return { ok: true } satisfies { ok: true }
-    }),
-  )
-
-  typedHandle('settings:set-enabled-models', (_event, models: unknown) =>
-    Effect.gen(function* () {
-      if (!Array.isArray(models) || !models.every((m) => typeof m === 'string')) {
-        logger.warn('Invalid enabled models payload', { models })
-        return undefined
-      }
-      const settings = yield* SettingsService
-      yield* settings.update({ enabledModels: models.map(SupportedModelId) })
-      return undefined
-    }),
-  )
+  hostHandle('settings:get')
+  hostHandle('settings:update', {
+    afterRemote: rehydrateAfterUsageStatisticsChange,
+  })
+  hostHandle('settings:set-enabled-models')
 }
 
 function registerTreePreferenceHandlers() {
@@ -182,17 +72,15 @@ function registerTreePreferenceHandlers() {
 }
 
 function registerSettingsUtilityHandlers() {
-  typedHandle(
-    'settings:test-api-key',
-    (_event, provider: string, apiKey: string, projectPath?: string | null) =>
-      Effect.gen(function* () {
-        const validatedProjectPath = yield* validateProjectPath(projectPath)
-        return yield* testCredentials(provider, apiKey, validatedProjectPath)
-      }),
+  typedHandle('cli-shim:get-status', () => Effect.tryPromise(() => getAppCliShimStatus()))
+  typedHandle('cli-shim:install', () =>
+    Effect.tryPromise(() => createAppCliShimService().install()),
   )
+  typedHandle('cli-shim:remove', () => Effect.tryPromise(() => createAppCliShimService().remove()))
+  hostHandle('settings:test-api-key')
 }
 
-export function registerSettingsHandlers(): void {
+export function registerSettingsHandlers() {
   registerSettingsCrudHandlers()
   registerTreePreferenceHandlers()
   registerSettingsUtilityHandlers()

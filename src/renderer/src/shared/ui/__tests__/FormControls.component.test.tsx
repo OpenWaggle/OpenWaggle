@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { Checkbox } from '../Checkbox'
+import { NumberStepper } from '../NumberStepper'
 import { RangeInput } from '../RangeInput'
 import { Select } from '../Select'
 import { TextInput } from '../TextInput'
@@ -45,5 +46,186 @@ describe('shared form controls', () => {
     )
 
     expect(screen.getByRole('slider', { name: 'Max turns' })).toHaveClass('accent-accent')
+  })
+
+  it('adjusts bounded numbers with buttons, typing, and arrow keys', () => {
+    const onValueChange = vi.fn()
+    const { rerender } = render(
+      <NumberStepper
+        label="Code text"
+        value={12}
+        minimum={10}
+        maximum={24}
+        suffix="px"
+        onValueChange={onValueChange}
+      />,
+    )
+
+    expect(screen.getByRole('group', { name: 'Code text controls' })).toHaveClass('h-7', 'w-32')
+    fireEvent.click(screen.getByRole('button', { name: 'Increase Code text' }))
+    expect(onValueChange).toHaveBeenLastCalledWith(13)
+
+    rerender(
+      <NumberStepper
+        label="Code text"
+        value={13}
+        minimum={10}
+        maximum={24}
+        suffix="px"
+        onValueChange={onValueChange}
+      />,
+    )
+    const input = screen.getByRole('spinbutton', { name: 'Code text' })
+    fireEvent.change(input, { target: { value: '99' } })
+    fireEvent.blur(input)
+    expect(onValueChange).toHaveBeenLastCalledWith(24)
+
+    rerender(
+      <NumberStepper
+        label="Code text"
+        value={24}
+        minimum={10}
+        maximum={24}
+        suffix="px"
+        onValueChange={onValueChange}
+      />,
+    )
+
+    const updatedInput = screen.getByRole('spinbutton', { name: 'Code text' })
+    updatedInput.focus()
+    fireEvent.keyDown(updatedInput, { key: 'ArrowDown' })
+    expect(onValueChange).toHaveBeenLastCalledWith(23)
+    fireEvent.keyDown(updatedInput, { key: 'ArrowDown' })
+    expect(onValueChange).toHaveBeenLastCalledWith(22)
+    expect(updatedInput).toHaveFocus()
+  })
+
+  it('accepts an unbounded safe integer without announcing a false maximum', () => {
+    const onValueChange = vi.fn()
+    render(
+      <NumberStepper
+        label="Active agent runs"
+        value={16}
+        minimum={1}
+        onValueChange={onValueChange}
+      />,
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Active agent runs' })
+    expect(input).not.toHaveAttribute('aria-valuemax')
+    fireEvent.change(input, { target: { value: '100' } })
+    fireEvent.blur(input)
+    expect(onValueChange).toHaveBeenCalledWith(100)
+  })
+
+  it('cancels an edited value with Escape without committing it', () => {
+    const onValueChange = vi.fn()
+    render(
+      <NumberStepper
+        label="Code text"
+        value={12}
+        minimum={10}
+        maximum={24}
+        suffix="px"
+        onValueChange={onValueChange}
+      />,
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Code text' })
+    input.focus()
+    fireEvent.change(input, { target: { value: '17' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(onValueChange).not.toHaveBeenCalled()
+    expect(input).toHaveValue('12')
+  })
+
+  it('announces the visible draft while the user edits', () => {
+    render(
+      <NumberStepper
+        label="Code text"
+        value={12}
+        minimum={10}
+        maximum={24}
+        suffix="px"
+        onValueChange={() => undefined}
+      />,
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Code text' })
+    fireEvent.change(input, { target: { value: '17' } })
+
+    expect(input).toHaveAttribute('aria-valuenow', '17')
+    expect(input).toHaveAttribute('aria-valuetext', '17px')
+  })
+
+  it('quantizes typed values to the configured step before committing', () => {
+    const onValueChange = vi.fn()
+    render(
+      <NumberStepper
+        label="Threshold"
+        value={80}
+        minimum={1}
+        maximum={100}
+        suffix="%"
+        onValueChange={onValueChange}
+      />,
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Threshold' })
+    fireEvent.change(input, { target: { value: '73.5' } })
+    fireEvent.blur(input)
+
+    expect(onValueChange).toHaveBeenCalledWith(74)
+    expect(input).toHaveValue('74')
+  })
+
+  it('steps from the committed value when the draft is blank', () => {
+    const onValueChange = vi.fn()
+    render(
+      <NumberStepper
+        label="Threshold"
+        value={80}
+        minimum={1}
+        maximum={100}
+        suffix="%"
+        onValueChange={onValueChange}
+      />,
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Threshold' })
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+
+    expect(onValueChange).toHaveBeenCalledWith(81)
+    expect(input).toHaveValue('81')
+  })
+
+  it('steps a dirty focused draft once when a step button is clicked', () => {
+    const onValueChange = vi.fn()
+    render(
+      <NumberStepper
+        label="Threshold"
+        value={80}
+        minimum={1}
+        maximum={100}
+        suffix="%"
+        onValueChange={onValueChange}
+      />,
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Threshold' })
+    const increase = screen.getByRole('button', { name: 'Increase Threshold' })
+    input.focus()
+    fireEvent.change(input, { target: { value: '73' } })
+
+    const mouseDown = createEvent.mouseDown(increase)
+    fireEvent(increase, mouseDown)
+    if (!mouseDown.defaultPrevented) fireEvent.blur(input, { relatedTarget: increase })
+    fireEvent.click(increase)
+
+    expect(onValueChange).toHaveBeenCalledTimes(1)
+    expect(onValueChange).toHaveBeenCalledWith(74)
+    expect(input).toHaveFocus()
   })
 })

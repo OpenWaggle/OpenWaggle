@@ -1,0 +1,330 @@
+import { promises as fs } from 'node:fs'
+import * as Effect from 'effect/Effect'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { makeTerminalHistoryFiles } from '../terminal-history-files'
+import {
+  events,
+  failNextMove,
+  feed,
+  moves,
+  openInput,
+  ptys,
+  readinessMarker,
+  service,
+  settle,
+  setupTerminalServiceActionsTest,
+  spawn,
+  teardownTerminalServiceActionsTest,
+  TERMINAL_ID,
+  terminalHistoryLogsDir,
+  workDirA,
+} from './terminal-service-actions-test-harness'
+import { lastFlowControl, terminalKeys } from './terminal-service-observations'
+
+const openAs = (ownerKey: string) =>
+  Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey }))
+
+describe('makeNodePtyTerminalService ownership and close', () => {
+  beforeEach(setupTerminalServiceActionsTest)
+  afterEach(teardownTerminalServiceActionsTest)
+
+  it('atomically rekeys a draft owner without restarting its PTY or losing history', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-born'
+    const draftKey = `${draftOwner}::${TERMINAL_ID}`
+    const sessionKey = `${sessionOwner}::${TERMINAL_ID}`
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+    await settle()
+    ptys[0]?.dataListeners[0]?.('draft output')
+    await service.history.flush()
+
+    const result = await Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))
+
+    expect(result).toEqual({ terminalIds: [TERMINAL_ID] })
+    expect(await terminalKeys()).not.toContain(draftKey)
+    expect(moves).toEqual([[draftKey, sessionKey]])
+    await expect(service.history.read(draftKey)).resolves.toBe('')
+    await expect(service.history.read(sessionKey)).resolves.toBe('draft output')
+    // The session owner attaches to the same live shell and its in-memory history.
+    await expect(openAs(sessionOwner)).resolves.toMatchObject({
+      history: 'draft output',
+      running: true,
+    })
+    expect(spawn).toHaveBeenCalledOnce()
+    expect(ptys[0]?.kill).not.toHaveBeenCalled()
+    expect(ptys[0]?.closeDescriptor).not.toHaveBeenCalled()
+  })
+
+  it('migrates a draft terminal while another owner has a persistent history failure', async () => {
+    const draftOwner = 'draft:/healthy'
+    const sessionOwner = 'session-born'
+    const badKey = 'session-broken::main'
+    const { metadataFile } = makeTerminalHistoryFiles(terminalHistoryLogsDir()).describe(badKey)
+    await fs.mkdir(metadataFile)
+    try {
+      service.history.append(badKey, 'retry later')
+      await expect(service.history.flush()).rejects.toThrow()
+
+      await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+      await settle()
+      ptys[0]?.dataListeners[0]?.('draft output')
+
+      await expect(
+        Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner)),
+      ).resolves.toEqual({ terminalIds: [TERMINAL_ID] })
+      await expect(service.history.read(`${sessionOwner}::${TERMINAL_ID}`)).resolves.toBe(
+        'draft output',
+      )
+      expect(await terminalKeys()).not.toContain(`${draftOwner}::${TERMINAL_ID}`)
+    } finally {
+      await fs.rm(metadataFile, { recursive: true, force: true })
+      await service.history.flush()
+    }
+    await expect(service.history.read(badKey)).resolves.toBe('retry later')
+  })
+
+  it('rejects owner migration collisions before mutating either terminal', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-existing'
+    const sessionKey = `${sessionOwner}::${TERMINAL_ID}`
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: sessionOwner }))
+    await settle()
+
+    await expect(Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))).rejects.toThrow(
+      `destination ${sessionKey} exists`,
+    )
+
+    expect(moves).toEqual([])
+    // Both owners keep their own live shell.
+    await expect(openAs(draftOwner)).resolves.toMatchObject({ running: true })
+    await expect(openAs(sessionOwner)).resolves.toMatchObject({ running: true })
+    expect(spawn).toHaveBeenCalledTimes(2)
+    expect(ptys[0]?.closeDescriptor).not.toHaveBeenCalled()
+    expect(ptys[1]?.closeDescriptor).not.toHaveBeenCalled()
+  })
+
+  it('rolls history and paused runtime state back when attachment migration fails', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-born'
+    const draftKey = `${draftOwner}::${TERMINAL_ID}`
+    const sessionKey = `${sessionOwner}::${TERMINAL_ID}`
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+    await settle()
+    ptys[0]?.dataListeners[0]?.('draft output')
+    await service.history.flush()
+    failNextMove(new Error('surface move failed'))
+
+    await expect(Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))).rejects.toThrow(
+      'surface move failed',
+    )
+
+    expect(await terminalKeys()).not.toContain(sessionKey)
+    expect(lastFlowControl(ptys[0])).toBe('resume')
+    await expect(service.history.read(draftKey)).resolves.toBe('draft output')
+    await expect(service.history.read(sessionKey)).resolves.toBe('')
+    await expect(openAs(draftOwner)).resolves.toMatchObject({ history: 'draft output' })
+    expect(spawn).toHaveBeenCalledOnce()
+    // The rolled-back migration leaves nothing behind, so a retry succeeds.
+    await expect(
+      Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner)),
+    ).resolves.toEqual({ terminalIds: [TERMINAL_ID] })
+  })
+
+  it('keeps PTY output paused until owner migration finishes even when an ack drains it', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-born'
+    let finishHistoryMove: (() => void) | undefined
+    let reportHistoryMoveStarted: (() => void) | undefined
+    const historyMoveStarted = new Promise<void>((resolve) => {
+      reportHistoryMoveStarted = resolve
+    })
+    service.history.moveOwner = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishHistoryMove = resolve
+          reportHistoryMoveStarted?.()
+        }),
+    )
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+    await settle()
+    ptys[0]?.resumeOutput.mockClear()
+    ptys[0]?.dataListeners[0]?.('pending delivery')
+
+    const migrating = Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))
+    await historyMoveStarted
+    const output = events.findLast((payload) => payload.event.type === 'output')?.event
+    if (output?.type !== 'output') throw new Error('Expected in-flight terminal output')
+
+    await Effect.runPromise(
+      service.acknowledgeOutput(draftOwner, TERMINAL_ID, output.outputGeneration, output.endOffset),
+    )
+    expect(ptys[0]?.resumeOutput).not.toHaveBeenCalled()
+
+    finishHistoryMove?.()
+    await migrating
+    expect(ptys[0]?.resumeOutput).toHaveBeenCalledOnce()
+  })
+
+  it('retries a close issued during owner migration against the destination key', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-born'
+    let finishHistoryMove: (() => void) | undefined
+    let reportHistoryMoveStarted: (() => void) | undefined
+    const historyMoveStarted = new Promise<void>((resolve) => {
+      reportHistoryMoveStarted = resolve
+    })
+    service.history.moveOwner = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishHistoryMove = resolve
+          reportHistoryMoveStarted?.()
+        }),
+    )
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+    await settle()
+
+    const migrating = Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))
+    await historyMoveStarted
+    const closing = Effect.runPromise(service.close(draftOwner, TERMINAL_ID, false))
+    finishHistoryMove?.()
+
+    await migrating
+    await closing
+    expect(await terminalKeys()).not.toContain(`${sessionOwner}::${TERMINAL_ID}`)
+    expect(ptys[0]?.closeDescriptor).toHaveBeenCalledOnce()
+    expect(ptys[0]?.kill).not.toHaveBeenCalled()
+  })
+
+  it('retries Clear issued during owner migration instead of silently dropping it', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-born'
+    let finishHistoryMove: (() => void) | undefined
+    let reportHistoryMoveStarted: (() => void) | undefined
+    const historyMoveStarted = new Promise<void>((resolve) => {
+      reportHistoryMoveStarted = resolve
+    })
+    service.history.moveOwner = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishHistoryMove = resolve
+          reportHistoryMoveStarted?.()
+        }),
+    )
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+    await settle()
+    feed(0, 'draft output')
+
+    const migrating = Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))
+    await historyMoveStarted
+    const clearing = Effect.runPromise(service.clear(draftOwner, TERMINAL_ID))
+    finishHistoryMove?.()
+
+    await migrating
+    await clearing
+    expect(service.records.get(`${sessionOwner}::${TERMINAL_ID}`)?.scrollback.toString()).toBe('')
+    expect(events).toContainEqual({
+      ownerKey: sessionOwner,
+      terminalId: TERMINAL_ID,
+      event: { type: 'cleared', outputGeneration: 2 },
+    })
+  })
+
+  it('retries Restart issued during owner migration and keeps the pane running', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-born'
+    let finishHistoryMove: (() => void) | undefined
+    let reportHistoryMoveStarted: (() => void) | undefined
+    const historyMoveStarted = new Promise<void>((resolve) => {
+      reportHistoryMoveStarted = resolve
+    })
+    service.history.moveOwner = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishHistoryMove = resolve
+          reportHistoryMoveStarted?.()
+        }),
+    )
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+    await settle()
+
+    const migrating = Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))
+    await historyMoveStarted
+    const restarting = Effect.runPromise(
+      service.restart({ ...openInput(workDirA), ownerKey: draftOwner }),
+    )
+    finishHistoryMove?.()
+
+    await migrating
+    await restarting
+    await settle()
+    expect(service.records.get(`${sessionOwner}::${TERMINAL_ID}`)?.live?.pty).toBe(ptys[1]?.pty)
+    expect(spawn).toHaveBeenCalledTimes(2)
+  })
+
+  it('holds input behind owner migration and resolves it against the destination key', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-born'
+    const historyMove = Promise.withResolvers<void>()
+    const historyMoveStarted = Promise.withResolvers<void>()
+    service.history.moveOwner = vi.fn(() => {
+      historyMoveStarted.resolve()
+      return historyMove.promise
+    })
+    await Effect.runPromise(service.open({ ...openInput(workDirA), ownerKey: draftOwner }))
+    await settle()
+    feed(0, readinessMarker(0))
+
+    const migrating = Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))
+    await historyMoveStarted.promise
+    const writing = Effect.runPromise(service.write(draftOwner, TERMINAL_ID, 'after migration'))
+    let writeSettled = false
+    void writing.then(() => {
+      writeSettled = true
+    })
+    await settle()
+
+    expect(writeSettled).toBe(false)
+    expect(ptys[0]?.write).not.toHaveBeenCalledWith('after migration')
+
+    historyMove.resolve()
+    await migrating
+    await expect(writing).resolves.toEqual({ status: 'written', acceptedBytes: 15 })
+    expect(await terminalKeys()).not.toContain(`${draftOwner}::${TERMINAL_ID}`)
+    expect(await terminalKeys()).toContain(`${sessionOwner}::${TERMINAL_ID}`)
+    expect(ptys[0]?.write).toHaveBeenCalledExactlyOnceWith('after migration')
+  })
+
+  it('drains launch-staged input through the owner alias after migration', async () => {
+    const draftOwner = 'draft:/repo'
+    const sessionOwner = 'session-born'
+    const inputGeneration = 'renderer-migrating-launch'
+    const identity = { generation: inputGeneration, sequence: 0 } as const
+    await Effect.runPromise(
+      service.open({ ...openInput(workDirA), ownerKey: draftOwner, inputGeneration }),
+    )
+    await settle()
+    feed(0, readinessMarker(0))
+    const flush = Promise.withResolvers<void>()
+    service.history.flush = vi.fn(() => flush.promise)
+
+    const clearing = Effect.runPromise(service.clear(draftOwner, TERMINAL_ID))
+    await vi.advanceTimersByTimeAsync(0)
+    const reopening = Effect.runPromise(
+      service.open({ ...openInput(workDirA), ownerKey: draftOwner, inputGeneration }),
+    )
+    await expect(
+      Effect.runPromise(
+        service.write(draftOwner, TERMINAL_ID, 'staged before migration', identity),
+      ),
+    ).resolves.toMatchObject({ status: 'queued', identity })
+    const migrating = Effect.runPromise(service.migrateOwner(draftOwner, sessionOwner))
+    flush.resolve()
+
+    await Promise.all([clearing, reopening, migrating])
+    await settle()
+    expect(await terminalKeys()).not.toContain(`${draftOwner}::${TERMINAL_ID}`)
+    expect(service.records.get(`${sessionOwner}::${TERMINAL_ID}`)?.pendingInputBytes).toBe(0)
+    expect(ptys[0]?.write).toHaveBeenCalledExactlyOnceWith('staged before migration')
+  })
+})

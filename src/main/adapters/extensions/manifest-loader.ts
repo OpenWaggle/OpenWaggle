@@ -11,13 +11,13 @@ export interface LoadedManifestResult {
   readonly diagnostics: readonly ExtensionDiagnostic[]
 }
 
-export async function loadExtensionManifest(manifestPath: string): Promise<LoadedManifestResult> {
+export async function loadExtensionManifest(manifestPath: string) {
   let rawManifest: string
   try {
     rawManifest = await readFile(manifestPath, 'utf-8')
   } catch (error) {
     if (isEnoent(error)) {
-      return {
+      const result: LoadedManifestResult = {
         manifest: null,
         rawManifest: null,
         diagnostics: [
@@ -29,8 +29,9 @@ export async function loadExtensionManifest(manifestPath: string): Promise<Loade
           },
         ],
       }
+      return result
     }
-    return {
+    const result: LoadedManifestResult = {
       manifest: null,
       rawManifest: null,
       diagnostics: [
@@ -42,13 +43,14 @@ export async function loadExtensionManifest(manifestPath: string): Promise<Loade
         },
       ],
     }
+    return result
   }
 
   let parsedManifest: unknown
   try {
     parsedManifest = parseJsonUnknown(rawManifest)
   } catch (error) {
-    return {
+    const result: LoadedManifestResult = {
       manifest: null,
       rawManifest,
       diagnostics: [
@@ -60,11 +62,12 @@ export async function loadExtensionManifest(manifestPath: string): Promise<Loade
         },
       ],
     }
+    return result
   }
 
   const decoded = safeDecodeUnknown(openWaggleExtensionManifestSchema, parsedManifest)
   if (!decoded.success) {
-    return {
+    const result: LoadedManifestResult = {
       manifest: null,
       rawManifest,
       diagnostics: decoded.issues.map((issue) => ({
@@ -74,11 +77,13 @@ export async function loadExtensionManifest(manifestPath: string): Promise<Loade
         path: manifestPath,
       })),
     }
+    return result
   }
 
-  return {
+  const result: LoadedManifestResult = {
     manifest: decoded.data,
     rawManifest,
     diagnostics: [],
   }
+  return result
 }

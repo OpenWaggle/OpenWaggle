@@ -1,0 +1,253 @@
+import { stat } from 'node:fs/promises'
+import path from 'node:path'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import {
+  gitWorktreeCreatePayloadSchema,
+  gitWorktreeRemovePayloadSchema,
+} from '@shared/schemas/git-requests'
+import { SessionId } from '@shared/types/brand'
+import type { GitWorktreeMutationResult } from '@shared/types/git'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import { createLogger } from '../logger'
+import { ActionRunService } from '../ports/action-run-service'
+import { GitWorktreeService } from '../ports/git-worktree-service'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import {
+  type SessionWorkspaceResource,
+  SessionWorkspaceResourceRepository,
+} from '../ports/session-workspace-resource-repository'
+import { TerminalService } from '../ports/terminal-service'
+import { WorkspacePreparationService } from '../ports/workspace-preparation-service'
+import { WorktreeSpaceService } from '../ports/worktree-space-service'
+import { resolveSessionWorktreeBranch } from '../services/git/session-branch-resolution'
+import { invalidateGitStatusCache } from '../services/git-status-cache'
+import { removePreparedWorktree } from './prepared-worktree-removal'
+import { worktreeRemovalBlockers } from './worktree-usage'
+
+/** The shared remove payload, with the absolute path only Node can check here. */
+const worktreeRemovePayloadSchema = gitWorktreeRemovePayloadSchema.pipe(
+  Schema.filter(
+    (payload) =>
+      path.isAbsolute(payload.path) || {
+        path: ['path'],
+        message: 'Worktree path must be absolute.',
+      },
+  ),
+)
+
+const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
+const logger = createLogger('host-ui-worktree-operation')
+
+function removeWorktreeWithTerminals(
+  projectPath: string,
+  payload: { readonly path: string; readonly force?: boolean },
+) {
+  return Effect.gen(function* () {
+    const terminals = yield* TerminalService
+    const gitWorktrees = yield* GitWorktreeService
+    return yield* terminals.runWithMutationFence(
+      { kind: 'path', directoryPath: payload.path },
+      Effect.gen(function* () {
+        yield* terminals.closeAllUnderPath(payload.path, false)
+        const result = yield* gitWorktrees.remove(projectPath, payload)
+        if (result.ok || result.code === 'not-found') {
+          yield* terminals.closeAllUnderPath(payload.path, true).pipe(
+            Effect.catchAll((error) =>
+              Effect.sync(() => {
+                logger.warn('Deferred terminal history cleanup after worktree removal', {
+                  path: payload.path,
+                  error: error.message,
+                })
+              }),
+            ),
+          )
+        }
+        return result
+      }),
+    )
+  })
+}
+
+function captureWorktreePreparation(
+  workspace: SessionWorkspaceResource | null,
+  projectPath: string,
+  checkoutExists: boolean,
+) {
+  return Effect.gen(function* () {
+    if (!workspace) return
+    const preparation = yield* WorkspacePreparationService
+    const scope = {
+      workspaceId: workspace.id,
+      projectPath,
+      workspacePath: workspace.pending ? projectPath : workspace.workingPath,
+    }
+    // A pending Workspace has no folder of its own yet, so this create is its birth. Capture
+    // records no pending birth at the project path (issue #353); only prepareBirth does.
+    if (checkoutExists && !workspace.pending) yield* preparation.capture(scope)
+    else yield* preparation.prepareBirth({ ...scope, workspacePath: projectPath })
+  })
+}
+
+function captureCreatedWorktreePreparation(
+  workspace: SessionWorkspaceResource | null,
+  projectPath: string,
+) {
+  return Effect.gen(function* () {
+    if (!workspace) return
+    const preparation = yield* WorkspacePreparationService
+    yield* preparation.capture({
+      workspaceId: workspace.id,
+      projectPath,
+      workspacePath: workspace.workingPath,
+    })
+  })
+}
+
+export function createHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
+  return Effect.gen(function* () {
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+    const payload = decodeUnknownOrThrow(gitWorktreeCreatePayloadSchema, rawPayload)
+    const sessionId = payload.sessionId
+    const gitWorktrees = yield* GitWorktreeService
+    const workspaces = yield* SessionWorkspaceResourceRepository
+    const workspace =
+      sessionId === undefined ? null : yield* workspaces.getBound(SessionId(sessionId))
+    if (sessionId !== undefined && workspace === null) {
+      return {
+        ok: false,
+        code: 'unknown',
+        message: 'This Session no longer has an authoritative Workspace binding.',
+      } satisfies GitWorktreeMutationResult
+    }
+    if (workspace !== null && workspace.kind !== 'managed-worktree') {
+      return {
+        ok: false,
+        code: 'unknown',
+        message: 'This Session is not bound to a managed worktree Workspace.',
+      } satisfies GitWorktreeMutationResult
+    }
+    if (workspace !== null && workspace.projectPath !== projectPath) {
+      return {
+        ok: false,
+        code: 'unknown',
+        message: 'This Session is bound to a Workspace in a different repository.',
+      } satisfies GitWorktreeMutationResult
+    }
+    const create = Effect.gen(function* () {
+      const checkoutExists = workspace
+        ? yield* Effect.promise(() => filesystemPathExists(workspace.workingPath))
+        : true
+      if (workspace && !checkoutExists) {
+        const actions = yield* ActionRunService
+        yield* actions.stopWorkspaceRuns(workspace.id)
+      }
+      yield* captureWorktreePreparation(workspace, projectPath, checkoutExists)
+      const path = workspace?.workingPath ?? payload.path
+      const branch =
+        workspace?.worktreeBranch ??
+        (sessionId === undefined
+          ? payload.branch
+          : yield* Effect.promise(() => resolveSessionWorktreeBranch(projectPath, sessionId)))
+      if (sessionId !== undefined) {
+        const sessions = yield* SessionProjectionRepository
+        yield* sessions.resetWorktreeSetup(SessionId(sessionId), path)
+      }
+      const result = (yield* gitWorktrees.create(projectPath, {
+        ...payload,
+        path,
+        branch,
+      })) satisfies GitWorktreeMutationResult
+      if (result.ok) {
+        yield* captureCreatedWorktreePreparation(workspace, projectPath)
+        invalidateGitStatusCache(path)
+        invalidateGitStatusCache(projectPath)
+      }
+      return result
+    })
+    if (!workspace) return yield* create
+    const actions = yield* ActionRunService
+    return yield* actions.withWorkspaceMutation(workspace.id, create)
+  })
+}
+
+export function removeHostUiWorktree(rawPath: unknown, rawPayload: unknown) {
+  return Effect.gen(function* () {
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+    const payload = decodeUnknownOrThrow(worktreeRemovePayloadSchema, rawPayload)
+    const gitWorktrees = yield* GitWorktreeService
+    /*
+     * Settings lists every worktree of the repository. Refuse one that a Session, a Project
+     * Action, a terminal, the open project or the running app uses, whatever the list showed
+     * when it was rendered; force only overrides Git's dirty and locked refusals (issue #353).
+     */
+    const blockers = yield* worktreeRemovalBlockers(projectPath, payload.path)
+    if (blockers.length > 0) {
+      return {
+        ok: false,
+        code: 'worktree-in-use',
+        message: `This worktree is in use. ${blockers.map((blocker) => blocker.message).join(' ')}`,
+      } satisfies GitWorktreeMutationResult
+    }
+    const result = yield* removePreparedWorktree(
+      projectPath,
+      payload,
+      removeWorktreeWithTerminals(projectPath, payload),
+      {
+        retryFailed: true,
+        validateRemoval: gitWorktrees.validateRemoval(projectPath, payload),
+        admitArchivedBindings: true,
+      },
+    )
+    if (result.ok) {
+      const space = yield* Effect.serviceOption(WorktreeSpaceService)
+      if (Option.isSome(space)) yield* space.value.forget(payload.path)
+    }
+    return result
+  })
+}
+
+async function filesystemPathExists(candidate: string) {
+  try {
+    await stat(candidate)
+    return true
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
+      return false
+    }
+    throw error
+  }
+}
+
+export function recoverPendingManagedWorktreeRemovals(
+  pending: readonly {
+    readonly resourceId: string
+    readonly workingPath: string
+    readonly createdReservation: boolean
+  }[],
+) {
+  return Effect.gen(function* () {
+    const workspaces = yield* SessionWorkspaceResourceRepository
+    return yield* Effect.forEach(pending, (removal) =>
+      Effect.gen(function* () {
+        const removed = removal.createdReservation
+          ? false
+          : !(yield* Effect.tryPromise({
+              try: () => filesystemPathExists(removal.workingPath),
+              catch: (cause) =>
+                new Error(`Failed to inspect pending worktree removal ${removal.resourceId}.`, {
+                  cause,
+                }),
+            }))
+        yield* workspaces.finalizeManagedWorktreeRemoval({
+          resourceId: removal.resourceId,
+          createdReservation: removal.createdReservation,
+          removed,
+        })
+      }).pipe(
+        Effect.either,
+        Effect.map((outcome) => ({ resourceId: removal.resourceId, outcome })),
+      ),
+    )
+  })
+}

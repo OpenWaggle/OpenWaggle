@@ -3,17 +3,18 @@ title: "@openwaggle/extension-react API"
 description: "Complete public API reference for @openwaggle/extension-react 0.1."
 order: 90
 section: "Packages"
+kind: "reference"
 ---
 
 <!-- Generated from the checked public package declarations. -->
 
 This reference inventories every public entry point and named export in `@openwaggle/extension-react` 0.1.
 
-React primitives, component props, tones, variants, and host-aligned extension UI contracts.
+React components, component props, tones, variants, and host-aligned extension UI contracts.
 
 ## `@openwaggle/extension-react`
 
-React primitives and props for host-aligned extension surfaces.
+React components and props for host-aligned extension surfaces.
 
 | Export | Kind |
 |--------|------|
@@ -44,6 +45,6 @@ React primitives and props for host-aligned extension surfaces.
 
 ## `@openwaggle/extension-react/styles.css`
 
-Default host-aligned stylesheet for the React primitives.
+Default host-aligned stylesheet for the React components.
 
 This export contains styles or re-exports the typed modules listed below.

@@ -6,12 +6,12 @@ import type { JsonObject } from '@shared/types/json'
  * Safely parse a JSON string of tool arguments into a record.
  * Returns an empty object if parsing fails.
  */
-export function parseToolArgs(args: string): JsonObject {
+export function parseToolArgs(args: string) {
   try {
     const data: unknown = JSON.parse(args)
     const result = safeDecodeUnknown(jsonObjectSchema, data)
-    return result.success ? result.data : {}
+    return (result.success ? result.data : {}) satisfies JsonObject
   } catch {
-    return {}
+    return {} satisfies JsonObject
   }
 }

@@ -5,14 +5,14 @@ type StoreEffectRunner = <A, E>(effect: EffectType<A, E, SqlClient.SqlClient>) =
 
 let storeEffectRunner: StoreEffectRunner | null = null
 
-export function setStoreEffectRunner(runner: StoreEffectRunner): void {
+export function setStoreEffectRunner(runner: StoreEffectRunner) {
   storeEffectRunner = runner
 }
 
-export function runStoreEffect<A, E>(effect: EffectType<A, E, SqlClient.SqlClient>): Promise<A> {
+export function runStoreEffect<A, E>(effect: EffectType<A, E, SqlClient.SqlClient>) {
   if (storeEffectRunner === null) {
     throw new Error('Store Effect runner has not been initialized')
   }
 
-  return storeEffectRunner(effect)
+  return storeEffectRunner(effect) satisfies Promise<A>
 }

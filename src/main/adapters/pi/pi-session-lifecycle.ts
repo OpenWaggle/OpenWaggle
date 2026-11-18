@@ -1,22 +1,13 @@
-import type {
-  AgentSession,
-  CreateAgentSessionResult,
-  SessionShutdownEvent,
-} from '@earendil-works/pi-coding-agent'
+import type { AgentSession, SessionShutdownEvent } from '@earendil-works/pi-coding-agent'
 import { createAgentSessionFromServices } from '@earendil-works/pi-coding-agent'
 import { createLogger } from '../../logger'
 import {
   createPiInteractionUiContext,
   type PiInteractionUiContextInput,
 } from './agent-kernel/interaction-ui-context'
-import {
-  getOpenWaggleMcpRuntimeContextForServices,
-  type OpenWaggleMcpRuntimeContext,
-  withOpenWaggleMcpAdapterProcessContext,
-} from './pi-mcp-config-service'
+import { bindVisualizationContextFilter } from './pi-visualization-context'
 
 const logger = createLogger('pi-session-lifecycle')
-const mcpRuntimeContextsBySession = new WeakMap<AgentSession, OpenWaggleMcpRuntimeContext>()
 
 type PiAgentSessionFromServicesOptions = Parameters<typeof createAgentSessionFromServices>[0]
 
@@ -30,6 +21,15 @@ async function bindSessionExtensions(
 ) {
   const baseUiContext = session.extensionRunner.getUIContext()
   await session.bindExtensions({
+    // Pi reports extension failures only to this listener, such as a `pi.sendMessage` turn that
+    // could not start; a Run fails on those itself (`runPiOperation`).
+    onError: (error) => {
+      logger.warn('Pi extension failed', {
+        extensionPath: error.extensionPath,
+        event: error.event,
+        error: error.error,
+      })
+    },
     ...(input.openWaggleUi
       ? { uiContext: createPiInteractionUiContext(input.openWaggleUi, baseUiContext) }
       : {}),
@@ -38,46 +38,50 @@ async function bindSessionExtensions(
 
 export async function createOpenWaggleAgentSessionFromServices(
   options: OpenWaggleAgentSessionOptions,
-): Promise<CreateAgentSessionResult> {
+) {
   const { openWaggleUi, ...piOptions } = options
-  const context = getOpenWaggleMcpRuntimeContextForServices(options.services)
-  return withOpenWaggleMcpAdapterProcessContext(context, async () => {
-    const result = await createAgentSessionFromServices(piOptions)
-    if (context) {
-      mcpRuntimeContextsBySession.set(result.session, context)
-    }
-    try {
-      await bindSessionExtensions(result.session, { openWaggleUi })
-      return result
-    } catch (error) {
-      await disposeOpenWagglePiSession(result.session)
-      throw error
-    }
-  })
+  const result = await createAgentSessionFromServices(piOptions)
+  try {
+    bindVisualizationContextFilter(result.session)
+    await bindSessionExtensions(result.session, {
+      ...(openWaggleUi === undefined ? {} : { openWaggleUi }),
+    })
+    return result
+  } catch (error) {
+    await disposeOpenWagglePiSession(result.session)
+    throw error
+  }
+}
+
+/** Lets the session's extensions release what they hold, such as MCP connections. */
+export async function emitOpenWagglePiSessionShutdown(
+  session: AgentSession,
+  reason: SessionShutdownEvent['reason'] = 'quit',
+) {
+  const event: SessionShutdownEvent = { type: 'session_shutdown', reason }
+  try {
+    await session.extensionRunner.emit(event)
+  } catch (error) {
+    logger.warn('Pi session shutdown hook failed during disposal', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 export async function disposeOpenWagglePiSession(
   session: AgentSession,
   reason: SessionShutdownEvent['reason'] = 'quit',
-): Promise<void> {
-  const event: SessionShutdownEvent = { type: 'session_shutdown', reason }
-  const context = mcpRuntimeContextsBySession.get(session) ?? null
+) {
   try {
-    await withOpenWaggleMcpAdapterProcessContext(context, () => session.extensionRunner.emit(event))
-  } catch (error) {
-    logger.warn('Pi session shutdown hook failed during disposal', {
-      error: error instanceof Error ? error.message : String(error),
-    })
+    await emitOpenWagglePiSessionShutdown(session, reason)
   } finally {
-    mcpRuntimeContextsBySession.delete(session)
     session.dispose()
   }
 }
 
 export async function withOpenWagglePiSessionLifecycleContext<T>(
-  session: AgentSession,
+  _session: AgentSession,
   operation: () => Promise<T>,
-): Promise<T> {
-  const context = mcpRuntimeContextsBySession.get(session) ?? null
-  return withOpenWaggleMcpAdapterProcessContext(context, operation)
+) {
+  return operation()
 }

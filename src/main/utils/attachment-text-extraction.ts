@@ -1,0 +1,98 @@
+import { match } from '@diegogbrisa/ts-match'
+import { boundedAttachmentText } from '@shared/utils/attachment-text'
+import { createLogger } from '../logger'
+import { scheduleAttachmentExtraction } from './attachment-extraction-scheduler'
+import { validateOfficeArchive } from './attachment-office-archive-validation'
+import { runAttachmentParserWorker } from './attachment-parser-worker'
+
+export const DOCX_MIME_TYPE =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+export const RTF_MIME_TYPE = 'application/rtf'
+export const ODT_MIME_TYPE = 'application/vnd.oasis.opendocument.text'
+
+const logger = createLogger('attachments')
+
+function describeUnknownError(error: unknown) {
+  if (error instanceof Error) {
+    return { message: error.message }
+  }
+
+  return { message: String(error) }
+}
+
+async function withExtractionFallback(
+  attachmentName: string,
+  extractor: string,
+  extractText: (signal: AbortSignal) => Promise<string>,
+) {
+  try {
+    return await scheduleAttachmentExtraction(extractText)
+  } catch (error) {
+    logger.warn('Attachment text extraction failed', {
+      attachment: attachmentName,
+      extractor,
+      error: describeUnknownError(error).message,
+    })
+    return ''
+  }
+}
+
+async function extractTextFromDocx(buffer: Buffer, signal: AbortSignal) {
+  await validateOfficeArchive(buffer, signal)
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'docx', buffer }, signal))
+}
+
+async function extractTextFromOdt(buffer: Buffer, signal: AbortSignal) {
+  await validateOfficeArchive(buffer, signal)
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'odt', buffer }, signal))
+}
+
+async function extractTextFromPdf(buffer: Buffer, signal: AbortSignal) {
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'pdf', buffer }, signal))
+}
+
+async function extractTextFromImage(buffer: Buffer, signal: AbortSignal) {
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'image', buffer }, signal))
+}
+
+async function extractTextFromRtf(buffer: Buffer, signal: AbortSignal) {
+  return boundedAttachmentText(await runAttachmentParserWorker({ kind: 'rtf', buffer }, signal))
+}
+
+export async function extractAttachmentText(input: {
+  readonly kind: string
+  readonly mimeType: string
+  readonly buffer: Buffer
+  readonly attachmentName: string
+}) {
+  return match(input.kind)
+    .with('pdf', () =>
+      withExtractionFallback(input.attachmentName, 'pdf', (signal) =>
+        extractTextFromPdf(input.buffer, signal),
+      ),
+    )
+    .with('image', () =>
+      withExtractionFallback(input.attachmentName, 'image-ocr', (signal) =>
+        extractTextFromImage(input.buffer, signal),
+      ),
+    )
+    .otherwise(() =>
+      match(input.mimeType)
+        .with(DOCX_MIME_TYPE, () =>
+          withExtractionFallback(input.attachmentName, 'docx', (signal) =>
+            extractTextFromDocx(input.buffer, signal),
+          ),
+        )
+        .with(ODT_MIME_TYPE, () =>
+          withExtractionFallback(input.attachmentName, 'odt', (signal) =>
+            extractTextFromOdt(input.buffer, signal),
+          ),
+        )
+        .with(RTF_MIME_TYPE, () =>
+          withExtractionFallback(input.attachmentName, 'rtf', (signal) =>
+            extractTextFromRtf(input.buffer, signal),
+          ),
+        )
+        .otherwise(() => Promise.resolve(boundedAttachmentText(input.buffer.toString('utf8')))),
+    )
+}

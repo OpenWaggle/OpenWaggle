@@ -1,5 +1,5 @@
-import { useHotkey } from '@tanstack/react-hotkeys'
 import { useEffect, useId } from 'react'
+import { useStableHotkey } from './useStableHotkey'
 
 const escapeStack: string[] = []
 const escapeEnabledById = new Map<string, boolean>()
@@ -22,11 +22,18 @@ function topmostEnabledEscapeId() {
   return null
 }
 
-interface EscapeHotkeyOptions {
-  readonly enabled?: boolean
+/** Some Escape handler on the shared stack is live, so it owns the next Escape. */
+export function hasEnabledEscapeHandler() {
+  return topmostEnabledEscapeId() !== null
 }
 
-export function useEscapeHotkey(onEscape: () => void, options: EscapeHotkeyOptions = {}): void {
+interface EscapeHotkeyOptions {
+  readonly enabled?: boolean
+  /** Defer without cancelling the key's native default, such as a foreground dialog's Escape. */
+  readonly shouldHandle?: (event: KeyboardEvent) => boolean
+}
+
+export function useEscapeHotkey(onEscape: () => void, options: EscapeHotkeyOptions = {}) {
   const id = useId()
   const enabled = options.enabled ?? true
 
@@ -48,10 +55,10 @@ export function useEscapeHotkey(onEscape: () => void, options: EscapeHotkeyOptio
     }
   }, [enabled, id])
 
-  useHotkey(
+  useStableHotkey(
     'Escape',
     (event) => {
-      if (!enabled || topmostEnabledEscapeId() !== id) {
+      if (!enabled || topmostEnabledEscapeId() !== id || options.shouldHandle?.(event) === false) {
         return
       }
       event.preventDefault()

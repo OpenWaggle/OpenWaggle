@@ -1,0 +1,292 @@
+/**
+ * The one-time, silent migration of OpenWaggle's pre-ADR-0051 MCP files to
+ * Pi's entry format (ADR 0051, "One-time silent migration").
+ *
+ * Handles `~/.openwaggle/mcp.json` and `<project>/.openwaggle/mcp.json` for
+ * every known project. Never writes Pi's files or `.mcp.json` (the old code
+ * never wrote OpenWaggle-only fields there). Each file is handled once and
+ * recorded in `~/.openwaggle/mcp/migration.json`, never again, whatever it
+ * holds later. A changed file is backed up first: the global file next to it,
+ * a project file under `~/.openwaggle/mcp/backups/` (`migrationBackupPath`).
+ * A failure is logged and leaves the file as it was, so the next start tries
+ * again.
+ */
+import type { Logger } from '@shared/types/logger'
+import { formatErrorMessage } from '@shared/utils/node-error'
+import { createLogger } from '../../../logger'
+import {
+  computeGlobalFile,
+  computeProjectFile,
+  type FileComputation,
+  McpFileSources,
+} from './file-computation'
+import { reportHomeFolderProjectState } from './home-project-state'
+import { contentHash } from './json-document'
+import { legacyServerRecords } from './legacy-server-names'
+import { type McpMigrationFs, nodeMcpMigrationFs } from './migration-fs'
+import { recordMcpFileMigrationOutcome } from './migration-health'
+import {
+  defaultPiAgentDir,
+  globalMcpPaths,
+  isGlobalOpenWaggleMcpFile,
+  migrationBackupPath,
+  projectMcpPaths,
+} from './migration-paths'
+import { MCP_FILE_MIGRATION_VERSION, type McpMigrationRecord } from './migration-record'
+import type { McpFileMigrationReport } from './migration-report'
+import {
+  decideLegacyProjects,
+  loadMigrationStart,
+  type McpMigrationSourceError,
+  startFailureReport,
+  startWithoutOldState,
+} from './migration-start'
+import { type McpOAuthMigrationSink, migrateLegacyOAuthStates } from './oauth-state-migration'
+import { keepsEnablement, migrationProjects, presentMigrationProjects } from './project-spellings'
+import {
+  type McpSessionSwitchMigrationSink,
+  migrateLegacySessionSwitches,
+  noteNoSessionSwitches,
+} from './session-switch-migration'
+
+export type { McpOAuthMigrationSink } from './oauth-state-migration'
+export interface MigrateOpenWaggleMcpFilesInput {
+  readonly homeDir: string
+  /** Pi's agent directory (`getPiAgentDir()`); defaults to `~/.pi/agent`. */
+  readonly piAgentDir?: string
+  /** Known OpenWaggle projects; projects named in the old state.json are added. */
+  readonly projectPaths: readonly string[]
+  /**
+   * Every project OpenWaggle knows, read once on the first run. Their servers keep the on/off
+   * state the old code gave them; projects added later get the new behaviour.
+   */
+  readonly knownProjectPaths?: () => Promise<readonly string[]>
+  readonly now: () => Date
+  readonly fs?: McpMigrationFs
+  readonly logger?: Logger
+  /** Old encrypted OAuth state and Pi's credential store; OAuth is skipped without it. */
+  readonly oauth?: McpOAuthMigrationSink
+  /** Switches MCP off for a Session in the Host; old per-Session switches are dropped without it. */
+  readonly sessionMcpSwitch?: McpSessionSwitchMigrationSink
+  /** Keeps each file the migration creates out of its git work tree; a failure is only logged. */
+  readonly keepCreatedFileOutOfGit?: (filePath: string) => Promise<unknown>
+}
+
+const defaultLogger = createLogger('mcp-migration')
+
+interface FileJob {
+  readonly path: string
+  /** Whether old on/off state waits for this file while its migration fails. */
+  readonly keepsLegacyState: boolean
+  readonly compute: (original: string | undefined) => Promise<FileComputation>
+}
+
+interface McpFileMigratorInput extends Pick<
+  MigrateOpenWaggleMcpFilesInput,
+  'now' | 'homeDir' | 'keepCreatedFileOutOfGit'
+> {
+  readonly unreadableState: McpMigrationSourceError | undefined
+}
+
+function failedFileReport(path: string, error: string) {
+  const report: McpFileMigrationReport = { path, status: 'failed', changes: [], error }
+  return report
+}
+
+class McpFileMigrator {
+  private readonly fs: McpMigrationFs
+  private readonly record: McpMigrationRecord
+  private readonly logger: Logger
+  private readonly input: McpFileMigratorInput
+
+  constructor(
+    fs: McpMigrationFs,
+    record: McpMigrationRecord,
+    logger: Logger,
+    input: McpFileMigratorInput,
+  ) {
+    this.fs = fs
+    this.record = record
+    this.logger = logger
+    this.input = input
+  }
+
+  async run(job: FileJob) {
+    const report = await this.migrate(job)
+    const { unreadableState } = this.input
+    recordMcpFileMigrationOutcome(job.path, report.status === 'failed' ? report.error : undefined, {
+      keepsLegacyState: job.keepsLegacyState,
+      ...(unreadableState && job.keepsLegacyState ? { source: unreadableState.filePath } : {}),
+    })
+    return report
+  }
+
+  private async migrate(job: FileJob) {
+    if (this.record.isFileMigrated(job.path)) {
+      return { path: job.path, status: 'already-migrated', changes: [] } as const
+    }
+    // Its old on/off state is in the state.json that cannot be read: it waits until it can be.
+    const { unreadableState } = this.input
+    if (unreadableState && job.keepsLegacyState) {
+      return failedFileReport(job.path, unreadableState.message)
+    }
+    try {
+      const original = await this.fs.readText(job.path)
+      const result = await job.compute(original)
+      if (result.text === undefined) {
+        await this.recordFile(job.path, 'unchanged', original)
+        return { path: job.path, status: 'unchanged', changes: result.changes } as const
+      }
+      const backupPath = migrationBackupPath(job.path, this.input.homeDir)
+      if (original !== undefined) await this.fs.createTextExclusive(backupPath, original)
+      await this.fs.writeTextAtomic(job.path, result.text)
+      if (original === undefined) await this.keepCreatedOutOfGit(job.path)
+      await this.recordFile(job.path, 'migrated', result.text)
+      this.logger.info('Migrated MCP file to the Pi entry format', {
+        path: job.path,
+        servers: result.changes.map((change) => `${change.server}:${change.action}`),
+      })
+      const report: McpFileMigrationReport = {
+        path: job.path,
+        status: 'migrated',
+        ...(original === undefined ? {} : { backupPath }),
+        changes: result.changes,
+      }
+      return report
+    } catch (error) {
+      this.logger.error('MCP file migration failed; the file was left unchanged', {
+        path: job.path,
+        error: formatErrorMessage(error),
+      })
+      return failedFileReport(job.path, formatErrorMessage(error))
+    }
+  }
+
+  private async keepCreatedOutOfGit(filePath: string) {
+    await this.input.keepCreatedFileOutOfGit?.(filePath).catch((error: unknown) => {
+      const context = { path: filePath, error: formatErrorMessage(error) }
+      this.logger.warn('Could not keep a created MCP file out of git', context)
+    })
+  }
+
+  private recordFile(filePath: string, status: 'migrated' | 'unchanged', text: string | undefined) {
+    return this.record.recordFile(filePath, {
+      version: MCP_FILE_MIGRATION_VERSION,
+      migratedAt: this.input.now().toISOString(),
+      status,
+      contentHash: contentHash(text),
+    })
+  }
+}
+
+/** Run the migration for the global file and every known project. Safe to call repeatedly. */
+export async function migrateOpenWaggleMcpFiles(input: MigrateOpenWaggleMcpFilesInput) {
+  const fs = input.fs ?? nodeMcpMigrationFs
+  const logger = input.logger ?? defaultLogger
+  let start: Awaited<ReturnType<typeof loadMigrationStart>>
+  let kept: readonly string[] | null
+  let unreadableState: McpMigrationSourceError | undefined
+  let listed: Promise<readonly string[]> | undefined
+  // Listed once per run: they decide the projects kept on the first run and lend spellings.
+  const knownProjectPaths = () => {
+    listed ??= input.knownProjectPaths ? input.knownProjectPaths() : Promise.resolve([])
+    return listed
+  }
+  try {
+    start = await loadMigrationStart(fs, input.homeDir)
+    kept = await decideLegacyProjects(input, start, fs, knownProjectPaths)
+  } catch (error) {
+    const withoutState = await startWithoutOldState(fs, input.homeDir, error)
+    if (!withoutState) {
+      return startFailureReport({ fs, homeDir: input.homeDir, input, error, logger })
+    }
+    logger.warn('MCP migration goes on without the old MCP state, which cannot be read', {
+      error: withoutState.unreadableState.message,
+    })
+    start = withoutState
+    kept = withoutState.legacyProjects
+    unreadableState = withoutState.unreadableState
+  }
+  const { record, state } = start
+  if (!unreadableState) await noteNoSessionSwitches(state, record)
+  const migrator = new McpFileMigrator(fs, record, logger, { ...input, unreadableState })
+  const piAgentDir = input.piAgentDir ?? defaultPiAgentDir(input.homeDir)
+  const sources = new McpFileSources(fs, input.homeDir, piAgentDir)
+  const paths = globalMcpPaths(input.homeDir, piAgentDir)
+  const { present: projects, gone: goneProjects } = await presentMigrationProjects(
+    fs,
+    await migrationProjects({
+      ...input,
+      state,
+      sources,
+      // Only spellings: a list that cannot be read lends none.
+      knownProjectPaths: () => knownProjectPaths().catch(() => []),
+      recordedProjects: record.legacyProjects ?? [],
+    }),
+  )
+  // Read before the files are rewritten, and saved with their records.
+  const legacy = await legacyServerRecords({ sources, state, projects })
+  record.noteLegacyServerNames(legacy.names)
+  record.noteLegacyServerIdentities(legacy.identities)
+  const files: McpFileMigrationReport[] = [
+    await migrator.run({
+      path: paths.openwaggleGlobal,
+      keepsLegacyState: kept !== null,
+      compute: (original) =>
+        computeGlobalFile({ sources, state, original, preserveEnablement: kept !== null }),
+    }),
+  ]
+  for (const projectPath of projects) {
+    // A project that is the home folder, or whose .openwaggle folder links to the global one, has
+    // the global file as its project file; it is migrated once, and its own choices stay out.
+    if (isGlobalOpenWaggleMcpFile(projectMcpPaths(projectPath).openwaggle, input.homeDir)) {
+      // Logged once, then recorded: the choices cannot move anywhere on a later start either.
+      if (!record.isHomeFolderNoticed(projectPath)) {
+        const reported = await reportHomeFolderProjectState({
+          sources,
+          state,
+          projectPath,
+          preserveEnablement: keepsEnablement(kept, projectPath),
+          logger,
+        })
+        if (reported) await record.recordHomeFolderNotice(projectPath)
+      }
+      continue
+    }
+    files.push(
+      await migrator.run({
+        path: projectMcpPaths(projectPath).openwaggle,
+        keepsLegacyState: keepsEnablement(kept, projectPath),
+        compute: (original) =>
+          computeProjectFile({
+            sources,
+            state,
+            projectPath,
+            original,
+            preserveEnablement: keepsEnablement(kept, projectPath),
+          }),
+      }),
+    )
+  }
+  const oauth = input.oauth
+    ? await migrateLegacyOAuthStates({
+        sources,
+        state,
+        projects,
+        record,
+        sink: input.oauth,
+        now: input.now,
+        logger,
+      })
+    : []
+  const droppedSessionStates = await migrateLegacySessionSwitches({
+    state,
+    record,
+    sink: input.sessionMcpSwitch,
+    now: input.now,
+    logger,
+  })
+  // A sign-in run reads the old sign-ins' servers from the old state: tried again later.
+  const error = input.oauth && unreadableState ? { error: unreadableState.message } : {}
+  return { files, oauth, droppedSessionStates, goneProjects, ...error }
+}

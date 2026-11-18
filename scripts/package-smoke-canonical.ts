@@ -24,15 +24,20 @@ export function mergePackedPackageSources<T extends PackedPackageReference>(
   return generated.map((packedPackage) => canonicalByName.get(packedPackage.name) ?? packedPackage)
 }
 
+/**
+ * `--tarball-dir <dir>` smokes canonical release tarballs; `--prebuilt` packs the packages as they
+ * are, because the check runner already built them (scripts/check/steps.ts).
+ */
 export function parsePackageSmokeArgs(args: readonly string[]) {
   if (args.length === 0) return {}
+  if (args.length === 1 && args[0] === '--prebuilt') return { prebuilt: true }
   const [flag, tarballDirectory] = args
   if (
     args.length !== EXPECTED_TARBALL_ARGUMENT_COUNT ||
     flag !== '--tarball-dir' ||
     tarballDirectory === undefined
   ) {
-    throw new Error('Usage: package-smoke.ts [--tarball-dir <absolute-directory>].')
+    throw new Error('Usage: package-smoke.ts [--prebuilt | --tarball-dir <absolute-directory>].')
   }
   if (!path.isAbsolute(tarballDirectory)) {
     throw new Error('Package smoke tarball directory must be absolute.')

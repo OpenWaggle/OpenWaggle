@@ -1,29 +1,43 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image } from 'lucide-react'
-import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
+import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image, Waypoints } from 'lucide-react'
+import { Children, cloneElement, isValidElement, type ReactNode, useEffect } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
+import { remarkSessionLinks } from '@/features/chat/lib/remark-session-links'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
+import { SessionMessageImages, useSessionMessageImageResources } from '@/features/session-summary'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
+import { releaseMessageImagePreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import { cn } from '@/shared/lib/cn'
-import { safeMarkdownComponents } from '@/shared/lib/markdown-link-components'
+import { NonFetchingMarkdownImage } from '@/shared/lib/markdown-link-components'
 import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
+import { createSyntaxMarkdownComponents } from '@/shared/lib/syntax/markdown-components'
 import { Button } from '@/shared/ui/Button'
+import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 import { renderTextWithMentions } from './MentionText'
+import { OptimisticMessageImages } from './OptimisticMessageImages'
+import { ScheduledMessageFrame } from './ScheduledMessageProvenance'
+import { SteerDeliveryStatus } from './SteerDeliveryStatus'
 
-const USER_REMARK_PLUGINS = [remarkGfm]
+/**
+ * People write prompts as typed text, not strict CommonMark: a single newline they type or paste
+ * is meant as a line break. `remark-breaks` keeps those lines instead of folding them into one
+ * paragraph, while Markdown (lists, headings, fences, tables) still renders.
+ */
+const USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkSessionLinks]
 
 /**
  * Recursively walks ReactNode children, replacing string nodes with
- * mention-chip-enriched fragments. Skips recursion into <a> and <code>
- * elements to avoid chipifying link text or code content.
+ * composer-reference-chip-enriched fragments. Skips recursion into <a> and
+ * <code> elements to avoid chipifying link text or code content.
  *
  * Uses Children.map/cloneElement because ReactMarkdown children are opaque
  * ReactNode trees. If React deprecates these APIs, migrate
  * to a custom remark plugin instead.
  */
-function processChildrenForMentions(children: ReactNode): ReactNode {
+function processChildrenForComposerReferences(children: ReactNode): ReactNode {
   return Children.map(children, (child) => {
     if (typeof child === 'string') {
       const parts = renderTextWithMentions(child)
@@ -35,7 +49,7 @@ function processChildrenForMentions(children: ReactNode): ReactNode {
       if (typeof child.type === 'string' && (child.type === 'a' || child.type === 'code')) {
         return child
       }
-      return cloneElement(child, {}, processChildrenForMentions(child.props.children))
+      return cloneElement(child, {}, processChildrenForComposerReferences(child.props.children))
     }
 
     return child
@@ -43,21 +57,25 @@ function processChildrenForMentions(children: ReactNode): ReactNode {
 }
 
 function UserMarkdownParagraph({ children }: { readonly children?: ReactNode }) {
-  return <p>{processChildrenForMentions(children)}</p>
+  return <p>{processChildrenForComposerReferences(children)}</p>
 }
 
 function UserMarkdownListItem({ children }: { readonly children?: ReactNode }) {
-  return <li>{processChildrenForMentions(children)}</li>
+  return <li>{processChildrenForComposerReferences(children)}</li>
 }
 
-const userMarkdownComponents: Components = {
-  ...safeMarkdownComponents,
+const userMarkdownComponents: Components = createSyntaxMarkdownComponents({
   p: UserMarkdownParagraph,
   li: UserMarkdownListItem,
-}
+  img: NonFetchingMarkdownImage,
+})
 
 function isAttachmentText(content: string) {
   return content.startsWith(ATTACHMENT_TEXT_PREFIX)
+}
+
+function isLegacyImageInputText(content: string) {
+  return /^\[Image input: [^\]]+\]$/u.test(content.trim())
 }
 
 function parseAttachmentName(content: string) {
@@ -101,11 +119,83 @@ function AttachmentChip({ name }: { readonly name: string }) {
     <div
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md border border-border',
-        'bg-bg-tertiary px-2 py-1 text-[12px] text-text-secondary',
+        'bg-bg-tertiary px-2 py-1 text-xs text-text-secondary',
       )}
     >
       <AttachmentIcon name={name} />
-      <span className="truncate max-w-[200px]">{name}</span>
+      <span className="truncate max-w-50">{name}</span>
+    </div>
+  )
+}
+
+function visibleAttachmentParts(
+  textParts: readonly Extract<UIMessage['parts'][number], { type: 'text' }>[],
+  capturedImages: readonly { readonly title: string; readonly attachmentIndex: number | null }[],
+) {
+  const attachmentParts = textParts.filter((part) => isAttachmentText(part.content))
+  const capturedImageSlots = new Set(
+    capturedImages.flatMap(({ attachmentIndex }) =>
+      typeof attachmentIndex === 'number' ? [attachmentIndex] : [],
+    ),
+  )
+  const capturedImageCountByName = new Map<string, number>()
+  for (const image of capturedImages) {
+    if (typeof image.attachmentIndex === 'number') continue
+    capturedImageCountByName.set(image.title, (capturedImageCountByName.get(image.title) ?? 0) + 1)
+  }
+
+  return attachmentParts.filter((part, index) => {
+    if (capturedImageSlots.has(index)) return false
+    const name = parseAttachmentName(part.content)
+    const capturedCount = capturedImageCountByName.get(name) ?? 0
+    if (capturedCount === 0) return true
+    capturedImageCountByName.set(name, capturedCount - 1)
+    return false
+  })
+}
+
+function WaggleInvocationChip({ message }: { readonly message: UIMessage }) {
+  const invocation = message.metadata?.waggleInvocation
+  if (!invocation) return null
+
+  return (
+    <span className="mt-px inline-flex shrink-0 items-center gap-1.5 rounded-md border border-accent/30 bg-accent/10 px-2 py-1 text-xs text-accent">
+      <Waypoints className="size-3.5" />
+      <span>{invocation.presetName}</span>
+      {invocation.source === 'agent' ? (
+        <span className="text-xs uppercase tracking-wide text-accent/60">agent</span>
+      ) : null}
+    </span>
+  )
+}
+
+function UserMessageContent({
+  message,
+  contentParts,
+}: {
+  readonly message: UIMessage
+  readonly contentParts: readonly Extract<UIMessage['parts'][number], { type: 'text' }>[]
+}) {
+  const formatDisplayText = useChatDisplayTextFormatter()
+  if (contentParts.length === 0) return null
+  return (
+    <div
+      className={cn(
+        'prose prose-user min-w-0 flex-1 max-w-none break-words [overflow-wrap:anywhere]',
+        message.metadata?.steerDelivery !== undefined && 'text-text-secondary',
+      )}
+    >
+      {contentParts.map((part) => (
+        <ReactMarkdown
+          key={`${message.id}-text-${part.content}`}
+          remarkPlugins={USER_REMARK_PLUGINS}
+          rehypePlugins={safeMarkdownRehypePlugins}
+          urlTransform={safeMarkdownUrlTransform}
+          components={userMarkdownComponents}
+        >
+          {formatDisplayText(part.content)}
+        </ReactMarkdown>
+      ))}
     </div>
   )
 }
@@ -122,86 +212,112 @@ export function UserMessageBubble({
   onForkFromMessage,
 }: UserMessageBubbleProps) {
   const { copied, copy } = useCopyToClipboard()
+  const messageNodeId = message.metadata?.sessionNodeId ?? message.id
+  const capturedImages = useSessionMessageImageResources(messageNodeId)
+
+  useEffect(() => {
+    if (capturedImages.length > 0) releaseMessageImagePreviewUrls(message)
+  }, [capturedImages.length, message])
 
   const textParts = message.parts.filter(
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
   )
-  const contentParts = textParts.filter((p) => !isAttachmentText(p.content))
-  const attachmentParts = textParts.filter((p) => isAttachmentText(p.content))
+  const contentParts = textParts.filter(
+    (part) => !isAttachmentText(part.content) && !isLegacyImageInputText(part.content),
+  )
+  const attachmentNames = textParts
+    .filter((part) => isAttachmentText(part.content))
+    .map((part) => parseAttachmentName(part.content))
+  const optimisticImages = message.parts.flatMap((part) =>
+    part.type === 'image'
+      ? [{ title: part.name ?? '', attachmentIndex: part.attachmentIndex ?? null }]
+      : [],
+  )
+  const attachmentParts = visibleAttachmentParts(textParts, [
+    ...capturedImages,
+    ...optimisticImages,
+  ])
+  const steerDelivery = message.metadata?.steerDelivery
+  const isSteerPreview = steerDelivery !== undefined
 
   function handleCopy() {
     copy(contentParts.map((p) => p.content).join('\n'))
   }
 
   return (
-    <div className="group/user-msg flex justify-end w-full">
-      <div
-        className={cn(
-          'relative min-w-0 max-w-full rounded-[16px_16px_2px_16px]',
-          'border border-border-light bg-bg-hover px-3.5 py-2.5',
-        )}
-      >
-        {attachmentParts.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {attachmentParts.map((p, i) => (
-              <AttachmentChip
-                key={`${message.id}-attachment-${String(i)}`}
-                name={parseAttachmentName(p.content)}
-              />
-            ))}
-          </div>
-        )}
-        {contentParts.length > 0 && (
-          <div className="prose prose-user max-w-none break-words [overflow-wrap:anywhere]">
-            {contentParts.map((p, i) => (
-              <ReactMarkdown
-                key={`${message.id}-text-${String(i)}`}
-                remarkPlugins={USER_REMARK_PLUGINS}
-                rehypePlugins={safeMarkdownRehypePlugins}
-                urlTransform={safeMarkdownUrlTransform}
-                components={userMarkdownComponents}
+    <ScheduledMessageFrame message={message}>
+      <div className="group/user-msg flex justify-end w-full">
+        <div
+          className={cn(
+            'relative min-w-0 max-w-full rounded-2xl rounded-br-xs border px-3.5 py-2.5',
+            // A steer the agent has not read yet is not part of the conversation so far.
+            isSteerPreview
+              ? 'border-dashed border-border bg-transparent'
+              : 'border-border-light bg-bg-hover',
+          )}
+          data-steer-delivery={steerDelivery}
+        >
+          <SessionMessageImages messageId={messageNodeId} attachmentNames={attachmentNames} />
+          {capturedImages.length === 0 ? <OptimisticMessageImages message={message} /> : null}
+          {attachmentParts.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5 first:mt-0">
+              {attachmentParts.map((p, i) => (
+                <AttachmentChip
+                  key={`${message.id}-attachment-${String(i)}`}
+                  name={parseAttachmentName(p.content)}
+                />
+              ))}
+            </div>
+          )}
+          {message.metadata?.waggleInvocation ? (
+            <div className="flex min-w-0 items-start gap-2" data-waggle-invocation-line="true">
+              <WaggleInvocationChip message={message} />
+              <UserMessageContent message={message} contentParts={contentParts} />
+            </div>
+          ) : (
+            <UserMessageContent message={message} contentParts={contentParts} />
+          )}
+          {steerDelivery ? <SteerDeliveryStatus delivery={steerDelivery} /> : null}
+          <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-opacity">
+            {onBranchFromMessage && !isSteerPreview ? (
+              <Button
+                variant="unstyled"
+                type="button"
+                title="Edit from here"
+                aria-label="Edit from here"
+                onClick={() => onBranchFromMessage(message.id)}
+                className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
               >
-                {p.content}
-              </ReactMarkdown>
-            ))}
+                <GitBranch className="size-3" />
+              </Button>
+            ) : null}
+
+            {onForkFromMessage && !isSteerPreview ? (
+              <Button
+                variant="unstyled"
+                type="button"
+                title="Fork from here"
+                aria-label="Fork from here"
+                onClick={() => onForkFromMessage(message.id)}
+                className="flex cursor-pointer items-center gap-1 text-xs text-text-muted hover:text-text-secondary"
+              >
+                <GitFork className="size-3" />
+              </Button>
+            ) : null}
+
+            <Button
+              variant="unstyled"
+              type="button"
+              title="Copy message"
+              aria-label="Copy message"
+              onClick={handleCopy}
+              className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+            >
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+            </Button>
           </div>
-        )}
-        <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-all">
-          {onBranchFromMessage ? (
-            <Button
-              variant="unstyled"
-              type="button"
-              title="Branch from message"
-              onClick={() => onBranchFromMessage(message.id)}
-              className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
-            >
-              <GitBranch className="size-3" />
-            </Button>
-          ) : null}
-
-          {onForkFromMessage ? (
-            <Button
-              variant="unstyled"
-              type="button"
-              title="Fork to new session"
-              onClick={() => onForkFromMessage(message.id)}
-              className="flex cursor-pointer items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary"
-            >
-              <GitFork className="size-3" />
-            </Button>
-          ) : null}
-
-          <Button
-            variant="unstyled"
-            type="button"
-            title="Copy message"
-            onClick={handleCopy}
-            className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
-          >
-            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-          </Button>
         </div>
       </div>
-    </div>
+    </ScheduledMessageFrame>
   )
 }

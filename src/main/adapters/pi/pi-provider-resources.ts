@@ -3,20 +3,34 @@ import path from 'node:path'
 import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
+  InlineExtension,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent'
 import { normalizeSkillId } from '@shared/utils/skill-id'
+import { env } from '../../env'
 import { isPathInside } from '../../utils/paths'
+import { preparedSessionEvidenceDirectory } from '../../utils/session-evidence-directory'
+import type { OpenWagglePiAppSettings } from './openwaggle-pi-settings-app-overlay'
 import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
-import type { OpenWaggleMcpRuntimeContext } from './pi-mcp-config-service'
+import {
+  openWagglePiBuiltInExtensionPaths,
+  openWagglePiBuiltInExtensions,
+} from './pi-built-in-extensions'
+import { skillPromptListingExtension } from './pi-skill-prompt-listing'
+import { withoutInstalledPiWaggle } from './pi-waggle-package-dedupe'
 
 export interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
+  readonly compactionThresholdPercent?: number
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: readonly OpenWaggleExtensionPiResourceRoot[]
-  readonly extensionFactories?: readonly ExtensionFactory[]
-  readonly mcpRuntimeContext?: OpenWaggleMcpRuntimeContext | null
-  readonly loadMcpAdapter?: boolean
+  readonly extensionFactories?: readonly InlineExtension[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
+  readonly visualizationDirectory?: string
+  /** OpenWaggle settings with a Pi equivalent; the current Settings when absent. */
+  readonly appSettings?: OpenWagglePiAppSettings
 }
 
 type PiResourceLoaderOptions = NonNullable<
@@ -81,37 +95,196 @@ function getCatalogSkillIdForPiSkill(projectPath: string, skillFilePath: string)
 
 function filterDisabledCatalogSkills(
   projectPath: string,
-  skillToggles: Readonly<Record<string, boolean>>,
+  skillToggles: Readonly<Partial<Record<string, boolean>>>,
   base: PiSkillsOverrideInput,
+  skillAllowlist?: readonly string[],
 ) {
+  const allowedSkills = skillAllowlist
+    ? new Set(skillAllowlist.map((skillId) => normalizeSkillId(skillId)))
+    : null
   return {
     skills: base.skills.filter((skill) => {
       const skillId = getCatalogSkillIdForPiSkill(projectPath, skill.filePath)
-      return skillId === null || skillToggles[skillId] !== false
+      const normalizedName = normalizeSkillId(skill.name)
+      const toggleId = skillId ?? normalizedName
+      return (
+        skillToggles[toggleId] !== false &&
+        (allowedSkills === null || allowedSkills.has(skillId ?? normalizedName))
+      )
     }),
     diagnostics: base.diagnostics,
   }
 }
+
+function disableExecutableExtensionsForAutomation() {
+  return env.OPENWAGGLE_AUTOMATION === '1'
+}
+
+function allowFirstPartyExtensionFactoriesForAutomation() {
+  return env.OPENWAGGLE_AUTOMATION_FIRST_PARTY_EXTENSIONS === '1'
+}
+
+/** Pi extension files a QA run names, the only executable extensions automation loads. */
+function automationQaExtensionPaths() {
+  return (env.OPENWAGGLE_AUTOMATION_PI_EXTENSIONS ?? '')
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+}
+
+/**
+ * Host-authored scratch guidance. TMPDIR alone does not help when the model types a literal
+ * `/tmp/push.log`, which is how two concurrent Sessions read each other's push output.
+ */
+export function scratchDirectorySystemPrompt(
+  scratchDirectory: string,
+  evidenceDirectory = preparedSessionEvidenceDirectory(scratchDirectory),
+) {
+  return [
+    '## Session scratch directory',
+    `The private scratch directory for this session is ${JSON.stringify(scratchDirectory)}; TMPDIR, TMP, and TEMP point to it for your shell tools.`,
+    'Write temporary files, logs, and command output there, for example "$TMPDIR/push.log". Other sessions share /tmp, so never write fixed file names directly under /tmp. OpenWaggle removes this directory when the session is archived or deleted.',
+    ...(evidenceDirectory
+      ? [
+          `Save screenshots and other files you will show the user or another session in ${JSON.stringify(evidenceDirectory)} ($OPENWAGGLE_EVIDENCE_DIR) instead; it is kept after this session is archived, and images there can be embedded by any session.`,
+        ]
+      : []),
+  ].join('\n')
+}
+
+function systemPromptAppendices(options: PiRuntimeServicesOptions) {
+  const appendices = [...(options.systemPromptAppendices ?? [])]
+  if (options.visualizationDirectory) {
+    appendices.unshift(
+      [
+        '## Inline visualization authoring',
+        `The durable visualization directory for this session is ${JSON.stringify(options.visualizationDirectory)}.`,
+        'When using the visualize skill, write its HTML fragment there and emit the absolute path in the documented visualize reference.',
+      ].join('\n'),
+    )
+  }
+  return appendices
+}
+
+/** The Pi system prompt section that carries the Session's directories and other appendices. */
+export const SESSION_DIRECTORIES_PROMPT_SECTION = 'openwaggle_session_directories'
+
+/**
+ * Puts OpenWaggle's per-Session appendices (visualization, scratch, and evidence directories) in
+ * their own section after Pi's stable ones, instead of Pi's `addendum`, which comes before the
+ * project context and skills. Those stay a prefix that Sessions of one project share, so a new
+ * Session or Worker reads it from the provider cache instead of writing it again (C11 of the v1
+ * performance research).
+ */
+function sessionDirectoriesSectionExtension(appendices: readonly string[]) {
+  const text = appendices.join('\n\n')
+  return ((pi) => {
+    pi.on('before_agent_start', (event) => {
+      event.systemPromptOptions.sections[SESSION_DIRECTORIES_PROMPT_SECTION] = text
+      return undefined
+    })
+  }) satisfies ExtensionFactory
+}
+
+function configuredExtensionFactories(
+  options: PiRuntimeServicesOptions,
+  disableExtensions: boolean,
+  appendices: readonly string[],
+) {
+  const extension: InlineExtension[] = [
+    ...openWagglePiBuiltInExtensions(),
+    skillPromptListingExtension(),
+    ...(appendices.length > 0 ? [sessionDirectoriesSectionExtension(appendices)] : []),
+    ...(!disableExtensions || allowFirstPartyExtensionFactoriesForAutomation()
+      ? (options.extensionFactories ?? [])
+      : []),
+    ...(options.trustedExtensionFactories ?? []),
+  ]
+  return extension
+}
+
+/**
+ * `builtin:<name>` paths of the configured built-in extensions beyond codemode and tool search,
+ * such as the Run's MCP extension when automation allows first-party extensions.
+ */
+function extraBuiltInExtensionPaths(extensions: readonly InlineExtension[]) {
+  const known = new Set(openWagglePiBuiltInExtensionPaths())
+  return extensions
+    .flatMap((extension) =>
+      typeof extension !== 'function' && extension.builtin ? [`builtin:${extension.name}`] : [],
+    )
+    .filter((extensionPath) => !known.has(extensionPath))
+}
+
+function configuredResourcePaths(
+  projectPath: string,
+  options: PiRuntimeServicesOptions,
+  settingsManager: SettingsManager | undefined,
+  builtInSkillPaths: readonly string[],
+  disableExtensions: boolean,
+  extensions: readonly InlineExtension[],
+) {
+  const builtInExtensionPaths = disableExtensions
+    ? [
+        ...openWagglePiBuiltInExtensionPaths(),
+        ...extraBuiltInExtensionPaths(extensions),
+        ...automationQaExtensionPaths(),
+      ]
+    : []
+  if (settingsManager) {
+    return {
+      additionalExtensionPaths: builtInExtensionPaths,
+      additionalSkillPaths: [...builtInSkillPaths],
+      additionalPromptTemplatePaths: [],
+      additionalThemePaths: [],
+    }
+  }
+  return {
+    additionalExtensionPaths: disableExtensions
+      ? builtInExtensionPaths
+      : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
+    additionalSkillPaths: [
+      ...builtInSkillPaths,
+      ...includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
+    ],
+    additionalPromptTemplatePaths: includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
+    additionalThemePaths: includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
+  }
+}
+
+export function createOpenWaggleGlobalPiResourceLoaderOptions() {
+  return {
+    ...(disableExecutableExtensionsForAutomation() ? { noExtensions: true } : {}),
+    extensionsOverride: withoutInstalledPiWaggle,
+  } satisfies PiResourceLoaderOptions
+}
+
 export function createOpenWagglePiResourceLoaderOptions(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
   settingsManager?: SettingsManager,
-): PiResourceLoaderOptions {
+  builtInSkillPaths: readonly string[] = [],
+) {
   const skillToggles = options.skillToggles ?? {}
+  const disableExtensions = disableExecutableExtensionsForAutomation()
+  const appendices = systemPromptAppendices(options)
+  const extensionFactories = configuredExtensionFactories(options, disableExtensions, appendices)
   return {
-    additionalExtensionPaths: settingsManager
-      ? []
-      : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
-    additionalSkillPaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
-    additionalPromptTemplatePaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
-    additionalThemePaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
-    skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
-    ...(options.extensionFactories ? { extensionFactories: [...options.extensionFactories] } : {}),
-  }
+    ...configuredResourcePaths(
+      projectPath,
+      options,
+      settingsManager,
+      builtInSkillPaths,
+      disableExtensions,
+      extensionFactories,
+    ),
+    skillsOverride: (base) =>
+      filterDisabledCatalogSkills(projectPath, skillToggles, base, options.skillAllowlist),
+    // An explicit empty list keeps Pi from adding an APPEND_SYSTEM.md, as passing the
+    // appendices here used to; they now travel in their own section.
+    ...(appendices.length > 0 ? { appendSystemPrompt: [] } : {}),
+    ...(disableExtensions ? { noExtensions: true } : {}),
+    extensionFactories,
+    extensionsOverride: withoutInstalledPiWaggle,
+  } satisfies PiResourceLoaderOptions
 }

@@ -1,0 +1,131 @@
+import { isRecord } from '@shared/utils/validation'
+import type { McpConnectionCatalog } from './mcp-connection-catalog'
+import type { McpConnectionLease } from './mcp-connection-lease'
+import {
+  isJsonRpcId,
+  type JsonRpcId,
+  type JsonRpcResponse,
+  type McpWireTransport,
+} from './mcp-wire'
+import { mcpMessageFields } from './mcp-message-fields'
+
+export interface McpUpstream {
+  readonly transport: McpWireTransport
+  /** Recent stderr of a stdio server, for error messages and Settings. */
+  readonly stderrTail?: () => string
+  /** Releases what the transport does not own, such as an HTTP server's pinned-DNS fetch. */
+  readonly close?: () => Promise<void>
+}
+
+export interface McpObservedResultContext {
+  readonly served: boolean
+}
+
+export interface McpServerRequest {
+  readonly method: string
+  readonly params: unknown
+  readonly signal: AbortSignal
+}
+
+/** Answers a server-to-client request; `undefined` means the layer does not handle the method. */
+export type McpServerRequestHandler = (request: McpServerRequest) => Promise<unknown> | undefined
+
+export interface McpPooledConnectionOptions {
+  readonly serverName: string
+  readonly open: () => McpUpstream | Promise<McpUpstream>
+  /** Adds OpenWaggle's client capabilities to the first `initialize`. */
+  readonly augmentInitializeParams?: (params: unknown) => unknown
+  readonly handleServerRequest?: McpServerRequestHandler
+  /** The roots the layer answers `roots/list` with. */
+  readonly roots?: () => readonly { readonly uri: string; readonly name?: string }[]
+  /**
+   * Sees every successful result of a client request, such as `tools/list` for MCP Apps. `served`
+   * marks a result answered from the catalog while the server has not started: it says what the
+   * server offered when the catalog was saved, not that it runs now.
+   */
+  readonly observeResult?: (
+    method: string,
+    params: unknown,
+    result: unknown,
+    context?: McpObservedResultContext,
+  ) => void
+  /** Replaces a successful result before the client sees it, such as repaired tool schemas. */
+  readonly adaptResult?: (method: string, result: unknown) => unknown
+  /** Called once the connection is closed, by whichever side. */
+  readonly onClosed: () => void
+  /** The server's last handshake and tools, recorded and, when `lazyStart`, served (D1.3). */
+  readonly catalog?: McpConnectionCatalog
+  /**
+   * With a fresh catalog, the server is started only when a request needs it (a stdio process
+   * is the costly part); until then `initialize`, `tools/list` and `ping` are answered from it.
+   */
+  readonly lazyStart?: boolean
+  /** Another Session is filling the missing catalog: wait for it, then serve it if fresh. */
+  readonly catalogFill?: Promise<void>
+}
+
+export class McpServerError extends Error {
+  readonly code: number
+  readonly data: unknown
+
+  constructor(message: string, code: number, data?: unknown) {
+    super(message)
+    this.code = code
+    this.data = data
+    this.name = 'McpServerError'
+  }
+}
+
+/** Errors after which the upstream must not be reused: Pi's reconnect then opens a fresh one. */
+export const DISCARDING_ERRORS = new Set([
+  'McpSessionExpiredError',
+  'McpAuthRequiredError',
+  'McpOAuthAuthorizationRequiredError',
+  'McpConnectionClosedError',
+])
+
+export const INITIALIZE = 'initialize'
+export const INITIALIZED = 'notifications/initialized'
+export const CANCELLED = 'notifications/cancelled'
+export const PROGRESS = 'notifications/progress'
+export const INTERNAL_PROTOCOL_VERSION = '2025-11-25'
+export const INTERNAL_CLIENT_INFO = { name: 'openwaggle', version: '1' } as const
+
+export type Pending =
+  | {
+      readonly kind: 'lease'
+      readonly lease: McpConnectionLease
+      readonly id: JsonRpcId
+      readonly method: string
+      readonly params: unknown
+      readonly progressToken?: JsonRpcId
+    }
+  | {
+      readonly kind: 'internal'
+      readonly resolve: (result: unknown) => void
+      readonly reject: (error: Error) => void
+    }
+
+export function errorResponse(id: JsonRpcId, code: number, message: string) {
+  const response: JsonRpcResponse = { jsonrpc: '2.0', id, error: { code, message } }
+  return response
+}
+
+export function progressTokenOf(params: unknown) {
+  const token = mcpMessageFields(mcpMessageFields(params)?._meta)?.progressToken
+  const result: JsonRpcId | undefined = isJsonRpcId(token) ? token : undefined
+  return result
+}
+
+export function withProgressToken(params: unknown, token: JsonRpcId) {
+  const meta = mcpMessageFields(params)?._meta
+  if (!isRecord(params) || !isRecord(meta)) return params
+  return { ...params, _meta: { ...meta, progressToken: token } }
+}
+
+/**
+ * One server connection of one Session, shared by the Pi clients of that Session's successive
+ * Runs (leases) and by OpenWaggle's own requests. It answers repeated `initialize` requests from
+ * the cached handshake, numbers requests upstream so clients never collide, and keeps server
+ * requests (sampling, elicitation, roots, ping) on OpenWaggle's side.
+ */

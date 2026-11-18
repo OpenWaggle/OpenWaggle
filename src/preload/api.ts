@@ -1,72 +1,46 @@
-import type {
-  IpcEventChannel,
-  IpcEventPayload,
-  IpcInvokeArgs,
-  IpcInvokeChannel,
-  IpcInvokeReturn,
-  IpcSendArgs,
-  IpcSendChannel,
-  OpenWaggleApi,
-} from '@shared/types/ipc'
-import { ipcRenderer, webUtils } from 'electron'
-
-function invoke<C extends IpcInvokeChannel>(
-  channel: C,
-): (...args: IpcInvokeArgs<C>) => Promise<IpcInvokeReturn<C>> {
-  return (...args: IpcInvokeArgs<C>) => ipcRenderer.invoke(channel, ...args)
-}
-
-function send<C extends IpcSendChannel>(channel: C): (...args: IpcSendArgs<C>) => void {
-  return (...args: IpcSendArgs<C>) => {
-    ipcRenderer.send(channel, ...args)
-  }
-}
-
-function on<C extends IpcEventChannel>(
-  channel: C,
-): (callback: (payload: IpcEventPayload<C>) => void) => () => void {
-  return (callback: (payload: IpcEventPayload<C>) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload<C>) => {
-      callback(payload)
-    }
-    ipcRenderer.on(channel, handler)
-    return () => ipcRenderer.removeListener(channel, handler)
-  }
-}
-
-const invokePrepareAttachments = invoke('attachments:prepare')
-
-function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
-  const paths = files
-    .map((file) => webUtils.getPathForFile(file))
-    .filter((filePath) => filePath.length > 0)
-
-  if (paths.length === 0) {
-    return Promise.resolve([])
-  }
-
-  return invokePrepareAttachments(projectPath, paths)
-}
+import type { OpenWaggleApi } from '@shared/types/ipc'
+import { agentDefinitionsApi } from './agent-definitions-api'
+import { attachmentApi } from './attachment-api'
+import { browserPreviewApi } from './browser-preview-api'
+import { desktopNotificationsApi } from './desktop-notifications-api'
+import { invoke, on, send } from './electron-transport'
+import { scheduledTasksApi } from './scheduled-tasks-api'
+import { sessionDataApi } from './session-data-api'
+import { startupApi } from './startup-api'
+import { worktreesApi } from './worktrees-api'
 
 /**
  * Typed API exposed to the renderer via contextBridge.
  * Every method maps to a specific IPC channel with strict types.
  */
 export const api: OpenWaggleApi = {
+  getCliShimStatus: invoke('cli-shim:get-status'),
+  installCliShim: invoke('cli-shim:install'),
+  removeCliShim: invoke('cli-shim:remove'),
+  ...agentDefinitionsApi,
+  manageAccessProfiles: invoke('access-profiles:manage'),
+  mutateSessionControl: invoke('session-control:mutate'),
+  querySessionControl: invoke('session-control:query'),
+  adoptFollowUpEdit: invoke('session-control:adopt-follow-up-edit'),
   // Agent
   sendMessage: invoke('agent:send-message'),
   cancelAgent: invoke('agent:cancel'),
-  steerAgent: invoke('agent:steer'),
   respondAgentInteraction: invoke('agent:respond-interaction'),
   onAgentEvent: on('agent:event'),
 
   getAgentPhase: invoke('agent:get-phase'),
+  setShownSessions: invoke('agent:set-shown-sessions'),
   getBackgroundRun: invoke('agent:get-background-run'),
   listActiveRuns: invoke('agent:list-active-runs'),
   getContextUsage: invoke('agent:get-context-usage'),
+  listExtensionCommands: invoke('agent:list-extension-commands'),
   compactSession: invoke('agent:compact-session'),
   onRunCompleted: on('agent:run-completed'),
+  onSessionResourcesInvalidated: on('sessions:resources-invalidated'),
   onAgentPhase: on('agent:phase'),
+  onSessionHostEvent: on('session-host:event'),
+  onSessionHostResyncRequired: on('session-host:resync-required'),
+  onWorktreeLaunch: on('agent:worktree-launch'),
 
   // Settings
   getSettings: invoke('settings:get'),
@@ -76,10 +50,31 @@ export const api: OpenWaggleApi = {
   setPiTreeFilterMode: invoke('pi-settings:set-tree-filter-mode'),
   getPiBranchSummarySkipPrompt: invoke('pi-settings:get-branch-summary-skip-prompt'),
   testApiKey: invoke('settings:test-api-key'),
-  getMcpSettings: invoke('mcp:get-settings'),
-  setMcpAdapterEnabled: invoke('mcp:set-adapter-enabled'),
+  getMcpConfiguration: invoke('mcp:get-configuration'),
   setMcpServerEnabled: invoke('mcp:set-server-enabled'),
-  writeMcpSourceConfig: invoke('mcp:write-source-config'),
+  setMcpServerExposure: invoke('mcp:set-server-exposure'),
+  addMcpServer: invoke('mcp:add-server'),
+  removeMcpServer: invoke('mcp:remove-server'),
+  installMcpCatalogServer: invoke('mcp:install-catalog-server'),
+  inspectMcpServer: invoke('mcp:inspect-server'),
+  getMcpServerStatuses: invoke('mcp:get-server-statuses'),
+  signInMcpServer: invoke('mcp:sign-in'),
+  signOutMcpServer: invoke('mcp:sign-out'),
+  getSessionMcpEnabled: invoke('mcp:get-session-enabled'),
+  setSessionMcpEnabled: invoke('mcp:set-session-enabled'),
+  previewMcpImports: invoke('mcp:preview-imports'),
+  applyMcpImports: invoke('mcp:apply-imports'),
+  searchMcpRegistry: invoke('mcp:search-registry'),
+  getMcpRegistryServer: invoke('mcp:get-registry-server'),
+  installMcpRegistryServer: invoke('mcp:install-registry-server'),
+  listMcpSecrets: invoke('mcp:list-secrets'),
+  setMcpSecret: invoke('mcp:set-secret'),
+  removeMcpSecret: invoke('mcp:remove-secret'),
+  readMcpResource: invoke('mcp:read-resource'),
+  registerMcpAppFrame: invoke('mcp:register-app-frame'),
+  unregisterMcpAppFrame: invoke('mcp:unregister-app-frame'),
+  listMcpAppCatalog: invoke('mcp:list-app-catalog'),
+  callMcpAppTool: invoke('mcp:call-app-tool'),
   listExtensionPackages: invoke('extensions:list-packages'),
   listExtensionContributions: invoke('extensions:list-contributions'),
   proposeExtensionPackageWrite: invoke('extensions:propose-package-write'),
@@ -89,6 +84,9 @@ export const api: OpenWaggleApi = {
   invokeExtension: invoke('extensions:invoke'),
   registerExtensionFrame: invoke('extensions:register-frame'),
   unregisterExtensionFrame: invoke('extensions:unregister-frame'),
+  registerInlineVisualizationFrame: invoke('visualizations:register-frame'),
+  unregisterInlineVisualizationFrame: invoke('visualizations:unregister-frame'),
+  saveInlineVisualizationDownload: invoke('visualizations:save-download'),
   setExtensionTrusted: invoke('extensions:set-trusted'),
   setExtensionEnabled: invoke('extensions:set-enabled'),
   setExtensionProjectDisabled: invoke('extensions:set-project-disabled'),
@@ -97,29 +95,75 @@ export const api: OpenWaggleApi = {
   reloadExtension: invoke('extensions:reload'),
   discoverDocs: invoke('docs:discover'),
   resolveDocsTopic: invoke('docs:resolve-topic'),
+  getUsageCostView: invoke('usage-cost:get-view'),
+  getUsageCostSessions: invoke('usage-cost:get-sessions'),
 
   // Providers
   getProviderModels: invoke('providers:get-models'),
 
   // Project
   selectProjectFolder: invoke('project:select-folder'),
+  takeOpenProjectRequest: invoke('project:take-open-request'),
+  onOpenProjectRequested: on('app:open-project-requested'),
+  takeOpenSessionLinkRequest: invoke('app:take-open-session-link-request'),
+  onOpenSessionLinkRequested: on('app:open-session-link-requested'),
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
+  manageProjectActions: invoke('project-actions:manage'),
+  removeProjectModel: invoke('project-config:remove-project-model'),
+  listAuthorizationGrants: invoke('authorization-grants:list'),
+  grantAuthorization: invoke('authorization-grants:grant'),
+  revokeAuthorization: invoke('authorization-grants:revoke'),
 
   // Sessions
-  listSessions: invoke('sessions:list'),
-  listSessionDetails: invoke('sessions:list-details'),
+  activateSessionResourceOwner: send('sessions:resources:activate-owner'),
+  listSessionsByIds: invoke('sessions:list-by-ids'),
+  listSessionCatalogPage: invoke('sessions:list-page'),
+  listSessionProjectPage: invoke('sessions:list-projects'),
+  listHiveSessionCatalogPage: invoke('sessions:list-hive-page'),
+  listHiveTreeSessionCatalogPage: invoke('sessions:list-hive-tree-page'),
   getSessionDetail: invoke('sessions:get-detail'),
+  dismissInterruptedSessionRun: invoke('sessions:dismiss-interrupted-run'),
+  listSessionResources: invoke('sessions:resources:list'),
+  listSessionResourcePage: invoke('sessions:resources:page'),
+  getSessionResource: invoke('sessions:resources:get'),
+  locateSessionResourceImage: invoke('sessions:resources:locate-image'),
+  listSessionResourceNodePage: invoke('sessions:resources:node-page'),
+  listSessionResourcesByNodeIds: invoke('sessions:resources:list-by-node-ids'),
+  advanceSessionResourceBackfill: invoke('sessions:resources:backfill'),
+  readSessionResource: invoke('sessions:resources:read'),
+  readSessionResourceThumbnail: invoke('sessions:resources:thumbnail'),
+  copySessionResourceImage: invoke('sessions:resources:copy-image'),
+  prepareSessionResourceAttachment: invoke('sessions:resources:prepare-attachment'),
+  discardPreparedAttachment: invoke('attachments:discard'),
+  retrySessionResource: invoke('sessions:resources:retry'),
+  recordSessionChangeRequest: invoke('sessions:resources:record-change-request'),
+  listTurnCheckpoints: invoke('sessions:turn-checkpoints:list'),
+  getTurnDiffFiles: invoke('sessions:turn-diff-files:get'),
+  getTurnDiff: invoke('sessions:turn-diff:get'),
+  listPinnedSessions: invoke('sessions:pins:list'),
+  pinSession: invoke('sessions:pins:pin'),
+  unpinSession: invoke('sessions:pins:unpin'),
+  movePinnedSession: invoke('sessions:pins:move'),
   createSession: invoke('sessions:create'),
   forkSessionToNew: invoke('sessions:fork-to-new'),
   cloneSessionToNew: invoke('sessions:clone-to-new'),
-  dismissInterruptedSessionRun: invoke('sessions:dismiss-interrupted-run'),
   deleteSession: invoke('sessions:delete'),
+  beginProjectRemoval: invoke('sessions:begin-project-removal'),
   archiveSession: invoke('sessions:archive'),
   unarchiveSession: invoke('sessions:unarchive'),
-  listArchivedSessions: invoke('sessions:list-archived'),
   updateSessionTitle: invoke('sessions:update-title'),
+  regenerateSessionTitle: invoke('sessions:regenerate-title'),
+  setSessionAuthorizationMode: invoke('sessions:set-authorization-mode'),
+  setSessionModel: invoke('sessions:set-model'),
+  setSessionThinkingLevel: invoke('sessions:set-thinking-level'),
+  getDefaultThinkingLevel: invoke('sessions:get-default-thinking-level'),
+  setDefaultThinkingLevel: invoke('sessions:set-default-thinking-level'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
+  queryArchivedItems: invoke('sessions:query-archived-items'),
+  listArchivedItemRefs: invoke('sessions:list-archived-item-refs'),
+  setArchivedItems: invoke('sessions:set-archived-items'),
+  deleteArchivedSessions: invoke('sessions:delete-archived-sessions'),
   getSessionTree: invoke('sessions:get-tree'),
   getSessionWorkspace: invoke('sessions:get-workspace'),
   navigateSessionTree: invoke('sessions:navigate-tree'),
@@ -128,13 +172,32 @@ export const api: OpenWaggleApi = {
   restoreSessionBranch: invoke('sessions:restore-branch'),
   updateSessionTreeUiState: invoke('sessions:update-tree-ui-state'),
   onSessionTitleUpdated: on('sessions:title-updated'),
+  onSessionListInvalidated: on('sessions:list-invalidated'),
+  onGitWorkingTreeChanged: on('git:working-tree-changed'),
+  onGitStackedActionProgress: on('git:stacked-action:progress'),
 
   // Terminal
-  createTerminal: invoke('terminal:create'),
-  closeTerminal: invoke('terminal:close'),
+  getTerminalActivitySnapshot: invoke('terminal:get-activity-snapshot'),
+  openTerminal: invoke('terminal:open'),
+  detachTerminal: invoke('terminal:detach'),
   resizeTerminal: invoke('terminal:resize'),
-  writeTerminal: send('terminal:write'),
-  onTerminalData: on('terminal:data'),
+  clearTerminal: invoke('terminal:clear'),
+  restartTerminal: invoke('terminal:restart'),
+  assessTerminalClose: invoke('terminal:assess-close'),
+  closeTerminal: invoke('terminal:close'),
+  writeTerminal: invoke('terminal:write'),
+  sendTerminalInputNow: invoke('terminal:send-input-now'),
+  acknowledgeTerminalOutput: send('terminal:ack-output'),
+  migrateTerminalOwner: invoke('terminal:migrate-owner'),
+  onTerminalEvent: on('terminal:event'),
+  onTerminalActivitySnapshot: on('terminal:activity-snapshot'),
+
+  // Browser preview
+  ...browserPreviewApi,
+  ...scheduledTasksApi,
+  ...desktopNotificationsApi,
+  ...startupApi,
+  ...sessionDataApi,
 
   // Window
   onFullscreenChanged: on('window:fullscreen-changed'),
@@ -143,17 +206,30 @@ export const api: OpenWaggleApi = {
   getGitStatus: invoke('git:status'),
   commitGit: invoke('git:commit'),
   getGitDiff: invoke('git:diff'),
+  getGitBranchDiff: invoke('git:branch-diff'),
+  stageAllGitChanges: invoke('git:working-tree:stage-all'),
+  revertAllGitChanges: invoke('git:working-tree:revert-all'),
   listGitBranches: invoke('git:branches:list'),
   checkoutGitBranch: invoke('git:branches:checkout'),
   createGitBranch: invoke('git:branches:create'),
-  renameGitBranch: invoke('git:branches:rename'),
-  deleteGitBranch: invoke('git:branches:delete'),
-  setGitBranchUpstream: invoke('git:branches:set-upstream'),
+  validateGitBranchName: invoke('git:branches:validate-name'),
+  ...worktreesApi,
+  getLocalVcsStatus: invoke('git:vcs-status:local'),
+  getRemoteVcsStatus: invoke('git:vcs-status:remote'),
+  runStackedGitAction: invoke('git:stacked-action:run'),
+  cancelStackedGitAction: invoke('git:stacked-action:cancel'),
+  preflightChangeRequest: invoke('git:change-request:preflight'),
+  listChangeRequests: invoke('git:change-request:list'),
+  checkoutChangeRequest: invoke('git:change-request:checkout'),
+  getChangeRequestPanel: invoke('git:change-request:panel'),
+  mergeChangeRequest: invoke('git:change-request:merge'),
+  getSourceControlHosts: invoke('source-control:hosts'),
+  getChangeRequestOpenDestination: invoke('source-control:open-destination'),
+  configureSourceControl: invoke('source-control:configure'),
+  refreshSourceControlStatus: invoke('source-control:refresh-status'),
 
   // Attachments
-  prepareAttachments: prepareSelectedAttachments,
-  prepareAttachmentFromText: invoke('attachments:prepare-from-text'),
-  onPrepareAttachmentFromTextProgress: on('attachments:prepare-from-text-progress'),
+  ...attachmentApi,
 
   // Voice
   transcribeVoiceLocal: invoke('voice:transcribe-local'),
@@ -167,9 +243,12 @@ export const api: OpenWaggleApi = {
 
   // Shell / App
   copyToClipboard: send('clipboard:write-text'),
+  readFromClipboard: invoke('clipboard:read-text'),
+  readClipboardImage: invoke('clipboard:read-image'),
   openLogsDir: invoke('app:open-logs-dir'),
   getLogsPath: invoke('app:get-logs-path'),
   openPath: invoke('shell:open-path'),
+  revealPath: invoke('shell:reveal-path'),
 
   // Dialog
   showConfirm: invoke('dialog:confirm'),
@@ -205,10 +284,39 @@ export const api: OpenWaggleApi = {
   // Composer
   suggestFiles: invoke('composer:file-suggest'),
 
+  // Workspace files
+  listSyntaxThemes: invoke('syntax-themes:list'),
+  selectSyntaxThemeImport: invoke('syntax-themes:select-import'),
+  applySyntaxThemeImport: invoke('syntax-themes:apply-import'),
+  removeSyntaxTheme: invoke('syntax-themes:remove'),
+  searchWorkspaceFiles: invoke('workspace-files:search'),
+  searchWorkspaceContent: invoke('workspace-files:search-content'),
+  cancelWorkspaceContentSearch: invoke('workspace-files:cancel-content-search'),
+  readWorkspaceFile: invoke('workspace-files:read'),
+  readWorkspaceFileWithEncoding: invoke('workspace-files:read-with-encoding'),
+  writeWorkspaceFile: invoke('workspace-files:write'),
+  applyWorkspaceDocumentEdits: invoke('workspace-files:apply-document-edits'),
+  listWorkspaceExternalEditors: invoke('workspace-files:list-external-editors'),
+  openWorkspaceFileExternal: invoke('workspace-files:open-external'),
+  openAbsoluteFileExternal: invoke('workspace-files:open-absolute-external'),
+  createWorkspaceEntry: invoke('workspace-files:create-entry'),
+  moveWorkspaceEntry: invoke('workspace-files:move-entry'),
+  duplicateWorkspaceEntry: invoke('workspace-files:duplicate-entry'),
+  trashWorkspaceEntry: invoke('workspace-files:trash-entry'),
+  revealWorkspaceEntry: invoke('workspace-files:reveal-entry'),
+  watchWorkspaceFiles: invoke('workspace-files:watch'),
+  unwatchWorkspaceFiles: invoke('workspace-files:unwatch'),
+  onWorkspaceFilesChanged: on('workspace-files:changed'),
+  readWorkspaceFilePage: invoke('workspace-files:read-page'),
+
   // Auto-updater
   checkForUpdates: invoke('updater:check'),
   installUpdate: invoke('updater:install'),
+  installUpdateNow: invoke('updater:install-now'),
   getUpdateStatus: invoke('updater:get-status'),
   getAppVersion: invoke('app:get-version'),
+  getDesktopNativeAdmissionIssue: invoke('app:get-native-admission-issue'),
+  getUsageStatisticsBlock: invoke('app:get-usage-statistics-block'),
+  recoverDesktopNativeAdmission: invoke('app:recover-native-admission'),
   onUpdateStatus: on('updater:status-changed'),
 }

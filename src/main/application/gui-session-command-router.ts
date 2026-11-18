@@ -1,0 +1,210 @@
+import type { HostBackedGuiChannel } from '@shared/types/host-ui-protocol'
+import type { IpcInvokeArgs } from '@shared/types/ipc'
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
+import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import * as Effect from 'effect/Effect'
+import {
+  executeLocalSessionCommand,
+  type LocalSessionClientConnectionInput,
+} from '../session-host/local-session-client'
+import {
+  ensureLocalSessionHost,
+  isLocalSessionHostUnavailable,
+} from '../session-host/local-session-host-launcher'
+import { refreshLocalSessionHostEndpoint } from '../session-host/local-session-paths'
+import { userFacingErrorDetail } from '../utils/describe-error'
+import { executeConfiguredHostUi } from './configured-host-ui-client'
+import { isReadOnlyHostUiInvocation } from './host-ui-read-only-invocation'
+
+type GuiSessionClientInput = Omit<
+  LocalSessionClientConnectionInput,
+  'workingDirectory' | 'clientKind'
+>
+
+type GuiSessionCommandRoute =
+  | { readonly mode: 'local' }
+  | { readonly mode: 'remote'; readonly client: GuiSessionClientInput }
+  | { readonly mode: 'retired-for-upgrade' }
+
+let guiSessionCommandRoute: GuiSessionCommandRoute = { mode: 'local' }
+let guiSessionCommandRouteEpoch = 0
+
+export class GuiSessionHostRetiredForUpgradeError extends Error {
+  constructor() {
+    super('This OpenWaggle window retired its Session Host for an upgrade. Restart it to continue.')
+    this.name = 'GuiSessionHostRetiredForUpgradeError'
+  }
+}
+
+export interface GuiSessionCommandDependencies {
+  readonly execute: typeof executeLocalSessionCommand
+  readonly ensure: (input: Parameters<typeof ensureLocalSessionHost>[0]) => Promise<unknown>
+  readonly refreshPaths: typeof refreshLocalSessionHostEndpoint
+}
+
+function canRetryAfterAmbiguousTransportFailure(payload: LocalSessionCommandPayload) {
+  return (
+    payload.contract === 'session-query-v2' ||
+    payload.contract === 'session-control-v2' ||
+    payload.contract === 'session-lifecycle-v2' ||
+    payload.contract === 'local-access-v1'
+  )
+}
+
+export function configureGuiSessionCommandClient(input: GuiSessionClientInput | null) {
+  guiSessionCommandRoute = input ? { mode: 'remote', client: input } : { mode: 'local' }
+  guiSessionCommandRouteEpoch += 1
+}
+
+export function retireGuiSessionCommandClientForUpgrade() {
+  guiSessionCommandRoute = { mode: 'retired-for-upgrade' }
+  guiSessionCommandRouteEpoch += 1
+}
+
+function requireActiveGuiSessionCommandRoute(expectedEpoch: number) {
+  const route = guiSessionCommandRoute
+  if (route.mode === 'retired-for-upgrade') {
+    throw new GuiSessionHostRetiredForUpgradeError()
+  }
+  if (route.mode !== 'remote' || guiSessionCommandRouteEpoch !== expectedEpoch) {
+    throw new Error('The GUI Session Host client changed during command dispatch.')
+  }
+  return route
+}
+
+async function refreshConfiguredHostUiRoute(expectedEpoch: number, replaySafe: boolean) {
+  const client = requireActiveGuiSessionCommandRoute(expectedEpoch).client
+  let paths: GuiSessionClientInput['paths']
+  try {
+    paths = await refreshLocalSessionHostEndpoint(client.paths)
+  } catch (error) {
+    if (!replaySafe || !isLocalSessionHostUnavailable(error)) throw error
+    requireActiveGuiSessionCommandRoute(expectedEpoch)
+    await ensureLocalSessionHost({ ...client, clientKind: 'gui' })
+    const recovered = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    paths = await refreshLocalSessionHostEndpoint(recovered.client.paths)
+  }
+  const active = requireActiveGuiSessionCommandRoute(expectedEpoch)
+  guiSessionCommandRoute = { mode: 'remote', client: { ...active.client, paths } }
+  return guiSessionCommandRoute.client
+}
+
+export type ConfiguredHostUiInvocation =
+  | { readonly handled: false }
+  | { readonly handled: true; readonly result: unknown }
+
+export async function invokeConfiguredHostUi<C extends HostBackedGuiChannel>(
+  channel: C,
+  args: IpcInvokeArgs<C>,
+) {
+  return invokeConfiguredHostUiRaw(channel, args)
+}
+
+export async function invokeConfiguredHostUiRaw(
+  channel: HostBackedGuiChannel,
+  args: readonly unknown[],
+) {
+  const route = guiSessionCommandRoute
+  if (route.mode === 'local') {
+    const invocation: ConfiguredHostUiInvocation = { handled: false }
+    return invocation
+  }
+  if (route.mode === 'retired-for-upgrade') throw new GuiSessionHostRetiredForUpgradeError()
+  const expectedEpoch = guiSessionCommandRouteEpoch
+  const replaySafe = isReadOnlyHostUiInvocation(channel, args)
+  const client = await refreshConfiguredHostUiRoute(expectedEpoch, replaySafe)
+  try {
+    const result = await executeConfiguredHostUi({ client, channel, args })
+    const invocation: ConfiguredHostUiInvocation = { handled: true, result }
+    return invocation
+  } catch (error) {
+    if (!replaySafe || !isLocalSessionHostUnavailable(error)) throw error
+    const active = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    await ensureLocalSessionHost({ ...active.client, clientKind: 'gui' })
+    const recoveredClient = await refreshConfiguredHostUiRoute(expectedEpoch, replaySafe)
+    const result = await executeConfiguredHostUi({ client: recoveredClient, channel, args })
+    const invocation: ConfiguredHostUiInvocation = { handled: true, result }
+    return invocation
+  }
+}
+
+export function dispatchConfiguredGuiSessionCommand(
+  input: {
+    readonly caller: LocalSessionCallerIdentity
+    readonly payload: LocalSessionCommandPayload
+  },
+  dependencyOverrides: Partial<GuiSessionCommandDependencies> = {},
+) {
+  const dependencies: GuiSessionCommandDependencies = {
+    execute: executeLocalSessionCommand,
+    ensure: ensureLocalSessionHost,
+    refreshPaths: refreshLocalSessionHostEndpoint,
+    ...dependencyOverrides,
+  }
+  const route = guiSessionCommandRoute
+  if (input.caller.callerId !== 'gui:local-user' || route.mode === 'local') return undefined
+  if (route.mode === 'retired-for-upgrade') {
+    return Effect.fail(new GuiSessionHostRetiredForUpgradeError())
+  }
+  const expectedEpoch = guiSessionCommandRouteEpoch
+  return Effect.tryPromise({
+    try: () => executeConfiguredGuiSessionCommand(input, dependencies, expectedEpoch),
+    // Surface the Host's reason (for example "Nothing to compact (session too small)") instead of
+    // Effect's generic UnknownException message. The text reaches the renderer, so it is redacted
+    // and bounded; the original error stays available as the cause for logs and classification.
+    catch: (error) =>
+      new Error(userFacingErrorDetail(error instanceof Error ? error.message : String(error)), {
+        cause: error,
+      }),
+  })
+}
+
+async function executeConfiguredGuiSessionCommand(
+  input: {
+    readonly caller: LocalSessionCallerIdentity
+    readonly payload: LocalSessionCommandPayload
+  },
+  dependencies: GuiSessionCommandDependencies,
+  expectedEpoch: number,
+) {
+  const configuredGuiClient = requireActiveGuiSessionCommandRoute(expectedEpoch).client
+  let paths: GuiSessionClientInput['paths']
+  try {
+    paths = await dependencies.refreshPaths(configuredGuiClient.paths)
+  } catch (error) {
+    if (!isLocalSessionHostUnavailable(error)) throw error
+    requireActiveGuiSessionCommandRoute(expectedEpoch)
+    await dependencies.ensure({ ...configuredGuiClient, clientKind: 'gui' })
+    requireActiveGuiSessionCommandRoute(expectedEpoch)
+    paths = await dependencies.refreshPaths(configuredGuiClient.paths)
+  }
+  const activeRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+  guiSessionCommandRoute = { mode: 'remote', client: { ...activeRoute.client, paths } }
+  const commandInput = {
+    ...configuredGuiClient,
+    paths,
+    clientKind: 'gui' as const,
+    ...(input.caller.workingDirectory ? { workingDirectory: input.caller.workingDirectory } : {}),
+    payload: input.payload,
+  }
+  try {
+    return await dependencies.execute(commandInput)
+  } catch (error) {
+    if (
+      !isLocalSessionHostUnavailable(error) ||
+      !canRetryAfterAmbiguousTransportFailure(input.payload)
+    ) {
+      throw error
+    }
+    requireActiveGuiSessionCommandRoute(expectedEpoch)
+    await dependencies.ensure({ ...configuredGuiClient, paths, clientKind: 'gui' })
+    const currentRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    const recoveredPaths = await dependencies.refreshPaths(currentRoute.client.paths)
+    const recoveredRoute = requireActiveGuiSessionCommandRoute(expectedEpoch)
+    guiSessionCommandRoute = {
+      mode: 'remote',
+      client: { ...recoveredRoute.client, paths: recoveredPaths },
+    }
+    return dependencies.execute({ ...commandInput, paths: recoveredPaths })
+  }
+}

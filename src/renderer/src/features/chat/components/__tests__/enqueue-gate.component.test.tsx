@@ -1,0 +1,83 @@
+import type { AgentSendPayload } from '@shared/types/agent'
+import { SessionId } from '@shared/types/brand'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  clearInlineVisualizationStatesForTests,
+  reportInlineVisualizationState,
+} from '../../state/inline-visualization-state'
+import { enqueueIfAllowed } from '../ChatComposerStack'
+
+const PAYLOAD: AgentSendPayload = { text: 'do the thing', attachments: [] }
+
+describe('enqueueIfAllowed', () => {
+  it('refuses to queue a message the send gate would block, and says why', async () => {
+    /*
+     * A queued message is dispatched later with the raw send, so queueing walked straight past the
+     * worktree gate: main rejected it with a bare thrown error and the message was silently
+     * re-enqueued instead of the user seeing the recover-or-switch notice.
+     */
+    const enqueue = vi.fn()
+    const onToast = vi.fn()
+
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: SessionId('session-a'),
+        sendBlockedReason: "This session's worktree no longer exists.",
+        enqueue,
+        onToast,
+      }),
+    ).resolves.toBe(false)
+
+    expect(enqueue).not.toHaveBeenCalled()
+    expect(onToast).toHaveBeenCalledWith("This session's worktree no longer exists.")
+  })
+
+  it('queues against the active session when nothing blocks the send', async () => {
+    const enqueue = vi.fn(async () => undefined)
+    const sessionId = SessionId('session-a')
+    reportInlineVisualizationState({
+      instanceId: 'frame-a',
+      sessionId,
+      sourcePath: '/repo/map.html',
+      title: 'Map',
+      state: { selected: 'api' },
+    })
+
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: sessionId,
+        sendBlockedReason: null,
+        enqueue,
+        onToast: vi.fn(),
+      }),
+    ).resolves.toBe(true)
+
+    expect(enqueue).toHaveBeenCalledWith({
+      ...PAYLOAD,
+      visualizationContext: {
+        title: 'Map',
+        sourcePath: '/repo/map.html',
+        state: { selected: 'api' },
+      },
+    })
+    clearInlineVisualizationStatesForTests()
+  })
+
+  it('does nothing without an active session', async () => {
+    const enqueue = vi.fn()
+
+    await expect(
+      enqueueIfAllowed({
+        payload: PAYLOAD,
+        activeSessionId: null,
+        sendBlockedReason: null,
+        enqueue,
+        onToast: vi.fn(),
+      }),
+    ).resolves.toBe(false)
+
+    expect(enqueue).not.toHaveBeenCalled()
+  })
+})

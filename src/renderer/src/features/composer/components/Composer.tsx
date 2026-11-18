@@ -1,21 +1,36 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { SessionId } from '@shared/types/brand'
 import type { LexicalEditor } from 'lexical'
+import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { useProject } from '@/features/sessions/hooks'
 import { useComposerAttachments } from '../hooks/useComposerAttachments'
+import { useComposerQueuedEditMode } from '../hooks/useComposerQueuedEditMode'
+import type { SendFailureDisposition } from '../hooks/useComposerSubmission'
 import { useComposerSubmission } from '../hooks/useComposerSubmission'
 import { useComposerVoiceControls } from '../hooks/useComposerVoiceControls'
+import { useSessionScopedFilePicker } from '../hooks/useSessionScopedFilePicker'
+import type { QueuedMessageEdit } from '../state/queued-message-edit-store'
 import { ComposerDropZone } from './ComposerDropZone'
 import { ComposerEditorArea } from './ComposerEditorArea'
 import { ComposerHeader } from './ComposerHeader'
 import { ComposerHiddenFileInput } from './ComposerHiddenFileInput'
 import { ComposerModeControls } from './ComposerModeControls'
+import type { ComposerRunFinishing } from './ComposerSendControls'
+import { QueuedMessageEditNotices } from './QueuedMessageEditBar'
 
 interface ComposerProps {
-  onSend: (payload: AgentSendPayload) => Promise<void> | void
-  onEnqueue: (payload: AgentSendPayload) => Promise<void> | void
+  readonly sessionId?: string | null
+  readonly accessControl?: ReactNode
+  onSend: (payload: AgentSendPayload) => Promise<void> | void | false
+  onEnqueue: (payload: AgentSendPayload) => Promise<boolean | undefined> | boolean | undefined
   onCancel: () => void
   isLoading: boolean
+  /**
+   * The agent ended the Run and it is finishing: a message is queued. Stop shows only while the
+   * agent still works on (`stoppable`), not while the Host merely saves the Run (`settling`).
+   */
+  finishing?: ComposerRunFinishing
   mode?: {
     readonly disabled?: boolean
     readonly placeholder?: string
@@ -24,80 +39,164 @@ interface ComposerProps {
     readonly clearOnSubmit?: boolean
     readonly recordHistory?: boolean
     readonly allowEnqueue?: boolean
+    readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
+    /**
+     * The Session whose queued messages this composer can edit. While one of them is being
+     * edited, the composer is in edit mode: it shows the edit bar, and Enter saves the edit.
+     */
+    readonly queuedMessagesSessionId?: SessionId | null
   }
   onToast?: (message: string) => void
 }
 
-export function Composer({ onSend, onEnqueue, onCancel, isLoading, mode, onToast }: ComposerProps) {
-  const disabled = mode?.disabled
-  const placeholder = mode?.placeholder
-  const sendTitle = mode?.sendTitle
-  const requiresText = mode?.requiresText ?? false
-  const clearOnSubmit = mode?.clearOnSubmit ?? true
-  const recordHistory = mode?.recordHistory ?? true
-  const allowEnqueue = mode?.allowEnqueue ?? true
+function noToast() {}
+
+/** The composer's mode with its defaults. */
+function resolveComposerMode(mode: ComposerProps['mode']) {
+  return {
+    disabled: mode?.disabled ?? false,
+    placeholder: mode?.placeholder,
+    sendTitle: mode?.sendTitle,
+    requiresText: mode?.requiresText ?? false,
+    clearOnSubmit: mode?.clearOnSubmit ?? true,
+    recordHistory: mode?.recordHistory ?? true,
+    allowEnqueue: mode?.allowEnqueue ?? true,
+    onSendFailure: mode?.onSendFailure,
+  }
+}
+
+/** Editing a queued message: the input says so, and the primary action saves. */
+function withQueuedEditMode(
+  resolved: ReturnType<typeof resolveComposerMode>,
+  edit: QueuedMessageEdit | null,
+) {
+  if (!edit) return resolved
+  return {
+    ...resolved,
+    // Opening, saving, or cancelling is in flight: hold the draft still until the Host answers.
+    disabled: resolved.disabled || edit.phase !== 'editing',
+    placeholder: 'Edit the queued message',
+    sendTitle: 'Save edit',
+  }
+}
+
+function runAnnouncement(isLoading: boolean, finishing: ComposerRunFinishing | undefined) {
+  if (finishing) return 'Agent is finishing'
+  return isLoading ? 'Agent is working' : ''
+}
+
+export function Composer({
+  sessionId = null,
+  accessControl,
+  onSend,
+  onEnqueue,
+  onCancel,
+  isLoading,
+  finishing,
+  mode,
+  onToast = noToast,
+}: ComposerProps) {
+  const queuedEdit = useComposerQueuedEditMode(mode?.queuedMessagesSessionId ?? null, onToast)
+  const editHere = queuedEdit.here
+  const {
+    disabled,
+    placeholder,
+    sendTitle,
+    requiresText,
+    clearOnSubmit,
+    recordHistory,
+    allowEnqueue,
+    onSendFailure,
+  } = withQueuedEditMode(resolveComposerMode(mode), editHere)
   const editorRef = useRef<LexicalEditor | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  useSessionScopedFilePicker(sessionId, fileInputRef)
   const { projectPath } = useProject()
-  const attachments = useComposerAttachments({ projectPath, onToast })
+  const attachments = useComposerAttachments({ projectPath, onToast, disabled })
   const submission = useComposerSubmission({
     onSend,
     onEnqueue,
+    ...(onSendFailure === undefined ? {} : { onSendFailure }),
     isLoading,
     disabled,
     requiresText,
     clearOnSubmit,
     recordHistory,
     allowEnqueue,
+    enqueueWaggle: queuedEdit.waitingOnEdit,
     onToast,
     editorRef,
     projectPath,
     attachments: attachments.attachments,
     hasPreparingTextAttachment: attachments.hasPreparingTextAttachment,
   })
+  // While a queued message is being edited here (including while it opens), nothing is sent.
+  function submit() {
+    if (!editHere) {
+      void submission.handleSubmit()
+      return
+    }
+    if (!disabled) queuedEdit.save()
+  }
   const voice = useComposerVoiceControls({
+    disabled,
     editorRef,
     sendComposed: submission.sendComposed,
-    submitCurrentDraft: submission.submitCurrentDraft,
+    submitCurrentDraft: editHere ? submit : submission.submitCurrentDraft,
+    sendAfterInsert: editHere ? submit : null,
   })
 
   useEffect(() => {
-    if (!isLoading) editorRef.current?.focus()
+    const activeElement = document.activeElement
+    if (!isLoading && (activeElement === null || activeElement === document.body)) {
+      editorRef.current?.focus()
+    }
   }, [isLoading])
 
   return (
     <div className="shrink-0">
       <output aria-live="polite" className="sr-only">
-        {isLoading ? 'Agent is working' : ''}
+        {runAnnouncement(isLoading, finishing)}
       </output>
       <ComposerHiddenFileInput
         fileInputRef={fileInputRef}
         handleAttachFiles={attachments.fileAttachment.handleAttachFiles}
       />
-      <ComposerDropZone fileAttachment={attachments.fileAttachment}>
+      <ComposerDropZone
+        disabled={disabled}
+        editorRef={editorRef}
+        fileAttachment={attachments.fileAttachment}
+      >
+        <QueuedMessageEditNotices mode={queuedEdit} />
         <ComposerHeader
           attachments={attachments}
           voiceError={voice.error}
           onClearVoiceError={voice.clearError}
         />
         <ComposerEditorArea
-          onSubmit={submission.handleSubmit}
+          onSubmit={submit}
+          {...(editHere ? { onEscape: queuedEdit.onEscape } : {})}
           disabled={disabled}
-          placeholder={placeholder}
+          {...(placeholder === undefined ? {} : { placeholder })}
           isLoading={isLoading}
           editorRef={editorRef}
           checkAndConvertPaste={attachments.checkAndConvertPaste}
+          onPaste={attachments.fileAttachment.handlePaste}
         />
         <ComposerModeControls
+          disabled={disabled}
+          accessControl={accessControl}
           fileInputRef={fileInputRef}
           voice={voice}
-          onSubmit={() => {
-            submission.handleSubmit()
+          submission={{
+            onSend: submit,
+            onCancel,
+            isLoading,
+            ...(finishing === undefined ? {} : { finishing }),
+            canSend: editHere ? queuedEdit.canSave : submission.canSend,
+            ...(sendTitle === undefined ? {} : { sendTitle }),
+            savesEdit: editHere !== null,
           }}
-          onCancel={onCancel}
-          isLoading={isLoading}
-          canSend={submission.canSend}
-          sendTitle={sendTitle}
         />
       </ComposerDropZone>
     </div>

@@ -1,0 +1,294 @@
+import { uncheckedFields } from '@shared/utils/object-shape'
+import type {
+  ChangeRequestResult,
+  OpenChangeRequestPayload,
+  SourceControlFailure,
+  SourceControlRepositoryIdentity,
+} from '@shared/types/git'
+import { mapGhPullRequest } from './change-request-parse'
+import type { CliResult } from './cli-runner'
+import { jsonStringProperty, runGh, runGhWrite, safeJsonParse } from './gh-cli-run'
+import {
+  githubRepositorySelector,
+  matchesRepositoryUrl,
+  resolveRepositoryChangeRequestIdentity,
+} from './repository-context'
+
+export const GITHUB_PR_SUMMARY_FIELDS =
+  'title,url,baseRefName,headRefName,headRepositoryOwner,state,isDraft'
+
+interface PullRequestCreationDependencies {
+  readonly classifyFailure: (result: CliResult) => SourceControlFailure
+  readonly viewPullRequest: (projectPath: string, ref: string) => Promise<ChangeRequestResult>
+  /** Runs repository-scoped gh commands as the account that can see the repository. */
+  readonly run?: (args: readonly string[], cwd: string) => Promise<CliResult>
+  /** Runs the create command once, never retried as another account. */
+  readonly runWrite?: (args: readonly string[], cwd: string) => Promise<CliResult>
+}
+
+function qualifiedHead(payload: OpenChangeRequestPayload) {
+  return payload.headOwner ? `${payload.headOwner}:${payload.headRef}` : payload.headRef
+}
+
+async function isOrganizationOwner(
+  projectPath: string,
+  owner: string,
+  repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
+) {
+  const result = await runGh(
+    dependencies,
+    ['api', '--hostname', repository.host, `users/${encodeURIComponent(owner)}`],
+    projectPath,
+  )
+  if (result.code !== 0) return false
+  return jsonStringProperty(safeJsonParse(result.stdout), 'type') === 'Organization'
+}
+
+interface RepositoryContext {
+  readonly defaultBranch: string | null
+}
+
+async function repositoryContext(
+  projectPath: string,
+  repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
+) {
+  const result = await runGh(
+    dependencies,
+    [
+      'repo',
+      'view',
+      githubRepositorySelector(repository),
+      '--json',
+      'nameWithOwner,defaultBranchRef,url',
+    ],
+    projectPath,
+  )
+  if (result.code !== 0) return null
+  const parsed = safeJsonParse(result.stdout)
+  const nameWithOwner = jsonStringProperty(parsed, 'nameWithOwner')
+  const repositoryUrl = jsonStringProperty(parsed, 'url')
+  const { defaultBranchRef } = uncheckedFields<{ readonly defaultBranchRef: object }>(parsed)
+  const defaultBranch = jsonStringProperty(defaultBranchRef, 'name')
+  const expectedNameWithOwner = `${repository.owner}/${repository.repository}`
+  if (
+    nameWithOwner?.toLowerCase() !== expectedNameWithOwner.toLowerCase() ||
+    !repositoryUrl ||
+    !matchesRepositoryUrl(repository, repositoryUrl)
+  ) {
+    return null
+  }
+  const context: RepositoryContext | null = { defaultBranch }
+  return context
+}
+
+function repositoryName(repository: string) {
+  return repository.split('/').filter(Boolean).at(-1) ?? repository
+}
+
+async function createOrganizationForkPullRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+  repository: SourceControlRepositoryIdentity,
+  context: RepositoryContext,
+  dependencies: PullRequestCreationDependencies,
+) {
+  const baseRef = payload.baseRef ?? context.defaultBranch
+  if (!baseRef) {
+    const result: CliResult = {
+      stdout: '',
+      stderr: 'Could not resolve the GitHub base branch.',
+      code: 1,
+      missing: false,
+    }
+    return result
+  }
+  const fallbackHeadRepository = `${payload.headOwner}/${repository.repository}`
+  const headRepository = payload.headRepository ?? fallbackHeadRepository
+  const args = [
+    'api',
+    '--hostname',
+    repository.host,
+    '--method',
+    'POST',
+    `repos/${repository.owner}/${repository.repository}/pulls`,
+    '--raw-field',
+    `title=${payload.title}`,
+    '--raw-field',
+    `head=${qualifiedHead(payload)}`,
+    '--raw-field',
+    `head_repo=${repositoryName(headRepository)}`,
+    '--raw-field',
+    `base=${baseRef}`,
+    '--raw-field',
+    `body=${payload.body ?? ''}`,
+  ]
+  if (payload.draft) args.push('--field', 'draft=true')
+  return runGhWrite(dependencies, args, projectPath)
+}
+
+function pullRequestHeadOwner(raw: unknown) {
+  const { headRepositoryOwner } = uncheckedFields<{ readonly headRepositoryOwner: object }>(raw)
+  const { login } = uncheckedFields<{ readonly login: string }>(headRepositoryOwner)
+  const result: string | null = typeof login === 'string' ? login : null
+  return result
+}
+
+export async function findPullRequestByHead(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+  repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
+) {
+  if (!payload.headOwner) return dependencies.viewPullRequest(projectPath, payload.headRef)
+  const result = await runGh(
+    dependencies,
+    [
+      'pr',
+      'list',
+      '--head',
+      payload.headRef,
+      '--state',
+      'open',
+      '--limit',
+      '100',
+      '--json',
+      GITHUB_PR_SUMMARY_FIELDS,
+      '--repo',
+      githubRepositorySelector(repository),
+    ],
+    projectPath,
+  )
+  if (result.code !== 0) return dependencies.classifyFailure(result)
+  const parsed = safeJsonParse(result.stdout)
+  const candidates: readonly unknown[] = Array.isArray(parsed) ? parsed : []
+  const exact = candidates.find((candidate) => {
+    const changeRequest = mapGhPullRequest(candidate)
+    return (
+      pullRequestHeadOwner(candidate)?.toLowerCase() === payload.headOwner?.toLowerCase() &&
+      changeRequest?.headRef === payload.headRef &&
+      (payload.baseRef === undefined || changeRequest.baseRef === payload.baseRef)
+    )
+  })
+  const changeRequest = mapGhPullRequest(exact)
+  if (!changeRequest) {
+    const value: ChangeRequestResult = {
+      ok: false,
+      code: 'no-change-request',
+      message: 'No pull request found for ref.',
+    }
+    return value
+  }
+  const identity = resolveRepositoryChangeRequestIdentity(repository, changeRequest.url)
+  const value: ChangeRequestResult = identity
+    ? { ok: true, changeRequest: { ...changeRequest, url: identity.url } }
+    : {
+        ok: false,
+        code: 'invalid-target',
+        message: 'GitHub CLI returned a pull request outside the approved repository.',
+      }
+  return value
+}
+
+function createdPullRequestFromOutput(
+  result: CliResult,
+  payload: OpenChangeRequestPayload,
+  repository: SourceControlRepositoryIdentity,
+) {
+  const url =
+    jsonStringProperty(safeJsonParse(result.stdout), 'html_url') ??
+    result.stdout.match(/https?:\/\/\S+/u)?.[0]
+  if (!url) return null
+  const identity = resolveRepositoryChangeRequestIdentity(repository, url)
+  if (!identity) return null
+  const value: ChangeRequestResult | null = {
+    ok: true,
+    changeRequest: {
+      title: payload.title,
+      url: identity.url,
+      baseRef: payload.baseRef ?? '',
+      headRef: payload.headRef,
+      state: payload.draft ? 'draft' : 'open',
+    },
+  }
+  return value
+}
+
+async function resolveCreatedPullRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+  result: CliResult,
+  repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
+) {
+  const resolved = await findPullRequestByHead(projectPath, payload, repository, dependencies)
+  if (
+    resolved.ok &&
+    (resolved.changeRequest.state === 'open' || resolved.changeRequest.state === 'draft') &&
+    resolved.changeRequest.headRef === payload.headRef &&
+    (payload.baseRef === undefined || resolved.changeRequest.baseRef === payload.baseRef)
+  ) {
+    return resolved
+  }
+  if (result.code !== 0) return dependencies.classifyFailure(result)
+  return (
+    createdPullRequestFromOutput(result, payload, repository) ??
+    ({
+      ok: false,
+      code: 'unknown',
+      message: 'The pull request command succeeded, but the created request could not be verified.',
+    } satisfies ChangeRequestResult)
+  )
+}
+
+export async function createGitHubPullRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+  repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
+) {
+  const context =
+    payload.headOwner === undefined
+      ? null
+      : await repositoryContext(projectPath, repository, dependencies)
+  const organizationHead =
+    payload.headOwner !== undefined &&
+    context !== null &&
+    (await isOrganizationOwner(projectPath, payload.headOwner, repository, dependencies))
+  const result =
+    organizationHead && context
+      ? await createOrganizationForkPullRequest(
+          projectPath,
+          payload,
+          repository,
+          context,
+          dependencies,
+        )
+      : await createStandardPullRequest(projectPath, payload, repository, dependencies)
+  // Resolve the exact head even after a non-zero exit so a retry cannot create a duplicate.
+  return resolveCreatedPullRequest(projectPath, payload, result, repository, dependencies)
+}
+
+function createStandardPullRequest(
+  projectPath: string,
+  payload: OpenChangeRequestPayload,
+  repository: SourceControlRepositoryIdentity,
+  dependencies: PullRequestCreationDependencies,
+) {
+  const args = [
+    'pr',
+    'create',
+    '--head',
+    qualifiedHead(payload),
+    '--title',
+    payload.title,
+    '--body',
+    payload.body ?? '',
+    '--repo',
+    githubRepositorySelector(repository),
+  ]
+  if (payload.baseRef) args.push('--base', payload.baseRef)
+  if (payload.draft) args.push('--draft')
+  return runGhWrite(dependencies, args, projectPath)
+}

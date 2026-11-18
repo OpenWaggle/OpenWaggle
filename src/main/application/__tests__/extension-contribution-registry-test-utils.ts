@@ -29,7 +29,7 @@ function makeManifest(input: {
   readonly network?: OpenWaggleExtensionManifest['network']
   readonly trusted?: OpenWaggleExtensionManifest['trusted']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
-}): OpenWaggleExtensionManifest {
+}) {
   return {
     manifestVersion: 1,
     id: input.id,
@@ -42,7 +42,7 @@ function makeManifest(input: {
     ...(input.network !== undefined ? { network: input.network } : {}),
     ...(input.trusted !== undefined ? { trusted: input.trusted } : {}),
     contributions: input.contributions,
-  }
+  } satisfies OpenWaggleExtensionManifest
 }
 
 function packagePathForScope(extensionId: string, scope: ExtensionPackageScope) {
@@ -62,7 +62,7 @@ export function makePackage(input: {
   readonly trusted?: OpenWaggleExtensionManifest['trusted']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
   readonly contentHash?: string
-}): DiscoveredExtensionPackage {
+}) {
   const packagePath = packagePathForScope(input.id, input.scope)
   const manifest = makeManifest({
     id: input.id,
@@ -84,7 +84,7 @@ export function makePackage(input: {
       )
       .digest('hex')
 
-  return {
+  const result: DiscoveredExtensionPackage = {
     id: input.id,
     scope: input.scope,
     packagePath,
@@ -99,6 +99,7 @@ export function makePackage(input: {
     },
     diagnostics: [],
   }
+  return result
 }
 
 export function makeLifecycle(
@@ -110,9 +111,9 @@ export function makeLifecycle(
     readonly reloadStatus?: ExtensionReloadStatus
     readonly lastReloadedAt?: number | null
   } = {},
-): ExtensionLifecycleState {
+) {
   const reloadStatus = options.reloadStatus ?? OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED
-  return {
+  const state: ExtensionLifecycleState = {
     extensionId: extensionPackage.id,
     scope: extensionPackage.scope,
     enabled: options.enabled ?? true,
@@ -136,13 +137,14 @@ export function makeLifecycle(
     installedAt: 1000,
     updatedAt: 2000,
   }
+  return state
 }
 
 export function makeProjectOverride(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly projectPath: string
   readonly disabled: boolean
-}): ExtensionProjectOverrideState {
+}) {
   return {
     extensionId: input.extensionPackage.id,
     scope: input.extensionPackage.scope,
@@ -150,7 +152,7 @@ export function makeProjectOverride(input: {
     disabled: input.disabled,
     createdAt: 3000,
     updatedAt: 4000,
-  }
+  } satisfies ExtensionProjectOverrideState
 }
 
 function scopesMatch(left: ExtensionPackageScope, right: ExtensionPackageScope) {

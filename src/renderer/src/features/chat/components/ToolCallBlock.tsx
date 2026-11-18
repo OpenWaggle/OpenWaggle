@@ -1,20 +1,25 @@
 import type { JsonObject } from '@shared/types/json'
 import { hasConcreteToolOutput } from '@shared/utils/tool-result-state'
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import {
+  type EditDiffData,
+  getEditDiff,
+  getEditExtraOutput,
+} from '@/features/chat/lib/edit-tool-result'
 import { parseToolArgs } from '@/features/chat/lib/tool-args'
 import {
   buildTailPreview,
-  getEditUnifiedDiff,
   getResultError,
   getStringArg,
   getToolResultText,
-  INLINE_DIFF_LINE_LIMIT,
   type ToolCallResultPayload,
-  type UnifiedDiffData,
 } from '@/features/chat/lib/tool-call-block'
 import { resolveActionText } from '@/features/chat/lib/tool-display'
+import { type ToolKind, toolKind } from '@/features/chat/lib/tool-kind'
+import type { SessionsToolTarget } from '@/features/chat/lib/tool-labels-sessions'
+import { EditRowDiff } from './EditRowDiff'
 import { CollapsedToolPreview, ToolCallHeader } from './ToolCallBlockChrome'
-import { CopyButton, ToolArgs, ToolResult, UnifiedDiffView } from './ToolCallBlockParts'
+import { CopyButton, ToolArgs, ToolResult } from './ToolCallBlockParts'
 
 interface ToolCallBlockProps {
   name: string
@@ -22,7 +27,15 @@ interface ToolCallBlockProps {
   state: string
   result?: ToolCallResultPayload
   isStreaming?: boolean
-  onBranchFromMessage?: (messageId: string) => void
+  /** Pi kept no result for this call, as for the calls a script makes (`ctx.executeTool()`). */
+  resultNotRecorded?: boolean
+  /** A hive-tool row's Session, as the Hive knows it, and the controls its header carries. */
+  hive?: ToolCallHiveContext
+}
+
+interface ToolCallHiveContext {
+  readonly target: SessionsToolTarget | null
+  readonly headerAddon: ReactNode
 }
 
 interface ToolCallViewModelInput {
@@ -32,19 +45,19 @@ interface ToolCallViewModelInput {
   readonly result: ToolCallResultPayload | undefined
   readonly isStreaming: boolean
   readonly expanded: boolean
+  readonly sessionTarget: SessionsToolTarget | null
 }
 
 export interface ToolCallViewModel {
   readonly actionText: string
   readonly awaitingResult: boolean
-  readonly branchSourceMessageId: string | undefined
   readonly command: string | null
-  readonly diff: UnifiedDiffData | null
+  readonly diff: EditDiffData | null
   readonly failedOutputPreview: string
   readonly hasConcreteResult: boolean
-  readonly inlineDiffVisible: boolean
   readonly isError: boolean
   readonly isRunning: boolean
+  readonly kind: ToolKind
   readonly liveOutputPreview: string
   readonly parsedArgs: JsonObject
   readonly path: string | null
@@ -92,33 +105,41 @@ function buildToolCallViewModel({
   result,
   isStreaming,
   expanded,
-}: ToolCallViewModelInput): ToolCallViewModel {
-  const hasConcreteResult = result ? hasConcreteToolOutput(result.content) : false
+  sessionTarget,
+}: ToolCallViewModelInput) {
+  const hasConcreteResult = result
+    ? result.state !== 'partial' || hasConcreteToolOutput(result.content)
+    : false
   const resultError = getResultError(result)
   const isError = resultError !== null
   const isRunning = isToolRunning(state, result, isStreaming)
   const awaitingResult = (!result || !hasConcreteResult) && !isRunning
   const parsedArgs = parseToolArgs(args)
-  const diff = result && !isError ? getEditUnifiedDiff(result.content, name) : null
+  const diff = result && !isError ? getEditDiff(result.content, name) : null
   const resultText = readableResultText(result, expanded, isRunning, isError)
 
   return {
-    actionText: resolveActionText({ name, args: parsedArgs, awaitingResult, isError, isRunning }),
+    actionText: resolveActionText({
+      name,
+      args: parsedArgs,
+      awaitingResult,
+      isRunning,
+      sessionTarget,
+    }),
     awaitingResult,
-    branchSourceMessageId: result?.sourceMessageId,
     command: getStringArg(parsedArgs, 'command'),
     diff,
     failedOutputPreview: previewText(!expanded && isError, resultText),
     hasConcreteResult,
-    inlineDiffVisible: diff !== null && diff.lines.length <= INLINE_DIFF_LINE_LIMIT,
     isError,
     isRunning,
+    kind: toolKind(name),
     parsedArgs,
     path: getStringArg(parsedArgs, 'path'),
     resultError,
     resultText,
     liveOutputPreview: previewText(isRunning, resultText),
-  }
+  } satisfies ToolCallViewModel
 }
 
 export function ToolCallBlock({
@@ -127,12 +148,21 @@ export function ToolCallBlock({
   state,
   result,
   isStreaming = false,
-  onBranchFromMessage,
+  resultNotRecorded = false,
+  hive,
 }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const startTime = useRef<number | null>(null)
   const [duration, setDuration] = useState(0)
-  const view = buildToolCallViewModel({ name, args, state, result, isStreaming, expanded })
+  const view = buildToolCallViewModel({
+    name,
+    args,
+    state,
+    result,
+    isStreaming,
+    expanded,
+    sessionTarget: hive?.target ?? null,
+  })
 
   useEffect(() => {
     if (view.isRunning && !startTime.current) {
@@ -151,11 +181,19 @@ export function ToolCallBlock({
         duration={duration}
         result={result}
         view={view}
-        onBranchFromMessage={onBranchFromMessage}
         onToggleExpanded={() => setExpanded(!expanded)}
+        addon={hive?.headerAddon}
       />
       <CollapsedToolPreview view={view} expanded={expanded} />
-      {expanded && <ExpandedToolDetails name={name} args={args} result={result} view={view} />}
+      {expanded && (
+        <ExpandedToolDetails
+          name={name}
+          args={args}
+          result={result}
+          view={view}
+          resultNotRecorded={resultNotRecorded}
+        />
+      )}
     </div>
   )
 }
@@ -165,21 +203,40 @@ function ExpandedToolDetails({
   args,
   result,
   view,
+  resultNotRecorded,
 }: {
   readonly name: string
   readonly args: string
   readonly result: ToolCallResultPayload | undefined
   readonly view: ToolCallViewModel
+  readonly resultNotRecorded: boolean
 }) {
+  if (view.diff) {
+    return (
+      <EditRowDiff
+        diff={view.diff}
+        path={view.path}
+        args={args}
+        output={result ? getEditExtraOutput(result.content, view.path) : ''}
+      />
+    )
+  }
   return (
     <div className="ml-5 mt-1 rounded-md border border-border bg-bg-secondary/50 overflow-hidden">
       <ExpandedCopyActions args={args} view={view} />
-      <ExpandedDiffSection diff={view.diff} />
       <div className="px-3 py-2">
-        <div className="text-[13px] text-text-tertiary mb-1">Arguments</div>
+        <div className="text-sm text-text-tertiary mb-1">Arguments</div>
         <ToolArgs name={name} args={view.parsedArgs} rawArgs={args} path={view.path} />
       </div>
-      <ExpandedResultSection name={name} result={result} view={view} />
+      {resultNotRecorded ? (
+        !view.isError && (
+          <p className="border-t border-border px-3 py-2 text-xs text-text-muted">
+            Result not recorded
+          </p>
+        )
+      ) : (
+        <ExpandedResultSection name={name} result={result} view={view} />
+      )}
       <ExpandedErrorSection name={name} result={result} view={view} />
     </div>
   )
@@ -202,17 +259,6 @@ function ExpandedCopyActions({
   )
 }
 
-function ExpandedDiffSection({ diff }: { readonly diff: ReturnType<typeof getEditUnifiedDiff> }) {
-  if (!diff) {
-    return null
-  }
-  return (
-    <div className="px-3 py-2">
-      <UnifiedDiffView diff={diff} />
-    </div>
-  )
-}
-
 function ExpandedResultSection({
   name,
   result,
@@ -222,12 +268,12 @@ function ExpandedResultSection({
   readonly result: ToolCallResultPayload | undefined
   readonly view: ToolCallViewModel
 }) {
-  if (!view.hasConcreteResult || !result || view.diff || view.isError) {
+  if (!view.hasConcreteResult || !result || view.isError) {
     return null
   }
   return (
     <div className="border-t border-border px-3 py-2">
-      <div className="text-[13px] text-text-tertiary mb-1">Result</div>
+      <div className="text-sm text-text-tertiary mb-1">Result</div>
       <ToolResult content={result.content} isError={view.isError} name={name} path={view.path} />
     </div>
   )
@@ -247,7 +293,7 @@ function ExpandedErrorSection({
   }
   return (
     <div role="alert" className="border-t border-border px-3 py-2">
-      <div className="text-[13px] text-text-tertiary mb-1">Error</div>
+      <div className="text-sm text-text-tertiary mb-1">Error</div>
       <ToolResult
         content={view.resultError ?? result.content}
         isError

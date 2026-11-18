@@ -1,0 +1,305 @@
+import { SessionId } from '@shared/types/brand'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import type { IpcEventChannelMap } from '@shared/types/ipc-events'
+import type { SessionHostEventEnvelope } from '@shared/types/session-host-event'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { act } from '@testing-library/react'
+import { type Mock, vi } from 'vitest'
+import { useSessionStatusStore } from '@/features/sessions/state'
+import { usePreferencesStore, useSyntaxThemeCatalogStore } from '@/features/settings'
+import { useTerminalStore } from '@/features/terminal'
+import { useUIStore } from '../ui-store'
+
+type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload']
+type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
+type SessionHostEventHandler = (event: SessionHostEventEnvelope) => void
+type SessionHostResyncHandler = (payload: { readonly reason: 'slow-consumer' }) => void
+
+interface WorkspaceLifecycleMocks {
+  projectPath: string
+  /** The open Session's own project; the project preference above can lag behind it. */
+  sessionProjectPath: string
+  readonly projectActionsProject: Mock
+  readonly runProjectActionProject: Mock
+  workingPath: string
+  activeSessionId: string
+  /** The Session the route shows; null on a draft or Settings. */
+  viewedSessionId: string | null
+  readonly copySessionLink: Mock
+  extensionRegistry: ExtensionContributionRegistryView | null
+  readonly loadChatSessions: Mock
+  readonly startDraftSession: Mock
+  readonly refreshSession: Mock
+  readonly updateSessionTitle: Mock
+  readonly loadSessionTrees: Mock
+  readonly refreshCatalogSessions: Mock
+  readonly refreshSessionTree: Mock
+  readonly refreshGitStatus: Mock
+  readonly refreshGitBranches: Mock
+  readonly loadSyntaxResources: Mock
+  readonly navigate: Mock
+  readonly toggleDiff: Mock
+  readonly toggleSessionTree: Mock
+  readonly useGitRefresh: Mock
+  readonly useSessionStatusMonitor: Mock
+  readonly titleUnsubscribe: Mock
+  readonly getTitleUpdatedHandler: () => TitleUpdatedHandler | null
+  readonly getSessionHostEventHandler: () => SessionHostEventHandler | null
+  readonly getSessionHostResyncHandler: () => SessionHostResyncHandler | null
+  readonly onSessionTitleUpdated: Mock
+  readonly onSessionHostEvent: Mock
+  readonly onSessionHostResyncRequired: Mock
+  readonly invalidateQueries: Mock
+  readonly reconcileQueuedRunStarts: Mock
+}
+
+const lifecycleMocks: WorkspaceLifecycleMocks = vi.hoisted(() => {
+  let titleUpdatedHandler: TitleUpdatedHandler | null = null
+  let sessionHostEventHandler: SessionHostEventHandler | null = null
+  let sessionHostResyncHandler: SessionHostResyncHandler | null = null
+  const titleUnsubscribe = vi.fn()
+  return {
+    projectPath: '/repo',
+    sessionProjectPath: '/repo',
+    projectActionsProject: vi.fn(),
+    runProjectActionProject: vi.fn(),
+    workingPath: '/repo/.worktrees/session-1',
+    activeSessionId: 'session-1',
+    viewedSessionId: 'session-1',
+    copySessionLink: vi.fn(),
+    extensionRegistry: null,
+    loadChatSessions: vi.fn().mockResolvedValue(undefined),
+    startDraftSession: vi.fn(),
+    refreshSession: vi.fn().mockResolvedValue(undefined),
+    updateSessionTitle: vi.fn(),
+    loadSessionTrees: vi.fn().mockResolvedValue(undefined),
+    refreshCatalogSessions: vi.fn().mockResolvedValue(undefined),
+    refreshSessionTree: vi.fn().mockResolvedValue(undefined),
+    refreshGitStatus: vi.fn().mockResolvedValue(undefined),
+    refreshGitBranches: vi.fn().mockResolvedValue(undefined),
+    loadSyntaxResources: vi.fn().mockResolvedValue(undefined),
+    navigate: vi.fn(),
+    toggleDiff: vi.fn(),
+    toggleSessionTree: vi.fn(),
+    useGitRefresh: vi.fn(),
+    useSessionStatusMonitor: vi.fn(),
+    titleUnsubscribe,
+    getTitleUpdatedHandler: () => titleUpdatedHandler,
+    getSessionHostEventHandler: () => sessionHostEventHandler,
+    getSessionHostResyncHandler: () => sessionHostResyncHandler,
+    onSessionTitleUpdated: vi.fn((handler: TitleUpdatedHandler) => {
+      titleUpdatedHandler = handler
+      return titleUnsubscribe
+    }),
+    onSessionHostEvent: vi.fn((handler: SessionHostEventHandler) => {
+      sessionHostEventHandler = handler
+      return vi.fn()
+    }),
+    onSessionHostResyncRequired: vi.fn((handler: SessionHostResyncHandler) => {
+      sessionHostResyncHandler = handler
+      return vi.fn()
+    }),
+    invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    reconcileQueuedRunStarts: vi.fn().mockResolvedValue(undefined),
+  }
+})
+
+export function getWorkspaceLifecycleMocks() {
+  return lifecycleMocks
+}
+
+/*
+ * The consumers of this harness assert what the lifecycle asks its collaborators for, so each
+ * mock below stays until those files (useWorkspaceLifecycle*.component.test.tsx) are rewritten
+ * against outcomes. Shortcuts already run for real: runWorkspaceHotkey dispatches key events.
+ */
+
+// The consumers render without a QueryClientProvider and assert the invalidations it asks for.
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => ({ invalidateQueries: lifecycleMocks.invalidateQueries }),
+  // The only query the lifecycle reads itself is the extension contribution registry.
+  useQuery: () => ({ data: lifecycleMocks.extensionRegistry ?? undefined }),
+}))
+
+// The consumers assert the New session navigation; they render without a router.
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => lifecycleMocks.navigate,
+  useLocation: () => ({ pathname: '/' }),
+}))
+
+// Session loading and refreshes the consumers count per Host event (coalescing, cursors).
+vi.mock('@/features/chat/hooks', () => ({
+  invalidateDefaultThinkingLevel: (client: {
+    invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void>
+  }) => client.invalidateQueries({ queryKey: ['pi-default-thinking-level'] }),
+  reconcileQueuedRunStarts: lifecycleMocks.reconcileQueuedRunStarts,
+  sessionFollowUpQueueOptions: (sessionId: string | null) => ({
+    queryKey: ['sessions', 'follow-up-queue', sessionId],
+  }),
+  useChat: () => ({
+    activeSessionId: lifecycleMocks.activeSessionId,
+    activeSession: {
+      id: SessionId(lifecycleMocks.activeSessionId),
+      projectPath: lifecycleMocks.projectPath,
+      environmentMode: 'worktree',
+      worktreePath: lifecycleMocks.workingPath,
+    },
+    startDraftSession: lifecycleMocks.startDraftSession,
+    loadSessions: lifecycleMocks.loadChatSessions,
+    refreshSession: lifecycleMocks.refreshSession,
+    updateSessionTitle: lifecycleMocks.updateSessionTitle,
+  }),
+}))
+
+// Other features read the active Session from the store; it must be the mocked one above.
+vi.mock('@/features/chat/state', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/features/chat/state')>()
+  // Hooks of other features read the active Session from the store; give them the mocked one.
+  const { useChat } = await import('@/features/chat/hooks')
+  return {
+    ...original,
+    useChatStore: Object.assign(
+      (select: (state: ReturnType<typeof useChat>) => unknown) => select(useChat()),
+      original.useChatStore,
+    ),
+  }
+})
+
+// Router-backed panel toggles; the consumers assert the Mod+D and Session Tree shortcuts.
+vi.mock('@/features/diff-panel/hooks', () => ({
+  useDiffRouteNavigation: () => ({
+    toggleDiff: lifecycleMocks.toggleDiff,
+    toggleSessionTree: lifecycleMocks.toggleSessionTree,
+  }),
+}))
+
+// The consumers assert the working tree and repository each git refresh targets (ADR 0018).
+vi.mock('@/features/git/hooks', () => ({
+  useGit: () => ({
+    refreshStatus: lifecycleMocks.refreshGitStatus,
+    refreshBranches: lifecycleMocks.refreshGitBranches,
+    workingPath: lifecycleMocks.workingPath,
+    repositoryPath: lifecycleMocks.projectPath,
+  }),
+  useGitRefresh: lifecycleMocks.useGitRefresh,
+}))
+
+// Catalog and tree refreshes the consumers count per Host event, and the project they bind.
+vi.mock('@/features/sessions/hooks', () => ({
+  useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
+  useSessionProjectPath: () => lifecycleMocks.sessionProjectPath,
+  useViewedSessionId: () => lifecycleMocks.viewedSessionId,
+  useSessions: () => ({
+    loadSessions: lifecycleMocks.loadSessionTrees,
+    refreshCatalogSessions: lifecycleMocks.refreshCatalogSessions,
+    refreshSessionTree: lifecycleMocks.refreshSessionTree,
+    sessions: [],
+  }),
+  useSessionStatusMonitor: lifecycleMocks.useSessionStatusMonitor,
+}))
+
+// The consumers assert which project the Project Action shortcuts are bound to.
+vi.mock('@/features/project-actions', () => ({
+  useProjectActions: (projectPath: string | null) => {
+    lifecycleMocks.projectActionsProject(projectPath)
+    return { data: [] }
+  },
+  useRunProjectAction: (projectPath: string | null) => {
+    lifecycleMocks.runProjectActionProject(projectPath)
+    return vi.fn()
+  },
+}))
+
+// The consumers assert which Session's link a shortcut copies.
+vi.mock('@/features/sessions/commands', () => ({
+  copySessionLink: lifecycleMocks.copySessionLink,
+}))
+
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
+    onSessionHostEvent: lifecycleMocks.onSessionHostEvent,
+    onSessionHostResyncRequired: lifecycleMocks.onSessionHostResyncRequired,
+    setBrowserPreviewShortcutBindings: vi.fn().mockResolvedValue(undefined),
+    onBrowserPreviewKeyEvent: vi.fn(() => vi.fn()),
+  }),
+}))
+
+export function getWorkspaceTerminalState() {
+  return useTerminalStore.getState()
+}
+
+/** Dispatches `event` on `target` inside act, so the shortcut handlers' updates flush. */
+export function dispatchInAct(target: EventTarget, event: Event) {
+  act(() => {
+    target.dispatchEvent(event)
+  })
+}
+
+export function runWorkspaceHotkey(hotkey: string, target?: Element) {
+  const parts = hotkey.split('+')
+  const key = parts.at(-1) ?? ''
+  ;(target ?? window).dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: key.toLowerCase(),
+      code: key.length === 1 ? `Key${key.toUpperCase()}` : key,
+      ctrlKey: parts.includes('Mod'),
+      altKey: parts.includes('Alt'),
+      shiftKey: parts.includes('Shift'),
+      cancelable: true,
+      bubbles: true,
+    }),
+  )
+}
+
+export function resetWorkspaceLifecycleMocks() {
+  useUIStore.setState({ sidebarOpen: true, terminalOpen: false, slashCommandMenuOpen: false })
+  useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
+  usePreferencesStore.setState({
+    settings: { ...DEFAULT_SETTINGS, projectPath: '/repo' },
+    isLoaded: true,
+    loadError: null,
+  })
+  useSessionStatusStore.setState({
+    statuses: new Map(),
+    completedAt: new Map(),
+    lastVisitedAt: new Map(),
+    phases: new Map(),
+  })
+  lifecycleMocks.loadChatSessions.mockClear()
+  lifecycleMocks.reconcileQueuedRunStarts.mockClear()
+  lifecycleMocks.startDraftSession.mockClear()
+  lifecycleMocks.loadSessionTrees.mockClear()
+  lifecycleMocks.refreshCatalogSessions.mockClear()
+  lifecycleMocks.refreshSession.mockClear()
+  lifecycleMocks.refreshGitStatus.mockClear()
+  lifecycleMocks.refreshGitBranches.mockClear()
+  lifecycleMocks.loadSyntaxResources.mockClear()
+  lifecycleMocks.refreshSessionTree.mockClear()
+  lifecycleMocks.updateSessionTitle.mockClear()
+  lifecycleMocks.navigate.mockClear()
+  lifecycleMocks.toggleDiff.mockClear()
+  lifecycleMocks.toggleSessionTree.mockClear()
+  lifecycleMocks.useGitRefresh.mockClear()
+  lifecycleMocks.useSessionStatusMonitor.mockClear()
+  lifecycleMocks.onSessionTitleUpdated.mockClear()
+  lifecycleMocks.onSessionHostEvent.mockClear()
+  lifecycleMocks.onSessionHostResyncRequired.mockClear()
+  lifecycleMocks.invalidateQueries.mockClear()
+  lifecycleMocks.titleUnsubscribe.mockClear()
+  lifecycleMocks.projectPath = '/repo'
+  lifecycleMocks.sessionProjectPath = '/repo'
+  lifecycleMocks.projectActionsProject.mockClear()
+  lifecycleMocks.runProjectActionProject.mockClear()
+  lifecycleMocks.workingPath = '/repo/.worktrees/session-1'
+  lifecycleMocks.activeSessionId = 'session-1'
+  lifecycleMocks.viewedSessionId = 'session-1'
+  lifecycleMocks.copySessionLink.mockClear()
+  lifecycleMocks.extensionRegistry = null
+  useSyntaxThemeCatalogStore.setState({ load: lifecycleMocks.loadSyntaxResources })
+}
+
+export function loadUseWorkspaceLifecycle() {
+  return import('../useWorkspaceLifecycle')
+}

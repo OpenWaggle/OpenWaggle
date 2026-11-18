@@ -1,42 +1,67 @@
+import { execFile as execFileCallback } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
+import { missingPackagedPiAssets } from './electron-builder-pi-assets'
+import { runPiPackageAssetsProbe } from './packaged-pi-package-probe'
+import { buildNativeLoadProbe, nativeLoadProbeBundlePath } from './native-load-probe-bundle'
+import { nodeRuntime } from './support/node-runtime'
+import { unusedChromiumFiles } from './electron-builder-after-pack'
+import { unshippedPackageIssues, prunedRuntimeIssues } from './electron-builder-runtime-trim'
+import { packagedRuntimePackages } from './packaged-runtime-packages'
+import { mainExternalPackages } from './vite/main-externals'
+import { Schema } from '@shared/schema'
+import { objectFields, unknownField } from './support/object-fields'
+
+const execFile = promisify(execFileCallback)
 
 const DIST_DIR = 'dist'
 const APP_NAME = 'OpenWaggle.app'
 const RESOURCES_PATH = ['Contents', 'Resources'] as const
 const ASAR_FILE = 'app.asar'
-const ASAR_UNPACKED_DIR = 'app.asar.unpacked'
 const DOCS_DIR = 'openwaggle-docs'
+/**
+ * Resources the app fetches on first use instead of shipping: the Session embedding model (about
+ * 135 MB, src/main/adapters/session-embedding-model-files.ts).
+ */
+const UNSHIPPED_RESOURCES = ['session-embedding-model']
 const PACKAGE_JSON = 'package.json'
 const NODE_MODULES_DIR = 'node_modules'
 const OUT_DIR = 'out'
-const PI_MCP_ADAPTER_DIR = 'pi-mcp-adapter'
 const ASAR_HEADER_PREFIX_BYTES = 16
 const ASAR_JSON_SIZE_OFFSET = 12
 const FIRST_USER_ARGUMENT_INDEX = 2
+const ARGUMENT_SEPARATOR = '--'
 const PREVIEW_LIMIT = 20
+const PACKAGED_PTY_TIMEOUT_MS = 30_000
+const EXEC_MAX_BUFFER_BYTES = 10_000_000
+const ALLOWED_OUT_ROOTS = ['/out/main', '/out/preload', '/out/renderer'] as const
 
 const REQUIRED_ASAR_ROOTS = [NODE_MODULES_DIR, OUT_DIR, PACKAGE_JSON]
 const REQUIRED_DOCS_FILES = ['README.md', 'index.json']
-const REQUIRED_PI_MCP_ADAPTER_FILES = [PACKAGE_JSON, 'cli.js', 'index.ts']
+/** Resources shipped at the top level of the app's resources directory. */
+const REQUIRED_RESOURCE_FILES = ['THIRD_PARTY_NOTICES.md']
 const ALLOWED_ASAR_ROOTS = new Set(REQUIRED_ASAR_ROOTS)
 
 interface AsarNode {
-  readonly files?: { readonly [name: string]: AsarNode }
+  readonly files?: Readonly<Record<string, AsarNode>>
 }
 
-function isObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
+const asarNodeFilesSchema = Schema.Struct({ files: unknownField })
 
 function parseAsarNode(value: unknown): AsarNode | null {
   if (!isObject(value)) return null
 
-  const files = value.files
+  const { files } = objectFields(asarNodeFilesSchema, value) ?? {}
   if (files === undefined) return {}
   if (!isObject(files)) return null
 
-  const parsedFiles: { [name: string]: AsarNode } = {}
+  const parsedFiles: Record<string, AsarNode> = {}
   for (const [name, child] of Object.entries(files)) {
     const parsedChild = parseAsarNode(child)
     if (parsedChild === null) return null
@@ -55,31 +80,36 @@ async function pathExists(filePath: string) {
   }
 }
 
-async function findPackagedApp() {
-  const explicitAppPath = process.argv[FIRST_USER_ARGUMENT_INDEX]
-  if (explicitAppPath) return explicitAppPath
+export async function findPackagedApps(
+  args: readonly string[] = process.argv,
+  distDirectory: string = DIST_DIR,
+) {
+  const explicitAppPaths = args
+    .slice(FIRST_USER_ARGUMENT_INDEX)
+    .filter((argument) => argument !== ARGUMENT_SEPARATOR)
+  if (explicitAppPaths.length > 0) return explicitAppPaths.map((appPath) => path.resolve(appPath))
 
-  const distEntries = await fs.readdir(DIST_DIR, { withFileTypes: true })
+  const distEntries = await fs.readdir(distDirectory, { withFileTypes: true })
   const appPaths: string[] = []
 
   for (const entry of distEntries) {
     if (!entry.isDirectory()) continue
 
-    const appPath = path.join(DIST_DIR, entry.name, APP_NAME)
+    const appPath = path.join(distDirectory, entry.name, APP_NAME)
     if (await pathExists(appPath)) {
       appPaths.push(appPath)
     }
 
-    const unpackedResourcesPath = path.join(DIST_DIR, entry.name, 'resources', ASAR_FILE)
+    const unpackedResourcesPath = path.join(distDirectory, entry.name, 'resources', ASAR_FILE)
     if (await pathExists(unpackedResourcesPath)) {
-      appPaths.push(path.join(DIST_DIR, entry.name))
+      appPaths.push(path.join(distDirectory, entry.name))
     }
   }
 
-  if (appPaths.length === 1) return appPaths[0]
+  if (appPaths.length > 0) return appPaths.sort((left, right) => left.localeCompare(right))
 
   throw new Error(
-    `Expected exactly one packaged ${APP_NAME} under ${DIST_DIR}, found ${appPaths.length}.`,
+    `Expected at least one packaged ${APP_NAME} under ${distDirectory}, found ${appPaths.length}.`,
   )
 }
 
@@ -139,6 +169,11 @@ function isWorkspacePackageSourceOrConfig(entry: string) {
   return basename.startsWith('tsconfig') && basename.endsWith('.json')
 }
 
+function isUnexpectedOutEntry(entry: string) {
+  if (!entry.startsWith(`/${OUT_DIR}/`)) return false
+  return !ALLOWED_OUT_ROOTS.some((root) => entry === root || entry.startsWith(`${root}/`))
+}
+
 function assertAsarRoots(header: AsarNode) {
   const rootNames = Object.keys(header.files ?? {}).sort((left, right) => left.localeCompare(right))
   const missingRoots = REQUIRED_ASAR_ROOTS.filter((root) => !rootNames.includes(root))
@@ -154,13 +189,36 @@ function assertAsarRoots(header: AsarNode) {
 }
 
 function assertAsarEntries(header: AsarNode) {
-  const forbiddenEntries = collectAsarEntries(header).filter(isWorkspacePackageSourceOrConfig)
+  const forbiddenEntries = collectAsarEntries(header).filter(
+    (entry) =>
+      isWorkspacePackageSourceOrConfig(entry) ||
+      isUnexpectedOutEntry(entry) ||
+      entry.includes('/node_modules/pi-mcp-adapter/'),
+  )
 
   if (forbiddenEntries.length > 0) {
     const preview = forbiddenEntries.slice(0, PREVIEW_LIMIT).join(', ')
     throw new Error(
-      `Packaged app asar contains workspace package source/config files: ${preview}.`,
+      `Packaged app asar contains non-runtime source, config, output, or legacy MCP adapter files: ${preview}.`,
     )
+  }
+}
+
+function assertPiPackageAssets(header: AsarNode) {
+  const missing = missingPackagedPiAssets(collectAsarEntries(header))
+  if (missing.length > 0) {
+    throw new Error(
+      `Packaged app asar is missing Pi files Pi reads from its package directory: ${missing.join(', ')}.`,
+    )
+  }
+}
+
+function assertRuntimeTrim(header: AsarNode) {
+  const entries = collectAsarEntries(header)
+  const { unshipped } = packagedRuntimePackages(process.cwd(), [...mainExternalPackages()])
+  const issues = [...prunedRuntimeIssues(entries), ...unshippedPackageIssues(entries, unshipped)]
+  if (issues.length > 0) {
+    throw new Error(`Packaged app asar runtime trim is wrong: ${issues.join('; ')}.`)
   }
 }
 
@@ -179,24 +237,109 @@ async function assertRequiredFiles(rootPath: string, relativeFiles: readonly str
   }
 }
 
-async function main() {
-  const appPath = await findPackagedApp()
+async function assertUnshipped(rootPath: string, relativePaths: readonly string[]) {
+  const shipped: string[] = []
+  for (const relativePath of relativePaths) {
+    if (await pathExists(path.join(rootPath, relativePath))) shipped.push(relativePath)
+  }
+  if (shipped.length > 0) {
+    throw new Error(`${rootPath} ships what the app fetches on first use: ${shipped.join(', ')}.`)
+  }
+}
+
+export function packagedPtyProbeInvocation(
+  appPath: string,
+  asarPath: string,
+  projectRoot: string = process.cwd(),
+  platform: NodeJS.Platform = process.platform,
+  nodeExecutable: string = nodeRuntime().execPath,
+) {
+  const executablePath =
+    platform === 'darwin'
+      ? path.join(appPath, 'Contents', 'MacOS', 'OpenWaggle')
+      : path.join(appPath, platform === 'win32' ? 'OpenWaggle.exe' : 'openwaggle')
+  return {
+    command: executablePath,
+    // The bundle of scripts/native-load-probe.ts; the packaged Electron cannot load TypeScript.
+    args: [nativeLoadProbeBundlePath(projectRoot, platform), 'electron', asarPath, nodeExecutable],
+  }
+}
+
+export function packagedAppMatchesHostArchitecture(
+  appPath: string,
+  platform: NodeJS.Platform = process.platform,
+  architecture: string = process.arch,
+) {
+  if (platform !== 'darwin') return true
+  const outputDirectory = path.basename(path.dirname(appPath))
+  if (outputDirectory === 'mac-arm64') return architecture === 'arm64'
+  if (outputDirectory === 'mac' || outputDirectory === 'mac-x64') return architecture === 'x64'
+  return true
+}
+
+async function runPackagedPtyProbe(appPath: string, asarPath: string) {
+  await buildNativeLoadProbe(process.cwd())
+  const invocation = packagedPtyProbeInvocation(appPath, asarPath)
+  await execFile(invocation.command, invocation.args, {
+    cwd: process.cwd(),
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    maxBuffer: EXEC_MAX_BUFFER_BYTES,
+    timeout: PACKAGED_PTY_TIMEOUT_MS,
+  })
+}
+
+async function assertNoUnusedChromiumFiles(appPath: string) {
+  if (
+    process.platform !== 'darwin' &&
+    process.platform !== 'linux' &&
+    process.platform !== 'win32'
+  ) {
+    return
+  }
+  const files = unusedChromiumFiles(appPath, process.platform)
+  const shipped = (await Promise.all(files.map(pathExists))).flatMap((exists, index) =>
+    exists ? [files[index]] : [],
+  )
+  if (shipped.length > 0) throw new Error(`${appPath} ships ${shipped.join(', ')}.`)
+}
+
+async function smokePackagedApp(appPath: string) {
   const resourcesPath = await packagedAppResourcesPath(appPath)
   const asarPath = path.join(resourcesPath, ASAR_FILE)
   const asarHeader = await readAsarHeader(asarPath)
 
   assertAsarRoots(asarHeader)
   assertAsarEntries(asarHeader)
+  assertPiPackageAssets(asarHeader)
+  assertRuntimeTrim(asarHeader)
   await assertRequiredFiles(path.join(resourcesPath, DOCS_DIR), REQUIRED_DOCS_FILES)
-  await assertRequiredFiles(
-    path.join(resourcesPath, ASAR_UNPACKED_DIR, NODE_MODULES_DIR, PI_MCP_ADAPTER_DIR),
-    REQUIRED_PI_MCP_ADAPTER_FILES,
-  )
+  await assertRequiredFiles(resourcesPath, REQUIRED_RESOURCE_FILES)
+  await assertUnshipped(resourcesPath, UNSHIPPED_RESOURCES)
+  await assertNoUnusedChromiumFiles(appPath)
+  await runPiPackageAssetsProbe(asarPath)
+  console.log(`packaged Pi HTML export and themes passed: ${appPath}`)
 
-  console.log(`packaged app smoke passed: ${appPath}`)
+  if (packagedAppMatchesHostArchitecture(appPath)) {
+    await runPackagedPtyProbe(appPath, asarPath)
+    console.log(`packaged PTY smoke passed: ${appPath}`)
+    return true
+  }
+  return false
 }
 
-void main().catch((error: unknown) => {
-  console.error(error)
-  process.exitCode = 1
-})
+async function main() {
+  const appPaths = await findPackagedApps()
+  const probeResults = []
+  for (const appPath of appPaths) probeResults.push(await smokePackagedApp(appPath))
+  if (!probeResults.includes(true)) {
+    throw new Error('No packaged app matched the host architecture for the PTY runtime smoke.')
+  }
+  console.log(`packaged app smoke passed: ${appPaths.length} app(s)`)
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main().catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}

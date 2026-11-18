@@ -2,6 +2,7 @@ import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { AgentKernelMissingEntryError, AgentKernelService } from '../../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
@@ -12,6 +13,7 @@ import {
   sessionServiceSettingsLayer,
 } from './agent-session-service.test-utils'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const persistSnapshotMock = vi.fn()
 const compactMock = vi.fn()
@@ -30,12 +32,25 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   unarchive: () => Effect.void,
   listArchived: () => Effect.succeed([]),
   updateTitle: () => Effect.void,
+  assignProvisionalTitle: () => Effect.succeed(true),
+  setWorktreePlan: () => Effect.void,
+  setAuthorizationMode: () => Effect.void,
+  listTurnCheckpoints: () => Effect.succeed([]),
+  getTurnDiff: () => Effect.succeed(null),
+  getTurnDiffFiles: () => Effect.succeed([]),
+  listTurnDiffFiles: () => Effect.succeed({}),
+  setTurnCheckpointAnchor: () => Effect.void,
+  ...PINNED_SESSION_REPOSITORY_STUB,
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(null),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {
@@ -57,6 +72,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   createSession: () => Effect.fail(new Error('createSession is not used')),
   run: () => Effect.fail(new Error('run is not used')),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
+  listExtensionCommands: () => Effect.succeed([]),
   compact: (input) =>
     Effect.tryPromise({
       try: async () => compactMock(input),
@@ -139,6 +155,9 @@ describe('agent session commands', () => {
       { type: 'compaction_start', reason: 'manual' },
       { type: 'compaction_end', reason: 'manual', aborted: false },
     ])
+    expect(compactMock).toHaveBeenCalledWith(
+      expect.objectContaining({ compactionThresholdPercent: 80 }),
+    )
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId: SessionId('session-1'),
       nodes: [],

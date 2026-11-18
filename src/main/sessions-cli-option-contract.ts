@@ -1,0 +1,290 @@
+import { refuseFormerCliOptions } from './cli-former-options'
+import { CommandCliUsageError } from './command-cli-option-contract'
+import { optionValueProblem, type ParsedArguments } from './mcp-cli-arguments'
+import { refuseRunSettingsOnActiveRunCommand } from './sessions-cli-arguments'
+import { formerGroupReplacement } from './sessions-cli-former-commands'
+import {
+  CLAIM_OPTIONS,
+  EVIDENCE_OPTIONS,
+  INPUT_BOOLEAN_OPTIONS,
+  INTERACTION_RESPONSE_OPTIONS,
+  SPECIFICATION_OPTIONS,
+} from './sessions-cli-input-options'
+import { validateSessionsCliCombinations } from './sessions-cli-option-combinations'
+import { validateSessionsCliPositionals } from './sessions-cli-positional-contract'
+
+const CLIENT_OPTIONS = ['profile', 'credential-stdin', 'profile-credential-file'] as const
+const OUTPUT_OPTIONS = ['json', 'jsonl'] as const
+const MESSAGE_INPUT_OPTIONS = ['text', 'stdin', 'input-file', 'request-file'] as const
+const IDEMPOTENCY = ['idempotency-key'] as const
+const DIRECT_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
+  help: [],
+  create: [
+    'title',
+    'workspace',
+    'workspace-id',
+    'base-ref',
+    'start-from-origin',
+    'agent',
+    'model',
+    'thinking',
+    ...IDEMPOTENCY,
+  ],
+  launch: [
+    ...MESSAGE_INPUT_OPTIONS,
+    'attach',
+    'title',
+    'workspace',
+    'workspace-id',
+    'base-ref',
+    'start-from-origin',
+    'agent',
+    'model',
+    'thinking',
+    'authorization',
+    'yolo',
+    'interaction-timeout-ms',
+    ...IDEMPOTENCY,
+  ],
+  fork: [
+    'workspace',
+    'workspace-id',
+    'base-ref',
+    'start-from-origin',
+    'target-node',
+    'position',
+    'title',
+    ...IDEMPOTENCY,
+  ],
+  spawn: [
+    ...MESSAGE_INPUT_OPTIONS,
+    'title',
+    'attach',
+    'expected-run',
+    'workspace',
+    'base-ref',
+    'start-from-origin',
+    'agent',
+    'model',
+    'thinking',
+    'authorization',
+    'yolo',
+    'interaction-timeout-ms',
+    'deliverable',
+    'accept',
+    'resource',
+    ...IDEMPOTENCY,
+  ],
+  message: [
+    ...MESSAGE_INPUT_OPTIONS,
+    'attach',
+    'thinking',
+    'authorization',
+    'yolo',
+    ...IDEMPOTENCY,
+  ],
+  start: [
+    ...MESSAGE_INPUT_OPTIONS,
+    'attach',
+    'thinking',
+    'authorization',
+    'yolo',
+    'interaction-timeout-ms',
+    ...IDEMPOTENCY,
+  ],
+  'follow-up': [...MESSAGE_INPUT_OPTIONS, 'attach', ...IDEMPOTENCY],
+  steer: [...MESSAGE_INPUT_OPTIONS, 'attach', 'expected-run', ...IDEMPOTENCY],
+  replace: [...MESSAGE_INPUT_OPTIONS, 'attach', 'expected-run', ...IDEMPOTENCY],
+  interrupt: ['expected-run', ...IDEMPOTENCY],
+  'interrupt-descendants': [...IDEMPOTENCY],
+  rename: [...IDEMPOTENCY],
+  archive: [...IDEMPOTENCY],
+  unarchive: [...IDEMPOTENCY],
+  handoff: ['workspace', 'workspace-id', 'base-ref', 'start-from-origin', ...IDEMPOTENCY],
+  promote: ['expected-run', ...IDEMPOTENCY],
+  report: [
+    ...MESSAGE_INPUT_OPTIONS,
+    'source-run',
+    'upstream',
+    'queen',
+    'target',
+    'worker',
+    'request-reply',
+    'reply-to',
+    ...IDEMPOTENCY,
+  ],
+  list: ['project', 'all', 'parent', 'archived', 'limit', 'cursor'],
+  search: [
+    'project',
+    'all',
+    'limit',
+    'cursor',
+    'include-archived',
+    'full-transcript',
+    'mode',
+    'require-fresh',
+    'timeout-ms',
+  ],
+  read: ['full', 'scope', 'branch'],
+  turns: ['limit', 'cursor'],
+  items: ['run', 'scope', 'branch', 'after', 'through', 'snapshot-head', 'limit'],
+  status: [],
+  watch: ['after-host', 'after-sequence'],
+  wait: [
+    'condition',
+    'after-state-revision',
+    'report-id',
+    'correlation-id',
+    'timeout-ms',
+    'after-host',
+    'after-sequence',
+  ],
+}
+
+const DELEGATION_CATALOG_OPTIONS = [
+  'project',
+  'all',
+  'parent',
+  'worker',
+  'limit',
+  'cursor',
+] as const
+
+/** Hive subcommands named for the tool actions they mirror (ADR 0053): `queue_list` is `queue-list`. */
+const ACTION_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
+  'authorization-set': [...IDEMPOTENCY],
+  'queue-list': ['include-bodies'],
+  'queue-withdraw': [...IDEMPOTENCY],
+  'queue-reorder': ['queue-revision', ...IDEMPOTENCY],
+  'queue-pause': ['queue-revision', ...IDEMPOTENCY],
+  'queue-resume': ['queue-revision', ...IDEMPOTENCY],
+  'requests-list': [],
+  'request-respond': [...INTERACTION_RESPONSE_OPTIONS, ...IDEMPOTENCY],
+  'approval-respond': ['for', ...IDEMPOTENCY],
+  'delegation-submit': [...EVIDENCE_OPTIONS, ...IDEMPOTENCY],
+  'delegation-state': [...IDEMPOTENCY],
+  'delegation-claim': [...CLAIM_OPTIONS, ...IDEMPOTENCY],
+  'delegation-conflict-acknowledge': [...IDEMPOTENCY],
+  'delegation-dependency': [...IDEMPOTENCY],
+  'delegation-propose-amendment': [...SPECIFICATION_OPTIONS, ...IDEMPOTENCY],
+  'delegation-amend': [...SPECIFICATION_OPTIONS, 'proposal', ...IDEMPOTENCY],
+  'delegation-request-revision': [
+    'revised-objective',
+    'deliverable',
+    'accept',
+    'resource',
+    ...IDEMPOTENCY,
+  ],
+  'delegation-accept': [...IDEMPOTENCY],
+  'delegation-reopen': [...IDEMPOTENCY],
+  'delegation-cancel': [...IDEMPOTENCY],
+  'delegation-verify': [...EVIDENCE_OPTIONS, ...IDEMPOTENCY],
+  'delegations-list': [...DELEGATION_CATALOG_OPTIONS, 'state'],
+  'delegations-read': ['limit', 'cursor'],
+  'delegations-conflicts': [...DELEGATION_CATALOG_OPTIONS, 'delegation', 'kind', 'status'],
+  export: ['format', 'scope', 'branch', 'include-queue-bodies', 'limit'],
+  'export-create': [
+    'format',
+    'scope',
+    'branch',
+    'include-queue-bodies',
+    'resource',
+    'overwrite',
+    ...IDEMPOTENCY,
+  ],
+  'export-cancel': [...IDEMPOTENCY],
+  'exports-list': ['status', 'limit', 'cursor', 'include-queue-bodies'],
+  'exports-read': ['include-queue-bodies'],
+  'exports-wait': ['timeout-ms', 'after-host', 'after-sequence', 'include-queue-bodies'],
+  'exports-watch': ['after-host', 'after-sequence'],
+}
+
+/**
+ * Agent-definition discovery reads definition files in this process and answers with one JSON
+ * response at most. It still takes the Hive client options: a named profile is authenticated.
+ */
+const LOCAL_COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
+  'agent-definitions-list': ['project'],
+  'agent-definitions-search': ['project'],
+}
+
+const ALL_SESSION_OPTIONS: ReadonlySet<string> = new Set([
+  ...Object.values(DIRECT_COMMAND_OPTIONS).flat(),
+  ...Object.values(ACTION_COMMAND_OPTIONS).flat(),
+  ...Object.values(LOCAL_COMMAND_OPTIONS).flat(),
+  ...CLIENT_OPTIONS,
+  ...OUTPUT_OPTIONS,
+])
+
+const BOOLEAN_OPTIONS = new Set([
+  ...INPUT_BOOLEAN_OPTIONS,
+  'all',
+  'archived',
+  'credential-stdin',
+  'full',
+  'full-transcript',
+  'include-archived',
+  'include-bodies',
+  'include-queue-bodies',
+  'json',
+  'jsonl',
+  'overwrite',
+  'queen',
+  'request-reply',
+  'require-fresh',
+  'start-from-origin',
+  'stdin',
+  'upstream',
+  'yolo',
+])
+
+function allowedOptions(command: string, arguments_: ParsedArguments) {
+  const local = LOCAL_COMMAND_OPTIONS[command]
+  if (local) return new Set([...local, ...CLIENT_OPTIONS, 'json'])
+  const replacement = formerGroupReplacement(command, arguments_)
+  if (replacement) {
+    throw new CommandCliUsageError(
+      `Unsupported OpenWaggle Hive command: ${command} ${arguments_.positionals[0] ?? ''}. Use 'openwaggle hive ${replacement}'.`,
+    )
+  }
+  const specific = DIRECT_COMMAND_OPTIONS[command] ?? ACTION_COMMAND_OPTIONS[command]
+  if (!specific) throw new CommandCliUsageError(`Unsupported OpenWaggle Hive command: ${command}.`)
+  return new Set([...specific, ...CLIENT_OPTIONS, ...OUTPUT_OPTIONS])
+}
+
+/** Whether a Hive subcommand runs in this process instead of the Session Host. */
+export function isLocalHiveCliCommand(command: string) {
+  return command in LOCAL_COMMAND_OPTIONS
+}
+
+function validateOptionValues(arguments_: ParsedArguments) {
+  const valueProblem = optionValueProblem(arguments_, BOOLEAN_OPTIONS)
+  if (valueProblem !== null) throw new CommandCliUsageError(valueProblem)
+}
+
+export function validateSessionsCliOptions(command: string, arguments_: ParsedArguments) {
+  const allowed = allowedOptions(command, arguments_)
+  refuseFormerCliOptions('hive', command, arguments_)
+  const unknown = [...arguments_.options.keys()]
+    .filter((name) => !ALL_SESSION_OPTIONS.has(name))
+    .sort()
+  if (unknown.length > 0) {
+    throw new CommandCliUsageError(
+      `Unknown option${unknown.length === 1 ? '' : 's'} for OpenWaggle Hive: ${unknown
+        .map((name) => `--${name}`)
+        .join(', ')}.`,
+    )
+  }
+  refuseRunSettingsOnActiveRunCommand(command, arguments_)
+  const unsupported = [...arguments_.options.keys()].filter((name) => !allowed.has(name)).sort()
+  if (unsupported.length > 0) {
+    throw new CommandCliUsageError(
+      `Unsupported option${unsupported.length === 1 ? '' : 's'} for hive ${command}: ${unsupported
+        .map((name) => `--${name}`)
+        .join(', ')}.`,
+    )
+  }
+  validateOptionValues(arguments_)
+  validateSessionsCliCombinations(command, arguments_)
+  validateSessionsCliPositionals(command, arguments_)
+}

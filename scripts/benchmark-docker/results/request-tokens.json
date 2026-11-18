@@ -1,0 +1,32 @@
+{
+  "claude": {
+    "systemO200k": 1821,
+    "toolsO200k": 10317,
+    "toolCount": 11,
+    "prefixO200k": 12138
+  },
+  "codex": {
+    "systemO200k": 4043,
+    "toolsO200k": 3615,
+    "toolCount": 9,
+    "prefixO200k": 7658
+  },
+  "opencode": {
+    "systemO200k": 2016,
+    "toolsO200k": 4715,
+    "toolCount": 10,
+    "prefixO200k": 6731
+  },
+  "openwaggle": {
+    "systemO200k": 1602,
+    "toolsO200k": 2063,
+    "toolCount": 7,
+    "prefixO200k": 3665
+  },
+  "pi": {
+    "systemO200k": 602,
+    "toolsO200k": 611,
+    "toolCount": 4,
+    "prefixO200k": 1213
+  }
+}

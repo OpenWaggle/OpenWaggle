@@ -1,8 +1,11 @@
-import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
-import { parseJsonUnknown } from '@shared/schema'
-import { isRecord } from '@shared/utils/validation'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
+import { branchActiveNodeId, branchDerivationNodes } from './branch-derivation-nodes'
 import { deriveBranchForHead } from './branch-head'
+import {
+  claimSavedBranchesByHead,
+  nextFallbackBranchName,
+  unusedBranchId,
+} from './branch-head-claims'
 import {
   buildChildCounts,
   createdOrderByNodeId,
@@ -15,25 +18,6 @@ import {
 } from './branch-utils'
 import { EMPTY_INDEX, MAIN_BRANCH_NAME } from './constants'
 import type { DerivedSessionBranch, SessionBranchRow } from './types'
-
-function isAgentLoopAuditNode(node: ProjectedSessionNodeInput) {
-  if (node.kind !== 'custom') {
-    return false
-  }
-
-  try {
-    const content = parseJsonUnknown(node.contentJson)
-    return (
-      isRecord(content) && content.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
-    )
-  } catch {
-    return false
-  }
-}
-
-function branchDerivationNodes(nodes: readonly ProjectedSessionNodeInput[]) {
-  return nodes.filter((node) => !isAgentLoopAuditNode(node))
-}
 
 function resolveMainHeadId(input: {
   readonly activeHeadId: string | null
@@ -54,12 +38,19 @@ function resolveMainHeadId(input: {
     return input.activeHeadId
   }
 
-  return findEarliestLeafDescendant({
-    leafIds: input.leafIds,
-    existingHeadId: input.previousMainHeadId,
-    nodeById: input.nodeById,
-    orderById: input.orderById,
-  })
+  // A replacement snapshot may no longer contain the previous projection's main head. In that
+  // case there is no stable branch ancestry to preserve, so the active runtime head becomes main.
+  return (
+    findEarliestLeafDescendant({
+      leafIds: input.leafIds,
+      existingHeadId: input.previousMainHeadId,
+      nodeById: input.nodeById,
+      orderById: input.orderById,
+    }) ??
+    input.activeHeadId ??
+    input.leafIds[0] ??
+    null
+  )
 }
 
 function emptyBranchResult(sessionId: string, mainBranchRow: SessionBranchRow | undefined) {
@@ -93,7 +84,7 @@ function leafIdsForNodes(
   nodes: readonly ProjectedSessionNodeInput[],
   childCounts: ReadonlyMap<string, number>,
 ) {
-  return nodes.filter((node) => (childCounts.get(node.id) ?? 0) === 0).map((node) => node.id)
+  return nodes.flatMap((node) => ((childCounts.get(node.id) ?? 0) === 0 ? [node.id] : []))
 }
 
 function buildBranchDerivationContext(input: {
@@ -127,22 +118,45 @@ function deriveBranchesForHeads(input: {
   readonly mainBranchRow: SessionBranchRow | undefined
   readonly context: BranchDerivationContext
 }) {
-  return uniqueHeadIds([
+  const heads = uniqueHeadIds([
     input.context.mainHeadId,
     input.context.activeHeadId,
     ...input.context.leafIds,
-  ]).map((headId, index) =>
-    deriveBranchForHead({
+  ])
+  const { claims, claimedIds } = claimSavedBranchesByHead(
+    heads,
+    input.existingBranches,
+    input.context,
+  )
+  const takenNames = new Set(input.existingBranches.map((branch) => branch.name))
+  const takenIds = new Set(input.existingBranches.map((branch) => branch.id))
+  const continuedIds = new Set<string>()
+  return heads.map((headId, index) => {
+    const claimed = claims.get(headId)
+    const { branch: derived, continuesSavedBranch } = deriveBranchForHead({
       sessionId: input.sessionId,
       headId,
-      index,
+      fallbackName: nextFallbackBranchName(takenNames, index + 1),
       mainHeadId: input.context.mainHeadId,
       mainBranchRow: input.mainBranchRow,
-      existingBranches: input.existingBranches,
+      existingBranches: claimed
+        ? [claimed]
+        : input.existingBranches.filter(
+            (branch) => !claimedIds.has(branch.id) && !continuedIds.has(branch.id),
+          ),
       nodeById: input.context.nodeById,
       childCounts: input.context.childCounts,
-    }),
-  )
+    })
+    // A new branch is identified by its start node, which a saved sibling branch can share.
+    const branch =
+      !continuesSavedBranch && takenIds.has(derived.id)
+        ? { ...derived, id: unusedBranchId(takenIds, `${input.sessionId}:branch:${headId}`) }
+        : derived
+    takenIds.add(branch.id)
+    if (continuesSavedBranch) continuedIds.add(branch.id)
+    takenNames.add(branch.name)
+    return branch
+  })
 }
 
 function selectActiveBranch(input: {
@@ -197,7 +211,7 @@ function deriveSessionBranches(input: {
   }
 }
 
-function emptyDerivedMainBranch(sessionId: string): DerivedSessionBranch {
+function emptyDerivedMainBranch(sessionId: string) {
   return {
     id: mainBranchId(sessionId),
     sourceNodeId: null,
@@ -206,7 +220,7 @@ function emptyDerivedMainBranch(sessionId: string): DerivedSessionBranch {
     isMain: true,
     archivedAt: null,
     createdAt: Date.now(),
-  }
+  } satisfies DerivedSessionBranch
 }
 
 function ensureMainBranch(branches: readonly DerivedSessionBranch[], sessionId: string) {
@@ -242,8 +256,13 @@ export function deriveSessionBranchesForSnapshot(input: {
   readonly activeNodeId: string | null
   readonly existingBranches: readonly SessionBranchRow[]
 }) {
+  const nodes = branchDerivationNodes(input.nodes)
   return normalizeDerivedBranches({
-    ...deriveSessionBranches({ ...input, nodes: branchDerivationNodes(input.nodes) }),
+    ...deriveSessionBranches({
+      ...input,
+      nodes,
+      activeNodeId: branchActiveNodeId(input.nodes, nodes, input.activeNodeId),
+    }),
     sessionId: input.sessionId,
   })
 }

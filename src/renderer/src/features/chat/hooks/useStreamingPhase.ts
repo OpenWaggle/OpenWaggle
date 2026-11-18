@@ -1,4 +1,3 @@
-import { TIME_UNIT } from '@shared/constants/time'
 import type { SessionId } from '@shared/types/brand'
 import type { AgentPhaseState } from '@shared/types/phase'
 import { useEffect, useRef, useState } from 'react'
@@ -22,14 +21,6 @@ export interface StreamingPhaseState {
   totalElapsedMs: number
 }
 
-export function formatElapsed(ms: number): string {
-  const totalSeconds = Math.floor(ms / TIME_UNIT.MILLISECONDS_PER_SECOND)
-  if (totalSeconds < TIME_UNIT.SECONDS_PER_MINUTE) return `${totalSeconds}s`
-  const minutes = Math.floor(totalSeconds / TIME_UNIT.SECONDS_PER_MINUTE)
-  const seconds = totalSeconds % TIME_UNIT.SECONDS_PER_MINUTE
-  return `${minutes}m ${seconds}s`
-}
-
 export interface StreamingPhaseHandle extends StreamingPhaseState {
   /** Call synchronously before starting a new user interaction (IPC send).
    *  Must be invoked in the same sync block as the send so the reset flag
@@ -50,11 +41,20 @@ export interface StreamingPhaseHandle extends StreamingPhaseState {
  * giving an accurate picture of where time was spent from the user's
  * perspective.
  */
-export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHandle {
+export function useStreamingPhase(sessionId: SessionId | null) {
   const [currentLabel, setCurrentLabel] = useState<string | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [completedSnapshot, setCompletedSnapshot] = useState<readonly CompletedPhase[]>([])
   const [totalSnapshot, setTotalSnapshot] = useState(0)
+  // Another session's phases start from nothing.
+  const [phaseSessionId, setPhaseSessionId] = useState(sessionId)
+  if (phaseSessionId !== sessionId) {
+    setPhaseSessionId(sessionId)
+    setCurrentLabel(null)
+    setElapsedMs(0)
+    setCompletedSnapshot([])
+    setTotalSnapshot(0)
+  }
 
   // --- Refs for IPC callback (outside React render) ---
   const phaseRef = useRef<AgentPhaseState | null>(null)
@@ -82,10 +82,6 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
     interactionStartRef.current = 0
     clientPhaseStartRef.current = 0
     lastPhaseEndRef.current = 0
-    setCurrentLabel(null)
-    setElapsedMs(0)
-    setCompletedSnapshot([])
-    setTotalSnapshot(0)
 
     if (!sessionId) {
       return
@@ -126,6 +122,7 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
       phaseRef.current = nextPhase
       clientPhaseStartRef.current = now
       setCurrentLabel(nextPhase.label)
+      setCompletedSnapshot([...completedRef.current])
     }
 
     const startFirstPhase = (nextPhase: AgentPhaseState, now: number) => {
@@ -205,7 +202,13 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
   }, [currentLabel])
 
   const current = currentLabel ? { label: currentLabel, elapsedMs } : null
-  const completed = current ? completedRef.current : completedSnapshot
 
-  return { current, completed, totalElapsedMs: totalSnapshot, reset }
+  // Every change of `completedRef` is mirrored into state; render never reads the ref.
+  const handle: StreamingPhaseHandle = {
+    current,
+    completed: completedSnapshot,
+    totalElapsedMs: totalSnapshot,
+    reset,
+  }
+  return handle
 }

@@ -2,7 +2,7 @@ import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { parseJsonUnknown } from '@shared/schema'
-import { app, net, protocol } from 'electron'
+import type { ExtensionRuntimeModuleAccessInput } from '@shared/types/extensions'
 import {
   getContentHashRelativePaths,
   getManifestContentHashInput,
@@ -13,11 +13,10 @@ import {
   calculateContentHash,
   resolveSafePackageFilePath,
 } from './adapters/extensions/package-files'
-import {
-  type ExtensionRuntimeModuleAccessInput,
-  isExtensionRuntimeModuleAccessAllowed,
-} from './application/extension-runtime-module-access-service'
-import { runAppEffect } from './runtime'
+import { invokeConfiguredHostUiRaw } from './application/gui-session-command-router'
+import { appPaths } from './desktop-shell/app-paths'
+import { networkFetch } from './desktop-shell/network-fetch'
+import { trustedOrigins } from './desktop-shell/trusted-origins'
 import { isPathInside } from './utils/paths'
 
 export const EXTENSION_RUNTIME_PROTOCOL = OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME
@@ -45,11 +44,6 @@ export interface RegisterExtensionRuntimeProtocolDependencies {
   ) => Promise<boolean>
 }
 
-interface RuntimeModuleContext {
-  readonly fileSegmentOffset: number
-  readonly sessionId?: string
-}
-
 function hasProjectExtensionRootSegments(packagePath: string) {
   const segments = packagePath.split(/[\\/]+/)
   const [projectConfigSegment, extensionsSegment] = OPENWAGGLE_EXTENSION.PROJECT_ROOT_SEGMENTS
@@ -64,7 +58,7 @@ function hasProjectExtensionRootSegments(packagePath: string) {
 
 function isGlobalExtensionPackagePath(packagePath: string) {
   const globalExtensionsRoot = resolve(
-    app.getPath('userData'),
+    appPaths.userData(),
     OPENWAGGLE_EXTENSION.GLOBAL_EXTENSIONS_DIR,
   )
 
@@ -133,9 +127,7 @@ function moduleContextSessionId(parsedContext: unknown) {
   return trimmedSessionId.length > 0 ? trimmedSessionId : null
 }
 
-function decodeModuleContext(
-  contextSegment: string,
-): Omit<RuntimeModuleContext, 'fileSegmentOffset'> | null {
+function decodeModuleContext(contextSegment: string) {
   const decodedContext = decodePathSegment(contextSegment)
   if (decodedContext === null) {
     return null
@@ -158,7 +150,7 @@ function decodeModuleContext(
   }
 }
 
-function runtimeModuleContext(pathSegments: readonly string[]): RuntimeModuleContext | null {
+function runtimeModuleContext(pathSegments: readonly string[]) {
   if (
     pathSegments[MODULE_FILE_SEGMENT_OFFSET] !==
     OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.MODULE_CONTEXT_SEGMENT
@@ -237,8 +229,12 @@ function parseExtensionModuleRequest(requestUrl: string) {
   }
 }
 
-function defaultExtensionRuntimeModuleAccessChecker(input: ExtensionRuntimeModuleAccessInput) {
-  return runAppEffect(isExtensionRuntimeModuleAccessAllowed(input))
+export async function defaultExtensionRuntimeModuleAccessChecker(
+  input: ExtensionRuntimeModuleAccessInput,
+) {
+  const remote = await invokeConfiguredHostUiRaw('extensions:authorize-runtime-module', [input])
+  // Only the Session Host decides; a window that is not attached loads no extension module.
+  return remote.handled && remote.result === true
 }
 
 async function resolveExtensionModuleFilePath(
@@ -295,7 +291,7 @@ async function resolveExtensionModuleFilePath(
 }
 
 async function fileResponse(filePath: string) {
-  const response = await net.fetch(pathToFileURL(filePath).toString())
+  const response = await networkFetch.fetch(pathToFileURL(filePath).toString())
   const headers = new Headers(response.headers)
 
   headers.set(ACCESS_CONTROL_ALLOW_ORIGIN_HEADER, CORS_ANY_ORIGIN)
@@ -322,14 +318,14 @@ export function registerExtensionRuntimeProtocolOnce(
   const isRuntimeModuleAllowed =
     dependencies.isExtensionRuntimeModuleAllowed ?? defaultExtensionRuntimeModuleAccessChecker
 
-  protocol.handle(EXTENSION_RUNTIME_PROTOCOL, async (request) => {
+  trustedOrigins.serve('extension-runtime', async (request) => {
     try {
       const modulePath = await resolveExtensionModuleFilePath(request.url, isRuntimeModuleAllowed)
       if (!modulePath) {
         return notFoundResponse()
       }
 
-      return fileResponse(modulePath)
+      return await fileResponse(modulePath)
     } catch {
       return notFoundResponse()
     }

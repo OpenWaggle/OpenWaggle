@@ -11,7 +11,7 @@ OpenWaggle uses GitHub Issues in `OpenWaggle/OpenWaggle` and tracks roadmap work
 
 ## Contribution Model
 
-The public contribution model currently prioritizes issues, bug reports, feature requests, documentation feedback, UI/UX feedback, and architecture proposals. Public code contributions are not generally open yet, so issue quality matters.
+Code contributions are open (ADR 0067). Bug reports, feature requests, documentation feedback, UI/UX feedback, and architecture proposals start as issues, and issue quality still drives the roadmap. Pull requests are welcome as one coherent change each, under the same commit and verification standards CI enforces on maintainer changes. Submitting a contribution accepts the Contributor License Agreement (`CLA.md`), and CLA Assistant sets a merge-blocking status check on every pull request.
 
 For internal agent work, use the repository branch/PR conventions in `AGENTS.md` and preserve the no-commit-without-maintainer-approval rule.
 
@@ -57,9 +57,9 @@ Move issues through the triage labels documented in `docs/agents/triage-labels.m
 
 ## Pull Requests
 
-Do not create commits, push, or open PRs unless the maintainer explicitly approves. When a PR is approved for creation:
+Do not create commits, push, or open PRs unless the maintainer explicitly approves. When a PR is approved for creation, use the `/pr` skill (`.agents/skills/pr/SKILL.md`, `bun run pr:create`), then `/ready` to mark it ready after an independent review and `/babysit` once it leaves draft. The PR body:
 
 - link solving work with `Closes #<issue-number>`
 - link partial progress with `Part of #<issue-number>`
 - include validation evidence
-- include release notes for user-visible changes until release-intent files exist
+- include reviewer-facing release notes for user-visible changes; the release PR writes each changelog line from the PR title, and notes that need more go under `## [Unreleased]` in `CHANGELOG.md`

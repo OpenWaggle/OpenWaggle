@@ -1,5 +1,8 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { typedHandleMock, showOpenDialogMock, fromWebContentsMock } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
@@ -7,19 +10,23 @@ const { typedHandleMock, showOpenDialogMock, fromWebContentsMock } = vi.hoisted(
   fromWebContentsMock: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  BrowserWindow: {
-    fromWebContents: fromWebContentsMock,
-  },
-  dialog: {
-    showOpenDialog: showOpenDialogMock,
-  },
+vi.mock('../../desktop-shell/desktop-windows', () => ({
+  desktopWindows: { fromSurface: fromWebContentsMock },
+}))
+vi.mock('../../desktop-shell/dialogs', () => ({
+  desktopDialogs: { showOpenDialog: showOpenDialogMock },
 }))
 
-vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
+import { requestOpenProject } from '../../open-project-requests'
+import { requestOpenSessionLink } from '../../session-link-requests'
 import { registerProjectHandlers } from '../project-handler'
 
 function getRegisteredHandler(name: string) {
@@ -34,10 +41,50 @@ function getRegisteredHandler(name: string) {
 }
 
 describe('registerProjectHandlers', () => {
+  let projectPath: string | undefined
+
   beforeEach(() => {
     typedHandleMock.mockReset()
     showOpenDialogMock.mockReset()
     fromWebContentsMock.mockReset()
+  })
+
+  afterEach(async () => {
+    if (projectPath) await fs.rm(projectPath, { recursive: true, force: true })
+    projectPath = undefined
+  })
+
+  it('surfaces an invalid project file for permission-sensitive settings reads', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-project-ipc-'))
+    await fs.mkdir(path.join(projectPath, '.openwaggle'))
+    await fs.writeFile(path.join(projectPath, '.openwaggle', 'settings.json'), '{ invalid json')
+    registerProjectHandlers()
+
+    const preferences = getRegisteredHandler('project-config:get-preferences')
+    const grants = getRegisteredHandler('authorization-grants:list')
+    await expect(preferences?.({}, projectPath)).rejects.toThrow()
+    await expect(grants?.({}, projectPath)).rejects.toThrow()
+  })
+
+  it('hands the renderer a command-line project request exactly once', async () => {
+    projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-project-request-'))
+    registerProjectHandlers()
+    const take = getRegisteredHandler('project:take-open-request')
+
+    requestOpenProject(projectPath)
+
+    await expect(take?.({})).resolves.toBe(await fs.realpath(projectPath))
+    await expect(take?.({})).resolves.toBeNull()
+  })
+
+  it('hands the renderer an opened Session link exactly once', async () => {
+    registerProjectHandlers()
+    const take = getRegisteredHandler('app:take-open-session-link-request')
+
+    requestOpenSessionLink('openwaggle://sessions/session-1')
+
+    await expect(take?.({})).resolves.toBe('session-1')
+    await expect(take?.({})).resolves.toBeNull()
   })
 
   it('attaches the folder dialog to the requesting window when available', async () => {
@@ -80,11 +127,29 @@ describe('registerProjectHandlers', () => {
     const result = await handler?.({ sender })
 
     expect(fromWebContentsMock).toHaveBeenCalledWith(sender)
-    expect(showOpenDialogMock).toHaveBeenCalledWith({
+    expect(showOpenDialogMock).toHaveBeenCalledWith(null, {
       properties: ['openDirectory'],
       title: 'Select Project Folder',
     })
     expect(result).toBe('/tmp/project')
+  })
+
+  it('canonicalizes the picked folder through symlinks', async () => {
+    const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pick-'))
+    const realDir = path.join(parent, 'real')
+    const aliasPath = path.join(parent, 'alias')
+    await fs.mkdir(realDir)
+    await fs.symlink(realDir, aliasPath)
+    fromWebContentsMock.mockReturnValue(null)
+    showOpenDialogMock.mockResolvedValue({ canceled: false, filePaths: [aliasPath] })
+
+    registerProjectHandlers()
+
+    const handler = getRegisteredHandler('project:select-folder')
+    const result = await handler?.({ sender: { id: 11 } })
+
+    expect(result).toBe(await fs.realpath(realDir))
+    await fs.rm(parent, { recursive: true, force: true })
   })
 
   it('returns null when the dialog is cancelled', async () => {

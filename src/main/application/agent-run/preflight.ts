@@ -1,18 +1,22 @@
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { makeErrorInfo } from '../../agent/error-classifier'
-import { ProviderService } from '../../ports/provider-service'
-import { SessionProjectionRepository } from '../../ports/session-projection-repository'
+import { agentDefinitionTogglesForProject } from '../../agents/agent-definition-toggle-settings'
 import { SettingsService } from '../../services/settings-service'
+import { invokesExtensionCommand } from '../agent-extension-commands'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
-import { assignSessionTitleFromUserText } from '../run-handler-utils'
+import { loadSessionForRun } from '../pi-session-projection-refresh'
+import { assignSessionTitleFromUserText, sessionTitleOwed } from '../run-handler-utils'
+import { isSessionModelRunnable } from '../session-model-availability'
 import type { AgentRunInput, AgentRunResult } from './types'
 
 interface AgentRunPreflightSuccess {
   readonly ok: true
   readonly session: SessionDetail
+  readonly compactionThresholdPercent: number
   readonly assignedTitle?: string
   readonly skillToggles?: Record<string, boolean>
+  readonly agentDefinitionToggles?: Record<string, boolean>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }
 
@@ -23,50 +27,67 @@ interface AgentRunPreflightFailure {
 
 export function loadAgentRunPreflight(input: AgentRunInput) {
   return Effect.gen(function* () {
-    const sessionProjectionRepo = yield* SessionProjectionRepository
-    const session = yield* sessionProjectionRepo.getOptional(input.sessionId)
+    const session = yield* loadSessionForRun(input.sessionId)
     if (!session) return sessionNotFound()
 
-    const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, session.projectPath)
-    if (!isKnown) return invalidModel(input.model)
+    if (!(yield* isSessionModelRunnable(input.model, session))) return invalidModel(input.model)
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
-    const assignedTitle = yield* assignSessionTitleFromUserText(
-      input.sessionId,
-      session,
-      input.payload.text,
-    )
+    // An extension command is not the user's request: the title waits for the first real prompt.
+    // Neither is a Hive wake, whose prompt the Host wrote.
+    const invokesCommand =
+      sessionTitleOwed(session) &&
+      (input.hiveWake === true ||
+        (yield* invokesExtensionCommand({ session, model: input.model, payload: input.payload })))
+    const assignedTitle = invokesCommand
+      ? null
+      : yield* assignSessionTitleFromUserText(input.sessionId, session, {
+          text: input.payload.text,
+          attachments: input.payload.attachments,
+          model: input.model,
+        })
     if (assignedTitle) {
       yield* Effect.sync(() => input.onTitleAssigned?.(assignedTitle))
     }
     const enabledOpenWaggleExtensionPackagePaths = session.projectPath
       ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
       : undefined
+    const agentProjectPath = session.projectPath
+    const agentDefinitionToggles = agentProjectPath
+      ? yield* Effect.promise(() =>
+          agentDefinitionTogglesForProject(
+            settings.agentDefinitionTogglesByProject,
+            agentProjectPath,
+          ),
+        )
+      : undefined
 
     return {
       ok: true,
       session,
+      compactionThresholdPercent: settings.compactionThresholdPercent,
       ...(assignedTitle ? { assignedTitle } : {}),
       ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
       ...(session.projectPath && settings.skillTogglesByProject[session.projectPath]
         ? { skillToggles: settings.skillTogglesByProject[session.projectPath] }
         : {}),
+      ...(agentDefinitionToggles ? { agentDefinitionToggles } : {}),
     } satisfies AgentRunPreflightSuccess
   })
 }
 
-function sessionNotFound(): AgentRunPreflightFailure {
+function sessionNotFound() {
   const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
-  return {
+  const failure: AgentRunPreflightFailure = {
     ok: false,
     result: { outcome: 'not-found', message: errorInfo.userMessage, code: errorInfo.code },
   }
+  return failure
 }
 
-function invalidModel(model: string): AgentRunPreflightFailure {
-  return {
+function invalidModel(model: string) {
+  const failure: AgentRunPreflightFailure = {
     ok: false,
     result: {
       outcome: 'invalid-model',
@@ -74,4 +95,5 @@ function invalidModel(model: string): AgentRunPreflightFailure {
       code: 'invalid-model',
     },
   }
+  return failure
 }

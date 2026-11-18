@@ -5,14 +5,12 @@ import type { AgentsResolutionResult, AgentsScopeItem } from '@shared/types/stan
 import { isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '../utils/paths'
 
-export async function resolveRootAgents(projectPath: string): Promise<AgentsScopeItem> {
-  return readAgentsScope(projectPath, projectPath)
+export async function resolveRootAgents(projectPath: string) {
+  const root: AgentsScopeItem = await readAgentsScope(projectPath, projectPath)
+  return root
 }
 
-export async function resolveAgentsChainForPath(
-  projectPath: string,
-  targetPath: string,
-): Promise<AgentsResolutionResult> {
+export async function resolveAgentsChainForPath(projectPath: string, targetPath: string) {
   const root = await resolveRootAgents(projectPath)
   const warnings: string[] = []
   matchBy(root, 'status')
@@ -28,8 +26,9 @@ export async function resolveAgentsChainForPath(
   const dirs = listScopeDirectories(projectPath, targetDir)
   const scoped: AgentsScopeItem[] = []
 
-  for (const dir of dirs.slice(1)) {
-    const scope = await readAgentsScope(projectPath, dir)
+  // Scope reads are independent; fetch concurrently then fold in directory order.
+  const scopes = await Promise.all(dirs.slice(1).map((dir) => readAgentsScope(projectPath, dir)))
+  for (const scope of scopes) {
     matchBy(scope, 'status')
       .with('found', (value) => {
         scoped.push(value)
@@ -53,81 +52,17 @@ export async function resolveAgentsChainForPath(
   }
 }
 
-export async function resolveAgentsForRun(
-  projectPath: string,
-  candidatePaths: readonly string[],
-): Promise<AgentsResolutionResult> {
+/** The project's root AGENTS.md as a resolution with no directory scopes, for Settings > Skills. */
+export async function resolveProjectRootAgents(projectPath: string) {
   const root = await resolveRootAgents(projectPath)
-  const seenWarnings = new Set<string>()
-  const warnings: string[] = []
-  const addWarning = (warning: string) => {
-    if (seenWarnings.has(warning)) return
-    seenWarnings.add(warning)
-    warnings.push(warning)
-  }
-
-  matchBy(root, 'status')
-    .with('error', (value) => {
-      if (value.error) {
-        addWarning(`Failed to load root AGENTS.md: ${value.error}`)
-      }
-    })
-    .with('found', 'missing', () => undefined)
+  const warnings = matchBy(root, 'status')
+    .with('error', (value) =>
+      value.error ? [`Failed to load root AGENTS.md: ${value.error}`] : [],
+    )
+    .with('found', 'missing', () => [])
     .exhaustive()
-
-  const scopedByFilePath = new Map<string, AgentsScopeItem>()
-  for (const candidatePath of candidatePaths) {
-    try {
-      const chain = await resolveAgentsChainForPath(projectPath, candidatePath)
-      for (const warning of chain.warnings) {
-        addWarning(warning)
-      }
-      for (const scope of chain.scoped) {
-        if (!scopedByFilePath.has(scope.filePath)) {
-          scopedByFilePath.set(scope.filePath, scope)
-        }
-      }
-    } catch (error) {
-      addWarning(
-        `Failed to resolve AGENTS scope for "${candidatePath}": ${error instanceof Error ? error.message : String(error)}`,
-      )
-    }
-  }
-
-  return {
-    projectPath,
-    root,
-    scoped: [...scopedByFilePath.values()],
-    warnings,
-  }
-}
-
-export function buildEffectiveAgentsInstruction(resolution: AgentsResolutionResult): string {
-  const sections: string[] = []
-
-  matchBy(resolution.root, 'status')
-    .with('found', (root) => {
-      if (root.content.trim()) {
-        sections.push(`Root scope (${root.filePath})\n${root.content.trim()}`)
-      }
-    })
-    .with('missing', 'error', () => undefined)
-    .exhaustive()
-
-  for (const scope of resolution.scoped) {
-    matchBy(scope, 'status')
-      .with('found', (value) => {
-        if (value.content.trim()) {
-          sections.push(
-            `Scope ${value.scopeRelativeDir} (${value.filePath})\n${value.content.trim()}`,
-          )
-        }
-      })
-      .with('missing', 'error', () => undefined)
-      .exhaustive()
-  }
-
-  return sections.join('\n\n')
+  const result: AgentsResolutionResult = { projectPath, root, scoped: [], warnings }
+  return result
 }
 
 async function resolveTargetDirectoryWithinProject(projectPath: string, targetPath: string) {
@@ -195,31 +130,33 @@ function listScopeDirectories(projectPath: string, targetDir: string) {
   return dirs
 }
 
-async function readAgentsScope(projectPath: string, scopeDir: string): Promise<AgentsScopeItem> {
+async function readAgentsScope(projectPath: string, scopeDir: string) {
   const filePath = path.join(scopeDir, 'AGENTS.md')
   const scopeRelativeDir = toScopeRelativeDir(projectPath, scopeDir)
 
   try {
     const content = await fs.readFile(filePath, 'utf8')
-    return {
+    const item: AgentsScopeItem = {
       filePath,
       scopeDir,
       scopeRelativeDir,
       content,
       status: 'found',
     }
+    return item
   } catch (error) {
     if (isEnoent(error)) {
-      return {
+      const item: AgentsScopeItem = {
         filePath,
         scopeDir,
         scopeRelativeDir,
         content: '',
         status: 'missing',
       }
+      return item
     }
 
-    return {
+    const item: AgentsScopeItem = {
       filePath,
       scopeDir,
       scopeRelativeDir,
@@ -227,6 +164,7 @@ async function readAgentsScope(projectPath: string, scopeDir: string): Promise<A
       status: 'error',
       error: error instanceof Error ? error.message : String(error),
     }
+    return item
   }
 }
 

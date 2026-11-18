@@ -18,6 +18,7 @@ import {
   toExtensionInteractionView,
 } from '../lib/agent-loop-interaction-view'
 import { AgentInteractionControls } from './AgentInteractionControls'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 
 type InteractionSurfaceInput = Extract<
   ExtensionAgentLoopSurfaceInput,
@@ -29,24 +30,24 @@ type SubmitInteractionResponse = (
 ) => void
 
 function InteractionHeader({ interaction }: { readonly interaction: AgentLoopInteraction }) {
+  const title = useChatDisplayText(agentLoopInteractionTitle(interaction))
   return (
     <div className="flex items-start gap-3">
       <MessageSquareWarning className="mt-0.5 size-4 shrink-0 text-accent" />
       <div className="min-w-0">
-        <h3 className="text-[13px] font-semibold text-text-primary">Pi interaction pending</h3>
-        <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
-          {interaction.kind} · {interaction.source}
-        </p>
+        {/* The raw discriminant said nothing to a reader and is an internal token, so the card
+            uses the same user-facing title the rest of the UI uses. */}
+        <h3 className="text-sm font-semibold text-text-primary wrap-anywhere">{title}</h3>
       </div>
     </div>
   )
 }
 
-function interactionSurfaceInput(interaction: AgentLoopInteraction): InteractionSurfaceInput {
+function interactionSurfaceInput(interaction: AgentLoopInteraction) {
   return {
     surface: 'interaction',
     interaction: toExtensionInteractionView(interaction),
-  }
+  } satisfies InteractionSurfaceInput
 }
 
 function InteractionExtensionSurfaces({
@@ -71,7 +72,7 @@ function InteractionExtensionSurfaces({
         const response = responseFromExtensionAction({
           interaction,
           actionId,
-          payload,
+          ...(payload === undefined ? {} : { payload }),
         })
         if (response !== null) {
           submit(interaction, response)
@@ -101,7 +102,7 @@ function InteractionExtensionSurfaces({
       />
       <ExtensionAgentLoopStatusWidgets
         input={extensionInput}
-        onSurfaceAction={handleSurfaceAction}
+        {...(handleSurfaceAction === undefined ? {} : { onSurfaceAction: handleSurfaceAction })}
         projectPaths={extensionProjectPaths}
         registry={extensionRegistry}
       />
@@ -111,13 +112,15 @@ function InteractionExtensionSurfaces({
 
 function InteractionSummary({ interaction }: { readonly interaction: AgentLoopInteraction }) {
   const message = agentLoopInteractionMessage(interaction)
+  const displayTitle = useChatDisplayText(agentLoopInteractionTitle(interaction))
+  const displayMessage = useChatDisplayText(message ?? '')
 
   return (
     <div>
-      <div className="text-[13px] font-medium text-text-primary">
-        {agentLoopInteractionTitle(interaction)}
-      </div>
-      {message ? <p className="mt-1 text-[12px] leading-5 text-text-tertiary">{message}</p> : null}
+      <div className="text-sm font-medium text-text-primary wrap-anywhere">{displayTitle}</div>
+      {displayMessage ? (
+        <p className="mt-1 text-xs leading-5 text-text-tertiary wrap-anywhere">{displayMessage}</p>
+      ) : null}
     </div>
   )
 }
@@ -136,7 +139,7 @@ export function AgentInteractionCard({
   readonly submit: SubmitInteractionResponse
 }) {
   return (
-    <section className="grid gap-3 rounded-xl border border-accent/25 bg-accent/5 p-3">
+    <section className="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-accent/25 bg-accent/5 p-3">
       <InteractionHeader interaction={interaction} />
       <InteractionExtensionSurfaces
         busy={busy}

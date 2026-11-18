@@ -2,7 +2,7 @@ import { WAGGLE_INHERIT_MODEL, type WagglePreset } from '@openwaggle/waggle-core
 import { describe, expect, it } from 'vitest'
 import { mergePiWagglePresetLayers } from '../presets.js'
 
-function preset(id: string, name: string): WagglePreset {
+function preset(id: string, name: string) {
   return {
     id,
     name,
@@ -28,7 +28,7 @@ function preset(id: string, name: string): WagglePreset {
     isBuiltIn: true,
     createdAt: 0,
     updatedAt: 0,
-  }
+  } satisfies WagglePreset
 }
 
 describe('Pi Waggle preset merging', () => {

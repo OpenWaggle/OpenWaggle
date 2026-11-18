@@ -1,6 +1,7 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import type { LexicalEditor } from 'lexical'
-import { type RefObject, useEffect } from 'react'
+import { type RefObject, useLayoutEffect } from 'react'
+import { setEditorDraft } from '@/features/composer/lib/lexical-utils'
 import { useComposerStore } from '@/features/composer/state/composer-store'
 
 interface EditorRefPluginProps {
@@ -12,12 +13,14 @@ interface EditorRefPluginProps {
  * (voice insertion, history navigation, skill/mention insertion, etc.)
  * Also stores the editor in the composer Zustand store for cross-component access.
  */
-export function EditorRefPlugin({ editorRef }: EditorRefPluginProps): null {
+export function EditorRefPlugin({ editorRef }: EditorRefPluginProps) {
   const [editor] = useLexicalComposerContext()
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     editorRef.current = editor
-    useComposerStore.getState().setLexicalEditor(editor)
+    const store = useComposerStore.getState()
+    store.setLexicalEditor(editor)
+    setEditorDraft(editor, store.input, store.selectedWagglePreset, { scrollIntoView: false })
     return () => {
       editorRef.current = null
       useComposerStore.getState().setLexicalEditor(null)

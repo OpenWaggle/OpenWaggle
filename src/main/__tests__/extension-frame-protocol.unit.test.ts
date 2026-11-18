@@ -25,9 +25,10 @@ const protocolMocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@electron-toolkit/utils', () => ({
-  is: protocolMocks.is,
-}))
+vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
+  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !protocolMocks.is.dev } }
+})
 
 vi.mock('electron', () => ({
   protocol: {
@@ -76,7 +77,9 @@ describe('extension frame protocol', () => {
     const documentText = await documentResponse.text()
     const csp = documentResponse.headers.get('content-security-policy') ?? ''
 
-    expect(documentText).toContain('<div id="openwaggle-extension-root"></div>')
+    expect(documentText).toContain(
+      '<div id="openwaggle-extension-root" class="ow-extension-root"></div>',
+    )
     expect(documentText).toContain('<link rel="stylesheet" href="./frame.css">')
     expect(documentText).toContain('<script type="module" src="./bootstrap.js"></script>')
     expect(documentText).not.toContain(EXTENSION_FRAME_MESSAGE_CHANNEL)
@@ -105,7 +108,13 @@ describe('extension frame protocol', () => {
       'openwaggle-extension-frame',
       registration.frameUrl,
     )
+    const lateStyleResponse = await dispatchProtocolRequest(
+      'openwaggle-extension-frame',
+      new URL('./frame.css', registration.frameUrl).toString(),
+    )
     expect(unregisteredResponse.status).toBe(HTTP_NOT_FOUND_STATUS)
+    expect(lateStyleResponse.status).not.toBe(HTTP_NOT_FOUND_STATUS)
+    expect(await lateStyleResponse.text()).toContain('#openwaggle-extension-root')
   })
 
   it('redirects bootstrap requests to the compiled renderer bootstrap module URL', async () => {
@@ -168,21 +177,20 @@ describe('extension frame protocol', () => {
     ).toThrow('Extension frame bootstrap URL must use the OpenWaggle renderer origin.')
   })
 
-  it.each([
-    'http://api.github.com',
-    'https://api.github.com/repos',
-    'data:text/plain,hi',
-  ])('rejects untrusted network origin %s', async (networkOrigin) => {
-    const { registerExtensionFrame } = await loadExtensionFrameProtocol()
+  it.each(['http://api.github.com', 'https://api.github.com/repos', 'data:text/plain,hi'])(
+    'rejects untrusted network origin %s',
+    async (networkOrigin) => {
+      const { registerExtensionFrame } = await loadExtensionFrameProtocol()
 
-    expect(() =>
-      registerExtensionFrame({
-        frameId: 'frame-1',
-        bootstrapUrl: 'http://localhost:5173/bootstrap.js',
-        networkOrigins: [networkOrigin],
-      }),
-    ).toThrow('Extension frame network origin')
-  })
+      expect(() =>
+        registerExtensionFrame({
+          frameId: 'frame-1',
+          bootstrapUrl: 'http://localhost:5173/bootstrap.js',
+          networkOrigins: [networkOrigin],
+        }),
+      ).toThrow('Extension frame network origin')
+    },
+  )
 
   it('ignores stale unregister calls from superseded frame registrations', async () => {
     const { registerExtensionFrame, registerExtensionFrameProtocolOnce, unregisterExtensionFrame } =

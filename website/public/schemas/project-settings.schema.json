@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwaggle.ai/schemas/project-settings.schema.json",
+  "title": "OpenWaggle .openwaggle/settings.json",
+  "description": "Project settings. Top-level keys belong to OpenWaggle; Pi settings go in the pi object.",
+  "type": "object",
+  "additionalProperties": {},
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "The JSON Schema for this file."
+    },
+    "preferences": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "deprecated": true,
+          "description": "No longer used. OpenWaggle moves it into its own storage the next time it writes this file."
+        },
+        "authorizationMode": {
+          "type": "string",
+          "enum": [
+            "yolo",
+            "ask-for-approval"
+          ],
+          "description": "Access mode for this project, set under Settings > Permissions > Selected project: yolo (YOLO) or ask-for-approval (Ask for Approval)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Project preferences OpenWaggle writes from Settings."
+    },
+    "sessionHost": {
+      "type": "object",
+      "properties": {
+        "multiAgentEnabled": {
+          "type": "boolean",
+          "description": "Lets agents create Worker sessions to share work in this project."
+        },
+        "parentConcurrencyLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Most direct Worker runs one parent session can have at the same time."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Worker limits for this project."
+    },
+    "authorizationGrants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "requester",
+          "requesterId",
+          "capability",
+          "grantedAt"
+        ],
+        "properties": {
+          "requester": {
+            "type": "string"
+          },
+          "requesterId": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string",
+            "enum": [
+              "actions.execute",
+              "actions.stop",
+              "browser.preview",
+              "mcp.tool-call",
+              "mcp.sampling",
+              "sessions.export-write",
+              "sessions.attachment-read",
+              "sessions.resource-read"
+            ]
+          },
+          "resource": {
+            "type": "string"
+          },
+          "grantedAt": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Saved approvals, written when you choose Always allow. Revoke them in Settings > Permissions."
+    },
+    "pi": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "description": "Pi settings for this project, with Pi's JSON setting names, such as compaction and branchSummary."
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "command",
+          "icon",
+          "runOnWorktreeCreate"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "command": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "play",
+              "test",
+              "lint",
+              "configure",
+              "build",
+              "debug"
+            ]
+          },
+          "runOnWorktreeCreate": {
+            "type": "boolean"
+          },
+          "previewUrl": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "autoOpenPreview": {
+            "type": "boolean"
+          },
+          "shortcutRules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "shortcut"
+              ],
+              "properties": {
+                "shortcut": {
+                  "type": "object",
+                  "required": [
+                    "key"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "mod": {
+                      "type": "boolean"
+                    },
+                    "ctrl": {
+                      "type": "boolean"
+                    },
+                    "shift": {
+                      "type": "boolean"
+                    },
+                    "alt": {
+                      "type": "boolean"
+                    },
+                    "meta": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "when": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 256
+          },
+          "shortcut": {
+            "type": "object",
+            "required": [
+              "key"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "mod": {
+                "type": "boolean"
+              },
+              "ctrl": {
+                "type": "boolean"
+              },
+              "shift": {
+                "type": "boolean"
+              },
+              "alt": {
+                "type": "boolean"
+              },
+              "meta": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": {}
+      },
+      "maxItems": 50,
+      "deprecated": true,
+      "description": "Older Project actions format, read only to migrate. Shared actions now live in .openwaggle/actions.json."
+    },
+    "sourceControl": {
+      "type": "object",
+      "properties": {
+        "hosts": {
+          "type": "object",
+          "description": "Provider by host name, such as \"git.acme.io\": \"gitlab\".",
+          "additionalProperties": {
+            "enum": [
+              "github",
+              "gitlab"
+            ]
+          }
+        },
+        "changeRequestOpenDestination": {
+          "enum": [
+            "inspector",
+            "website"
+          ],
+          "description": "Where a pull or merge request opens: in the app or on the website."
+        }
+      },
+      "additionalProperties": {},
+      "description": "Source control hosts and where change requests open."
+    }
+  }
+}

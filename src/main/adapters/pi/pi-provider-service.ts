@@ -2,25 +2,13 @@ import type { ProviderApiKeyAuthSource, ProviderAuthSource } from '@shared/types
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { ProviderLookupError } from '../../errors'
-import { loadWithRuntimeFailureIsolation } from '../../extensions/runtime-load-isolation'
-import { createLogger } from '../../logger'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderModelCapabilities, ProviderService } from '../../ports/provider-service'
-import {
-  getRuntimeEnabledPackagesPiResourceRoots,
-  listRuntimeEnabledPackages,
-  type OpenWagglePiExtensionSelectionServices,
-} from './openwaggle-pi-extension-selection'
-import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
-import {
-  createPiProviderCatalogSnapshot,
-  getBuiltInPiModelProviderIds,
-} from './pi-provider-catalog'
-import { rejectMatchingOpenWaggleExtensionLoadErrors } from './pi-runtime-extension-load-errors'
-
-const logger = createLogger('pi-provider-service')
+import type { OpenWagglePiExtensionSelectionServices } from './openwaggle-pi-extension-selection'
+import { loadWithProjectExtensions } from './pi-project-runtime-load'
+import { createPiProviderCatalogSnapshot } from './pi-provider-catalog'
 
 function toDisplayName(id: string) {
   return id
@@ -40,6 +28,7 @@ function toModelCapabilities(model: {
   readonly input: readonly ('text' | 'image')[]
   readonly contextWindow: number
   readonly maxTokens: number
+  readonly virtual?: boolean
 }) {
   return {
     id: model.ref,
@@ -51,73 +40,30 @@ function toModelCapabilities(model: {
     input: [...model.input],
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
+    ...(model.virtual ? { virtual: true } : {}),
   }
 }
 
-// Pi's TUI exposes OAuth providers from AuthStorage, but keeps the built-in API-key
-// login provider names in the interactive layer. Until Pi exposes that list through
-// the SDK, this adapter-local mirror is intentionally kept aligned with Pi TUI.
-const PI_API_KEY_AUTH_PROVIDER_DISPLAY_NAMES: ReadonlyMap<string, string> = new Map([
-  ['amazon-bedrock', 'Amazon Bedrock'],
-  ['anthropic', 'Anthropic'],
-  ['azure-openai-responses', 'Azure OpenAI Responses'],
-  ['cerebras', 'Cerebras'],
-  ['deepseek', 'DeepSeek'],
-  ['fireworks', 'Fireworks'],
-  ['google', 'Google Gemini'],
-  ['google-vertex', 'Google Vertex AI'],
-  ['groq', 'Groq'],
-  ['huggingface', 'Hugging Face'],
-  ['kimi-coding', 'Kimi For Coding'],
-  ['minimax', 'MiniMax'],
-  ['minimax-cn', 'MiniMax (China)'],
-  ['mistral', 'Mistral'],
-  ['opencode', 'OpenCode Zen'],
-  ['opencode-go', 'OpenCode Go'],
-  ['openai', 'OpenAI'],
-  ['openrouter', 'OpenRouter'],
-  ['vercel-ai-gateway', 'Vercel AI Gateway'],
-  ['xai', 'xAI'],
-  ['zai', 'ZAI'],
-])
-
-function getPiProviderDisplayName(
-  providerId: string,
-  oauthProviderNames: ReadonlyMap<string, string>,
-) {
-  return (
-    oauthProviderNames.get(providerId) ??
-    PI_API_KEY_AUTH_PROVIDER_DISPLAY_NAMES.get(providerId) ??
-    toDisplayName(providerId)
-  )
+function getPiProviderDisplayName(providerId: string, providerNames: ReadonlyMap<string, string>) {
+  return providerNames.get(providerId) ?? toDisplayName(providerId)
 }
 
 export function supportsPiApiKeyAuthProvider(
   providerId: string,
   apiKeySource: ProviderApiKeyAuthSource,
-  oauthProviders: ReadonlySet<string> = new Set(),
-  builtInModelProviders: ReadonlySet<string> = getBuiltInPiModelProviderIds(),
-): boolean {
-  if (apiKeySource !== 'none') {
-    return true
-  }
-  if (PI_API_KEY_AUTH_PROVIDER_DISPLAY_NAMES.has(providerId)) {
-    return true
-  }
-  if (builtInModelProviders.has(providerId)) {
-    return false
-  }
-  return !oauthProviders.has(providerId)
+  apiKeyProviders: ReadonlySet<string>,
+) {
+  return apiKeySource !== 'none' || apiKeyProviders.has(providerId)
 }
 
 function toCapabilities(provider: {
   readonly provider: string
   readonly models: readonly Parameters<typeof toModelCapabilities>[0][]
+  readonly providerNames: ReadonlyMap<string, string>
+  readonly apiKeyProviders: ReadonlySet<string>
   readonly oauthProviders: ReadonlySet<string>
-  readonly oauthProviderNames: ReadonlyMap<string, string>
   readonly credentials: ReadonlyMap<string, { readonly type: string }>
   readonly configuredAuthProviders: ReadonlySet<string>
-  readonly builtInModelProviders: ReadonlySet<string>
 }) {
   const credential = provider.credentials.get(provider.provider)
   const hasConfiguredAuth = provider.configuredAuthProviders.has(provider.provider)
@@ -125,7 +71,7 @@ function toCapabilities(provider: {
   const apiKeySource = getProviderApiKeyAuthSource(credential?.type, hasConfiguredAuth)
   return {
     id: provider.provider,
-    displayName: getPiProviderDisplayName(provider.provider, provider.oauthProviderNames),
+    displayName: getPiProviderDisplayName(provider.provider, provider.providerNames),
     auth: {
       configured: source !== 'none',
       source,
@@ -135,8 +81,7 @@ function toCapabilities(provider: {
       supportsApiKey: supportsPiApiKeyAuthProvider(
         provider.provider,
         apiKeySource,
-        provider.oauthProviders,
-        provider.builtInModelProviders,
+        provider.apiKeyProviders,
       ),
       supportsOAuth: provider.oauthProviders.has(provider.provider),
     },
@@ -145,70 +90,34 @@ function toCapabilities(provider: {
   }
 }
 
-function getProviderAuthSource(
-  credentialType: string | undefined,
-  hasConfiguredAuth: boolean,
-): ProviderAuthSource {
-  if (credentialType === 'api_key') return 'api-key'
-  if (credentialType === 'oauth') return 'oauth'
-  return hasConfiguredAuth ? 'environment-or-custom' : 'none'
+function getProviderAuthSource(credentialType: string | undefined, hasConfiguredAuth: boolean) {
+  if (credentialType === 'api_key') return 'api-key' as const
+  if (credentialType === 'oauth') return 'oauth' as const
+  const source: ProviderAuthSource = hasConfiguredAuth
+    ? ('environment-or-custom' as const)
+    : ('none' as const)
+  return source
 }
 
 function getProviderApiKeyAuthSource(
   credentialType: string | undefined,
   hasConfiguredAuth: boolean,
-): ProviderApiKeyAuthSource {
-  if (credentialType === 'api_key') return 'api-key'
-  if (credentialType) return 'none'
-  return hasConfiguredAuth ? 'environment-or-custom' : 'none'
+) {
+  if (credentialType === 'api_key') return 'api-key' as const
+  if (credentialType) return 'none' as const
+  return hasConfiguredAuth ? ('environment-or-custom' as const) : ('none' as const)
 }
 
 function createProjectProviderCatalogSnapshot(
   projectPath: string | null | undefined,
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
 ) {
-  return Effect.gen(function* () {
-    const enabledOpenWaggleExtensionPackages = projectPath
-      ? yield* listRuntimeEnabledPackages(projectPath, extensionSelectionServices).pipe(
-          Effect.catchAll((error) =>
-            Effect.sync(() => {
-              logger.warn('Failed to resolve OpenWaggle extension runtime allowlist', {
-                projectPath,
-                error: error instanceof Error ? error.message : String(error),
-              })
-              return []
-            }),
-          ),
-        )
-      : []
-
-    return yield* Effect.promise(() =>
-      loadWithRuntimeFailureIsolation({
-        selections: enabledOpenWaggleExtensionPackages,
-        load: async (enabledOpenWaggleExtensionPackagePaths) => {
-          const snapshot = await createPiProviderCatalogSnapshot(projectPath, {
-            enabledOpenWaggleExtensionPackagePaths,
-            enabledOpenWaggleExtensionResourceRoots: getRuntimeEnabledPackagesPiResourceRoots(
-              enabledOpenWaggleExtensionPackages,
-              enabledOpenWaggleExtensionPackagePaths,
-            ),
-          })
-          return rejectMatchingOpenWaggleExtensionLoadErrors({
-            result: snapshot,
-            errors: snapshot.extensionLoadErrors,
-            enabledOpenWaggleExtensionPackagePaths,
-          })
-        },
-        recordFailure: (selection, error) =>
-          recordRuntimeLoadFailure({
-            selection,
-            error,
-            extensionSelectionServices,
-            logger,
-            operation: 'Pi provider catalog',
-          }),
-      }),
-    )
+  return loadWithProjectExtensions({
+    projectPath,
+    extensionSelectionServices,
+    operation: 'Pi provider catalog',
+    load: (options) => createPiProviderCatalogSnapshot(projectPath, options),
+    loadErrors: (snapshot) => snapshot.extensionLoadErrors,
   })
 }
 
@@ -232,11 +141,11 @@ export const ProviderServiceLive = Layer.effect(
             .map((provider) =>
               toCapabilities({
                 ...provider,
+                providerNames: snapshot.providerNames,
+                apiKeyProviders: snapshot.apiKeyProviders,
                 oauthProviders: snapshot.oauthProviders,
-                oauthProviderNames: snapshot.oauthProviderNames,
                 credentials: snapshot.credentials,
                 configuredAuthProviders: snapshot.configuredAuthProviders,
-                builtInModelProviders: snapshot.builtInModelProviders,
               }),
             )
             .find((provider) => provider.id === providerId)
@@ -251,11 +160,11 @@ export const ProviderServiceLive = Layer.effect(
           return snapshot.providers.map((provider) =>
             toCapabilities({
               ...provider,
+              providerNames: snapshot.providerNames,
+              apiKeyProviders: snapshot.apiKeyProviders,
               oauthProviders: snapshot.oauthProviders,
-              oauthProviderNames: snapshot.oauthProviderNames,
               credentials: snapshot.credentials,
               configuredAuthProviders: snapshot.configuredAuthProviders,
-              builtInModelProviders: snapshot.builtInModelProviders,
             }),
           )
         }),
@@ -272,11 +181,11 @@ export const ProviderServiceLive = Layer.effect(
           return provider
             ? toCapabilities({
                 ...provider,
+                providerNames: snapshot.providerNames,
+                apiKeyProviders: snapshot.apiKeyProviders,
                 oauthProviders: snapshot.oauthProviders,
-                oauthProviderNames: snapshot.oauthProviderNames,
                 credentials: snapshot.credentials,
                 configuredAuthProviders: snapshot.configuredAuthProviders,
-                builtInModelProviders: snapshot.builtInModelProviders,
               })
             : undefined
         }).pipe(

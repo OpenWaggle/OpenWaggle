@@ -18,11 +18,11 @@ export function ExtensionsSectionHeading({
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="space-y-1">
-        <h2 className="text-[20px] font-semibold text-text-primary">Extensions</h2>
-        <p className="max-w-[760px] text-[13px] leading-5 text-text-tertiary">
+        <h2 className="text-xl font-semibold text-text-primary">Extensions</h2>
+        <p className="max-w-190 text-xs leading-5 text-text-tertiary">
           Manage discovered OpenWaggle extension packages across global and project scopes.
         </p>
-        <p className="text-[11px] text-text-muted">{scopeSummary}</p>
+        <p className="text-xs text-text-muted">{scopeSummary}</p>
       </div>
       <Button disabled={loading} onClick={onRefresh} leftIcon={<RefreshCw className="size-3" />}>
         Refresh
@@ -39,7 +39,7 @@ export function ExtensionsErrorAlert({ message }: { readonly message: string | n
   return (
     <p
       role="alert"
-      className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error"
+      className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error-text"
     >
       {message}
     </p>

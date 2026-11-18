@@ -1,56 +1,48 @@
 ---
 title: "Contributing"
-description: "How to contribute to OpenWaggle — current contribution model, issue reporting, and future plans."
+description: "Report bugs, suggest features, send code contributions, and improve the documentation through GitHub."
 order: 2
-section: "Developer Guide"
+section: "Developer docs"
+kind: "guide"
 ---
 
-OpenWaggle is in early development and we welcome community input.
+You can help OpenWaggle by opening GitHub issues and sending pull requests: bug reports, feature requests, documentation fixes, UI feedback, design proposals, ideas for tools or integrations, and code changes. The repository's [CONTRIBUTING.md](https://github.com/OpenWaggle/OpenWaggle/blob/main/CONTRIBUTING.md) has the full policy.
 
-## Current Contribution Model
+You do not need to write the change yourself. Search the [existing issues](https://github.com/OpenWaggle/OpenWaggle/issues) first, in case someone has already reported it. The maintainers review new issues and track planned work on the [project roadmap](https://github.com/orgs/OpenWaggle/projects/1).
 
-For now, we accept contributions as **prompt suggestions** — descriptions of issues, features, or improvements that we implement internally. We're not yet accepting pull requests with code changes, but plan to open that up in the future.
+## Report a bug
 
-## How to Contribute
+Give enough detail for someone else to reproduce the problem:
 
-### Report Bugs
+1. Your operating system and OpenWaggle version.
+2. The steps you followed, what you expected, and what happened instead.
+3. The provider and model, if the problem is about agent behavior.
+4. Screenshots or logs that show the problem. Remove credentials, private code, and personal information first.
 
-1. Open an issue on [GitHub Issues](https://github.com/OpenWaggle/OpenWaggle/issues).
-2. Include clear steps to reproduce the bug.
-3. Mention the OS, Node.js version, and which AI provider/model you were using.
-4. Attach screenshots or logs if relevant.
+The repository's issue forms ask for these details when you open the issue.
 
-### Suggest Features
+If you run OpenWaggle from source, add the commit and your Node.js version. A small reproduction helps more than a description of a whole project.
 
-1. Open an issue with the `enhancement` label.
-2. Describe the use case — what problem does this solve?
-3. If possible, include mockups or examples from other tools.
+## Suggest a feature
 
-### Improve Documentation
+Describe the task you cannot do, the workaround you use today, and the change you want. Mockups and concrete examples help. Open an issue to discuss a large architectural change before anyone builds it.
 
-Found a typo, unclear instruction, or missing content? Open an issue describing what needs fixing. Documentation suggestions are always welcome.
+## Fix the documentation
 
-## What We're Looking For
+Link to the page and point out the instruction that is missing, unclear, or wrong. Include the command or wording you tried and, if you can, the correction you suggest.
 
-- Bug reports with reproduction steps
-- Feature requests with concrete use cases
-- UI/UX feedback and suggestions
-- Documentation improvements
+## Send a pull request
 
-## Code of Conduct
+Start from an issue, keep each pull request one coherent change, and follow the commit and verification standards the repository CI enforces. [CONTRIBUTING.md](https://github.com/OpenWaggle/OpenWaggle/blob/main/CONTRIBUTING.md) describes them. You can [build OpenWaggle from source](/docs/developer-guide/building-from-source) to check a fix on your own machine first.
 
-- Be respectful and constructive in all interactions.
-- Focus on the problem, not the person.
-- Assume good intent from other contributors.
+Submitting a contribution accepts the project's [Contributor License Agreement](https://github.com/OpenWaggle/OpenWaggle/blob/main/CLA.md). You keep the copyright of your work. [CLA Assistant](https://cla-assistant.io/) checks every pull request. Agree once in its comment and your later pull requests are covered automatically. A pull request without the CLA status cannot merge.
 
-## Future Plans
+## Ask a question
 
-As OpenWaggle matures, we plan to:
+Start a [GitHub Discussion](https://github.com/OpenWaggle/OpenWaggle/discussions), or open an issue.
 
-- Accept pull requests for bug fixes and features
-- Publish a development setup guide
-- Define code review and testing requirements for PRs
+## Be kind
 
-## Questions?
-
-Open a [GitHub Discussion](https://github.com/OpenWaggle/OpenWaggle/discussions) or reach out via the issue tracker.
+- Be respectful and constructive.
+- Talk about the problem, not the person.
+- Assume other contributors mean well.

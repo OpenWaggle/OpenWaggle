@@ -1,18 +1,28 @@
-import { Check, ChevronRight, GitBranch, Loader2, X } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { cn } from '@/shared/lib/cn'
 import { formatDuration } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
+import { useChatDisplayText } from './ChatDisplayPathContext'
+import { DiffStatLabel, describeDiffStat } from './DiffStatLabel'
 import type { ToolCallViewModel } from './ToolCallBlock'
-import { UnifiedDiffView } from './ToolCallBlockParts'
+import {
+  ToolRowFailureMark,
+  ToolRowIcon,
+  type ToolRowStatus,
+  toolRowLabelClassName,
+} from './ToolRowStatus'
 
 interface ToolCallHeaderProps {
   readonly expanded: boolean
   readonly duration: number
   readonly result: ToolCallResultPayload | undefined
   readonly view: ToolCallViewModel
-  readonly onBranchFromMessage?: (messageId: string) => void
   readonly onToggleExpanded: () => void
+  /** Controls of the row's subject that sit outside its toggle, such as a Worker's Open. */
+  readonly addon?: ReactNode
 }
 
 export function ToolCallHeader({
@@ -20,24 +30,27 @@ export function ToolCallHeader({
   duration,
   result,
   view,
-  onBranchFromMessage,
   onToggleExpanded,
+  addon,
 }: ToolCallHeaderProps) {
+  const actionText = useChatDisplayText(view.actionText)
+  const status = toolRowStatus(view, result)
   return (
     <div className="flex items-center gap-2">
       <Button
         variant="unstyled"
         type="button"
         aria-expanded={expanded}
-        aria-label={`${view.actionText} — ${expanded ? 'collapse' : 'expand'} details`}
+        aria-label={toolHeaderLabel(actionText, view, status, expanded)}
         onClick={onToggleExpanded}
-        className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-[13px] transition-colors"
+        className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-sm transition-colors"
       >
-        <ToolStatusIcon view={view} result={result} />
-        <ToolActionLabel view={view} result={result} />
+        <ToolRowIcon kind={view.kind} status={status} />
+        <span className={cn('truncate', toolRowLabelClassName(status))}>{actionText}</span>
+        {status === 'failed' && <ToolRowFailureMark />}
         <ToolDiffSummary view={view} />
         {duration > 0 && !view.isRunning && (
-          <span className="text-[12px] text-text-muted shrink-0">{formatDuration(duration)}</span>
+          <span className="text-xs text-text-muted shrink-0">{formatDuration(duration)}</span>
         )}
         <ChevronRight
           className={cn(
@@ -47,55 +60,32 @@ export function ToolCallHeader({
           )}
         />
       </Button>
-      <BranchFromToolButton view={view} onBranchFromMessage={onBranchFromMessage} />
+      {addon}
     </div>
   )
 }
 
-function ToolStatusIcon({
-  view,
-  result,
-}: {
-  readonly view: ToolCallViewModel
-  readonly result: ToolCallResultPayload | undefined
-}) {
-  if (view.isRunning) {
-    return (
-      <Loader2
-        role="status"
-        aria-label="Running"
-        className="size-3.5 text-text-tertiary animate-spin shrink-0"
-      />
-    )
-  }
-  if (view.hasConcreteResult && result && !view.isError) {
-    return <Check className="size-3.5 text-text-muted shrink-0" />
-  }
-  if (result && view.isError) {
-    return <X className="size-3.5 text-error/80 shrink-0" />
-  }
-  return null
+/**
+ * The toggle's label replaces its content, so it uses the same display text the row
+ * shows (label in name) and carries the diff stat and the failure itself.
+ */
+function toolHeaderLabel(
+  actionText: string,
+  view: ToolCallViewModel,
+  status: ToolRowStatus,
+  expanded: boolean,
+) {
+  const stat = view.diff ? `, ${describeDiffStat(view.diff)}` : ''
+  const failed = status === 'failed' ? ', failed' : ''
+  return `${actionText}${failed}${stat} — ${expanded ? 'collapse' : 'expand'} details`
 }
 
-function ToolActionLabel({
-  view,
-  result,
-}: {
-  readonly view: ToolCallViewModel
-  readonly result: ToolCallResultPayload | undefined
-}) {
-  return (
-    <span
-      className={cn(
-        'truncate',
-        view.isRunning && 'text-text-tertiary',
-        view.hasConcreteResult && result && !view.isError && 'text-text-muted',
-        result && view.isError && 'text-error/80',
-      )}
-    >
-      {view.actionText}
-    </span>
-  )
+/** Running wins over a failure a streaming call already reported, as the old spinner did. */
+function toolRowStatus(view: ToolCallViewModel, result: ToolCallResultPayload | undefined) {
+  if (view.isRunning) return 'running' as const
+  if (result && view.isError) return 'failed' as const
+  if (view.hasConcreteResult && result) return 'done' as const
+  return 'requested' as const
 }
 
 function ToolDiffSummary({ view }: { readonly view: ToolCallViewModel }) {
@@ -103,33 +93,13 @@ function ToolDiffSummary({ view }: { readonly view: ToolCallViewModel }) {
     return null
   }
   return (
-    <span className="flex items-center gap-1 text-[12px] shrink-0">
-      <span className="text-success">+{view.diff.additions}</span>
-      <span className="text-error">-{view.diff.deletions}</span>
+    <span className="shrink-0 text-xs">
+      <DiffStatLabel
+        additions={view.diff.additions}
+        deletions={view.diff.deletions}
+        layout="inline"
+      />
     </span>
-  )
-}
-
-function BranchFromToolButton({
-  view,
-  onBranchFromMessage,
-}: {
-  readonly view: ToolCallViewModel
-  readonly onBranchFromMessage?: (messageId: string) => void
-}) {
-  if (!view.branchSourceMessageId || !onBranchFromMessage) {
-    return null
-  }
-  return (
-    <Button
-      variant="unstyled"
-      type="button"
-      title="Branch from tool result"
-      onClick={() => onBranchFromMessage(view.branchSourceMessageId ?? '')}
-      className="opacity-0 text-text-muted transition-opacity hover:text-text-secondary group-hover/tool:opacity-100 focus:opacity-100"
-    >
-      <GitBranch className="size-3.5" />
-    </Button>
   )
 }
 
@@ -145,11 +115,6 @@ export function CollapsedToolPreview({
   }
   return (
     <>
-      {view.inlineDiffVisible && view.diff && (
-        <div className="ml-5 mt-1">
-          <UnifiedDiffView diff={view.diff} compact />
-        </div>
-      )}
       {view.liveOutputPreview && <ToolPreview text={view.liveOutputPreview} tone="muted" />}
       {view.failedOutputPreview && <ToolPreview text={view.failedOutputPreview} tone="error" />}
     </>
@@ -157,16 +122,18 @@ export function CollapsedToolPreview({
 }
 
 function ToolPreview({ text, tone }: { readonly text: string; readonly tone: 'muted' | 'error' }) {
+  const displayText = useChatDisplayText(text)
   return (
-    <pre
+    <PlainTextBlock
+      reason={tone === 'error' ? 'error' : 'log'}
       className={cn(
-        'ml-5 mt-1 overflow-hidden rounded-md px-3 py-2 text-[12px] font-mono whitespace-pre-wrap break-words',
+        'ml-5 mt-1 overflow-hidden rounded-md px-3 py-2 text-xs font-mono whitespace-pre-wrap break-words',
         tone === 'error'
-          ? 'max-h-[160px] border border-error/20 bg-error/5 text-error'
-          : 'max-h-[120px] bg-bg-secondary/60 text-text-tertiary',
+          ? 'max-h-40 border border-error/20 bg-error/5 text-error'
+          : 'max-h-30 bg-bg-secondary/60 text-text-tertiary',
       )}
     >
-      {text}
-    </pre>
+      {displayText}
+    </PlainTextBlock>
   )
 }

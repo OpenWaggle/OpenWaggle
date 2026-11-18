@@ -1,6 +1,9 @@
 import {
+  createPlainExtensionSyntaxResult,
   OPENWAGGLE_EXTENSION_UI_ATTRIBUTES,
   OPENWAGGLE_EXTENSION_UI_CLASS_NAMES,
+  type OpenWaggleExtensionSyntaxHighlightResult,
+  type OpenWaggleExtensionSyntaxSdk,
   type OpenWaggleExtensionUiButtonVariant,
   type OpenWaggleExtensionUiTone,
   openWaggleExtensionClassName,
@@ -10,11 +13,313 @@ import type {
   CSSProperties,
   HTMLAttributes,
   InputHTMLAttributes,
+  JSX,
   ReactNode,
   Ref,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+const SYNTAX_FONT_STYLE_ITALIC = 1
+const SYNTAX_FONT_STYLE_BOLD = 2
+const SYNTAX_FONT_STYLE_UNDERLINE = 4
+
+function syntaxTokenStyle(token: {
+  readonly content: string
+  readonly color?: string
+  readonly backgroundColor?: string
+  readonly fontStyle?: number
+}) {
+  const fontStyle = token.fontStyle ?? 0
+  return {
+    ...(token.color ? { color: token.color } : {}),
+    ...(token.backgroundColor ? { backgroundColor: token.backgroundColor } : {}),
+    ...(fontStyle & SYNTAX_FONT_STYLE_ITALIC ? { fontStyle: 'italic' as const } : {}),
+    ...(fontStyle & SYNTAX_FONT_STYLE_BOLD ? { fontWeight: 600 } : {}),
+    ...(fontStyle & SYNTAX_FONT_STYLE_UNDERLINE ? { textDecoration: 'underline' } : {}),
+  }
+}
+
+export interface SyntaxBlockProps {
+  readonly syntax: OpenWaggleExtensionSyntaxSdk
+  readonly source: string
+  readonly language?: string
+  readonly path?: string
+  readonly className?: string
+  readonly wrap?: boolean
+  readonly showLineNumbers?: boolean
+  readonly ariaLabel?: string
+}
+
+function useExtensionSyntaxResult({
+  syntax,
+  source,
+  language,
+  path,
+  enabled = true,
+}: Pick<SyntaxBlockProps, 'syntax' | 'source' | 'language' | 'path'> & {
+  readonly enabled?: boolean
+}) {
+  // Not built when disabled: large sources stay plain without a tokenized copy.
+  const plain = useMemo(
+    () =>
+      enabled
+        ? createPlainExtensionSyntaxResult({
+            source,
+            ...(language === undefined ? {} : { language }),
+          })
+        : undefined,
+    [enabled, source, language],
+  )
+  // Keyed by its inputs, so a changed input shows plain text until its own highlight lands.
+  const [highlighted, setHighlighted] = useState<
+    | {
+        readonly syntax: OpenWaggleExtensionSyntaxSdk
+        readonly source: string
+        readonly language: string | undefined
+        readonly path: string | undefined
+        readonly result: OpenWaggleExtensionSyntaxHighlightResult
+      }
+    | undefined
+  >(undefined)
+
+  useEffect(() => {
+    if (!enabled) return undefined
+    let active = true
+    const controller = new AbortController()
+    const settle = (result: OpenWaggleExtensionSyntaxHighlightResult) => {
+      if (active) setHighlighted({ syntax, source, language, path, result })
+    }
+    void syntax
+      .highlight(
+        {
+          source,
+          ...(language === undefined ? {} : { language }),
+          ...(path === undefined ? {} : { path }),
+          priority: 'visible',
+        },
+        { signal: controller.signal },
+      )
+      .then(settle, () => {
+        settle(
+          createPlainExtensionSyntaxResult({
+            source,
+            ...(language === undefined ? {} : { language }),
+          }),
+        )
+      })
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [enabled, language, path, source, syntax])
+  if (!plain) return undefined
+  const current =
+    highlighted?.syntax === syntax &&
+    highlighted.source === source &&
+    highlighted.language === language &&
+    highlighted.path === path
+  return current ? highlighted.result : plain
+}
+
+export function SyntaxBlock({
+  syntax,
+  source,
+  language,
+  path,
+  className,
+  wrap = false,
+  showLineNumbers = false,
+  ariaLabel,
+}: SyntaxBlockProps) {
+  const result =
+    useExtensionSyntaxResult({
+      syntax,
+      source,
+      ...(language === undefined ? {} : { language }),
+      ...(path === undefined ? {} : { path }),
+    }) ??
+    createPlainExtensionSyntaxResult({ source, ...(language === undefined ? {} : { language }) })
+
+  const value: JSX.Element = (
+    <section aria-label={ariaLabel}>
+      <pre
+        className={openWaggleExtensionClassName(
+          OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.syntaxBlock,
+          className,
+        )}
+        data-ow-syntax-language={result.language}
+        data-ow-syntax-status={result.status}
+        data-ow-wrap={wrap ? 'true' : 'false'}
+        title={result.diagnostic}
+        style={{
+          ...(result.background ? { backgroundColor: result.background } : {}),
+          ...(result.foreground ? { color: result.foreground } : {}),
+        }}
+      >
+        <code>
+          {result.lines.map((line, lineIndex) => (
+            <span key={`${String(lineIndex)}:${line.map((token) => token.content).join('')}`}>
+              {showLineNumbers ? (
+                <span
+                  aria-hidden="true"
+                  className={OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.syntaxLineNumber}
+                >
+                  {lineIndex + 1}
+                </span>
+              ) : null}
+              {line.map((token, tokenIndex) => (
+                <span
+                  key={`${String(tokenIndex)}:${token.content}`}
+                  style={syntaxTokenStyle(token)}
+                >
+                  {token.content}
+                </span>
+              ))}
+              {lineIndex < result.lines.length - 1 ? '\n' : null}
+            </span>
+          ))}
+        </code>
+      </pre>
+    </section>
+  )
+  return value
+}
+
+export type SourceViewProps = SyntaxBlockProps
+
+const SOURCE_VIEW_LINE_HEIGHT_PX = 20
+const SOURCE_VIEW_HEIGHT_PX = 320
+const SOURCE_VIEW_OVERSCAN_LINES = 20
+const SOURCE_VIEW_HIGHLIGHT_MAX_CODE_UNITS = 64 * 1024
+const SOURCE_VIEW_HIGHLIGHT_MAX_LINES = 2_000
+
+function indexSourceLines(source: string) {
+  const lineStarts = [0]
+  let newlineIndex = source.indexOf('\n')
+  while (newlineIndex >= 0) {
+    lineStarts.push(newlineIndex + 1)
+    newlineIndex = source.indexOf('\n', newlineIndex + 1)
+  }
+  return lineStarts
+}
+
+function materializePlainSourceLines(
+  source: string,
+  lineStarts: readonly number[],
+  start: number,
+  end: number,
+) {
+  return Array.from({ length: end - start }, (_, visibleIndex) => {
+    const lineIndex = start + visibleIndex
+    const lineStart = lineStarts[lineIndex] ?? source.length
+    const nextLineStart = lineStarts[lineIndex + 1]
+    const lineEnd = nextLineStart === undefined ? source.length : nextLineStart - 1
+    return [{ content: source.slice(lineStart, lineEnd) }]
+  })
+}
+
+export function SourceView({
+  syntax,
+  source,
+  language,
+  path,
+  className,
+  showLineNumbers = true,
+  ariaLabel,
+}: SourceViewProps) {
+  const sourceLineStarts = useMemo(() => indexSourceLines(source), [source])
+  const sourceLineCount = sourceLineStarts.length
+  const highlightEnabled =
+    source.length <= SOURCE_VIEW_HIGHLIGHT_MAX_CODE_UNITS &&
+    sourceLineCount <= SOURCE_VIEW_HIGHLIGHT_MAX_LINES
+  const result = useExtensionSyntaxResult({
+    syntax,
+    source,
+    ...(language === undefined ? {} : { language }),
+    ...(path === undefined ? {} : { path }),
+    enabled: highlightEnabled,
+  })
+  const [scrollTop, setScrollTop] = useState(0)
+  const lineCount = Math.max(1, result?.lines.length ?? sourceLineCount)
+  const firstVisible = Math.min(lineCount - 1, Math.floor(scrollTop / SOURCE_VIEW_LINE_HEIGHT_PX))
+  const start = Math.max(0, firstVisible - SOURCE_VIEW_OVERSCAN_LINES)
+  const visibleLines = Math.ceil(SOURCE_VIEW_HEIGHT_PX / SOURCE_VIEW_LINE_HEIGHT_PX)
+  const end = Math.max(
+    start,
+    Math.min(lineCount, firstVisible + visibleLines + SOURCE_VIEW_OVERSCAN_LINES),
+  )
+  const visibleRows = useMemo(
+    () =>
+      result?.lines.slice(start, end) ??
+      materializePlainSourceLines(source, sourceLineStarts, start, end),
+    [end, result, source, sourceLineStarts, start],
+  )
+  const value: JSX.Element = (
+    <section aria-label={ariaLabel}>
+      <pre
+        className={openWaggleExtensionClassName(
+          OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.syntaxBlock,
+          className,
+        )}
+        data-ow-syntax-language={(result?.language ?? language?.trim()) || 'text'}
+        data-ow-syntax-status={result?.status ?? 'plain-text'}
+        title={result?.diagnostic}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        style={{
+          height: Math.min(SOURCE_VIEW_HEIGHT_PX, lineCount * SOURCE_VIEW_LINE_HEIGHT_PX),
+          overflow: 'auto',
+          position: 'relative',
+          ...(result?.background ? { backgroundColor: result.background } : {}),
+          ...(result?.foreground ? { color: result.foreground } : {}),
+        }}
+      >
+        <code
+          style={{
+            display: 'block',
+            height: lineCount * SOURCE_VIEW_LINE_HEIGHT_PX,
+            minWidth: 'max-content',
+            position: 'relative',
+          }}
+        >
+          {visibleRows.map((line, visibleIndex) => {
+            const lineIndex = start + visibleIndex
+            return (
+              <span
+                key={String(lineIndex)}
+                data-ow-source-row={lineIndex + 1}
+                style={{
+                  display: 'block',
+                  height: SOURCE_VIEW_LINE_HEIGHT_PX,
+                  left: 0,
+                  position: 'absolute',
+                  top: lineIndex * SOURCE_VIEW_LINE_HEIGHT_PX,
+                  whiteSpace: 'pre',
+                }}
+              >
+                {showLineNumbers ? (
+                  <span
+                    aria-hidden="true"
+                    className={OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.syntaxLineNumber}
+                  >
+                    {lineIndex + 1}
+                  </span>
+                ) : null}
+                {line.map((token, tokenIndex) => (
+                  <span key={String(tokenIndex)} style={syntaxTokenStyle(token)}>
+                    {token.content}
+                  </span>
+                ))}
+              </span>
+            )
+          })}
+        </code>
+      </pre>
+    </section>
+  )
+  return value
+}
 
 export interface StackProps {
   readonly children?: ReactNode
@@ -25,7 +330,7 @@ export interface StackProps {
 }
 
 export function Stack({ children, className, gap, ref, style }: StackProps) {
-  return (
+  const result: JSX.Element = (
     <div
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.stack, className)}
@@ -34,6 +339,7 @@ export function Stack({ children, className, gap, ref, style }: StackProps) {
       {children}
     </div>
   )
+  return result
 }
 
 export interface PanelProps {
@@ -44,7 +350,7 @@ export interface PanelProps {
 }
 
 export function Panel({ children, className, ref, style }: PanelProps) {
-  return (
+  const result: JSX.Element = (
     <section
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.panel, className)}
@@ -53,6 +359,7 @@ export function Panel({ children, className, ref, style }: PanelProps) {
       {children}
     </section>
   )
+  return result
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -61,7 +368,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ children, className, ref, variant = 'secondary', ...props }: ButtonProps) {
-  return (
+  const result: JSX.Element = (
     <button
       {...props}
       ref={ref}
@@ -74,6 +381,7 @@ export function Button({ children, className, ref, variant = 'secondary', ...pro
       {children}
     </button>
   )
+  return result
 }
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -81,13 +389,14 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export function Input({ className, ref, ...props }: InputProps) {
-  return (
+  const result: JSX.Element = (
     <input
       {...props}
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.input, className)}
     />
   )
+  return result
 }
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -95,7 +404,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 }
 
 export function Textarea({ className, ref, ...props }: TextareaProps) {
-  return (
+  const result: JSX.Element = (
     <textarea
       {...props}
       ref={ref}
@@ -105,6 +414,7 @@ export function Textarea({ className, ref, ...props }: TextareaProps) {
       )}
     />
   )
+  return result
 }
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -112,7 +422,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export function Select({ children, className, ref, ...props }: SelectProps) {
-  return (
+  const result: JSX.Element = (
     <select
       {...props}
       ref={ref}
@@ -124,6 +434,7 @@ export function Select({ children, className, ref, ...props }: SelectProps) {
       {children}
     </select>
   )
+  return result
 }
 
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -131,7 +442,7 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
 }
 
 export function Checkbox({ className, ref, ...props }: CheckboxProps) {
-  return (
+  const result: JSX.Element = (
     <input
       {...props}
       ref={ref}
@@ -142,6 +453,7 @@ export function Checkbox({ className, ref, ...props }: CheckboxProps) {
       )}
     />
   )
+  return result
 }
 
 export interface BadgeProps {
@@ -152,7 +464,7 @@ export interface BadgeProps {
 }
 
 export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps) {
-  return (
+  const result: JSX.Element = (
     <span
       ref={ref}
       className={openWaggleExtensionClassName(OPENWAGGLE_EXTENSION_UI_CLASS_NAMES.badge, className)}
@@ -161,6 +473,7 @@ export function Badge({ children, className, ref, tone = 'neutral' }: BadgeProps
       {children}
     </span>
   )
+  return result
 }
 
 export interface AlertProps {
@@ -172,7 +485,7 @@ export interface AlertProps {
 }
 
 export function Alert({ children, className, ref, role = 'status', tone = 'neutral' }: AlertProps) {
-  return (
+  const result: JSX.Element = (
     <div
       ref={ref}
       role={role}
@@ -182,6 +495,7 @@ export function Alert({ children, className, ref, role = 'status', tone = 'neutr
       {children}
     </div>
   )
+  return result
 }
 
 export interface FieldProps extends HTMLAttributes<HTMLDivElement> {
@@ -202,7 +516,7 @@ export function Field({
   ref,
   ...props
 }: FieldProps) {
-  return (
+  const result: JSX.Element = (
     <div
       {...props}
       ref={ref}
@@ -222,6 +536,7 @@ export function Field({
       {error ? <span data-ow-tone="danger">{error}</span> : null}
     </div>
   )
+  return result
 }
 
 export type { OpenWaggleExtensionUiButtonVariant, OpenWaggleExtensionUiTone }

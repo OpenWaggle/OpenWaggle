@@ -7,76 +7,39 @@ vi.mock('@/shared/lib/ipc', () => ({
 }))
 
 import { useComposerActionStore } from '../composer-action-store'
-import { useComposerStore } from '../composer-store'
 
 beforeEach(() => {
   useComposerActionStore.setState({
-    actionDialog: null,
-    actionDialogInput: '',
-    actionDialogError: null,
-    actionDialogBusy: false,
     branchQuery: '',
     branchMessage: null,
-  })
-  useComposerStore.setState({
-    thinkingMenuOpen: false,
-    executionMenuOpen: false,
-    branchMenuOpen: false,
+    filePickerRequest: null,
+    filePickerRequestRevision: 0,
   })
 })
 
-describe('action dialog', () => {
-  it('openActionDialog sets kind and initial value', () => {
-    useComposerActionStore.getState().openActionDialog('create-branch', 'feat/new')
-    expect(useComposerActionStore.getState().actionDialog).toBe('create-branch')
-    expect(useComposerActionStore.getState().actionDialogInput).toBe('feat/new')
-    expect(useComposerActionStore.getState().actionDialogError).toBeNull()
+describe('session-scoped composer requests', () => {
+  it('lets only the matching opened session consume a file picker request', () => {
+    useComposerActionStore.getState().requestFilePicker('session-a')
+    const request = useComposerActionStore.getState().filePickerRequest
+
+    expect(request).toEqual({ id: 1, sessionId: 'session-a' })
+    expect(
+      request && useComposerActionStore.getState().takeFilePickerRequest(request.id, 'session-b'),
+    ).toBe(false)
+    expect(useComposerActionStore.getState().filePickerRequest).toBeNull()
   })
 
-  it('openActionDialog closes menus via composer store', () => {
-    useComposerStore.getState().openMenu('thinking')
-    expect(useComposerStore.getState().thinkingMenuOpen).toBe(true)
+  it('consumes a matching request exactly once', () => {
+    useComposerActionStore.getState().requestFilePicker('session-a')
+    const request = useComposerActionStore.getState().filePickerRequest
+    if (!request) throw new Error('Expected a file picker request')
 
-    useComposerActionStore.getState().openActionDialog('delete-branch')
-    expect(useComposerStore.getState().thinkingMenuOpen).toBe(false)
-    expect(useComposerStore.getState().executionMenuOpen).toBe(false)
-    expect(useComposerStore.getState().branchMenuOpen).toBe(false)
-  })
-
-  it('closeActionDialog resets dialog state when not busy', () => {
-    useComposerActionStore.getState().openActionDialog('delete-branch')
-    useComposerActionStore.getState().closeActionDialog()
-    expect(useComposerActionStore.getState().actionDialog).toBeNull()
-    expect(useComposerActionStore.getState().actionDialogInput).toBe('')
-    expect(useComposerActionStore.getState().actionDialogError).toBeNull()
-  })
-
-  it('closeActionDialog does nothing when busy', () => {
-    useComposerActionStore.getState().openActionDialog('rename-branch')
-    useComposerActionStore.getState().setActionDialogBusy(true)
-    useComposerActionStore.getState().closeActionDialog()
-    expect(useComposerActionStore.getState().actionDialog).toBe('rename-branch')
-  })
-
-  it('setActionDialogInput updates input value', () => {
-    useComposerActionStore.getState().setActionDialogInput('new-value')
-    expect(useComposerActionStore.getState().actionDialogInput).toBe('new-value')
-  })
-
-  it('setActionDialogError sets and clears error', () => {
-    useComposerActionStore.getState().setActionDialogError('Something went wrong')
-    expect(useComposerActionStore.getState().actionDialogError).toBe('Something went wrong')
-
-    useComposerActionStore.getState().setActionDialogError(null)
-    expect(useComposerActionStore.getState().actionDialogError).toBeNull()
-  })
-
-  it('setActionDialogBusy sets busy state', () => {
-    useComposerActionStore.getState().setActionDialogBusy(true)
-    expect(useComposerActionStore.getState().actionDialogBusy).toBe(true)
-
-    useComposerActionStore.getState().setActionDialogBusy(false)
-    expect(useComposerActionStore.getState().actionDialogBusy).toBe(false)
+    expect(useComposerActionStore.getState().takeFilePickerRequest(request.id, 'session-a')).toBe(
+      true,
+    )
+    expect(useComposerActionStore.getState().takeFilePickerRequest(request.id, 'session-a')).toBe(
+      false,
+    )
   })
 })
 

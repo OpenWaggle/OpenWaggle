@@ -7,9 +7,11 @@ const { broadcastToWindowsMock } = vi.hoisted(() => ({
 
 vi.mock('../broadcast', () => ({
   broadcastToWindows: broadcastToWindowsMock,
+  broadcastAgentEvent: (payload: unknown) => broadcastToWindowsMock('agent:event', payload),
 }))
 
 import {
+  clearAgentPhase,
   clearStreamBuffer,
   emitTransportEvent,
   getStreamBuffer,
@@ -86,15 +88,33 @@ describe('stream-bridge', () => {
       expect.objectContaining({
         sessionId: SESSION_ID,
         messageId: MESSAGE_ID,
-        parts: [{ type: 'text', text: 'Session one output' }],
+        parts: [{ type: 'text', text: 'Session one output', contentIndex: 0 }],
       }),
     )
     expect(getStreamBuffer(OTHER_SESSION_ID)).toEqual(
       expect.objectContaining({
         sessionId: OTHER_SESSION_ID,
         messageId: OTHER_MESSAGE_ID,
-        parts: [{ type: 'text', text: 'Session two output' }],
+        parts: [{ type: 'text', text: 'Session two output', contentIndex: 0 }],
       }),
     )
+  })
+
+  it('keeps the transport source time when a phase broadcast is delayed', () => {
+    const sessionId = SessionId('delayed-phase')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(300)
+
+    emitTransportEvent(sessionId, {
+      type: 'agent_start',
+      runId: 'run-delayed',
+      timestamp: 100,
+    })
+
+    expect(broadcastToWindowsMock).toHaveBeenCalledWith('agent:phase', {
+      sessionId,
+      phase: { label: 'Thinking', startedAt: 100 },
+    })
+    clearAgentPhase(sessionId)
+    now.mockRestore()
   })
 })

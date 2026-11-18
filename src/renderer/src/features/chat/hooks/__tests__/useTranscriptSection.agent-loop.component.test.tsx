@@ -8,7 +8,7 @@ import {
   SessionNodeId,
   SupportedModelId,
 } from '@shared/types/brand'
-import type { SessionNode, SessionWorkspace } from '@shared/types/session'
+import type { SessionNode } from '@shared/types/session'
 import type {
   AgentTransportCustomEvent,
   AgentTransportInteractionRequestEvent,
@@ -26,6 +26,8 @@ vi.mock('@/shared/lib/ipc', () => ({
 
 const SESSION_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
+const ISSUE_113 = '#113'
+const ISSUE_114 = '#114'
 
 type PersistedAgentLoopEvent =
   | AgentTransportCustomEvent
@@ -38,7 +40,7 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
-): SessionNode {
+) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -58,7 +60,7 @@ function sessionNode(
     },
     contentJson: JSON.stringify({ parts: [{ type: 'text', text: content }], model: null }),
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 function agentLoopEventNode(
@@ -66,7 +68,7 @@ function agentLoopEventNode(
   parentId: string | null,
   event: PersistedAgentLoopEvent,
   createdOrder: number,
-): SessionNode {
+) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -84,13 +86,10 @@ function agentLoopEventNode(
     metadataJson: JSON.stringify({
       customType: OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE,
     }),
-  }
+  } satisfies SessionNode
 }
 
-function transcriptPathForActiveNode(
-  nodes: readonly SessionNode[],
-  activeNodeId: SessionNodeId,
-): SessionWorkspace['transcriptPath'] {
+function transcriptPathForActiveNode(nodes: readonly SessionNode[], activeNodeId: SessionNodeId) {
   const nodesById = new Map(nodes.map((node) => [String(node.id), node]))
   const path: SessionNode[] = []
   const seen = new Set<string>()
@@ -104,7 +103,7 @@ function transcriptPathForActiveNode(
 
   return path.map((node) => ({
     node,
-    branchId: node.branchId,
+    ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
     isActive: node.id === activeNodeId,
   }))
 }
@@ -143,8 +142,9 @@ function workspaceWithPath(nodes: readonly SessionNode[], activeNodeId: SessionN
   }
 }
 
-function transcriptParams(): TranscriptSectionParams {
-  return {
+function transcriptParams() {
+  const params: TranscriptSectionParams = {
+    turnsByAnchorNodeId: new Map(),
     messages: [],
     customMessages: [],
     interactionEvents: [],
@@ -165,12 +165,17 @@ function transcriptParams(): TranscriptSectionParams {
     handleSelectProjectPath: vi.fn(),
     handleSendText: vi.fn(),
     openSettings: vi.fn(),
-    handleDismissInterruptedRun: vi.fn(),
     handleBranchFromMessage: vi.fn(),
     handleForkFromMessage: vi.fn(),
-    userDidSend: false,
-    onUserDidSendConsumed: vi.fn(),
+    handleForkFromResponse: vi.fn(),
+    handleDismissInterruptedRun: vi.fn(),
+    pendingSend: null,
+    onPendingSendConsumed: vi.fn(),
+    handleViewTurnDiff: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
+    compactionStatus: null,
   }
+  return params
 }
 
 function agentLoopCustomRows(rows: readonly ChatRow[]) {
@@ -178,7 +183,7 @@ function agentLoopCustomRows(rows: readonly ChatRow[]) {
 }
 
 function agentLoopInteractionRows(rows: readonly ChatRow[]) {
-  return rows.filter((row) => row.type === 'agent-loop-interaction-event')
+  return rows.filter((row) => row.type === 'agent-loop-interaction')
 }
 
 describe('useTranscriptSection agent-loop hydration', () => {
@@ -216,7 +221,7 @@ describe('useTranscriptSection agent-loop hydration', () => {
           source: 'pi-ui',
           createdAt: 30,
           title: 'Pick issue',
-          choices: ['#113', '#114'],
+          choices: [ISSUE_113, ISSUE_114],
         },
       },
       2,
@@ -231,7 +236,7 @@ describe('useTranscriptSection agent-loop hydration', () => {
         interactionId: 'interaction-1',
         kind: 'select',
         status: 'resolved',
-        response: { kind: 'select', selected: '#113' },
+        response: { kind: 'select', selected: ISSUE_113 },
       },
       3,
     )
@@ -261,9 +266,17 @@ describe('useTranscriptSection agent-loop hydration', () => {
       name: 'openwaggle.github.issues.summary',
       value: { open: 2 },
     })
-    expect(agentLoopInteractionRows(result.current.chatRows).map((row) => row.event.type)).toEqual([
-      'agent_interaction_request',
-      'agent_interaction_resolved',
-    ])
+    expect(agentLoopInteractionRows(result.current.chatRows)).toHaveLength(1)
+    expect(agentLoopInteractionRows(result.current.chatRows)[0]?.item).toMatchObject({
+      request: {
+        type: 'agent_interaction_request',
+        interaction: { interactionId: 'interaction-1', kind: 'select' },
+      },
+      resolution: {
+        type: 'agent_interaction_resolved',
+        interactionId: 'interaction-1',
+        status: 'resolved',
+      },
+    })
   })
 })

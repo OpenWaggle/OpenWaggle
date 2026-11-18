@@ -1,37 +1,23 @@
-import { decodeUnknownOrThrow, type Schema } from '@shared/schema'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import {
+  gitBranchCheckoutPayloadSchema,
+  gitBranchCreatePayloadSchema,
+} from '@shared/schemas/git-requests'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
-  GitBranchDeletePayload,
   GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
 } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
-import { listGitBranches } from './branch-list'
-import {
-  checkoutGitBranch,
-  createGitBranch,
-  deleteGitBranch,
-  renameGitBranch,
-  setGitBranchUpstream,
-} from './branch-mutations'
-import {
-  branchCheckoutPayloadSchema,
-  branchCreatePayloadSchema,
-  branchDeletePayloadSchema,
-  branchRenamePayloadSchema,
-  branchSetUpstreamPayloadSchema,
-} from './branch-schemas'
+import { readGitBranchList } from './branch-list-cache'
+import { checkoutGitBranch, createGitBranch, validateGitBranchName } from './branch-mutations'
+import { withGitMutationLock } from './mutation-lock'
 import { projectPathSchema } from './shared'
+import { invalidateGitStatusCache } from './status-cache'
+import { invalidateVcsStatus } from './vcs-status-cache'
 
-type BranchMutationPayload =
-  | GitBranchCheckoutPayload
-  | GitBranchCreatePayload
-  | GitBranchDeletePayload
-  | GitBranchRenamePayload
-  | GitBranchSetUpstreamPayload
+type BranchMutationPayload = GitBranchCheckoutPayload | GitBranchCreatePayload
 
 function branchMutationHandler<TPayload extends BranchMutationPayload>(input: {
   readonly schema: Schema.Schema<TPayload>
@@ -39,38 +25,48 @@ function branchMutationHandler<TPayload extends BranchMutationPayload>(input: {
 }) {
   return (_event: unknown, rawPath: unknown, rawPayload: unknown) =>
     Effect.gen(function* () {
-      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const workingPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const payload = decodeUnknownOrThrow(input.schema, rawPayload)
-      return yield* Effect.promise(() => input.run(projectPath, payload))
+      return yield* withGitMutationLock(
+        workingPath,
+        Effect.gen(function* () {
+          const result = yield* Effect.promise(() => input.run(workingPath, payload))
+          /*
+           * A checkout or branch creation moves the working tree's HEAD, so both caches over it are stale and every
+           * window watching that tree needs to know.
+           */
+          if (result.ok) {
+            invalidateGitStatusCache(workingPath)
+            invalidateVcsStatus(workingPath)
+          }
+          return result
+        }),
+      )
     })
 }
 
-export function registerGitBranchHandlers(): void {
+export function registerGitBranchHandlers() {
   typedHandle('git:branches:list', (_event, rawPath: unknown) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-      return yield* Effect.promise(() => listGitBranches(projectPath))
+      return yield* Effect.promise(() => readGitBranchList(projectPath))
+    }),
+  )
+
+  typedHandle('git:branches:validate-name', (_event, rawPath: unknown, rawName: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const name = decodeUnknownOrThrow(Schema.String, rawName)
+      return yield* Effect.promise(() => validateGitBranchName(projectPath, name))
     }),
   )
 
   typedHandle(
     'git:branches:checkout',
-    branchMutationHandler({ schema: branchCheckoutPayloadSchema, run: checkoutGitBranch }),
+    branchMutationHandler({ schema: gitBranchCheckoutPayloadSchema, run: checkoutGitBranch }),
   )
   typedHandle(
     'git:branches:create',
-    branchMutationHandler({ schema: branchCreatePayloadSchema, run: createGitBranch }),
-  )
-  typedHandle(
-    'git:branches:rename',
-    branchMutationHandler({ schema: branchRenamePayloadSchema, run: renameGitBranch }),
-  )
-  typedHandle(
-    'git:branches:delete',
-    branchMutationHandler({ schema: branchDeletePayloadSchema, run: deleteGitBranch }),
-  )
-  typedHandle(
-    'git:branches:set-upstream',
-    branchMutationHandler({ schema: branchSetUpstreamPayloadSchema, run: setGitBranchUpstream }),
+    branchMutationHandler({ schema: gitBranchCreatePayloadSchema, run: createGitBranch }),
   )
 }

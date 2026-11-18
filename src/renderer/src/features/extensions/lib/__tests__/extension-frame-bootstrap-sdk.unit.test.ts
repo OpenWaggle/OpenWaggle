@@ -25,7 +25,12 @@ describe('createFrameExtensionSdk', () => {
       (input: ExtensionSdkInvokeRequest) => Promise<ExtensionInvokeResult>
     >(async () => INVOKE_FAILURE)
     const post = vi.fn()
-    const sdk = createFrameExtensionSdk({ invokeBroker, post })
+    const highlightSyntax = vi.fn(async (input: { readonly source: string }) => ({
+      status: 'plain-text' as const,
+      language: 'text',
+      lines: [[{ content: input.source }]],
+    }))
+    const sdk = createFrameExtensionSdk({ invokeBroker, highlightSyntax, post })
 
     expect(sdk).toMatchObject({
       invoke: expect.any(Function),
@@ -69,6 +74,7 @@ describe('createFrameExtensionSdk', () => {
       surface: {
         sendAction: expect.any(Function),
         respondInteraction: expect.any(Function),
+        syntax: { highlight: expect.any(Function) },
       },
     })
 
@@ -77,6 +83,7 @@ describe('createFrameExtensionSdk', () => {
     await sdk.openWaggle.docs.discover(PROJECT_SCOPE, { includeExtensions: false })
     await sdk.openWaggle.actions.openExternal('https://example.com/issues/113')
     await sdk.surface.respondInteraction({ accepted: true })
+    await sdk.surface.syntax.highlight({ source: 'const value = 1', language: 'typescript' })
 
     expect(invokeBroker).toHaveBeenNthCalledWith(1, {
       capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
@@ -102,6 +109,10 @@ describe('createFrameExtensionSdk', () => {
     expect(post).toHaveBeenCalledWith({
       type: 'open-external',
       url: 'https://example.com/issues/113',
+    })
+    expect(highlightSyntax).toHaveBeenCalledWith({
+      source: 'const value = 1',
+      language: 'typescript',
     })
     expect(post).toHaveBeenCalledWith({
       type: 'surface-action',

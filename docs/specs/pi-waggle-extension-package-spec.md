@@ -23,7 +23,7 @@ Implementation must stay faithful to:
   - Waggle and standard mode differ only because Waggle runs two models sequentially per user turn.
   - Branch navigation, draft creation, materialization, archive/restore, composer behavior, git, diffs, and active-run semantics apply equally to standard and Waggle.
   - Mirror Pi TUI behavior by default.
-- Pi package/extension model from `@earendil-works/pi-coding-agent@0.80.6`
+- Pi package/extension model from `@earendil-works/pi-coding-agent@0.81.1`
   - Extensions are normal TypeScript modules.
   - Packages can declare resources through `package.json#pi`.
   - Extensions can register commands, flags, message renderers, event handlers, custom entries, and custom messages.
@@ -87,11 +87,10 @@ packages/pi-waggle/
     "extensions": ["./dist/extension.js"]
   },
   "dependencies": {
-    "@openwaggle/waggle-core": "workspace:*"
+    "@openwaggle/waggle-core": "workspace:^"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
   }
@@ -110,8 +109,11 @@ User sends prompt
   -> Waggle extension sees active Waggle mode
   -> before_agent_start prepares Agent A turn
   -> Agent A runs
-  -> final turn_end / agent_end completion handler fires
-  -> extension evaluates stop policy
+  -> Pi settles the run (agent_settled): no automatic retry, overflow compaction, or queued
+     continuation follows; the run's agent_end messages, without attempts a later response
+     replaced, are the turn's
+  -> extension evaluates stop policy (an error no later turn can recover from, by Pi's
+     retryable-error and context-overflow rules, stops the collaboration)
   -> extension switches model to Agent B
   -> after the current Pi run settles, extension appends the Agent B turn marker and sends the next automatic user message
   -> Agent B runs
@@ -308,7 +310,7 @@ Known limitation to validate: Pi TUI supports custom message renderers, but may 
   - command parsing
   - state restoration from Pi session entries
 - Fake `ExtensionAPI` harness tests:
-  - `agent_end` schedules the next turn with `pi.sendMessage(...)`
+  - `agent_settled`, not a failed attempt's `turn_end` or `agent_end`, schedules the next turn with `pi.sendMessage(...)`
   - model switching uses provider-qualified model refs
   - `/waggle off` and `/standard` append disabled mode state
 - OpenWaggle main tests:

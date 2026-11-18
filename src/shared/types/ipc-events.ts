@@ -1,19 +1,65 @@
 import type { OAuthFlowStatus } from './auth'
+import type { WorktreeLaunchEventPayload } from './background-run'
 import type { SessionId } from './brand'
+import type {
+  BrowserPreviewKeyEvent,
+  BrowserPreviewShortcutEvent,
+  BrowserPreviewState,
+} from './browser-preview'
+import type {
+  BrowserPreviewOpenRequest,
+  BrowserPreviewOpenRequestCancellation,
+} from './browser-preview-owner'
+import type {
+  BrowserPreviewRecordingCancelRequest,
+  BrowserPreviewRecordingRequest,
+} from './browser-preview-recording-request'
+import type {
+  BundledNotificationSoundId,
+  DesktopNotificationPermissionStatus,
+} from './desktop-notification'
+import type { GuiStartupStatus } from './gui-startup'
 import type { AgentPhaseEventPayload } from './phase'
+import type { SessionHostEventEnvelope, SessionRunTerminalStatus } from './session-host-event'
 import type { AgentTransportEvent } from './stream'
+import type { TerminalActivitySnapshot, TerminalEventPayload } from './terminal'
 import type { UpdateStatus } from './updater'
+import type { GitActionProgressEvent } from './vcs'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
+import type { WorkspaceFilesChangedEvent } from './workspace-files'
+
+/**
+ * A Run settled on the Host. `runId` names it when known, so a client credits the completion to
+ * the send that started that Run. `continues` means the Session went straight on to a queued
+ * Follow-up: this Run is done, the Session is not idle.
+ */
+export interface AgentRunCompletedPayload {
+  readonly sessionId: SessionId
+  readonly runId?: string
+  readonly terminalStatus?: SessionRunTerminalStatus
+  /** The Run failed after it had reported a clean end, e.g. it could not be saved. */
+  readonly failureCode?: string
+  /** The Run was a Hive wake: no prompt of the user's started it, so none is retried. */
+  readonly hiveWake?: true
+  readonly continues?: true
+}
 
 export interface IpcSendChannelMap {
+  'sessions:resources:activate-owner': {
+    args: [sessionId: SessionId | null]
+  }
   'agent:cancel-waggle': {
     args: [sessionId: SessionId]
   }
-  'terminal:write': {
-    args: [terminalId: string, data: string]
+  'terminal:ack-output': {
+    args: [ownerKey: string, terminalId: string, outputGeneration: number, endOffset: number]
   }
   'clipboard:write-text': {
     args: [text: string]
+  }
+  /** The Session the window shows, for the Desktop notification focus rule (ADR 0062). */
+  'desktop-notifications:set-viewing-session': {
+    args: [sessionId: string | null]
   }
 }
 
@@ -21,21 +67,84 @@ export interface IpcSendChannelMap {
  * Event channels — one-way, main → renderer
  */
 export interface IpcEventChannelMap {
+  'browser-preview:open-request': {
+    payload: BrowserPreviewOpenRequest
+  }
+  'browser-preview:cancel-open-request': {
+    payload: BrowserPreviewOpenRequestCancellation
+  }
+  'browser-preview:state': {
+    payload: BrowserPreviewState
+  }
+  'browser-preview:shortcut': {
+    payload: BrowserPreviewShortcutEvent
+  }
+  'browser-preview:key-event': {
+    payload: BrowserPreviewKeyEvent
+  }
+  'browser-preview:recording-request': {
+    payload: BrowserPreviewRecordingRequest
+  }
+  'browser-preview:recording-cancel': {
+    payload: BrowserPreviewRecordingCancelRequest
+  }
   /** Pi-shaped runtime events for the renderer's live transcript runtime */
   'agent:event': {
     payload: { sessionId: SessionId; event: AgentTransportEvent }
   }
-  'terminal:data': {
-    payload: { terminalId: string; data: string }
+  'terminal:event': {
+    payload: TerminalEventPayload
+  }
+  /** Global terminal child-process metadata, including terminals with no mounted pane. */
+  'terminal:activity-snapshot': {
+    payload: TerminalActivitySnapshot
   }
   'agent:phase': {
     payload: AgentPhaseEventPayload
   }
   'agent:run-completed': {
+    payload: AgentRunCompletedPayload
+  }
+  'sessions:resources-invalidated': {
     payload: { sessionId: SessionId }
+  }
+  'session-host:event': {
+    payload: SessionHostEventEnvelope
+  }
+  'session-host:resync-required': {
+    payload: {
+      reason: 'host-restarted' | 'cursor-expired' | 'cursor-ahead' | 'slow-consumer'
+    }
+  }
+  'agent:worktree-launch': {
+    payload: WorktreeLaunchEventPayload
   }
   'window:fullscreen-changed': {
     payload: boolean
+  }
+  /** The window's startup moved on: starting, updating, ready, or failed (A-F2). */
+  'app:startup-status-changed': {
+    payload: GuiStartupStatus
+  }
+  /** A command-line launch asked to open a project; take it with `project:take-open-request`. */
+  'app:open-project-requested': {
+    payload: null
+  }
+  /** Play a Notification sound in this window (ADR 0062); only the focused window is asked. */
+  'desktop-notifications:play-sound': {
+    payload: { readonly sound: BundledNotificationSoundId }
+  }
+  /** What the operating system lets OpenWaggle show changed. */
+  'desktop-notifications:permission-changed': {
+    payload: DesktopNotificationPermissionStatus
+  }
+  /** A Desktop notification about a Launch schedule was clicked: open that task. */
+  'desktop-notifications:open-scheduled-task': {
+    payload: { readonly taskId: string }
+  }
+  /** A Session link was opened; take it with `app:take-open-session-link-request` (ADR 0056). */
+  'app:open-session-link-requested': {
+    payload: null
   }
   'auth:oauth-status': {
     payload: OAuthFlowStatus
@@ -61,6 +170,31 @@ export interface IpcEventChannelMap {
   }
   'sessions:title-updated': {
     payload: { sessionId: SessionId; title: string }
+  }
+  'sessions:list-invalidated': {
+    payload: { sessionIds: readonly SessionId[] }
+  }
+  /**
+   * A working tree's git state changed because OpenWaggle mutated it.
+   *
+   * Path-scoped on purpose: a coarse "git changed" signal would make every open
+   * session re-run a full `git diff` when one unrelated tree was staged, and diffs
+   * here are expensive enough to carry an explicit maxBuffer (ADR 0018). Carries an
+   * invalidation rather than computed state, so the schema stays decoupled from
+   * consumers and large diffs stay off the IPC bus.
+   */
+  'git:working-tree-changed': {
+    payload: { workingPath: string }
+  }
+  'git:stacked-action:progress': {
+    payload: {
+      operationId: string
+      workingPath: string
+      progress: GitActionProgressEvent
+    }
+  }
+  'workspace-files:changed': {
+    payload: WorkspaceFilesChangedEvent
   }
   'updater:status-changed': {
     payload: UpdateStatus

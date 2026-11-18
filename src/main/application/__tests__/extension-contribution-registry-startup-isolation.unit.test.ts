@@ -8,7 +8,7 @@ import {
   PROJECT_PATH,
 } from './extension-contribution-registry-test-utils'
 
-function packageWithBadManifest(): DiscoveredExtensionPackage {
+function packageWithBadManifest() {
   const packagePath = '/tmp/user-data/extensions/bad-manifest-extension'
   const manifestPath = `${packagePath}/${OPENWAGGLE_EXTENSION.MANIFEST_FILE}`
 
@@ -29,7 +29,7 @@ function packageWithBadManifest(): DiscoveredExtensionPackage {
         path: manifestPath,
       },
     ],
-  }
+  } satisfies DiscoveredExtensionPackage
 }
 
 describe('listExtensionContributionRegistryView startup isolation', () => {

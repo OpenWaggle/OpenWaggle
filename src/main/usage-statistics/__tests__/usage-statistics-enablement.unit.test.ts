@@ -1,0 +1,134 @@
+import { describe, expect, it } from 'vitest'
+import { createUsageStatisticsEnablementState } from '../usage-statistics-enablement'
+
+function releasedState(
+  env: Parameters<typeof createUsageStatisticsEnablementState>[0]['env'] = {},
+) {
+  return createUsageStatisticsEnablementState({ buildChannel: 'beta', env })
+}
+
+describe('Usage statistics enablement', () => {
+  it('stays off until the settings store publishes the Setting', () => {
+    const state = releasedState()
+
+    expect(state.isEnabled()).toBe(false)
+    expect(state.current()).toEqual({ enabled: false, reason: 'settings-unavailable' })
+
+    state.publishSetting(true)
+    expect(state.isEnabled()).toBe(true)
+  })
+
+  it('follows the Setting and turns off again when Settings become unavailable', () => {
+    const state = releasedState()
+    state.publishSetting(true)
+
+    state.publishSetting(false)
+    expect(state.current()).toEqual({ enabled: false, reason: 'setting' })
+
+    state.publishSetting(true)
+    state.publishSetting(undefined)
+    expect(state.isEnabled()).toBe(false)
+  })
+
+  it('acts on the saved Setting of a process whose Settings could not load, until they load', () => {
+    const state = releasedState()
+    const changes: boolean[] = []
+    state.onChange((enabled) => changes.push(enabled))
+
+    state.publishSettingWithoutSettings(true)
+    expect(state.isEnabled()).toBe(true)
+
+    // Loaded Settings win, also when they say off.
+    state.publishSetting(false)
+    expect(state.current()).toEqual({ enabled: false, reason: 'setting' })
+    expect(changes).toEqual([true, false])
+
+    // The assumed value never comes back once Settings loaded.
+    state.publishSetting(undefined)
+    state.publishSettingWithoutSettings(true)
+    expect(state.current()).toEqual({ enabled: false, reason: 'settings-unavailable' })
+  })
+
+  it('stays off when there is no saved Setting or it is off', () => {
+    const state = releasedState()
+    state.publishSettingWithoutSettings(undefined)
+    expect(state.current()).toEqual({ enabled: false, reason: 'settings-unavailable' })
+    state.publishSettingWithoutSettings(false)
+    expect(state.current()).toEqual({ enabled: false, reason: 'setting' })
+  })
+
+  it('never lets a saved Setting override an environment opt-out', () => {
+    const state = releasedState({ DO_NOT_TRACK: '1' })
+    state.publishSettingWithoutSettings(true)
+    expect(state.current()).toEqual({ enabled: false, reason: 'do-not-track' })
+  })
+
+  it.each([
+    [{ DO_NOT_TRACK: '1' }, 'do-not-track'],
+    [{ PI_TELEMETRY: '0' }, 'pi-telemetry'],
+    [{ CI: 'true' }, 'ci'],
+    [{ OPENWAGGLE_AUTOMATION: '1' }, 'automation'],
+  ] as const)('an environment opt-out %o wins over the Setting', (env, reason) => {
+    const state = releasedState(env)
+    state.publishSetting(true)
+
+    expect(state.current()).toEqual({ enabled: false, reason })
+  })
+
+  it('reports a build or environment opt-out for the Settings switch, whatever the Setting', () => {
+    expect(releasedState().environmentBlock()).toBeNull()
+    expect(releasedState({ DO_NOT_TRACK: '1' }).environmentBlock()).toBe('do-not-track')
+    const automated = releasedState({ OPENWAGGLE_AUTOMATION: '1' })
+    automated.publishSetting(false)
+    expect(automated.environmentBlock()).toBe('automation')
+    expect(
+      createUsageStatisticsEnablementState({ buildChannel: 'dev', env: {} }).environmentBlock(),
+    ).toBe('dev-build')
+  })
+
+  it('never enables a Dev build', () => {
+    const state = createUsageStatisticsEnablementState({ buildChannel: 'dev', env: {} })
+    state.publishSetting(true)
+
+    expect(state.current()).toEqual({ enabled: false, reason: 'dev-build' })
+  })
+
+  it('notifies listeners only when the effective value flips', () => {
+    const state = releasedState()
+    const seen: boolean[] = []
+    const unsubscribe = state.onChange((enabled) => seen.push(enabled))
+
+    state.publishSetting(true)
+    state.publishSetting(true)
+    state.publishSetting(false)
+    state.publishSetting(undefined)
+    unsubscribe()
+    state.publishSetting(true)
+
+    expect(seen).toEqual([true, false])
+  })
+
+  it('never notifies when the environment already opts out', () => {
+    const state = releasedState({ DO_NOT_TRACK: 'yes' })
+    const seen: boolean[] = []
+    state.onChange((enabled) => seen.push(enabled))
+
+    state.publishSetting(true)
+    state.publishSetting(false)
+
+    expect(seen).toEqual([])
+  })
+
+  it('keeps notifying other listeners when one throws', () => {
+    const state = releasedState()
+    const seen: boolean[] = []
+    state.onChange(() => {
+      throw new Error('listener failed')
+    })
+    state.onChange((enabled) => seen.push(enabled))
+
+    state.publishSetting(true)
+
+    expect(seen).toEqual([true])
+  })
+})

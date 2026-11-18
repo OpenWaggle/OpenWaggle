@@ -1,28 +1,40 @@
 import { SessionId } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionCatalogPage, SessionDetail, SessionSummary } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
+import { terminalInputDispatcher, useTerminalStore } from '@/features/terminal'
+import { useBackgroundRunStore } from '../background-run-store'
 import { useChatStore } from '../chat-store'
 
 // ── Mocks ────────────────────────────────────────────────────
 
 const mockApi = {
-  listSessionDetails: vi.fn(),
-  listSessions: vi.fn(async () => []),
-  getSessionTree: vi.fn(async () => null),
+  listSessionCatalogPage: vi.fn<
+    (..._args: [boolean, number, string?]) => Promise<SessionCatalogPage>
+  >(async (..._args: [boolean, number, string?]) => ({ sessions: [] })),
+  listPinnedSessions: vi.fn(async () => []),
+  listSessionsByIds: vi.fn<(_ids: readonly SessionId[]) => Promise<SessionSummary[]>>(
+    async (_ids: readonly SessionId[]) => [],
+  ),
+  getSessionTree: vi.fn(async (..._args: unknown[]) => null),
   getSessionDetail: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
+  unregisterBrowserPreviewOwner: vi.fn(async (_ownerKey: string) => undefined),
 }
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: {
-    listSessionDetails: (...args: unknown[]) => mockApi.listSessionDetails(...args),
-    listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    listSessionCatalogPage: (archived: boolean, limit: number, cursor?: string) =>
+      mockApi.listSessionCatalogPage(archived, limit, cursor),
+    listPinnedSessions: () => mockApi.listPinnedSessions(),
+    listSessionsByIds: (ids: readonly SessionId[]) => mockApi.listSessionsByIds(ids),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getSessionDetail: (...args: unknown[]) => mockApi.getSessionDetail(...args),
     createSession: (...args: unknown[]) => mockApi.createSession(...args),
     deleteSession: (...args: unknown[]) => mockApi.deleteSession(...args),
+    unregisterBrowserPreviewOwner: (ownerKey: string) =>
+      mockApi.unregisterBrowserPreviewOwner(ownerKey),
   },
 }))
 
@@ -45,6 +57,7 @@ function resetStore() {
     draftBranch: null,
     error: null,
   })
+  useTerminalStore.setState({ groups: {}, activity: {}, portPreviews: {}, exits: {} })
 }
 
 function makeSessionDetail(id: SessionId, title = 'Session') {
@@ -77,16 +90,33 @@ describe('useChatStore unit', () => {
   })
 
   describe('setActiveSessionId', () => {
-    it('sets the active session from the local cache synchronously', () => {
+    it('sets the active session from the local cache synchronously, then reads it again', async () => {
       const id = SessionId('test-session-id')
       const session = makeSessionDetail(id)
       useChatStore.getState().upsertSession(session)
+      // The `pi` CLI continued it while another Session was shown.
+      const continued = { ...makeSessionDetail(id), updatedAt: 2 }
+      mockApi.getSessionDetail.mockResolvedValueOnce(continued)
 
       useChatStore.getState().setActiveSessionId(id)
 
       expect(useChatStore.getState().activeSessionId).toBe(id)
       expect(useChatStore.getState().activeSession).toBe(session)
-      expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(useChatStore.getState().activeSession).toEqual(continued))
+      expect(mockApi.getSessionDetail).toHaveBeenCalledWith(id)
+    })
+
+    it('opens an uncached Session with one detail read, leaving its tree to the view', async () => {
+      const id = SessionId('opened-session-id')
+      mockApi.getSessionDetail.mockResolvedValueOnce(makeSessionDetail(id))
+
+      useChatStore.getState().setActiveSessionId(id)
+
+      await vi.waitFor(() => expect(useChatStore.getState().activeSession?.id).toBe(id))
+      await vi.waitFor(() => expect(mockApi.listSessionCatalogPage).toHaveBeenCalled())
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      expect(mockApi.getSessionDetail).toHaveBeenCalledOnce()
+      expect(mockApi.getSessionTree).not.toHaveBeenCalled()
     })
 
     it('sets to null', () => {
@@ -134,7 +164,10 @@ describe('useChatStore unit', () => {
       const id = SessionId('delete-session-id')
       const session = makeSessionDetail(id)
       useChatStore.getState().upsertSession(session)
+      mockApi.getSessionDetail.mockResolvedValueOnce(session)
       useChatStore.getState().setActiveSessionId(id)
+      await vi.waitFor(() => expect(mockApi.getSessionDetail).toHaveBeenCalledTimes(1))
+      mockApi.getSessionDetail.mockClear()
       mockApi.deleteSession.mockResolvedValueOnce(undefined)
 
       await useChatStore.getState().deleteSession(id)
@@ -146,9 +179,23 @@ describe('useChatStore unit', () => {
       expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
     })
 
+    it('drops the render snapshot of a deleted session', async () => {
+      const id = SessionId('delete-session-id')
+      useChatStore.getState().upsertSession(makeSessionDetail(id))
+      useBackgroundRunStore
+        .getState()
+        .applyRunRenderEvent(id, { type: 'agent_start', runId: 'run-1', timestamp: 1 })
+      mockApi.deleteSession.mockResolvedValueOnce(undefined)
+
+      await useChatStore.getState().deleteSession(id)
+
+      expect(useBackgroundRunStore.getState().getRunRenderSnapshot(id)).toBeNull()
+    })
+
     it('throws and restores state when api deletion fails', async () => {
       const id = SessionId('delete-session-id')
       const session = makeSessionDetail(id)
+      const clearInputOwner = vi.spyOn(terminalInputDispatcher, 'clearOwner')
       useChatStore.getState().upsertSession(session)
       useChatStore.getState().setActiveSessionId(id)
       mockApi.deleteSession.mockRejectedValueOnce(new Error('Delete failed'))
@@ -169,6 +216,8 @@ describe('useChatStore unit', () => {
       expect(useChatStore.getState().activeSessionId).toBe(id)
       expect(useChatStore.getState().activeSession).toBe(session)
       expect(useChatStore.getState().missingSessionIds.has(id)).toBe(false)
+      expect(clearInputOwner).not.toHaveBeenCalled()
+      clearInputOwner.mockRestore()
     })
 
     it('clears active state when a refreshed session no longer exists', async () => {
@@ -195,7 +244,7 @@ describe('useChatStore unit', () => {
       useChatStore.getState().updateSessionTitle(inactiveId, 'Inactive renamed')
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(mockApi.listSessions).toHaveBeenCalled()
+      expect(mockApi.listSessionCatalogPage).toHaveBeenCalled()
       expect(mockApi.getSessionTree).not.toHaveBeenCalledWith(inactiveId)
     })
 
@@ -205,9 +254,9 @@ describe('useChatStore unit', () => {
       useChatStore.getState().setActiveSessionId(activeId)
 
       useChatStore.getState().updateSessionTitle(activeId, 'Active renamed')
-      await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(mockApi.getSessionTree).toHaveBeenCalledWith(activeId)
+      // A tree read waits a moment for a workspace read that would carry it.
+      await vi.waitFor(() => expect(mockApi.getSessionTree).toHaveBeenCalledWith(activeId))
     })
   })
 })

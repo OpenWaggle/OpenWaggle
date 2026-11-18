@@ -1,68 +1,22 @@
 import { create } from 'zustand'
-import { useComposerStore } from './composer-store'
-
-export type ComposerActionDialogKind =
-  | 'create-branch'
-  | 'rename-branch'
-  | 'delete-branch'
-  | 'set-upstream'
 
 interface ComposerActionState {
-  // Action dialog
-  actionDialog: ComposerActionDialogKind | null
-  actionDialogInput: string
-  actionDialogError: string | null
-  actionDialogBusy: boolean
-  openActionDialog: (kind: ComposerActionDialogKind, initialValue?: string) => void
-  closeActionDialog: () => void
-  setActionDialogInput: (value: string) => void
-  setActionDialogError: (error: string | null) => void
-  setActionDialogBusy: (busy: boolean) => void
-
   // Branch picker
   branchQuery: string
   branchMessage: string | null
   setBranchQuery: (query: string) => void
   setBranchMessage: (message: string | null) => void
+  filePickerRequest: { readonly id: number; readonly sessionId: string } | null
+  filePickerRequestRevision: number
+  requestFilePicker: (sessionId: string) => void
+  takeFilePickerRequest: (requestId: number, sessionId: string | null) => boolean
 }
 
 export const useComposerActionStore = create<ComposerActionState>((set, get) => ({
-  actionDialog: null,
-  actionDialogInput: '',
-  actionDialogError: null,
-  actionDialogBusy: false,
   branchQuery: '',
   branchMessage: null,
-
-  openActionDialog(kind: ComposerActionDialogKind, initialValue = '') {
-    useComposerStore.getState().openMenu(null)
-    set({
-      actionDialog: kind,
-      actionDialogInput: initialValue,
-      actionDialogError: null,
-    })
-  },
-
-  closeActionDialog() {
-    if (get().actionDialogBusy) return
-    set({
-      actionDialog: null,
-      actionDialogInput: '',
-      actionDialogError: null,
-    })
-  },
-
-  setActionDialogInput(value: string) {
-    set({ actionDialogInput: value })
-  },
-
-  setActionDialogError(error: string | null) {
-    set({ actionDialogError: error })
-  },
-
-  setActionDialogBusy(busy: boolean) {
-    set({ actionDialogBusy: busy })
-  },
+  filePickerRequest: null,
+  filePickerRequestRevision: 0,
 
   setBranchQuery(query: string) {
     set({ branchQuery: query })
@@ -70,5 +24,22 @@ export const useComposerActionStore = create<ComposerActionState>((set, get) => 
 
   setBranchMessage(message: string | null) {
     set({ branchMessage: message })
+  },
+
+  requestFilePicker(sessionId: string) {
+    set((state) => {
+      const id = state.filePickerRequestRevision + 1
+      return {
+        filePickerRequest: { id, sessionId },
+        filePickerRequestRevision: id,
+      }
+    })
+  },
+
+  takeFilePickerRequest(requestId: number, sessionId: string | null) {
+    const request = get().filePickerRequest
+    if (!request || request.id !== requestId) return false
+    set({ filePickerRequest: null })
+    return request.sessionId === sessionId
   },
 }))

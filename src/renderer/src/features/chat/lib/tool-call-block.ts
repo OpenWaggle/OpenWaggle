@@ -2,13 +2,14 @@ import { isMatching, match, P } from '@diegogbrisa/ts-match'
 import type { JsonObject } from '@shared/types/json'
 import { normalizeToolResultPayload } from '@shared/utils/tool-result-state'
 import { isRecord } from '@shared/utils/validation'
-import { resolveLanguage } from '@/shared/lib/shiki/highlighter'
+import { lenientJsonStringify } from '@/shared/lib/lenient-json'
+import { languageFromPath } from '@/shared/lib/syntax/language-registry'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 export const JSON_STRINGIFY_SPACES = 2
 export const LONG_ARGUMENT_PREVIEW_CHARS = 120
 export const LONG_ARGUMENT_MAX_HEIGHT_PX = 200
 export const RESULT_MAX_HEIGHT_PX = 300
-export const INLINE_DIFF_LINE_LIMIT = 32
 export const OUTPUT_PREVIEW_LINES = 6
 export const LINE_SPLIT_SEPARATOR = '\n'
 export const HIGHLIGHT_MAX_CHARS = 80_000
@@ -19,44 +20,31 @@ export const FILE_CONTENT_ARG_KEYS = new Set(['content', 'oldString', 'newString
 export interface ToolCallResultPayload {
   readonly content: unknown
   readonly state: string
-  readonly sourceMessageId?: string
   readonly error?: string
 }
 
-export interface UnifiedDiffLine {
-  readonly type: 'add' | 'remove' | 'context' | 'meta'
-  readonly content: string
-}
-
-export interface UnifiedDiffData {
-  readonly text: string
-  readonly lines: readonly UnifiedDiffLine[]
-  readonly additions: number
-  readonly deletions: number
-}
-
-function isTextContentBlock(
+export function isTextContentBlock(
   value: unknown,
 ): value is { readonly type: 'text'; readonly text: string } {
   return isMatching({ type: 'text', text: P.string }, value)
 }
 
-function parseResultPayload(content: unknown) {
+export function parseResultPayload(content: unknown) {
   return normalizeToolResultPayload(content)
 }
 
-function formatUnknownContent(content: unknown) {
+function formatUnknownContent(content: unknown, serialized?: string | null) {
   if (typeof content === 'string') return content
   if (typeof content === 'number' || typeof content === 'boolean') return String(content)
   if (content === null || content === undefined) return ''
   try {
-    return JSON.stringify(content, null, JSON_STRINGIFY_SPACES)
+    return serialized ?? JSON.stringify(content, null, JSON_STRINGIFY_SPACES)
   } catch {
-    return String(content)
+    return lenientJsonStringify(content, JSON_STRINGIFY_SPACES)
   }
 }
 
-function getToolResultDetails(content: unknown) {
+export function getToolResultDetails(content: unknown) {
   const parsed = parseResultPayload(content)
   return match(parsed)
     .with({ details: P.select() }, (details) => details)
@@ -73,7 +61,8 @@ function textFromContentBlocks(content: readonly unknown[]) {
   return textBlocks.length > 0 ? textBlocks.join('\n') : null
 }
 
-function textFromResultRecord(parsed: { readonly [key: string]: unknown }) {
+function textFromResultRecord(parsed: Readonly<Record<string, unknown>>) {
+  const fields = uncheckedFields<ToolResultTextFields>(parsed)
   const contentText = match(parsed)
     .with({ content: P.select('content', P.array(P._)) }, ({ content }) =>
       textFromContentBlocks(content),
@@ -84,24 +73,39 @@ function textFromResultRecord(parsed: { readonly [key: string]: unknown }) {
     return contentText
   }
 
-  const message = match(parsed.message)
+  const message = match(fields.message)
     .with(P.string, (value) => value)
     .otherwise(() => null)
   if (message) {
     return message
   }
 
-  return match(parsed.error)
+  const error = match(fields.error)
     .with(P.string, (value) => value)
     .otherwise(() => null)
+  if (error) {
+    return error
+  }
+
+  return Array.isArray(fields.content) && fields.content.length === 0 ? '' : null
 }
 
-export function getToolResultText(content: unknown) {
+/** The fields a tool result's text can come from, in order. */
+interface ToolResultTextFields {
+  readonly content: readonly unknown[]
+  readonly message: string
+  readonly error: string
+}
+
+export function getToolResultText(content: unknown, serialized?: string | null) {
   const parsed = parseResultPayload(content)
   return match(parsed)
     .with(P.string, (value) => value)
-    .when(isRecord, (value) => textFromResultRecord(value) ?? formatUnknownContent(value))
-    .otherwise((value) => formatUnknownContent(value))
+    .when(
+      isRecord,
+      (value) => textFromResultRecord(value) ?? formatUnknownContent(value, serialized),
+    )
+    .otherwise((value) => formatUnknownContent(value, serialized))
 }
 
 export function getStringArg(args: JsonObject, key: string) {
@@ -110,16 +114,9 @@ export function getStringArg(args: JsonObject, key: string) {
 }
 
 export function inferLanguageFromPath(path: string | null) {
-  if (!path) {
-    return undefined
-  }
-
-  const extension = path.split('.').pop()
-  if (!extension || extension === path) {
-    return undefined
-  }
-
-  return resolveLanguage(extension.toLowerCase())
+  if (!path) return undefined
+  const language = languageFromPath(path)
+  return language === 'text' ? undefined : language
 }
 
 function exceedsLineLimit(text: string, maxLines: number) {
@@ -160,66 +157,8 @@ export function getResultError(result: ToolCallResultPayload | undefined) {
   }
 
   const parsed = parseResultPayload(result.content)
-  if (isRecord(parsed) && typeof parsed.error === 'string') {
-    return parsed.error
-  }
-  return null
-}
-
-function parseUnifiedDiff(diffText: string): UnifiedDiffData {
-  let additions = 0
-  let deletions = 0
-  const lines = diffText.split(LINE_SPLIT_SEPARATOR).map((line): UnifiedDiffLine => {
-    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) {
-      return { type: 'meta', content: line }
-    }
-    if (line.startsWith('+')) {
-      additions += 1
-      return { type: 'add', content: line }
-    }
-    if (line.startsWith('-')) {
-      deletions += 1
-      return { type: 'remove', content: line }
-    }
-    return { type: 'context', content: line }
-  })
-
-  return { text: diffText, lines, additions, deletions }
-}
-
-export function getUnifiedDiffLineClassName(type: UnifiedDiffLine['type']) {
-  return match(type)
-    .with('add', () => 'bg-success/10 text-success')
-    .with('remove', () => 'bg-error/10 text-error')
-    .with('meta', () => 'text-text-muted')
-    .with('context', () => 'text-text-secondary')
-    .exhaustive()
-}
-
-export function getEditUnifiedDiff(content: unknown, name: string): UnifiedDiffData | null {
-  if (name !== 'edit') {
-    return null
-  }
-
-  const details = getToolResultDetails(content)
-  const diff = match(details)
-    .with({ diff: P.select('diff', P.string) }, ({ diff }) => diff)
-    .otherwise(() => null)
-  if (diff?.trim()) {
-    return parseUnifiedDiff(diff)
-  }
-
-  const parsed = parseResultPayload(content)
-  if (
-    isRecord(parsed) &&
-    typeof parsed.beforeContent === 'string' &&
-    typeof parsed.afterContent === 'string' &&
-    parsed.beforeContent !== parsed.afterContent
-  ) {
-    return null
-  }
-
-  return null
+  const { error } = uncheckedFields<ToolResultTextFields>(parsed)
+  return typeof error === 'string' ? error : null
 }
 
 export function buildTailPreview(text: string) {

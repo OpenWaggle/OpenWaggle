@@ -1,0 +1,2307 @@
+<!doctype html>
+<html lang="en" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Session Hub</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe id="codex-visualization" sandbox="allow-scripts" referrerpolicy="no-referrer" title="Session Hub" data-srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot; data-visualize-standalone&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Session Hub&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --icon-size: 16px;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --corner-shape: round;
+  --radius: var(--border-radius-lg, 10px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: var(--visualize-paint-gutter, 0px);
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+.cursor-interaction {
+  cursor: var(--cursor-interaction, pointer);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: var(--cursor-interaction, pointer);
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: var(--corner-shape);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+hr {
+  width: 100%;
+  height: 1px;
+  margin-block: 6px;
+  border: 0;
+  background: var(--border);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress {
+  display: flex;
+  height: 8px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 8px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar:only-child {
+  border-radius: var(--radius-full);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.nav-link,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn,
+.nav-link {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: var(--cursor-interaction, pointer);
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover,
+.nav-link:not(:disabled):not([aria-disabled=&quot;true&quot;]):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.nav-pills .nav-link {
+  min-width: 0;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.nav-justified .nav-link {
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.nav-pills .nav-link.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.btn:disabled,
+.nav-link:disabled,
+.nav-link[aria-disabled=&quot;true&quot;] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: var(--corner-shape);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed=&quot;true&quot;],
+  [aria-selected=&quot;true&quot;],
+  .is-selected
+) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .nav-link,
+  .form-control,
+  .form-select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Keep small-screen WebKit from zooming when a text field receives focus. */
+  .form-control,
+  .form-select {
+    font-size: max(16px, var(--font-size-normal));
+  }
+
+  .form-control[type=&quot;file&quot;]::file-selector-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .form-control-color[type=&quot;color&quot;] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .form-control:is(
+    [type=&quot;date&quot;],
+    [type=&quot;datetime-local&quot;],
+    [type=&quot;month&quot;],
+    [type=&quot;time&quot;],
+    [type=&quot;week&quot;]
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+  }
+
+  .form-check {
+    min-height: 44px;
+    padding-inline: 15px;
+  }
+
+  .form-check-input {
+    position: relative;
+  }
+
+  .form-check-input::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: &quot;&quot;;
+    transform: translate(-50%, -50%);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .form-range {
+    height: 44px;
+    touch-action: pan-y;
+  }
+
+  .form-range::-webkit-slider-runnable-track {
+    height: 44px;
+  }
+
+  .form-range::-moz-range-track {
+    height: 44px;
+  }
+
+  .form-range::-webkit-slider-thumb {
+    margin-top: 12px;
+  }
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;script type=&quot;application/json&quot; id=&quot;codex-visualization-widget-state&quot;&gt;__CODEX_VISUALIZATION_WIDGET_STATE__&lt;/script&gt;
+&lt;script&gt;(() =&gt; {
+  const root = document.documentElement;
+  const mediaQuery = globalThis.matchMedia(&quot;(prefers-color-scheme: dark)&quot;);
+  const apply = Reflect.apply;
+  const isArray = Array.isArray;
+  const hasOwn = Object.hasOwn;
+  const parentWindow = globalThis.parent;
+  const stringify = JSON.stringify;
+  const parse = JSON.parse;
+  const encode = TextEncoder.prototype.encode.bind(new TextEncoder());
+  const initialStateElement = document.getElementById(
+    &quot;codex-visualization-widget-state&quot;,
+  );
+  const initialGlobals = parse(initialStateElement?.textContent ?? &quot;{}&quot;);
+  initialStateElement?.remove();
+  /** @type {Record&lt;string, unknown&gt; | null} */
+  let state = initialGlobals.widgetState ?? null;
+  const statePersistence = initialGlobals.statePersistence ?? &quot;none&quot;;
+  let nextStateRequestId = 0;
+  /** @type {Map&lt;number, { resolve: () =&gt; void; reject: (error: Error) =&gt; void; timeout: ReturnType&lt;typeof globalThis.setTimeout&gt;; serializedState: string }&gt;} */
+  const pendingStateWrites = new Map();
+  const persistenceError = () =&gt;
+    Object.assign(
+      new Error(&quot;The host could not persist the widget state update&quot;),
+      {
+        code: -32000,
+        data: { code: &quot;widget_state_persistence_failed&quot;, retryable: false },
+      },
+    );
+  /**
+   * @param {object} prototype
+   * @param {string} property
+   */
+  const getPrototypeGetter = (prototype, property) =&gt; {
+    // oxlint-disable-next-line typescript/unbound-method -- invoked through captured Reflect.apply
+    const getter = Object.getOwnPropertyDescriptor(prototype, property)?.get;
+    if (getter == null) {
+      throw new Error(`Missing ${property} getter`);
+    }
+    return getter;
+  };
+  const getMessageData = getPrototypeGetter(MessageEvent.prototype, &quot;data&quot;);
+  const getMessagePorts = getPrototypeGetter(MessageEvent.prototype, &quot;ports&quot;);
+  const getMessageSource = getPrototypeGetter(MessageEvent.prototype, &quot;source&quot;);
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const addHostMessageListener = MessagePort.prototype.addEventListener;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const postHostMessage = MessagePort.prototype.postMessage;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const startHostPort = MessagePort.prototype.start;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const stopMessagePropagation = Event.prototype.stopImmediatePropagation;
+  /** @type {MessagePort | null} */
+  let hostPort = null;
+  const postToHost = (type, payload) =&gt; {
+    if (hostPort != null) {
+      apply(postHostMessage, hostPort, [{ type, ...payload }]);
+    }
+  };
+  const openExternal = ({ href }) =&gt; {
+    if (globalThis.navigator.userActivation?.isActive === true) {
+      postToHost(&quot;open-external&quot;, { href });
+    }
+  };
+  const sendFollowUpMessage = ({ context, prompt, title }) =&gt; {
+    if (globalThis.navigator.userActivation?.isActive === true) {
+      postToHost(&quot;follow-up&quot;, { context, prompt, title });
+    }
+    return Promise.resolve();
+  };
+  /**
+   * @param {Record&lt;string, unknown&gt; | ((previous: Record&lt;string, unknown&gt; | null) =&gt; Record&lt;string, unknown&gt;)} next
+   * @returns {Promise&lt;void&gt;}
+   */
+  const setWidgetState = async (next) =&gt; {
+    const nextState = typeof next === &quot;function&quot; ? next(state) : next;
+    if (
+      nextState == null ||
+      typeof nextState !== &quot;object&quot; ||
+      isArray(nextState)
+    ) {
+      throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+    }
+    const inputState = stringify(
+      nextState,
+      (_key, /** @type {unknown} */ value) =&gt; {
+        if (
+          typeof value === &quot;undefined&quot; ||
+          typeof value === &quot;function&quot; ||
+          typeof value === &quot;symbol&quot; ||
+          (typeof value === &quot;number&quot; &amp;&amp; !Number.isFinite(value))
+        ) {
+          throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+        }
+        return value;
+      },
+    );
+    const parsedState = parse(inputState);
+    if (
+      parsedState == null ||
+      typeof parsedState !== &quot;object&quot; ||
+      isArray(parsedState)
+    ) {
+      throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+    }
+    const storedState = {
+      modelContent: null,
+      privateContent: null,
+      ...parsedState,
+    };
+    const serializedState = stringify(storedState);
+    if (encode(serializedState).length &gt; 16 * 1024) {
+      throw new TypeError(
+        &quot;Widget state must be a JSON object of at most 16 KiB&quot;,
+      );
+    }
+    if (
+      hasOwn(storedState, &quot;imageIds&quot;) &amp;&amp;
+      (!isArray(storedState.imageIds) ||
+        storedState.imageIds.some(
+          (/** @type {unknown} */ id) =&gt; typeof id !== &quot;string&quot;,
+        ))
+    ) {
+      throw new TypeError(&quot;Widget state imageIds must be an array of strings&quot;);
+    }
+    if (storedState.imageIds?.length &gt; 0) {
+      throw Object.assign(
+        new TypeError(&quot;Visualization state does not support image attachments&quot;),
+        { code: -32602, data: { code: &quot;images_unsupported&quot; } },
+      );
+    }
+    state = storedState;
+    globalThis.openai.widgetState = state;
+    globalThis.dispatchEvent(
+      new CustomEvent(&quot;openai:set_globals&quot;, {
+        detail: { globals: { widgetState: state } },
+      }),
+    );
+    if (statePersistence === &quot;none&quot;) {
+      throw persistenceError();
+    }
+    const id = ++nextStateRequestId;
+    return new Promise((resolve, reject) =&gt; {
+      const timeout = globalThis.setTimeout(() =&gt; {
+        pendingStateWrites.delete(id);
+        reject(persistenceError());
+      }, 30_000);
+      pendingStateWrites.set(id, { resolve, reject, timeout, serializedState });
+      postToHost(&quot;widget-state-write&quot;, { id, state: serializedState });
+    });
+  };
+  const syncTheme = () =&gt; {
+    const theme = mediaQuery.matches ? &quot;dark&quot; : &quot;light&quot;;
+    root.dataset.theme = theme;
+    globalThis.openai = {
+      ...globalThis.openai,
+      openExternal,
+      sendFollowUpMessage,
+      setWidgetState,
+      theme,
+      visualizationStyleVariables: {},
+      visualizationTheme: theme,
+      widgetState: state,
+      statePersistence,
+      stateModelContext: &quot;none&quot;,
+    };
+    globalThis.dispatchEvent(
+      new CustomEvent(&quot;openai:set_globals&quot;, {
+        detail: { globals: globalThis.openai },
+      }),
+    );
+  };
+  const sendHeight = () =&gt; {
+    postToHost(&quot;height&quot;, {
+      height: Math.ceil(
+        Math.max(
+          document.body.scrollHeight,
+          document.body.getBoundingClientRect().height,
+        ),
+      ),
+    });
+  };
+
+  globalThis.addEventListener(
+    &quot;message&quot;,
+    (event) =&gt; {
+      const data = apply(getMessageData, event, []);
+      const ports = apply(getMessagePorts, event, []);
+      const source = apply(getMessageSource, event, []);
+      if (
+        hostPort != null ||
+        source !== parentWindow ||
+        typeof data !== &quot;object&quot; ||
+        data?.type !== &quot;codex-visualization-initialize&quot; ||
+        !isArray(ports) ||
+        ports.length !== 1
+      ) {
+        return;
+      }
+      apply(stopMessagePropagation, event, []);
+      const nextHostPort = ports[0];
+      try {
+        apply(addHostMessageListener, nextHostPort, [
+          &quot;message&quot;,
+          (event) =&gt; {
+            const data = apply(getMessageData, event, []);
+            if (typeof data === &quot;object&quot; &amp;&amp; data?.type === &quot;measure&quot;) {
+              sendHeight();
+            } else if (
+              typeof data === &quot;object&quot; &amp;&amp;
+              data?.type === &quot;widget-state-result&quot;
+            ) {
+              /** @type {unknown} */
+              const id = data.id;
+              if (typeof id !== &quot;number&quot;) {
+                return;
+              }
+              const pending = pendingStateWrites.get(id);
+              if (pending != null) {
+                pendingStateWrites.delete(id);
+                globalThis.clearTimeout(pending.timeout);
+                if (data.ok === true) {
+                  pending.resolve();
+                } else {
+                  pending.reject(persistenceError());
+                }
+              }
+            }
+          },
+        ]);
+        apply(startHostPort, nextHostPort, []);
+      } catch {
+        return;
+      }
+      hostPort = nextHostPort;
+      for (const [id, { serializedState }] of pendingStateWrites) {
+        postToHost(&quot;widget-state-write&quot;, { id, state: serializedState });
+      }
+      sendHeight();
+    },
+    { capture: true },
+  );
+  document.currentScript?.remove();
+  mediaQuery.addEventListener(&quot;change&quot;, syncTheme);
+  globalThis.addEventListener(&quot;click&quot;, (event) =&gt; {
+    if (event.defaultPrevented) {
+      return;
+    }
+    let element = null;
+    if (event.target instanceof globalThis.Element) {
+      element = event.target;
+    } else if (event.target instanceof globalThis.Node) {
+      element = event.target.parentElement;
+    }
+    const link = element?.closest(&quot;a[href]&quot;);
+    const href = link?.getAttribute(&quot;href&quot;);
+    if (href == null) {
+      return;
+    }
+    if (href.startsWith(&quot;#&quot;)) {
+      let id;
+      try {
+        id = decodeURIComponent(href.slice(1));
+      } catch {
+        return;
+      }
+      const target = id.length === 0 ? root : document.getElementById(id);
+      if (
+        target == null ||
+        globalThis.navigator.userActivation?.isActive !== true
+      ) {
+        return;
+      }
+      event.preventDefault();
+      postToHost(&quot;scroll-to&quot;, {
+        top: target.getBoundingClientRect().top + globalThis.scrollY,
+      });
+      return;
+    }
+    event.preventDefault();
+    openExternal({ href });
+  });
+  new ResizeObserver(sendHeight).observe(document.body);
+  syncTheme();
+})();
+&lt;/script&gt;
+&lt;style&gt;
+#ow-actions-study {
+  --ow-bg: light-dark(#fafbfc, #141719);
+  --ow-panel: light-dark(#ffffff, #1a1d22);
+  --ow-raised: light-dark(#f0f2f5, #20242b);
+  --ow-hover: light-dark(#e8ecf1, #262b33);
+  --ow-line: light-dark(#dce1e8, #303742);
+  --ow-text: light-dark(#202631, #e7e9ee);
+  --ow-muted: light-dark(#606b7b, #9fa9b9);
+  --ow-amber: light-dark(#986000, #f5a623);
+  --ow-amber-bg: light-dark(#fff3d9, #332819);
+  --ow-green: light-dark(#227145, #69c68a);
+  --ow-red: light-dark(#be353e, #fb8890);
+  --ow-blue: light-dark(#316bc2, #8db7f5);
+  --ow-scrim: light-dark(#18213066, #00000099);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif;
+  color: var(--ow-text);
+  container-type: inline-size;
+  isolation: isolate;
+}
+#ow-actions-study * { box-sizing: border-box; }
+#ow-actions-study button, #ow-actions-study input, #ow-actions-study textarea, #ow-actions-study select { font: inherit; }
+#ow-actions-study button { color: inherit; }
+#ow-actions-study button:disabled { opacity: .45; cursor: not-allowed; }
+#ow-actions-study button, #ow-actions-study input, #ow-actions-study textarea, #ow-actions-study select { -webkit-tap-highlight-color: transparent; }
+#ow-actions-study svg { flex-shrink: 0; width: 17px; height: 17px; }
+#ow-actions-study h1, #ow-actions-study h2, #ow-actions-study h3, #ow-actions-study p { margin: 0; }
+#ow-actions-study h1 { font-size: 23px; font-weight: 500; letter-spacing: -.6px; line-height: 1.25; }
+#ow-actions-study h2 { font-size: 18px; font-weight: 500; letter-spacing: -.3px; }
+#ow-actions-study h3 { font-size: 14px; font-weight: 500; }
+#ow-actions-study small { font-size: 12px; }
+#ow-actions-study code, #ow-actions-study pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+#ow-actions-study code { font-size: 12px; overflow-wrap: anywhere; background: transparent; color: inherit; padding: 0; border: 0; border-radius: 0; }
+#ow-actions-study .ow-muted { color: var(--ow-muted); }
+#ow-actions-study .ow-good { color: var(--ow-green); }
+#ow-actions-study .ow-error { color: var(--ow-red); }
+#ow-actions-study .ow-grow { flex: 1; min-width: 0; }
+#ow-actions-study .ow-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+#ow-actions-study .ow-wrap { flex-wrap: wrap; }
+#ow-actions-study .ow-stack { display: grid; gap: 16px; }
+#ow-actions-study .ow-app { background: var(--ow-bg); border: 1px solid var(--ow-line); border-radius: 14px; overflow: clip; position: relative; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+#ow-actions-study .ow-screen { grid-area: 1 / 1; min-width: 0; }
+#ow-actions-study .ow-top { min-height: 61px; padding: 8px 16px; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--ow-line); background: var(--ow-panel); }
+#ow-actions-study .ow-brand { color: var(--ow-amber); display: flex; align-items: center; }
+#ow-actions-study .ow-brand svg { width: 23px; height: 23px; }
+#ow-actions-study .ow-project { font-size: 14px; font-weight: 500; }
+#ow-actions-study .ow-top small { display: block; color: var(--ow-muted); font-size: 11px; }
+#ow-actions-study .ow-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 13px; border: 1px solid var(--ow-line); background: var(--ow-panel); border-radius: 8px; font-weight: 500; text-decoration: none; white-space: nowrap; }
+#ow-actions-study .ow-button:hover { background: var(--ow-hover); }
+#ow-actions-study .ow-button.ow-primary { background: var(--ow-text); color: var(--ow-bg); border-color: transparent; }
+#ow-actions-study .ow-button.ow-quiet { border-color: transparent; background: transparent; }
+#ow-actions-study .ow-button.ow-quiet:hover { background: var(--ow-hover); }
+#ow-actions-study .ow-button.ow-icon { padding: 10px; width: 44px; flex-shrink: 0; }
+#ow-actions-study .ow-button.ow-danger { color: var(--ow-red); }
+#ow-actions-study .ow-body { display: flex; min-height: 625px; }
+#ow-actions-study .ow-nav { display: none; }
+#ow-actions-study .ow-work { min-width: 0; flex: 1; }
+#ow-actions-study .ow-session-head { padding: 19px 18px 12px; }
+#ow-actions-study .ow-breadcrumb { color: var(--ow-muted); font-size: 12px; margin-bottom: 9px; }
+#ow-actions-study .ow-session-head h1 { font-size: 20px; }
+#ow-actions-study .ow-session-tools { margin-top: 16px; display: flex; gap: 8px; }
+#ow-actions-study .ow-session-tools .ow-hub-toggle { flex: 1; justify-content: flex-start; }
+#ow-actions-study .ow-hub-toggle[aria-expanded=true] { background: var(--ow-raised); }
+#ow-actions-study .ow-dot { display: inline-block; width: 6px; height: 6px; background: currentColor; border-radius: 50%; flex-shrink: 0; }
+#ow-actions-study .ow-session-canvas { position: relative; padding: 4px 16px 20px; }
+#ow-actions-study .ow-hub { background: var(--ow-panel); border: 1px solid var(--ow-line); border-radius: 16px; margin: 0 0 20px; overflow: clip; }
+#ow-actions-study .ow-hub-heading { padding: 15px 16px 12px; display: flex; align-items: center; gap: 9px; }
+#ow-actions-study .ow-hub-section { padding: 11px 15px; border-top: 1px solid var(--ow-line); }
+#ow-actions-study .ow-section-label { display: flex; justify-content: space-between; gap: 8px; color: var(--ow-muted); font-size: 12px; margin-bottom: 8px; }
+#ow-actions-study .ow-hub-row { width: 100%; display: flex; align-items: center; gap: 11px; text-align: left; padding: 10px 0; background: none; border: 0; border-radius: 7px; min-height: 60px; }
+#ow-actions-study .ow-hub-row:hover { background: var(--ow-raised); }
+#ow-actions-study .ow-hub-row .ow-chevron { color: var(--ow-muted); }
+#ow-actions-study .ow-hub-row small { display: block; color: var(--ow-muted); margin-top: 2px; }
+#ow-actions-study .ow-run-symbol { width: 30px; height: 30px; background: var(--ow-raised); border-radius: 8px; display: flex; justify-content: center; align-items: center; }
+#ow-actions-study .ow-hub-footer { width: 100%; border: 0; border-top: 1px solid var(--ow-line); border-radius: 0; justify-content: flex-start; padding-left: 16px; color: var(--ow-muted); }
+#ow-actions-study .ow-chat { display: grid; gap: 19px; padding: 1px 2px 0; }
+#ow-actions-study .ow-user-message { background: var(--ow-raised); border-radius: 13px 13px 4px 13px; padding: 13px 15px; margin-left: 25px; }
+#ow-actions-study .ow-agent-message { padding: 0 4px; }
+#ow-actions-study .ow-agent-name { font-weight: 500; margin: 0 0 9px; }
+#ow-actions-study .ow-agent-message p { color: var(--ow-muted); }
+#ow-actions-study .ow-composer { border: 1px solid var(--ow-line); border-radius: 13px; background: var(--ow-panel); margin-top: 12px; padding: 13px; }
+#ow-actions-study .ow-composer p { color: var(--ow-muted); min-height: 28px; }
+#ow-actions-study .ow-composer small { color: var(--ow-muted); }
+#ow-actions-study .ow-composer .ow-send { display: flex; width: 27px; height: 27px; border-radius: 7px; justify-content: center; align-items: center; background: var(--ow-raised); }
+#ow-actions-study .ow-drawer { background: var(--ow-panel); width: 100%; min-width: 0; }
+#ow-actions-study .ow-has-drawer .ow-work { display: none; }
+#ow-actions-study .ow-drawer-head { padding: 13px 16px; border-bottom: 1px solid var(--ow-line); }
+#ow-actions-study .ow-drawer-content { padding: 20px 18px; }
+#ow-actions-study .ow-drawer-heading { margin-bottom: 17px; }
+#ow-actions-study .ow-drawer-heading small { color: var(--ow-muted); display: block; margin-top: 5px; }
+#ow-actions-study .ow-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ow-muted); }
+#ow-actions-study .ow-status.ow-ready, #ow-actions-study .ow-status.ow-passed { color: var(--ow-green); }
+#ow-actions-study .ow-status.ow-running { color: var(--ow-blue); }
+#ow-actions-study .ow-status.ow-failed { color: var(--ow-red); }
+#ow-actions-study .ow-run-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0; }
+#ow-actions-study .ow-run-controls .ow-wide { grid-column: 1 / -1; }
+#ow-actions-study .ow-address { display: flex; align-items: center; gap: 8px; border: 1px solid var(--ow-line); border-radius: 8px; padding-left: 11px; min-width: 0; }
+#ow-actions-study .ow-address code { flex: 1; }
+#ow-actions-study .ow-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--ow-line); margin: 18px 0; }
+#ow-actions-study .ow-tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--ow-muted); padding: 10px 0; min-height: 44px; font-weight: 500; }
+#ow-actions-study .ow-tab[aria-pressed=true] { border-bottom-color: var(--ow-amber); color: var(--ow-text); }
+#ow-actions-study .ow-output { background: var(--ow-bg); border: 1px solid var(--ow-line); border-radius: 9px; padding: 14px 12px; font: 12px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; min-height: 186px; }
+#ow-actions-study .ow-output-tools { display: flex; gap: 8px; justify-content: space-between; margin-top: 7px; }
+#ow-actions-study .ow-output-tools .ow-button { font-size: 12px; padding: 9px 6px; }
+#ow-actions-study .ow-definition-link { width: 100%; margin-top: 16px; justify-content: space-between; }
+#ow-actions-study .ow-meta { display: grid; gap: 15px; margin: 0; }
+#ow-actions-study .ow-meta dt { font-size: 12px; color: var(--ow-muted); margin-bottom: 4px; }
+#ow-actions-study .ow-meta dd { margin: 0; overflow-wrap: anywhere; }
+#ow-actions-study .ow-settings { max-width: 850px; margin: auto; padding: 22px 18px 32px; }
+#ow-actions-study .ow-settings-title { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 15px; }
+#ow-actions-study .ow-settings-title p { margin-top: 9px; color: var(--ow-muted); }
+#ow-actions-study .ow-activity-link { width: 100%; border-radius: 8px; padding: 9px 12px; text-align: left; justify-content: flex-start; background: var(--ow-raised); }
+#ow-actions-study .ow-activity-link .ow-grow { white-space: normal; }
+#ow-actions-study .ow-activity-link small { display: block; margin-top: 2px; font-size: 11px; }
+#ow-actions-study .ow-definition { display: flex; gap: 12px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--ow-line); }
+#ow-actions-study .ow-definition small { display: block; color: var(--ow-muted); margin-top: 3px; }
+#ow-actions-study .ow-ownership { display: flex; align-items: center; gap: 5px; color: var(--ow-muted); font-size: 11px; margin-top: 7px; }
+#ow-actions-study .ow-ownership svg { width: 12px; height: 12px; }
+#ow-actions-study .ow-settings-section { margin-top: 23px; }
+#ow-actions-study .ow-settings-section &gt; p { margin-top: 7px; color: var(--ow-muted); }
+#ow-actions-study .ow-notice { display: flex; gap: 10px; background: var(--ow-amber-bg); color: var(--ow-amber); padding: 13px; border-radius: 9px; margin-top: 16px; font-size: 12px; }
+#ow-actions-study .ow-notice svg { margin-top: 2px; }
+#ow-actions-study .ow-life { padding: 18px 0; border-bottom: 1px solid var(--ow-line); }
+#ow-actions-study .ow-life &gt; p { color: var(--ow-muted); font-size: 12px; margin: 8px 0 12px; }
+#ow-actions-study .ow-modal-overlay { grid-area: 1 / 1; z-index: 10; background: var(--ow-scrim); padding: 45px 20px; display: flex; justify-content: center; align-items: flex-start; }
+#ow-actions-study .ow-dialog { background: var(--ow-panel); border: 1px solid var(--ow-line); border-radius: 16px; width: 100%; max-width: 530px; overflow: clip; }
+#ow-actions-study .ow-dialog-head { padding: 13px 17px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--ow-line); }
+#ow-actions-study .ow-dialog-head h2 { font-size: 17px; }
+#ow-actions-study .ow-dialog-body { padding: 20px; }
+#ow-actions-study .ow-dialog-intro { color: var(--ow-muted); margin-top: 6px; font-size: 13px; }
+#ow-actions-study .ow-search { display: flex; gap: 10px; align-items: center; background: var(--ow-bg); border: 1px solid var(--ow-line); border-radius: 9px; padding: 0 12px; margin: 18px 0 20px; }
+#ow-actions-study input, #ow-actions-study textarea, #ow-actions-study select { width: 100%; min-height: 46px; border: 1px solid var(--ow-line); border-radius: 7px; padding: 10px 12px; background: var(--ow-bg); color: var(--ow-text); font-size: 16px; }
+#ow-actions-study .ow-search input { border: 0; background: transparent; padding-left: 0; min-width: 0; }
+#ow-actions-study .ow-input-label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 7px; }
+#ow-actions-study .ow-field { margin-bottom: 18px; }
+#ow-actions-study .ow-task-group { color: var(--ow-muted); font-size: 11px; margin: 15px 0 5px; }
+#ow-actions-study .ow-task { display: flex; align-items: center; gap: 12px; padding: 12px 1px; width: 100%; min-height: 61px; border: 0; border-bottom: 1px solid var(--ow-line); background: none; text-align: left; }
+#ow-actions-study .ow-task:hover { background: var(--ow-raised); }
+#ow-actions-study .ow-task code { display: block; color: var(--ow-muted); font-size: 11px; margin-top: 3px; }
+#ow-actions-study .ow-task-source { background: var(--ow-raised); padding: 13px; border-radius: 9px; margin: 17px 0; }
+#ow-actions-study .ow-task-source small { display: block; color: var(--ow-muted); margin-top: 4px; }
+#ow-actions-study .ow-custom-link { width: 100%; justify-content: flex-start; margin-top: 16px; padding-left: 0; color: var(--ow-muted); }
+#ow-actions-study .ow-storage { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#ow-actions-study .ow-storage label { padding: 12px 10px; border: 1px solid var(--ow-line); border-radius: 8px; display: flex; align-items: flex-start; gap: 7px; }
+#ow-actions-study .ow-storage label:has(input:checked) { border-color: var(--ow-amber); background: var(--ow-amber-bg); }
+#ow-actions-study .ow-storage input, #ow-actions-study .ow-check input { width: 16px; height: 16px; min-height: 16px; margin: 3px 0 0; accent-color: var(--ow-amber); flex-shrink: 0; }
+#ow-actions-study .ow-storage small { display: block; color: var(--ow-muted); font-size: 11px; margin-top: 4px; }
+#ow-actions-study .ow-check { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; min-height: 44px; }
+#ow-actions-study .ow-check small { display: block; color: var(--ow-muted); margin-top: 3px; }
+#ow-actions-study .ow-dialog-footer { padding: 14px 20px; display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--ow-line); }
+#ow-actions-study .ow-dialog-footer .ow-primary { margin-left: auto; }
+#ow-actions-study .ow-step { color: var(--ow-muted); font-size: 11px; margin-right: auto; }
+#ow-actions-study .ow-state-line { background: var(--ow-panel); border-top: 1px solid var(--ow-line); color: var(--ow-muted); font-size: 11px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#ow-actions-study .ow-state-line .ow-button { font-size: 11px; padding: 5px 8px; min-height: 36px; margin-left: auto; }
+#ow-actions-study .ow-preview { padding: 32px 22px; text-align: center; background: var(--ow-bg); border: 1px solid var(--ow-line); border-radius: 9px; }
+#ow-actions-study .ow-preview h2 { margin: 15px 0 8px; }
+#ow-actions-study .ow-copy-text { user-select: all; }
+#ow-actions-study .ow-alert { color: var(--ow-red); margin-top: 12px; }
+#ow-actions-study .ow-toast { padding: 11px 16px; background: var(--ow-amber-bg); color: var(--ow-amber); font-size: 12px; border-top: 1px solid var(--ow-line); }
+@container (max-width: 350px) {
+  #ow-actions-study .ow-hub-count { display: none; }
+  #ow-actions-study .ow-tabs { gap: 16px; }
+  #ow-actions-study .ow-tab { font-size: 12px; }
+}
+@container (max-width: 650px) {
+  #ow-actions-study .ow-is-modal .ow-screen { display: none; }
+  #ow-actions-study .ow-modal-overlay { position: relative; padding: 0; background: var(--ow-panel); }
+  #ow-actions-study .ow-dialog { border: 0; border-radius: 0; max-width: none; }
+  #ow-actions-study .ow-dialog-body { padding: 18px 16px; }
+  #ow-actions-study .ow-dialog-head { padding: 11px 12px; }
+  #ow-actions-study .ow-dialog-footer { padding: 14px 16px; }
+  #ow-actions-study .ow-dialog-head .ow-button { width: 44px; padding: 10px; }
+  #ow-actions-study .ow-dialog-head .ow-back-label { display: none; }
+  #ow-actions-study .ow-state-line { padding: 8px 12px; gap: 4px; }
+  #ow-actions-study .ow-state-line .ow-button { min-height: 44px; }
+}
+@container (min-width: 900px) {
+  #ow-actions-study .ow-body { min-height: 700px; }
+  #ow-actions-study .ow-nav { display: flex; flex-direction: column; width: 178px; flex-shrink: 0; background: var(--ow-panel); border-right: 1px solid var(--ow-line); padding: 15px 10px; gap: 8px; }
+  #ow-actions-study .ow-nav &gt; small { color: var(--ow-muted); padding: 12px 10px 3px; }
+  #ow-actions-study .ow-nav .ow-button { justify-content: flex-start; font-size: 12px; white-space: normal; text-align: left; }
+  #ow-actions-study .ow-nav .ow-current { background: var(--ow-raised); }
+  #ow-actions-study .ow-nav .ow-nav-bottom { margin-top: auto; }
+  #ow-actions-study .ow-session-head { padding: 25px 28px 18px; display: flex; align-items: center; gap: 15px; }
+  #ow-actions-study .ow-session-tools { margin: 0 0 0 auto; }
+  #ow-actions-study .ow-session-head h1 { font-size: 21px; }
+  #ow-actions-study .ow-session-tools .ow-hub-toggle { flex: initial; }
+  #ow-actions-study .ow-hub-toggle .ow-hub-count { display: none; }
+  #ow-actions-study .ow-session-canvas { padding: 16px 28px 30px; min-height: 575px; }
+  #ow-actions-study .ow-chat { max-width: 650px; margin: 35px 0 0; padding: 0; gap: 25px; min-height: 500px; display: flex; flex-direction: column; }
+  #ow-actions-study .ow-hub { position: absolute; right: 25px; top: 7px; width: 285px; z-index: 2; box-shadow: 0 12px 38px light-dark(#17223816, #00000033); }
+  #ow-actions-study .ow-composer { margin-top: auto; }
+  #ow-actions-study .ow-has-drawer .ow-work { display: block; }
+  #ow-actions-study .ow-drawer { width: 365px; border-left: 1px solid var(--ow-line); flex-shrink: 0; }
+  #ow-actions-study .ow-has-drawer .ow-session-head { flex-wrap: wrap; }
+  #ow-actions-study .ow-has-drawer .ow-session-tools { margin-left: 0; }
+  #ow-actions-study .ow-has-drawer .ow-hub { display: none; }
+  #ow-actions-study .ow-has-drawer .ow-chat { max-width: 550px; margin-left: auto; }
+  #ow-actions-study .ow-settings { padding: 32px 38px; }
+  #ow-actions-study .ow-settings-title { margin-bottom: 22px; }
+  #ow-actions-study .ow-top-settings { display: none; }
+}
+&lt;/style&gt;
+&lt;div id=&quot;ow-actions-study&quot; aria-label=&quot;OpenWaggle Project Actions prototype&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+(() =&gt; {
+  const root = document.getElementById(&#x27;ow-actions-study&#x27;);
+  const seed = [
+    { id: &#x27;web&#x27;, name: &#x27;Website dev&#x27;, task: &#x27;dev&#x27;, command: &#x27;pnpm run dev&#x27;, source: &#x27;website/package.json&#x27;, cwd: &#x27;website&#x27;, service: true, storage: &#x27;local&#x27;, preview: true },
+    { id: &#x27;tests&#x27;, name: &#x27;Unit tests&#x27;, task: &#x27;test:unit&#x27;, command: &#x27;pnpm run test:unit&#x27;, source: &#x27;package.json&#x27;, cwd: &#x27;.&#x27;, service: false, storage: &#x27;project&#x27;, preview: false },
+    { id: &#x27;build&#x27;, name: &#x27;Build app&#x27;, task: &#x27;build&#x27;, command: &#x27;pnpm run build&#x27;, source: &#x27;package.json&#x27;, cwd: &#x27;.&#x27;, service: false, storage: &#x27;project&#x27;, preview: false },
+    { id: &#x27;types&#x27;, name: &#x27;Typecheck&#x27;, task: &#x27;typecheck&#x27;, command: &#x27;pnpm run typecheck&#x27;, source: &#x27;package.json&#x27;, cwd: &#x27;.&#x27;, service: false, storage: &#x27;local&#x27;, preview: false },
+  ];
+  const tasks = [
+    { task: &#x27;dev&#x27;, name: &#x27;Development app&#x27;, command: &#x27;pnpm run dev&#x27;, source: &#x27;package.json&#x27;, cwd: &#x27;.&#x27;, service: true },
+    { task: &#x27;test:unit&#x27;, name: &#x27;Unit tests&#x27;, command: &#x27;pnpm run test:unit&#x27;, source: &#x27;package.json&#x27;, cwd: &#x27;.&#x27;, service: false },
+    { task: &#x27;build&#x27;, name: &#x27;Build app&#x27;, command: &#x27;pnpm run build&#x27;, source: &#x27;package.json&#x27;, cwd: &#x27;.&#x27;, service: false },
+    { task: &#x27;typecheck&#x27;, name: &#x27;Typecheck&#x27;, command: &#x27;pnpm run typecheck&#x27;, source: &#x27;package.json&#x27;, cwd: &#x27;.&#x27;, service: false },
+    { task: &#x27;dev&#x27;, name: &#x27;Website dev&#x27;, command: &#x27;pnpm run dev&#x27;, source: &#x27;website/package.json&#x27;, cwd: &#x27;website&#x27;, service: true },
+    { task: &#x27;build&#x27;, name: &#x27;Build website&#x27;, command: &#x27;pnpm run build&#x27;, source: &#x27;website/package.json&#x27;, cwd: &#x27;website&#x27;, service: false },
+  ];
+  const state = { view: &#x27;session&#x27;, hub: true, selected: null, detail: &#x27;output&#x27;, settings: &#x27;actions&#x27;, modal: null, filter: &#x27;&#x27;, draft: null, toast: &#x27;&#x27;, actions: structuredClone(seed), runs: {
+    web: { status: &#x27;ready&#x27;, number: 1, output: &#x27;&gt; pnpm run dev\n\nastro v5.13.2\n\nLocal  http://localhost:4321/\n\nready in 286 ms\nwatching for file changes…&#x27; },
+    tests: { status: &#x27;running&#x27;, number: 1, output: &#x27;&gt; pnpm run test:unit\n\nRUN  v3.2.4\n\n✓ project-actions  12 tests\n✓ session-store     9 tests\n\nRunning remaining tests…&#x27; },
+    types: { status: &#x27;failed&#x27;, number: 1, output: &#x27;&gt; pnpm run typecheck\n\nsrc/actions.ts:42:7\nerror TS2322:\nType string is not assignable\nto type ActionStatus.\n\nProcess exited with code 2.&#x27; },
+  }, prepared: true, cleanupEnabled: false, composer: &#x27;&#x27;, copyValue: &#x27;&#x27;, error: &#x27;&#x27; };
+  const design = { showRecent: true };
+  let returnFocus = &#x27;[data-do=&quot;hub&quot;]&#x27;;
+  let feedbackTimer;
+  const esc = value =&gt; String(value).replace(/[&amp;&lt;&gt;&quot;&#x27;]/g, c =&gt; ({ &#x27;&amp;&#x27;:&#x27;&amp;amp;&#x27;, &#x27;&lt;&#x27;:&#x27;&amp;lt;&#x27;, &#x27;&gt;&#x27;:&#x27;&amp;gt;&#x27;, &#x27;&quot;&#x27;:&#x27;&amp;quot;&#x27;, &quot;&#x27;&quot;:&#x27;&amp;#39;&#x27; }[c]));
+  const ico = name =&gt; `&lt;i data-lucide=&quot;${name}&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;`;
+  const btn = (label, action, icon, extra = &#x27;&#x27;, attrs = &#x27;&#x27;) =&gt; `&lt;button type=&quot;button&quot; class=&quot;ow-button cursor-interaction ${extra}&quot; data-do=&quot;${action}&quot; ${attrs}&gt;${icon ? ico(icon) : &#x27;&#x27;}${label}&lt;/button&gt;`;
+  const iconBtn = (label, action, icon) =&gt; btn(&#x27;&#x27;, action, icon, &#x27;ow-icon ow-quiet&#x27;, `aria-label=&quot;${label}&quot;`);
+  const active = run =&gt; run &amp;&amp; [&#x27;ready&#x27;, &#x27;running&#x27;].includes(run.status);
+  const runningCount = () =&gt; Object.values(state.runs).filter(active).length;
+  const selectedAction = () =&gt; state.actions.find(a =&gt; a.id === state.selected);
+  const ownership = action =&gt; action.storage === &#x27;local&#x27; ? &#x27;Only you · this project&#x27; : &#x27;In project · shared&#x27;;
+  const statusText = status =&gt; ({ ready: &#x27;Ready&#x27;, running: &#x27;Running&#x27;, passed: &#x27;Passed&#x27;, failed: &#x27;Failed&#x27;, stopped: &#x27;Stopped&#x27;, idle: &#x27;Not run&#x27; }[status]);
+  const status = run =&gt; `&lt;span class=&quot;ow-status ow-${run?.status || &#x27;idle&#x27;}&quot;&gt;&lt;span class=&quot;ow-dot&quot;&gt;&lt;/span&gt;${statusText(run?.status || &#x27;idle&#x27;)}&lt;/span&gt;`;
+  function hub() {
+    if (!state.hub) return &#x27;&#x27;;
+    const recent = state.actions.filter(a =&gt; state.runs[a.id] &amp;&amp; (design.showRecent || active(state.runs[a.id])));
+    return `&lt;aside class=&quot;ow-hub&quot; aria-label=&quot;Session hub&quot;&gt;
+      &lt;div class=&quot;ow-hub-heading&quot;&gt;${ico(&#x27;panels-top-left&#x27;)}&lt;h3 class=&quot;ow-grow&quot;&gt;Session hub&lt;/h3&gt;&lt;small class=&quot;ow-muted&quot;&gt;This workspace&lt;/small&gt;&lt;/div&gt;
+      &lt;div class=&quot;ow-hub-section&quot;&gt;&lt;div class=&quot;ow-section-label&quot;&gt;&lt;span&gt;Environment&lt;/span&gt;&lt;span class=&quot;ow-good&quot;&gt;Prepared&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;ow-row&quot;&gt;${ico(&#x27;git-branch&#x27;)}&lt;span&gt;feature/project-actions&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
+      &lt;div class=&quot;ow-hub-section&quot;&gt;&lt;div class=&quot;ow-section-label&quot;&gt;&lt;span&gt;Changes&lt;/span&gt;&lt;span&gt;3 files&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;ow-row&quot;&gt;&lt;span class=&quot;ow-good&quot;&gt;+84&lt;/span&gt;&lt;span class=&quot;ow-error&quot;&gt;−12&lt;/span&gt;&lt;small class=&quot;ow-muted&quot;&gt;Uncommitted changes&lt;/small&gt;&lt;/div&gt;&lt;/div&gt;
+      &lt;div class=&quot;ow-hub-section&quot;&gt;&lt;div class=&quot;ow-section-label&quot;&gt;&lt;span&gt;Actions&lt;/span&gt;&lt;span&gt;${runningCount()} running&lt;/span&gt;&lt;/div&gt;${recent.map(a =&gt; {
+        const r = state.runs[a.id];
+        return `&lt;button type=&quot;button&quot; class=&quot;ow-hub-row cursor-interaction&quot; data-do=&quot;inspect:${a.id}&quot;&gt;&lt;span class=&quot;ow-run-symbol ${r.status === &#x27;failed&#x27; ? &#x27;ow-error&#x27; : active(r) ? &#x27;ow-good&#x27; : &#x27;ow-muted&#x27;}&quot;&gt;${ico(a.service ? &#x27;radio&#x27; : r.status === &#x27;failed&#x27; ? &#x27;circle-alert&#x27; : &#x27;terminal&#x27;)}&lt;/span&gt;&lt;span class=&quot;ow-grow&quot;&gt;${esc(a.name)}&lt;small&gt;${r.status === &#x27;ready&#x27; ? &#x27;Ready · localhost:4321&#x27; : r.status === &#x27;running&#x27; ? &#x27;Running · started by you&#x27; : r.status === &#x27;failed&#x27; ? &#x27;Failed · exit code 2&#x27; : statusText(r.status)}&lt;/small&gt;&lt;/span&gt;${ico(&#x27;chevron-right&#x27;)}&lt;/button&gt;`;
+      }).join(&#x27;&#x27;)}&lt;/div&gt;
+      ${btn(&#x27;Run an action&#x27;, &#x27;launcher&#x27;, &#x27;play&#x27;, &#x27;ow-hub-footer&#x27;)}
+    &lt;/aside&gt;`;
+  }
+  function session() {
+    return `&lt;section class=&quot;ow-work&quot;&gt;&lt;header class=&quot;ow-session-head&quot;&gt;&lt;div class=&quot;ow-grow&quot;&gt;&lt;div class=&quot;ow-breadcrumb&quot;&gt;OpenWaggle / Session&lt;/div&gt;&lt;h1&gt;Redesign project actions&lt;/h1&gt;&lt;/div&gt;&lt;div class=&quot;ow-session-tools&quot;&gt;${btn(`Session hub &lt;span class=&quot;ow-hub-count ow-muted&quot;&gt;· ${runningCount()} running&lt;/span&gt;`, &#x27;hub&#x27;, &#x27;panels-top-left&#x27;, &#x27;ow-hub-toggle&#x27;, `aria-expanded=&quot;${state.hub &amp;&amp; !state.selected}&quot;`)}${btn(&#x27;Action&#x27;, &#x27;add&#x27;, &#x27;plus&#x27;)}&lt;/div&gt;&lt;/header&gt;
+      &lt;div class=&quot;ow-session-canvas ${state.hub ? &#x27;ow-hub-visible&#x27; : &#x27;&#x27;}&quot;&gt;${hub()}&lt;div class=&quot;ow-chat&quot;&gt;&lt;div class=&quot;ow-user-message&quot;&gt;Start the website and run the unit tests for this workspace.&lt;/div&gt;&lt;div class=&quot;ow-agent-message&quot;&gt;&lt;div class=&quot;ow-agent-name ow-row&quot;&gt;&lt;span class=&quot;ow-brand&quot;&gt;${ico(&#x27;hexagon&#x27;)}&lt;/span&gt;OpenWaggle&lt;/div&gt;&lt;p&gt;The website is ready. I’m checking the tests while you review the changes.&lt;/p&gt;&lt;/div&gt;&lt;div class=&quot;ow-composer&quot;&gt;&lt;p&gt;${esc(state.composer || &#x27;Continue the conversation…&#x27;)}&lt;/p&gt;&lt;div class=&quot;ow-row&quot;&gt;&lt;small class=&quot;ow-grow&quot;&gt;${state.composer ? &#x27;Draft · not sent&#x27; : &#x27;Local · feature/project-actions&#x27;}&lt;/small&gt;&lt;span class=&quot;ow-send&quot;&gt;${ico(&#x27;arrow-up&#x27;)}&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;`;
+  }
+  function drawer() {
+    const a = selectedAction();
+    if (!a) return &#x27;&#x27;;
+    const r = state.runs[a.id];
+    return `&lt;aside class=&quot;ow-drawer&quot; aria-label=&quot;Action details&quot;&gt;&lt;div class=&quot;ow-drawer-head ow-row&quot;&gt;${btn(&#x27;Session&#x27;, &#x27;back&#x27;, &#x27;arrow-left&#x27;, &#x27;ow-quiet&#x27;)}&lt;span class=&quot;ow-grow&quot;&gt;&lt;/span&gt;&lt;small class=&quot;ow-muted&quot;&gt;Action run&lt;/small&gt;${iconBtn(&#x27;Close action details&#x27;, &#x27;back&#x27;, &#x27;x&#x27;)}&lt;/div&gt;&lt;div class=&quot;ow-drawer-content&quot;&gt;
+      &lt;div class=&quot;ow-drawer-heading&quot;&gt;&lt;div class=&quot;ow-row&quot;&gt;&lt;h2 class=&quot;ow-grow&quot;&gt;${esc(a.name)}&lt;/h2&gt;${status(r)}&lt;/div&gt;&lt;small&gt;feature/project-actions · Run ${r?.number || 1}&lt;/small&gt;&lt;/div&gt;
+      ${a.service &amp;&amp; r?.status === &#x27;ready&#x27; ? `&lt;div class=&quot;ow-address&quot;&gt;${ico(&#x27;globe&#x27;)}&lt;code&gt;localhost:4321&lt;/code&gt;${iconBtn(&#x27;Copy preview URL&#x27;, &#x27;copy-url&#x27;, &#x27;copy&#x27;)}&lt;/div&gt;` : &#x27;&#x27;}
+      &lt;div class=&quot;ow-run-controls&quot;&gt;${a.service ? btn(&#x27;Open preview&#x27;, &#x27;preview&#x27;, &#x27;external-link&#x27;, &#x27;ow-primary ow-wide&#x27;, r?.status !== &#x27;ready&#x27; ? &#x27;disabled&#x27; : &#x27;&#x27;) : &#x27;&#x27;}${active(r) ? btn(&#x27;Stop&#x27;, &#x27;stop&#x27;, &#x27;square&#x27;, &#x27;ow-danger&#x27;) + btn(&#x27;Restart&#x27;, &#x27;restart&#x27;, &#x27;rotate-cw&#x27;) : btn(&#x27;Run again&#x27;, &#x27;restart&#x27;, &#x27;play&#x27;, &#x27;ow-primary ow-wide&#x27;)}&lt;/div&gt;
+      ${r?.status === &#x27;failed&#x27; ? btn(&#x27;Ask agent to fix&#x27;, &#x27;ask-agent&#x27;, &#x27;sparkles&#x27;, &#x27;ow-wide&#x27;, &#x27;style=&quot;width:100%&quot;&#x27;) : &#x27;&#x27;}
+      &lt;div class=&quot;ow-tabs&quot;&gt;${[&#x27;output&#x27;,&#x27;details&#x27;].map(t =&gt; `&lt;button class=&quot;ow-tab cursor-interaction&quot; data-do=&quot;detail:${t}&quot; aria-pressed=&quot;${state.detail === t}&quot;&gt;${t === &#x27;output&#x27; ? &#x27;Output&#x27; : &#x27;Run details&#x27;}&lt;/button&gt;`).join(&#x27;&#x27;)}&lt;/div&gt;
+      ${state.detail === &#x27;output&#x27; ? `&lt;pre class=&quot;ow-output&quot;&gt;${esc(r?.output || &#x27;This action has not run in this workspace.&#x27;)}&lt;/pre&gt;&lt;div class=&quot;ow-output-tools&quot;&gt;${btn(&#x27;Copy output&#x27;, &#x27;copy-output&#x27;, &#x27;copy&#x27;, &#x27;ow-quiet&#x27;)}${btn(&#x27;Copy command&#x27;, &#x27;copy-command&#x27;, &#x27;terminal&#x27;, &#x27;ow-quiet&#x27;)}&lt;/div&gt;` : `&lt;dl class=&quot;ow-meta&quot;&gt;&lt;div&gt;&lt;dt&gt;Command&lt;/dt&gt;&lt;dd&gt;&lt;code&gt;${esc(a.command)}&lt;/code&gt;&lt;/dd&gt;&lt;/div&gt;&lt;div&gt;&lt;dt&gt;Working directory&lt;/dt&gt;&lt;dd&gt;&lt;code&gt;${esc(a.cwd === &#x27;.&#x27; ? &#x27;Project root&#x27; : a.cwd)}&lt;/code&gt;&lt;/dd&gt;&lt;/div&gt;&lt;div&gt;&lt;dt&gt;Task source&lt;/dt&gt;&lt;dd&gt;&lt;code&gt;${esc(a.source || &#x27;Custom command&#x27;)}&lt;/code&gt;&lt;/dd&gt;&lt;/div&gt;&lt;div&gt;&lt;dt&gt;Started by&lt;/dt&gt;&lt;dd&gt;You · this workspace&lt;/dd&gt;&lt;/div&gt;&lt;div&gt;&lt;dt&gt;Process lifetime&lt;/dt&gt;&lt;dd&gt;${a.service ? &#x27;Keeps running when OpenWaggle closes. Reconnects when you return.&#x27; : &#x27;Ends when the command finishes.&#x27;}&lt;/dd&gt;&lt;/div&gt;&lt;/dl&gt;`}
+      ${btn(&#x27;Edit saved action&#x27;, `edit:${a.id}`, &#x27;sliders-horizontal&#x27;, &#x27;ow-quiet ow-definition-link&#x27;)}
+    &lt;/div&gt;&lt;/aside&gt;`;
+  }
+  function settings() {
+    return `&lt;section class=&quot;ow-work&quot;&gt;&lt;div class=&quot;ow-settings&quot;&gt;&lt;div class=&quot;ow-breadcrumb&quot;&gt;Settings / OpenWaggle&lt;/div&gt;&lt;div class=&quot;ow-settings-title&quot;&gt;&lt;div class=&quot;ow-grow&quot;&gt;&lt;h1&gt;Project actions&lt;/h1&gt;&lt;p&gt;Save the commands you use in this project.&lt;/p&gt;&lt;/div&gt;${btn(&#x27;Action&#x27;, &#x27;add&#x27;, &#x27;plus&#x27;)}&lt;/div&gt;
+      ${btn(`&lt;span class=&quot;ow-good ow-dot&quot;&gt;&lt;/span&gt;&lt;span class=&quot;ow-grow&quot;&gt;${runningCount()} running in this workspace&lt;small class=&quot;ow-muted&quot;&gt;${state.actions.filter(a =&gt; active(state.runs[a.id])).map(a =&gt; esc(a.name)).join(&#x27; · &#x27;) || &#x27;View recent runs in the session hub&#x27;}&lt;/small&gt;&lt;/span&gt;${ico(&#x27;arrow-up-right&#x27;)}`, &#x27;activity&#x27;, &#x27;&#x27;, &#x27;ow-activity-link&#x27;)}
+      &lt;div class=&quot;ow-tabs&quot;&gt;${[&#x27;actions&#x27;,&#x27;preparation&#x27;].map(t =&gt; `&lt;button class=&quot;ow-tab cursor-interaction&quot; data-do=&quot;settings-tab:${t}&quot; aria-pressed=&quot;${state.settings === t}&quot;&gt;${t === &#x27;actions&#x27; ? &#x27;Saved actions&#x27; : &#x27;Workspace preparation&#x27;}&lt;/button&gt;`).join(&#x27;&#x27;)}&lt;/div&gt;
+      ${state.settings === &#x27;actions&#x27; ? `&lt;div&gt;${state.actions.map(a =&gt; `&lt;div class=&quot;ow-definition&quot;&gt;&lt;span class=&quot;ow-run-symbol&quot;&gt;${ico(a.service ? &#x27;radio&#x27; : &#x27;terminal&#x27;)}&lt;/span&gt;&lt;div class=&quot;ow-grow&quot;&gt;&lt;h3&gt;${esc(a.name)}&lt;/h3&gt;&lt;small&gt;&lt;code&gt;${esc(a.command)}&lt;/code&gt;${a.cwd !== &#x27;.&#x27; ? ` · ${esc(a.cwd)}` : &#x27;&#x27;}&lt;/small&gt;&lt;span class=&quot;ow-ownership&quot;&gt;${ico(a.storage === &#x27;local&#x27; ? &#x27;lock-keyhole&#x27; : &#x27;folder-git-2&#x27;)}${ownership(a)}&lt;/span&gt;&lt;/div&gt;${btn(&#x27;Edit&#x27;, `edit:${a.id}`, &#x27;&#x27;, &#x27;ow-quiet&#x27;, `aria-label=&quot;Edit ${esc(a.name)}&quot;`)}&lt;/div&gt;`).join(&#x27;&#x27;)}&lt;/div&gt;&lt;div class=&quot;ow-settings-section&quot;&gt;&lt;p&gt;&lt;small&gt;New actions are saved only for you. Choose “In project” on an action to share its definition.&lt;/small&gt;&lt;/p&gt;&lt;/div&gt;` : preparation()}
+    &lt;/div&gt;&lt;/section&gt;`;
+  }
+  function preparation() {
+    return `&lt;div class=&quot;ow-settings-section&quot;&gt;&lt;div class=&quot;ow-row&quot;&gt;&lt;h3 class=&quot;ow-grow&quot;&gt;Default profile&lt;/h3&gt;&lt;small class=&quot;ow-muted&quot;&gt;This project&lt;/small&gt;&lt;/div&gt;&lt;p&gt;&lt;small&gt;Prepare new worktrees before the agent starts. Release their resources before removal.&lt;/small&gt;&lt;/p&gt;&lt;div class=&quot;ow-life&quot;&gt;&lt;div class=&quot;ow-row&quot;&gt;${ico(&#x27;package-check&#x27;)}&lt;h3 class=&quot;ow-grow&quot;&gt;Setup&lt;/h3&gt;&lt;span class=&quot;ow-status ow-ready&quot;&gt;&lt;span class=&quot;ow-dot&quot;&gt;&lt;/span&gt;${state.prepared ? &#x27;Enabled&#x27; : &#x27;Disabled&#x27;}&lt;/span&gt;&lt;/div&gt;&lt;p&gt;Runs for new managed worktrees.&lt;/p&gt;&lt;div class=&quot;ow-row ow-wrap&quot;&gt;&lt;code class=&quot;ow-grow&quot;&gt;pnpm install --frozen-lockfile&lt;/code&gt;${btn(&#x27;Edit&#x27;, &#x27;setup&#x27;, &#x27;&#x27;, &#x27;ow-quiet&#x27;)}&lt;/div&gt;&lt;span class=&quot;ow-ownership&quot;&gt;${ico(&#x27;lock-keyhole&#x27;)}Only you · this project&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;ow-life&quot;&gt;&lt;div class=&quot;ow-row&quot;&gt;${ico(&#x27;brush-cleaning&#x27;)}&lt;h3 class=&quot;ow-grow&quot;&gt;Cleanup&lt;/h3&gt;&lt;span class=&quot;ow-status ${state.cleanupEnabled ? &#x27;ow-ready&#x27; : &#x27;&#x27;}&quot;&gt;${state.cleanupEnabled ? &#x27;Enabled&#x27; : &#x27;Review required&#x27;}&lt;/span&gt;&lt;/div&gt;&lt;p&gt;Runs before the last session’s worktree is removed.&lt;/p&gt;&lt;div class=&quot;ow-row ow-wrap&quot;&gt;&lt;code class=&quot;ow-grow&quot;&gt;docker compose down&lt;/code&gt;${btn(state.cleanupEnabled ? &#x27;Review&#x27; : &#x27;Review &amp; enable&#x27;, &#x27;cleanup&#x27;, &#x27;&#x27;, &#x27;ow-quiet&#x27;)}&lt;/div&gt;&lt;span class=&quot;ow-ownership&quot;&gt;${ico(&#x27;folder-git-2&#x27;)}In project · shared&lt;/span&gt;&lt;/div&gt;${!state.cleanupEnabled ? `&lt;div class=&quot;ow-notice&quot;&gt;${ico(&#x27;circle-alert&#x27;)}&lt;span&gt;A shared cleanup is available. Review it before enabling it on this machine.&lt;/span&gt;&lt;/div&gt;` : &#x27;&#x27;}&lt;/div&gt;`;
+  }
+  function taskList() {
+    const filtered = tasks.filter(t =&gt; `${t.task} ${t.name} ${t.source}`.toLowerCase().includes(state.filter.toLowerCase()));
+    return [&#x27;package.json&#x27;, &#x27;website/package.json&#x27;].map(source =&gt; {
+      const group = filtered.filter(t =&gt; t.source === source);
+      if (!group.length) return &#x27;&#x27;;
+      return `&lt;div class=&quot;ow-task-group&quot;&gt;${source === &#x27;package.json&#x27; ? &#x27;PROJECT ROOT&#x27; : &#x27;WEBSITE&#x27;} &lt;span&gt;· ${source}&lt;/span&gt;&lt;/div&gt;${group.map(t =&gt; `&lt;button class=&quot;ow-task cursor-interaction&quot; data-do=&quot;choose:${tasks.indexOf(t)}&quot;&gt;&lt;span class=&quot;ow-run-symbol&quot;&gt;${ico(t.service ? &#x27;radio&#x27; : &#x27;terminal&#x27;)}&lt;/span&gt;&lt;span class=&quot;ow-grow&quot;&gt;${esc(t.task)}&lt;code&gt;${esc(t.command)}&lt;/code&gt;&lt;/span&gt;${ico(&#x27;chevron-right&#x27;)}&lt;/button&gt;`).join(&#x27;&#x27;)}`;
+    }).join(&#x27;&#x27;) || &#x27;&lt;p class=&quot;ow-muted&quot;&gt;No matching tasks.&lt;/p&gt;&#x27;;
+  }
+  function storageFields(d) {
+    return `&lt;div class=&quot;ow-field&quot;&gt;&lt;span class=&quot;ow-input-label&quot;&gt;Save this action&lt;/span&gt;&lt;div class=&quot;ow-storage&quot;&gt;&lt;label class=&quot;cursor-interaction&quot;&gt;&lt;input type=&quot;radio&quot; name=&quot;storage&quot; value=&quot;local&quot; ${d.storage === &#x27;local&#x27; ? &#x27;checked&#x27; : &#x27;&#x27;}&gt;&lt;span&gt;Only you&lt;small&gt;Local to this project&lt;/small&gt;&lt;/span&gt;&lt;/label&gt;&lt;label class=&quot;cursor-interaction&quot;&gt;&lt;input type=&quot;radio&quot; name=&quot;storage&quot; value=&quot;project&quot; ${d.storage === &#x27;project&#x27; ? &#x27;checked&#x27; : &#x27;&#x27;}&gt;&lt;span&gt;In project&lt;small&gt;Share through Git&lt;/small&gt;&lt;/span&gt;&lt;/label&gt;&lt;/div&gt;&lt;/div&gt;`;
+  }
+  function editForm() {
+    const d = state.draft;
+    return `&lt;form id=&quot;ow-action-form&quot;&gt;&lt;div class=&quot;ow-field&quot;&gt;&lt;label class=&quot;ow-input-label&quot; for=&quot;ow-name&quot;&gt;Action name&lt;/label&gt;&lt;input id=&quot;ow-name&quot; name=&quot;name&quot; value=&quot;${esc(d.name)}&quot; required&gt;&lt;/div&gt;
+      ${d.source ? `&lt;div class=&quot;ow-task-source&quot;&gt;&lt;div class=&quot;ow-row&quot;&gt;${ico(&#x27;file-code-2&#x27;)}&lt;code&gt;${esc(d.source)} → ${esc(d.task)}&lt;/code&gt;&lt;/div&gt;&lt;small&gt;Uses this task’s current definition in your workspace.&lt;/small&gt;&lt;code&gt;${esc(d.command)}&lt;/code&gt;&lt;/div&gt;` : `&lt;div class=&quot;ow-field&quot;&gt;&lt;label class=&quot;ow-input-label&quot; for=&quot;ow-command&quot;&gt;Command&lt;/label&gt;&lt;textarea id=&quot;ow-command&quot; name=&quot;command&quot; rows=&quot;2&quot; required placeholder=&quot;e.g. python -m pytest&quot;&gt;${esc(d.command)}&lt;/textarea&gt;&lt;/div&gt;&lt;div class=&quot;ow-field&quot;&gt;&lt;label class=&quot;ow-input-label&quot; for=&quot;ow-cwd&quot;&gt;Working directory&lt;/label&gt;&lt;input id=&quot;ow-cwd&quot; name=&quot;cwd&quot; value=&quot;${esc(d.cwd)}&quot; placeholder=&quot;.&quot;&gt;&lt;/div&gt;`}
+      ${storageFields(d)}&lt;label class=&quot;ow-check cursor-interaction&quot;&gt;&lt;input type=&quot;checkbox&quot; name=&quot;service&quot; ${d.service ? &#x27;checked&#x27; : &#x27;&#x27;}&gt;&lt;span&gt;Long-running process&lt;small&gt;For development servers and watchers.&lt;/small&gt;&lt;/span&gt;&lt;/label&gt;&lt;label class=&quot;ow-check cursor-interaction&quot;&gt;&lt;input type=&quot;checkbox&quot; name=&quot;preview&quot; ${d.preview ? &#x27;checked&#x27; : &#x27;&#x27;}&gt;&lt;span&gt;Open preview when ready&lt;small&gt;Wait for the server URL before opening.&lt;/small&gt;&lt;/span&gt;&lt;/label&gt;${state.error ? `&lt;p class=&quot;ow-alert&quot; role=&quot;alert&quot;&gt;${esc(state.error)}&lt;/p&gt;` : &#x27;&#x27;}&lt;/form&gt;`;
+  }
+  function modal() {
+    if (!state.modal) return &#x27;&#x27;;
+    let title = &#x27;&#x27;, body = &#x27;&#x27;, footer = &#x27;&#x27;, back = false;
+    if (state.modal === &#x27;discover&#x27;) {
+      title = &#x27;Add an action&#x27;;
+      body = `&lt;h2&gt;Start with a project task&lt;/h2&gt;&lt;p class=&quot;ow-dialog-intro&quot;&gt;Commands found in OpenWaggle.&lt;/p&gt;&lt;label class=&quot;ow-search&quot;&gt;${ico(&#x27;search&#x27;)}&lt;input id=&quot;ow-search&quot; aria-label=&quot;Find a project task&quot; placeholder=&quot;Find a task…&quot; value=&quot;${esc(state.filter)}&quot;&gt;&lt;/label&gt;&lt;div id=&quot;ow-task-list&quot;&gt;${taskList()}&lt;/div&gt;${btn(&#x27;Write a custom command&#x27;, &#x27;custom&#x27;, &#x27;terminal&#x27;, &#x27;ow-quiet ow-custom-link&#x27;)}`;
+      footer = &#x27;&lt;span class=&quot;ow-step&quot;&gt;1 of 2 · Choose a command&lt;/span&gt;&#x27;;
+    } else if (state.modal === &#x27;configure&#x27; || state.modal === &#x27;edit&#x27;) {
+      title = state.modal === &#x27;edit&#x27; ? &#x27;Edit action&#x27; : &#x27;Configure action&#x27;; back = state.modal === &#x27;configure&#x27;;
+      body = editForm();
+      footer = `${state.modal === &#x27;configure&#x27; ? &#x27;&lt;span class=&quot;ow-step&quot;&gt;2 of 2&lt;/span&gt;&#x27; : &#x27;&#x27;}${btn(&#x27;Cancel&#x27;, &#x27;close-modal&#x27;, &#x27;&#x27;, &#x27;ow-quiet&#x27;)}${btn(state.modal === &#x27;edit&#x27; ? &#x27;Save changes&#x27; : &#x27;Add action&#x27;, &#x27;save&#x27;, &#x27;check&#x27;, &#x27;ow-primary&#x27;)}`;
+    } else if (state.modal === &#x27;launcher&#x27;) {
+      title = &#x27;Run an action&#x27;;
+      body = `&lt;p class=&quot;ow-dialog-intro&quot;&gt;feature/project-actions&lt;/p&gt;${state.actions.map(a =&gt; `&lt;button class=&quot;ow-task cursor-interaction&quot; data-do=&quot;launch:${a.id}&quot;&gt;&lt;span class=&quot;ow-run-symbol&quot;&gt;${ico(a.service ? &#x27;radio&#x27; : &#x27;terminal&#x27;)}&lt;/span&gt;&lt;span class=&quot;ow-grow&quot;&gt;${esc(a.name)}&lt;code&gt;${esc(a.command)}&lt;/code&gt;&lt;/span&gt;${active(state.runs[a.id]) ? status(state.runs[a.id]) : ico(&#x27;play&#x27;)}&lt;/button&gt;`).join(&#x27;&#x27;)}`;
+      footer = btn(&#x27;Add action&#x27;, &#x27;add&#x27;, &#x27;plus&#x27;, &#x27;ow-quiet&#x27;);
+    } else if (state.modal === &#x27;preview&#x27;) {
+      title = &#x27;Browser preview&#x27;;
+      body = `&lt;div class=&quot;ow-address&quot;&gt;${ico(&#x27;globe&#x27;)}&lt;code&gt;localhost:4321&lt;/code&gt;&lt;/div&gt;&lt;div class=&quot;ow-preview&quot; style=&quot;margin-top:16px&quot;&gt;&lt;span class=&quot;ow-brand&quot; style=&quot;justify-content:center&quot;&gt;${ico(&#x27;hexagon&#x27;)}&lt;/span&gt;&lt;h2&gt;OpenWaggle&lt;/h2&gt;&lt;p class=&quot;ow-muted&quot;&gt;Your workspace for working with agents.&lt;/p&gt;&lt;small class=&quot;ow-muted&quot;&gt;Website preview · simulated&lt;/small&gt;&lt;/div&gt;`;
+    } else if (state.modal === &#x27;copy&#x27;) {
+      title = &#x27;Copy text&#x27;;
+      body = `&lt;p class=&quot;ow-dialog-intro&quot;&gt;Select and copy this text.&lt;/p&gt;&lt;textarea readonly class=&quot;ow-copy-text&quot; rows=&quot;7&quot; aria-label=&quot;Text to copy&quot;&gt;${esc(state.copyValue)}&lt;/textarea&gt;`;
+    } else if (state.modal === &#x27;setup&#x27; || state.modal === &#x27;cleanup&#x27;) {
+      const cleanup = state.modal === &#x27;cleanup&#x27;;
+      title = cleanup ? &#x27;Review workspace cleanup&#x27; : &#x27;Workspace setup&#x27;;
+      body = `&lt;p class=&quot;ow-dialog-intro&quot;&gt;${cleanup ? &#x27;Shared by this project. Enabling is saved only for you.&#x27; : &#x27;Runs before the first agent turn in a new managed worktree.&#x27;}&lt;/p&gt;&lt;div class=&quot;ow-task-source&quot;&gt;&lt;code&gt;${cleanup ? &#x27;docker compose down&#x27; : &#x27;pnpm install --frozen-lockfile&#x27;}&lt;/code&gt;&lt;small&gt;Working directory · project root&lt;/small&gt;&lt;/div&gt;&lt;p class=&quot;ow-muted&quot;&gt;${cleanup ? &#x27;Stops the workspace containers before OpenWaggle removes the worktree.&#x27; : &#x27;Existing checkouts run setup only when you ask. A failed setup pauses preparation.&#x27;}&lt;/p&gt;`;
+      footer = btn(&#x27;Cancel&#x27;, &#x27;close-modal&#x27;, &#x27;&#x27;, &#x27;ow-quiet&#x27;) + btn(cleanup ? &#x27;Enable cleanup&#x27; : state.prepared ? &#x27;Disable setup&#x27; : &#x27;Enable setup&#x27;, cleanup ? &#x27;enable-cleanup&#x27; : &#x27;toggle-setup&#x27;, &#x27;check&#x27;, &#x27;ow-primary&#x27;);
+    }
+    return `&lt;div class=&quot;ow-modal-overlay&quot;&gt;&lt;section class=&quot;ow-dialog&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-labelledby=&quot;ow-dialog-title&quot;&gt;&lt;div class=&quot;ow-dialog-head&quot;&gt;${back ? btn(&#x27;&lt;span class=&quot;ow-back-label&quot;&gt;Back&lt;/span&gt;&#x27;, &#x27;discover-back&#x27;, &#x27;arrow-left&#x27;, &#x27;ow-quiet&#x27;) : &#x27;&#x27;}&lt;h2 class=&quot;ow-grow&quot; id=&quot;ow-dialog-title&quot;&gt;${title}&lt;/h2&gt;${iconBtn(&#x27;Close dialog&#x27;, &#x27;close-modal&#x27;, &#x27;x&#x27;)}&lt;/div&gt;&lt;div class=&quot;ow-dialog-body&quot;&gt;${body}&lt;/div&gt;${footer ? `&lt;div class=&quot;ow-dialog-footer&quot;&gt;${footer}&lt;/div&gt;` : &#x27;&#x27;}&lt;/section&gt;&lt;/div&gt;`;
+  }
+  function render(focus) {
+    root.innerHTML = `&lt;div class=&quot;ow-app ${state.selected ? &#x27;ow-has-drawer&#x27; : &#x27;&#x27;} ${state.modal ? &#x27;ow-is-modal&#x27; : &#x27;&#x27;}&quot;&gt;&lt;div class=&quot;ow-screen&quot; ${state.modal ? &#x27;inert&#x27; : &#x27;&#x27;}&gt;&lt;header class=&quot;ow-top&quot;&gt;&lt;span class=&quot;ow-brand&quot;&gt;${ico(&#x27;hexagon&#x27;)}&lt;/span&gt;&lt;div class=&quot;ow-grow&quot;&gt;&lt;span class=&quot;ow-project&quot;&gt;OpenWaggle&lt;/span&gt;&lt;small&gt;feature/project-actions&lt;/small&gt;&lt;/div&gt;${btn(state.view === &#x27;settings&#x27; ? &#x27;Session&#x27; : &#x27;Settings&#x27;, state.view === &#x27;settings&#x27; ? &#x27;session&#x27; : &#x27;settings&#x27;, state.view === &#x27;settings&#x27; ? &#x27;messages-square&#x27; : &#x27;settings-2&#x27;, &#x27;ow-quiet ow-top-settings&#x27;)}&lt;/header&gt;&lt;div class=&quot;ow-body&quot;&gt;&lt;nav class=&quot;ow-nav&quot; aria-label=&quot;Project navigation&quot;&gt;&lt;small&gt;PROJECT&lt;/small&gt;${btn(&#x27;OpenWaggle&#x27;, &#x27;session&#x27;, &#x27;folder&#x27;, &#x27;ow-quiet&#x27;)}&lt;small&gt;SESSIONS&lt;/small&gt;${btn(&#x27;Redesign project actions&#x27;, &#x27;session&#x27;, &#x27;messages-square&#x27;, state.view === &#x27;session&#x27; ? &#x27;ow-current ow-quiet&#x27; : &#x27;ow-quiet&#x27;)}${btn(&#x27;Project settings&#x27;, &#x27;settings&#x27;, &#x27;settings-2&#x27;, &#x27;ow-quiet ow-nav-bottom&#x27;)}&lt;/nav&gt;${state.view === &#x27;settings&#x27; ? settings() : session()}${state.view === &#x27;session&#x27; ? drawer() : &#x27;&#x27;}&lt;/div&gt;&lt;/div&gt;${modal()}${state.toast ? `&lt;div class=&quot;ow-toast&quot; role=&quot;status&quot;&gt;${esc(state.toast)}&lt;/div&gt;` : &#x27;&#x27;}&lt;footer class=&quot;ow-state-line&quot; ${state.modal ? &#x27;inert&#x27; : &#x27;&#x27;}&gt;&lt;span&gt;Interactive prototype · simulated runs&lt;/span&gt;${btn(&#x27;Reset demo&#x27;, &#x27;reset&#x27;, &#x27;rotate-ccw&#x27;, &#x27;ow-quiet&#x27;)}&lt;/footer&gt;&lt;/div&gt;`;
+    if (globalThis.lucide) globalThis.lucide.createIcons({ attrs: { width: 17, height: 17 } });
+    if (focus) root.querySelector(focus)?.focus({ preventScroll: true });
+  }
+  function feedback(message) { state.toast = message; clearTimeout(feedbackTimer); feedbackTimer = setTimeout(() =&gt; { state.toast = &#x27;&#x27;; const toast = root.querySelector(&#x27;.ow-toast&#x27;); toast?.remove(); }, 4500); }
+  function openModal(name, trigger) { state.modal = name; state.error = &#x27;&#x27;; returnFocus = trigger || returnFocus; }
+  function start(a, restart = false) {
+    if (active(state.runs[a.id]) &amp;&amp; !restart) return;
+    const number = (state.runs[a.id]?.number || 0) + 1;
+    state.runs[a.id] = { status: &#x27;running&#x27;, number, output: `&gt; ${a.command}\n\n${restart ? &#x27;Previous process stopped.\nStarting a new run…&#x27; : &#x27;Starting…&#x27;}` };
+    setTimeout(() =&gt; {
+      const r = state.runs[a.id];
+      if (r?.number !== number || r.status !== &#x27;running&#x27;) return;
+      r.status = a.service ? &#x27;ready&#x27; : a.id === &#x27;types&#x27; ? &#x27;failed&#x27; : &#x27;passed&#x27;;
+      r.output += a.service ? &#x27;\n\nLocal  http://localhost:4321/\nReady. Watching for file changes…&#x27; : a.id === &#x27;types&#x27; ? &#x27;\n\nerror TS2322: incompatible ActionStatus.\nProcess exited with code 2.&#x27; : &#x27;\n\nAll checks passed.\nProcess exited with code 0.&#x27;;
+      render();
+    }, 1400);
+  }
+  function captureDraft() {
+    if (!state.draft) return;
+    const form = root.querySelector(&#x27;#ow-action-form&#x27;);
+    if (!form) return;
+    const data = new FormData(form);
+    Object.assign(state.draft, { name: String(data.get(&#x27;name&#x27;) || &#x27;&#x27;).trim(), storage: data.get(&#x27;storage&#x27;) || &#x27;local&#x27;, service: data.has(&#x27;service&#x27;), preview: data.has(&#x27;preview&#x27;) });
+    if (!state.draft.source) Object.assign(state.draft, { command: String(data.get(&#x27;command&#x27;) || &#x27;&#x27;).trim(), cwd: String(data.get(&#x27;cwd&#x27;) || &#x27;.&#x27;).trim() });
+  }
+  root.addEventListener(&#x27;input&#x27;, event =&gt; {
+    if (event.target.id === &#x27;ow-search&#x27;) { state.filter = event.target.value; root.querySelector(&#x27;#ow-task-list&#x27;).innerHTML = taskList(); if (globalThis.lucide) globalThis.lucide.createIcons(); }
+    else captureDraft();
+  });
+  root.addEventListener(&#x27;change&#x27;, captureDraft);
+  root.addEventListener(&#x27;submit&#x27;, event =&gt; { event.preventDefault(); root.querySelector(&#x27;[data-do=&quot;save&quot;]&#x27;)?.click(); });
+  root.addEventListener(&#x27;keydown&#x27;, event =&gt; {
+    if (event.key === &#x27;Escape&#x27; &amp;&amp; state.modal) { state.modal = null; render(returnFocus); }
+    if (event.key !== &#x27;Tab&#x27; || !state.modal) return;
+    const controls = Array.from(root.querySelectorAll(&#x27;.ow-dialog button:not(:disabled), .ow-dialog input, .ow-dialog textarea, .ow-dialog select&#x27;));
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey &amp;&amp; document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey &amp;&amp; document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  });
+  root.addEventListener(&#x27;click&#x27;, async event =&gt; {
+    const control = event.target.closest(&#x27;[data-do]&#x27;);
+    if (!control || !root.contains(control)) return;
+    const [action, arg] = control.dataset.do.split(&#x27;:&#x27;);
+    let focus;
+    if (action === &#x27;hub&#x27;) { state.selected = null; state.hub = !state.hub; }
+    if (action === &#x27;session&#x27; || action === &#x27;activity&#x27;) { state.view = &#x27;session&#x27;; state.selected = null; state.hub = true; }
+    if (action === &#x27;settings&#x27;) { state.view = &#x27;settings&#x27;; state.selected = null; }
+    if (action === &#x27;settings-tab&#x27;) state.settings = arg;
+    if (action === &#x27;inspect&#x27;) { state.selected = arg; state.detail = &#x27;output&#x27;; focus = &#x27;[data-do=&quot;back&quot;]&#x27;; }
+    if (action === &#x27;back&#x27;) { const previous = state.selected; state.selected = null; state.hub = true; focus = `[data-do=&quot;inspect:${previous}&quot;]`; }
+    if (action === &#x27;detail&#x27;) state.detail = arg;
+    if (action === &#x27;stop&#x27;) { const r = state.runs[state.selected]; if (r) { r.status = &#x27;stopped&#x27;; r.output += &#x27;\n\nStopped by you. Output retained.&#x27;; } }
+    if (action === &#x27;restart&#x27;) start(selectedAction(), true);
+    if (action === &#x27;add&#x27;) { state.filter = &#x27;&#x27;; state.draft = null; openModal(&#x27;discover&#x27;, &#x27;[data-do=&quot;add&quot;]&#x27;); focus = &#x27;[data-do=&quot;close-modal&quot;]&#x27;; }
+    if (action === &#x27;launcher&#x27;) { openModal(&#x27;launcher&#x27;, &#x27;[data-do=&quot;launcher&quot;]&#x27;); focus = &#x27;[data-do=&quot;close-modal&quot;]&#x27;; }
+    if (action === &#x27;launch&#x27;) { const a = state.actions.find(a =&gt; a.id === arg); start(a); state.modal = null; state.view = &#x27;session&#x27;; state.selected = a.id; state.detail = &#x27;output&#x27;; }
+    if (action === &#x27;choose&#x27;) { state.draft = { ...tasks[Number(arg)], id: `action-${Date.now()}`, storage: &#x27;local&#x27;, preview: false }; state.modal = &#x27;configure&#x27;; focus = &#x27;#ow-name&#x27;; }
+    if (action === &#x27;custom&#x27;) { state.draft = { id: `action-${Date.now()}`, name: &#x27;&#x27;, task: &#x27;&#x27;, command: &#x27;&#x27;, source: &#x27;&#x27;, cwd: &#x27;.&#x27;, service: false, storage: &#x27;local&#x27;, preview: false }; state.modal = &#x27;configure&#x27;; focus = &#x27;#ow-name&#x27;; }
+    if (action === &#x27;discover-back&#x27;) { state.modal = &#x27;discover&#x27;; focus = &#x27;[data-do=&quot;close-modal&quot;]&#x27;; }
+    if (action === &#x27;edit&#x27;) { state.draft = structuredClone(state.actions.find(a =&gt; a.id === arg)); openModal(&#x27;edit&#x27;, `[data-do=&quot;edit:${arg}&quot;]`); focus = &#x27;#ow-name&#x27;; }
+    if (action === &#x27;save&#x27;) {
+      captureDraft();
+      if (!state.draft.name || !state.draft.command) state.error = &#x27;Enter an action name and a command.&#x27;;
+      else {
+        const index = state.actions.findIndex(a =&gt; a.id === state.draft.id);
+        if (index &gt;= 0) state.actions[index] = structuredClone(state.draft); else state.actions.push(structuredClone(state.draft));
+        feedback(`${state.draft.name} ${index &gt;= 0 ? &#x27;updated&#x27; : &#x27;added&#x27;} · ${state.draft.storage === &#x27;local&#x27; ? &#x27;only you, in this project&#x27; : &#x27;saved in project&#x27;} · not started`);
+        state.modal = null; focus = returnFocus;
+      }
+    }
+    if (action === &#x27;close-modal&#x27;) { state.modal = null; focus = returnFocus; }
+    if (action === &#x27;preview&#x27; || action === &#x27;setup&#x27; || action === &#x27;cleanup&#x27;) { openModal(action, `[data-do=&quot;${action}&quot;]`); focus = &#x27;[data-do=&quot;close-modal&quot;]&#x27;; }
+    if (action === &#x27;enable-cleanup&#x27;) { state.cleanupEnabled = true; state.modal = null; feedback(&#x27;Cleanup enabled for you on this machine.&#x27;); }
+    if (action === &#x27;toggle-setup&#x27;) { state.prepared = !state.prepared; state.modal = null; }
+    if (action === &#x27;ask-agent&#x27;) { state.composer = `Investigate the failed ${selectedAction().name} run and propose a fix. Exit code 2. Include the retained output.`; state.selected = null; state.hub = false; feedback(&#x27;Failure added to the conversation draft.&#x27;); }
+    if (action.startsWith(&#x27;copy-&#x27;)) {
+      const a = selectedAction();
+      const value = action === &#x27;copy-url&#x27; ? &#x27;http://localhost:4321/&#x27; : action === &#x27;copy-command&#x27; ? a.command : state.runs[a.id]?.output || &#x27;&#x27;;
+      try {
+        const policy = document.permissionsPolicy || document.featurePolicy;
+        if (!navigator.clipboard || !policy?.allowsFeature(&#x27;clipboard-write&#x27;)) throw new Error(&#x27;Clipboard unavailable in this preview&#x27;);
+        await navigator.clipboard.writeText(value); feedback(&#x27;Copied.&#x27;);
+      }
+      catch { state.copyValue = value; openModal(&#x27;copy&#x27;, `[data-do=&quot;${action}&quot;]`); focus = &#x27;.ow-copy-text&#x27;; }
+    }
+    if (action === &#x27;reset&#x27;) { state.actions = structuredClone(seed); state.view = &#x27;session&#x27;; state.selected = null; state.modal = null; state.hub = true; state.toast = &#x27;&#x27;; state.filter = &#x27;&#x27;; state.composer = &#x27;&#x27;; state.prepared = true; state.cleanupEnabled = false; state.runs = { web: { status: &#x27;ready&#x27;, number: 1, output: &#x27;&gt; pnpm run dev\n\nastro v5.13.2\n\nLocal  http://localhost:4321/\n\nready in 286 ms\nwatching for file changes…&#x27; }, tests: { status: &#x27;running&#x27;, number: 1, output: &#x27;&gt; pnpm run test:unit\n\nRUN v3.2.4\n\n✓ project-actions  12 tests\n✓ session-store     9 tests\n\nRunning remaining tests…&#x27; }, types: { status: &#x27;failed&#x27;, number: 1, output: &#x27;&gt; pnpm run typecheck\n\nerror TS2322: incompatible ActionStatus.\n\nProcess exited with code 2.&#x27; } }; }
+    render(focus);
+  });
+  render();
+  if (globalThis.Tweak) {
+    const tweak = new Tweak({ container: root, onChange: () =&gt; render() });
+    tweak.addToggle(design, &#x27;showRecent&#x27;, { label: &#x27;Show finished actions in the hub&#x27; });
+  }
+})();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+  let lastPointerWasTouch = false;
+  let pinnedByTouch = false;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    pinnedByTouch = false;
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handlePointer = (event) =&gt; {
+    lastPointerWasTouch =
+      event.type === &quot;pointerdown&quot; &amp;&amp; event.pointerType === &quot;touch&quot;;
+  };
+  const handleTouchClick = (event) =&gt; {
+    const isTouch = event.pointerType === &quot;touch&quot; || lastPointerWasTouch;
+    lastPointerWasTouch = false;
+    if (!isTouch || event.detail === 0) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (
+      trigger == null ||
+      !trigger.isConnected ||
+      getContent(trigger).length === 0 ||
+      (pinnedByTouch &amp;&amp; activeTrigger === trigger)
+    ) {
+      if (pinnedByTouch) {
+        closeTooltip();
+      }
+      return;
+    }
+    openTooltip(trigger);
+    pinnedByTouch = activeTrigger === trigger;
+    window.setTimeout(() =&gt; {
+      if (activeTrigger === trigger &amp;&amp; !trigger.isConnected) {
+        closeTooltip(false);
+      }
+    }, 0);
+  };
+  const handleLeave = (event) =&gt; {
+    if (pinnedByTouch) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    lastPointerWasTouch = false;
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    lastPointerWasTouch = false;
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerdown&quot;, handlePointer);
+    document.removeEventListener(&quot;pointercancel&quot;, handlePointer);
+    document.removeEventListener(&quot;click&quot;, handleTouchClick);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerdown&quot;, handlePointer);
+  document.addEventListener(&quot;pointercancel&quot;, handlePointer);
+  document.addEventListener(&quot;click&quot;, handleTouchClick);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-tabs&quot;&gt;
+(() =&gt; {
+  const selector = &#x27;.nav[role=&quot;tablist&quot;] [role=&quot;tab&quot;]&#x27;;
+  const disabled = &#x27;:disabled,[aria-disabled=&quot;true&quot;]&#x27;;
+  const selectTab = (selected) =&gt; {
+    const panelId = selected.getAttribute(&quot;aria-controls&quot;);
+    for (const tab of selected.closest(&#x27;[role=&quot;tablist&quot;]&#x27;).querySelectorAll(&#x27;[role=&quot;tab&quot;]&#x27;)) {
+      const active = tab === selected;
+      tab.classList.toggle(&quot;active&quot;, active);
+      tab.setAttribute(&quot;aria-selected&quot;, String(active));
+      const id = tab.getAttribute(&quot;aria-controls&quot;);
+      const panel = id &amp;&amp; document.getElementById(id);
+      if (panel != null) {
+        panel.hidden = id !== panelId;
+        if (!panel.hidden &amp;&amp; selected.id) {
+          panel.setAttribute(&quot;aria-labelledby&quot;, selected.id);
+        }
+      }
+    }
+  };
+  const interact = (event) =&gt; {
+    const tab = event.target?.closest?.(selector);
+    if (event.defaultPrevented || tab == null || tab.matches(disabled)) {
+      return;
+    }
+    if (event.type === &quot;click&quot;) {
+      selectTab(tab);
+      return;
+    }
+    const tabs = Array.from(
+      tab.closest(&#x27;[role=&quot;tablist&quot;]&#x27;).querySelectorAll(&#x27;[role=&quot;tab&quot;]&#x27;),
+    ).filter((candidate) =&gt; !candidate.matches(disabled));
+    const current = tabs.indexOf(tab);
+    let next;
+    if (event.key === &quot;ArrowRight&quot; || event.key === &quot;ArrowDown&quot;) {
+      next = (current + 1) % tabs.length;
+    } else if (event.key === &quot;ArrowLeft&quot; || event.key === &quot;ArrowUp&quot;) {
+      next = (current + tabs.length - 1) % tabs.length;
+    } else if (event.key === &quot;Home&quot;) {
+      next = 0;
+    } else if (event.key === &quot;End&quot;) {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    tabs[next].focus();
+    selectTab(tabs[next]);
+  };
+
+  for (const list of document.querySelectorAll(&#x27;.nav[role=&quot;tablist&quot;]&#x27;)) {
+    const selected =
+      list.querySelector(&#x27;[role=&quot;tab&quot;][aria-selected=&quot;true&quot;]&#x27;) ??
+      list.querySelector(&#x27;[role=&quot;tab&quot;].active&#x27;) ??
+      list.querySelector(&#x27;[role=&quot;tab&quot;]&#x27;);
+    if (selected != null) {
+      selectTab(selected);
+    }
+  }
+  document.addEventListener(&quot;click&quot;, interact);
+  document.addEventListener(&quot;keydown&quot;, interact);
+  window.addEventListener(&quot;pagehide&quot;, () =&gt; {
+    document.removeEventListener(&quot;click&quot;, interact);
+    document.removeEventListener(&quot;keydown&quot;, interact);
+  }, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+<script>(() => {
+  const frame = document.getElementById("codex-visualization");
+  if (!(frame instanceof HTMLIFrameElement)) {
+    return;
+  }
+  let viewportHeight = globalThis.innerHeight;
+  const storageKey = `codex:visualization-widget-state-v2:${JSON.stringify([
+    globalThis.location.pathname,
+    globalThis.location.search,
+  ])}`;
+  const parseState = (serializedState) => {
+    if (
+      typeof serializedState !== "string" ||
+      new TextEncoder().encode(serializedState).length > 16 * 1024
+    ) {
+      throw new TypeError(
+        "Widget state must be a JSON object of at most 16 KiB",
+      );
+    }
+    /** @type {unknown} */
+    const state = JSON.parse(serializedState);
+    if (
+      state == null ||
+      typeof state !== "object" ||
+      Array.isArray(state) ||
+      ("imageIds" in state &&
+        (!Array.isArray(state.imageIds) || state.imageIds.length > 0))
+    ) {
+      throw new TypeError("Widget state must be a JSON object");
+    }
+    const storedState = { modelContent: null, privateContent: null, ...state };
+    const canonicalState = JSON.stringify(
+      storedState,
+      (_key, /** @type {unknown} */ value) => {
+        if (typeof value === "number" && !Number.isFinite(value)) {
+          throw new TypeError("Widget state must contain finite numbers");
+        }
+        return value;
+      },
+    );
+    if (new TextEncoder().encode(canonicalState).length > 16 * 1024) {
+      throw new TypeError(
+        "Widget state must be a JSON object of at most 16 KiB",
+      );
+    }
+    return storedState;
+  };
+  let storage = null;
+  let state = null;
+  try {
+    const localStorage = globalThis.localStorage;
+    const probeKey = `${storageKey}:probe`;
+    localStorage.setItem(probeKey, "1");
+    localStorage.removeItem(probeKey);
+    storage = localStorage;
+    const savedState = storage.getItem(storageKey);
+    if (savedState != null) {
+      try {
+        state = parseState(savedState);
+      } catch {
+        // Invalid saved state does not disable future writes.
+      }
+    }
+  } catch {
+    storage = null;
+  }
+  const initialGlobals = {
+    widgetState: state,
+    statePersistence: storage == null ? "none" : "local",
+  };
+
+  const channel = new MessageChannel();
+  channel.port1.addEventListener("message", (event) => {
+    const data = event.data;
+    if (typeof data !== "object" || data == null) {
+      return;
+    }
+    if (data.type === "widget-state-write") {
+      if (!Number.isSafeInteger(data.id) || data.id <= 0) {
+        return;
+      }
+      let ok = false;
+      try {
+        if (storage != null) {
+          const state = parseState(data.state);
+          storage.setItem(storageKey, JSON.stringify(state));
+          ok = true;
+        }
+      } catch {
+        // Storage denial, quota limits, and invalid state return a failed receipt.
+      }
+      channel.port1.postMessage({
+        type: "widget-state-result",
+        id: data.id,
+        ok,
+      });
+      return;
+    }
+    if (data.type === "height") {
+      const height = data.height;
+      if (
+        typeof height === "number" &&
+        Number.isFinite(height) &&
+        height >= 0 &&
+        height <= 10_000
+      ) {
+        frame.style.height = Math.ceil(height) + "px";
+      }
+      return;
+    }
+    if (data.type === "scroll-to") {
+      const top = data.top;
+      if (
+        typeof top === "number" &&
+        Number.isFinite(top) &&
+        top >= 0 &&
+        globalThis.navigator.userActivation?.isActive === true
+      ) {
+        globalThis.scrollTo({
+          top: Math.ceil(
+            globalThis.scrollY + frame.getBoundingClientRect().top + top,
+          ),
+        });
+      }
+      return;
+    }
+    if (data.type === "open-external") {
+      const rawHref = data.href;
+      if (typeof rawHref !== "string") {
+        return;
+      }
+      let href;
+      try {
+        const url = new URL(rawHref, document.baseURI);
+        if (url.protocol !== "https:") {
+          return;
+        }
+        href = url.href;
+      } catch {
+        return;
+      }
+      if (globalThis.navigator.userActivation?.isActive === true) {
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.rel = "noopener noreferrer";
+        anchor.target = "_blank";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      }
+      return;
+    }
+    if (data.type === "follow-up") {
+      const prompt = data.prompt;
+      if (
+        typeof prompt !== "string" ||
+        globalThis.navigator.userActivation?.isActive !== true
+      ) {
+        return;
+      }
+      const title = data.title;
+      globalThis.prompt(typeof title === "string" ? title : prompt, prompt);
+    }
+  });
+  channel.port1.start();
+  const srcdoc = frame.dataset.srcdoc;
+  if (srcdoc == null) {
+    return;
+  }
+  globalThis.addEventListener("resize", () => {
+    const height = Number.parseFloat(frame.style.height);
+    if (!Number.isFinite(height) || height <= viewportHeight) {
+      frame.style.removeProperty("height");
+    }
+    viewportHeight = globalThis.innerHeight;
+    channel.port1.postMessage({ type: "measure" });
+  });
+  frame.addEventListener(
+    "load",
+    () => {
+      frame.contentWindow?.postMessage(
+        { type: "codex-visualization-initialize" },
+        "*",
+        [channel.port2],
+      );
+    },
+    { once: true },
+  );
+  // Match the trusted bootstrap element, not the same text in an authored title.
+  frame.srcdoc = srcdoc.replace(
+    '<script type="application/json" id="codex-visualization-widget-state">__CODEX_VISUALIZATION_WIDGET_STATE__<\/script>',
+    () =>
+      '<script type="application/json" id="codex-visualization-widget-state">' +
+      JSON.stringify(initialGlobals).replaceAll("<", "\\u003c") +
+      "<\/script>",
+  );
+  delete frame.dataset.srcdoc;
+})();
+</script>
+</body>
+</html>

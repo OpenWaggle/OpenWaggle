@@ -1,0 +1,202 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import * as SqlClient from '@effect/sql/SqlClient'
+import { SqliteClient } from '@effect/sql-sqlite-node'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { SessionHostRecoveryRepository } from '../../ports/session-host-recovery-repository'
+import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
+import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
+import { SqliteSessionHostRecoveryRepositoryLive } from '../sqlite-session-host-recovery-repository'
+
+function makeQueueRecoveryLayer(filename: string) {
+  const sqlite = SqliteClient.layer({ filename, prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE })
+  const schema = Layer.effectDiscard(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql.unsafe(`
+        CREATE TABLE sessions (
+          id TEXT PRIMARY KEY,
+          pi_session_id TEXT NOT NULL UNIQUE,
+          project_path TEXT,
+          title TEXT NOT NULL,
+          title_source TEXT NOT NULL DEFAULT 'manual', title_needs_refinement INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      `)
+      for (const statement of SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS) {
+        yield* sql.unsafe(statement)
+      }
+      yield* sql`
+        INSERT INTO sessions (id, pi_session_id, project_path, title, created_at, updated_at)
+        VALUES (${'session-queued'}, ${'pi-queued'}, ${'/project'}, ${'Queued'}, ${1}, ${1})
+      `
+      yield* sql`
+        INSERT INTO session_control_states (
+          session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+        ) VALUES (${'session-queued'}, ${4}, ${null}, ${'running'}, ${7}, ${1})
+      `
+      yield* sql`
+        INSERT INTO session_follow_ups (
+          id, session_id, position, delivery_state, intent_json, created_at, updated_at
+        ) VALUES (${'follow-up-queued'}, ${'session-queued'}, ${0}, ${'pending'}, ${'{}'}, ${1}, ${1})
+      `
+    }).pipe(Effect.provide(sqlite)),
+  )
+  return Layer.mergeAll(
+    sqlite,
+    schema,
+    SqliteSessionHostRecoveryRepositoryLive.pipe(Layer.provide(sqlite)),
+  )
+}
+
+describe('SQLite Session Host queue recovery', () => {
+  let temporaryRoot = ''
+
+  beforeEach(async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-queue-recovery-'))
+  })
+
+  afterEach(async () => {
+    await fs.rm(temporaryRoot, { recursive: true, force: true })
+  })
+
+  it('pauses a running pending queue even when it has no active Run', async () => {
+    const layer = makeQueueRecoveryLayer(path.join(temporaryRoot, 'queue-recovery.sqlite'))
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* SessionHostRecoveryRepository
+        const recovery = yield* repository.recoverAfterHostLoss(10)
+        const sql = yield* SqlClient.SqlClient
+        const [state] = yield* sql<{
+          readonly active_run_id: string | null
+          readonly queue_state: string
+          readonly state_revision: number
+          readonly queue_revision: number
+        }>`
+          SELECT active_run_id, queue_state, state_revision, queue_revision
+          FROM session_control_states WHERE session_id = ${'session-queued'}
+        `
+        const followUps = yield* sql<{ readonly id: string }>`SELECT id FROM session_follow_ups`
+        return { recovery, state, followUps }
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toEqual({
+      recovery: {
+        interruptedRunIds: [],
+        affectedSessionIds: ['session-queued'],
+        deniedAuthorizationRequestIds: [],
+        recoveredOperationIds: [],
+        pendingHandoffs: [],
+        pendingWorktreeRemovals: [],
+      },
+      state: {
+        active_run_id: null,
+        queue_state: 'paused',
+        state_revision: 5,
+        queue_revision: 8,
+      },
+      followUps: [{ id: 'follow-up-queued' }],
+    })
+  })
+
+  // What waited only on agents' capacity now waits for the person's Resume; their own pause stays.
+  it.each([
+    ['parent-limit', 'host-lost'],
+    ['requested', 'requested'],
+  ] as const)('recovers a Run in a queue paused %s as %s', async (pausedFor, expected) => {
+    const layer = makeQueueRecoveryLayer(path.join(temporaryRoot, `paused-${pausedFor}.sqlite`))
+    const reason = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_runs (id, session_id, status, intent_json, created_at, updated_at)
+          VALUES (${'run-live'}, ${'session-queued'}, ${'active'}, ${null}, ${1}, ${1})
+        `
+        yield* sql`
+          UPDATE session_control_states
+          SET active_run_id = ${'run-live'}, queue_state = ${'paused'},
+            queue_pause_reason = ${pausedFor}
+          WHERE session_id = ${'session-queued'}
+        `
+        const repository = yield* SessionHostRecoveryRepository
+        yield* repository.recoverAfterHostLoss(10)
+        const [state] = yield* sql<{ readonly queue_pause_reason: string | null }>`
+          SELECT queue_pause_reason FROM session_control_states
+          WHERE session_id = ${'session-queued'}
+        `
+        return state?.queue_pause_reason
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(reason).toBe(expected)
+  })
+
+  // A held or deferred Follow-up of the person's was lost with the Host: it waits for Resume.
+  it.each([
+    [
+      'waiting on capacity with the person’s',
+      'parent-limit',
+      'local-user:cli',
+      'pending',
+      'host-lost',
+    ],
+    [
+      'waiting on capacity with an agent’s',
+      'parent-limit',
+      'transient-mcp:digest-agent',
+      'pending',
+      'parent-limit',
+    ],
+    [
+      'waiting on capacity with the person’s needing attention',
+      'parent-limit',
+      'gui:local-user',
+      'needs_attention',
+      'parent-limit',
+    ],
+    ['the person paused, with their', 'requested', 'gui:local-user', 'pending', 'requested'],
+  ] as const)(
+    'recovers an idle queue %s Follow-up',
+    async (_, pausedFor, callerId, deliveryState, expected) => {
+      const layer = makeQueueRecoveryLayer(
+        path.join(temporaryRoot, `idle-${pausedFor}-${expected}-${deliveryState}.sqlite`),
+      )
+      const reason = await Effect.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`
+            UPDATE session_control_states
+            SET queue_state = ${'paused'}, queue_pause_reason = ${pausedFor}
+            WHERE session_id = ${'session-queued'}
+          `
+          yield* sql`
+            UPDATE session_follow_ups
+            SET intent_json = ${JSON.stringify({ callerId })}, delivery_state = ${deliveryState},
+              attention_reason = ${deliveryState === 'pending' ? null : 'profile_revoked'}
+          `
+          const repository = yield* SessionHostRecoveryRepository
+          yield* repository.recoverAfterHostLoss(10)
+          const [state] = yield* sql<{
+            readonly queue_pause_reason: string | null
+            readonly queue_revision: number
+          }>`
+            SELECT queue_pause_reason, queue_revision FROM session_control_states
+            WHERE session_id = ${'session-queued'}
+          `
+          return state
+        }).pipe(Effect.provide(layer)),
+      )
+
+      // A relabel bumps the revision clients name; nothing else changes it here.
+      expect(reason).toEqual({
+        queue_pause_reason: expected,
+        queue_revision: expected === pausedFor ? 7 : 8,
+      })
+    },
+  )
+})

@@ -1,0 +1,42 @@
+import { setBedrockProviderModule } from '@earendil-works/pi-ai/api/bedrock-converse-stream.lazy'
+import { bedrockProviderModule, clearBedrockClients } from '@earendil-works/pi-ai/bedrock-provider'
+import { withExpiredCredentialRetry } from './pi-bedrock-credential-retry'
+
+let registered = false
+
+/**
+ * Pi loads the Amazon Bedrock Converse implementation through a deliberately
+ * bundler-opaque dynamic import so browser/Bun bundlers cannot pull the
+ * Node-only AWS SDK into their output. OpenWaggle bundles pi-ai into the
+ * Electron main chunk, so that dynamic specifier resolves next to
+ * out/main/index.js — where the chunk was never emitted — and every Bedrock
+ * request fails with "Cannot find module .../bedrock-converse-stream.js".
+ *
+ * Register the statically-imported implementation before the first Bedrock
+ * stream (the same escape hatch Pi uses for its standalone Bun binary), so the
+ * lazy loader uses the override and skips the unresolvable import. The override
+ * is read per stream call and never memoized, so registering any time before a
+ * request is issued is sufficient. Called both at runtime module load and at
+ * the ModelRuntime construction chokepoint; the guard makes repeats free.
+ *
+ * Both stream functions make a request that failed on expired AWS credentials once more before
+ * failing it, after dropping the cached Bedrock clients so the credentials are resolved again
+ * (#357). Every Bedrock caller (Runs, cache warming, Title generation, compaction) goes through
+ * this module, so they share the cached clients.
+ */
+export function registerPiBundledBedrockProvider() {
+  if (registered) {
+    return
+  }
+
+  setBedrockProviderModule({
+    ...bedrockProviderModule,
+    stream: withExpiredCredentialRetry(bedrockProviderModule.stream, {
+      invalidateClients: clearBedrockClients,
+    }),
+    streamSimple: withExpiredCredentialRetry(bedrockProviderModule.streamSimple, {
+      invalidateClients: clearBedrockClients,
+    }),
+  })
+  registered = true
+}

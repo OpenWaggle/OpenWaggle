@@ -1,4 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { DEFAULT_SESSION_TITLE } from '@shared/session-title-source'
 import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
@@ -14,21 +15,26 @@ import {
 } from './constants'
 import type { CreateSessionInput } from './types'
 
-function buildNewSessionDetail(
-  input: CreateSessionInput,
-  id: SessionId,
-  now: number,
-): SessionDetail {
-  return {
+function buildNewSessionDetail(input: CreateSessionInput, id: SessionId, now: number) {
+  const detail: SessionDetail = {
     id,
-    title: 'New session',
+    title: DEFAULT_SESSION_TITLE,
     projectPath: input.projectPath,
     piSessionId: input.piSessionId,
-    piSessionFile: input.piSessionFile,
+    ...(input.piSessionFile === undefined ? {} : { piSessionFile: input.piSessionFile }),
     messages: [],
     createdAt: now,
     updatedAt: now,
+    environmentMode: input.environmentMode ?? 'local',
+    // The row stores NULL for "inherit" (see insertSessionRow), so the projection must omit the
+    // field rather than claim a mode. Defaulting to 'yolo' here made a brand-new session report
+    // full access while its row inherited, so the composer control named the wrong mode until
+    // something refetched the detail, and treated the phantom value as a real override.
+    ...(input.authorizationMode === undefined
+      ? {}
+      : { authorizationMode: input.authorizationMode }),
   }
+  return detail
 }
 
 function insertSessionRow(input: {
@@ -41,13 +47,16 @@ function insertSessionRow(input: {
 }) {
   return input.sql`
     INSERT INTO sessions (
-      id, pi_session_id, pi_session_file, project_path, title, archived, waggle_config_json,
-      created_at, updated_at, last_active_node_id, last_active_branch_id
+      id, pi_session_id, pi_session_file, project_path, title, title_source, archived,
+      waggle_config_json, created_at, updated_at, last_active_node_id, last_active_branch_id,
+      environment_mode, authorization_mode_override
     )
     VALUES (
       ${input.sessionId}, ${input.input.piSessionId}, ${input.input.piSessionFile ?? null},
-      ${input.input.projectPath}, ${input.session.title}, ${0}, ${null}, ${input.now}, ${input.now},
-      ${null}, ${input.branchId}
+      ${input.input.projectPath}, ${input.session.title}, ${'default'}, ${0}, ${null},
+      ${input.now}, ${input.now},
+      ${null}, ${input.branchId}, ${input.input.environmentMode ?? 'local'},
+      ${input.input.authorizationMode ?? null}
     )
   `
 }
@@ -87,7 +96,21 @@ function insertInitialTreeUiState(sql: SqlClient.SqlClient, sessionId: SessionId
   `
 }
 
-export async function createSession(input: CreateSessionInput): Promise<SessionDetail> {
+/** A fork or clone of a Session with MCP switched off starts with MCP off too. */
+export function copySessionMcpSwitch(
+  sql: SqlClient.SqlClient,
+  sourceSessionId: string,
+  sessionId: string,
+  now: number,
+) {
+  return sql`
+    INSERT INTO session_mcp_disabled (session_id, disabled_at)
+    SELECT ${sessionId}, ${now} FROM session_mcp_disabled WHERE session_id = ${sourceSessionId}
+    ON CONFLICT (session_id) DO NOTHING
+  `
+}
+
+export async function createSession(input: CreateSessionInput) {
   const now = Date.now()
   const id = SessionId(input.piSessionId)
   const sessionId = SessionId(String(id))
@@ -103,6 +126,9 @@ export async function createSession(input: CreateSessionInput): Promise<SessionD
           yield* insertMainBranchRow(sql, sessionId, branchId, now)
           yield* insertInitialBranchState(sql, branchId, now)
           yield* insertInitialTreeUiState(sql, sessionId, now)
+          if (input.copyMcpSwitchFrom) {
+            yield* copySessionMcpSwitch(sql, input.copyMcpSwitchFrom, sessionId, now)
+          }
         }),
       )
     }),

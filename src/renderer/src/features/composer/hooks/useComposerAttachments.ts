@@ -4,6 +4,7 @@ import { useAutoTextAttachment } from './useAutoTextAttachment'
 import { type UseFileAttachmentResult, useFileAttachment } from './useFileAttachment'
 
 interface UseComposerAttachmentsInput {
+  readonly disabled?: boolean
   readonly projectPath: string | null
   readonly onToast?: (message: string) => void
 }
@@ -22,28 +23,32 @@ export interface ComposerAttachmentsController {
   readonly fileAttachment: UseFileAttachmentResult
 }
 
-export function useComposerAttachments({ projectPath, onToast }: UseComposerAttachmentsInput) {
+export function useComposerAttachments({
+  projectPath,
+  onToast,
+  disabled,
+}: UseComposerAttachmentsInput) {
   const attachments = useComposerStore((s) => s.attachments)
   const attachmentError = useComposerStore((s) => s.attachmentError)
-  const setInput = useComposerStore((s) => s.setInput)
   const setAttachmentError = useComposerStore((s) => s.setAttachmentError)
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
   const textAttachment = useAutoTextAttachment({
+    ...(disabled === undefined ? {} : { disabled }),
     attachments,
     addAttachments,
     removeAttachment,
     setAttachmentError,
-    setInput,
-    onToast,
+    ...(onToast === undefined ? {} : { onToast }),
   })
   const fileAttachment = useFileAttachment({
+    ...(disabled === undefined ? {} : { disabled }),
     projectPath,
     attachments,
     preparingPendingCount: textAttachment.preparingPendingCount,
     addAttachments,
     setAttachmentError,
-    onToast,
+    ...(onToast === undefined ? {} : { onToast }),
   })
 
   return {

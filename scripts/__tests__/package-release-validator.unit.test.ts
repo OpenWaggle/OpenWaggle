@@ -8,8 +8,9 @@ import {
   writeJson,
   writeMinimalPackageReleaseProject,
 } from './package-release-validator.fixtures'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -23,12 +24,7 @@ describe('package release validation', () => {
   it('accepts an empty manifest with source packages at the 0.0.0 baseline', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
-      await writeMinimalPackageReleaseProject(
-        projectRoot,
-        validWorkflow,
-        '0.0.0',
-        'bootstrap',
-      )
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow, '0.0.0', 'bootstrap')
 
       const result = await validatePackageReleaseFiles(projectRoot)
 
@@ -41,10 +37,7 @@ describe('package release validation', () => {
   it('rejects pre-1 breaking changes that would bump the major version', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
-      await writeMinimalPackageReleaseProject(
-        projectRoot,
-        validWorkflow,
-      )
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
       const configPath = path.join(projectRoot, 'release-please-config.json')
       const config: unknown = JSON.parse(await fs.readFile(configPath, 'utf8'))
       if (!isJsonObject(config)) {
@@ -85,22 +78,100 @@ describe('package release validation', () => {
     }
   })
 
-  it('rejects a root check script that skips package smoke validation', async () => {
+  it('rejects a grouped Release Please title that cannot pass package commit policy', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
-      await writeMinimalPackageReleaseProject(
-        projectRoot,
-        validWorkflow,
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
+      const configPath = path.join(projectRoot, 'release-please-config.json')
+      const config: unknown = JSON.parse(await fs.readFile(configPath, 'utf8'))
+      if (!isJsonObject(config)) {
+        throw new Error('Expected release config fixture to be an object.')
+      }
+      const { ['group-pull-request-title-pattern']: _, ...invalidConfig } = config
+      await writeJson(configPath, invalidConfig)
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        'release-please-config.json must generate the policy-compatible coordinated release title.',
       )
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a root check script that bypasses the check runner', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
       await writeJson(path.join(projectRoot, 'package.json'), {
+        devDependencies: {
+          'release-please': '17.6.1',
+        },
         scripts: {
-          check: 'pnpm typecheck && pnpm lint',
+          check: 'bun run typecheck && bun run lint',
         },
       })
 
       const result = await validatePackageReleaseFiles(projectRoot)
 
-      expect(result.violations).toContain('package.json scripts.check must run pnpm package:smoke.')
+      expect(result.violations).toContain(
+        'package.json scripts.check must be bun scripts/check/run.ts check, whose check gate runs the package smoke.',
+      )
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects lint scripts that skip package dependency builds', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
+      const packageJsonPath = path.join(projectRoot, 'package.json')
+      const packageJson = decodeUnknownOrThrow(
+        Schema.Struct({ scripts: Schema.Object }),
+        JSON.parse(await fs.readFile(packageJsonPath, 'utf8')),
+      )
+      const { scripts } = packageJson
+      await writeJson(packageJsonPath, {
+        ...packageJson,
+        scripts: {
+          ...scripts,
+          lint: 'bun scripts/lint.ts src packages',
+        },
+      })
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        'package.json scripts.lint must build package dependencies immediately before clean-checkout type-aware analysis.',
+      )
+    } finally {
+      await fs.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an unpinned Release Please runtime', async () => {
+    const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
+    try {
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow)
+      const packageJsonPath = path.join(projectRoot, 'package.json')
+      const packageJson: unknown = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'))
+      if (!isJsonObject(packageJson)) {
+        throw new Error('Expected package fixture to be an object.')
+      }
+      await writeJson(packageJsonPath, {
+        ...packageJson,
+        devDependencies: {
+          'release-please': '^17.6.1',
+        },
+      })
+
+      const result = await validatePackageReleaseFiles(projectRoot)
+
+      expect(result.violations).toContain(
+        'package.json must pin release-please 17.6.1 for deterministic preflight contracts.',
+      )
     } finally {
       await fs.rm(projectRoot, { recursive: true, force: true })
     }
@@ -136,11 +207,7 @@ describe('package release validation', () => {
   it('accepts Release Please-bumped package versions', async () => {
     const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-package-release-'))
     try {
-      await writeMinimalPackageReleaseProject(
-        projectRoot,
-        validWorkflow,
-        '0.2.0',
-      )
+      await writeMinimalPackageReleaseProject(projectRoot, validWorkflow, '0.2.0')
 
       const result = await validatePackageReleaseFiles(projectRoot)
 

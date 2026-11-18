@@ -15,7 +15,7 @@ tool path is visible instead of pretending fake issue data exists.
 Install fixtures into the current checkout with:
 
 ```bash
-pnpm extension:qa:install
+bun run extension:qa:install
 ```
 
 Then open Settings > Extensions, trust and enable `GitHub Issues Overview`, and reload the extension registry.

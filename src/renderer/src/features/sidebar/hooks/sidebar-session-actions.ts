@@ -1,37 +1,111 @@
-import type { SupportedModelId } from '@shared/types/brand'
-import { type SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SupportedModelId, SessionId } from '@shared/types/brand'
+import { SessionNodeId } from '@shared/types/brand'
 import type { SessionTree, SessionWorkspace } from '@shared/types/session'
+import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
+import { resolveCurrentConversationNode, runSessionCopyOnce } from '@/features/chat/lib'
 import { useChatStore } from '@/features/chat/state'
-import { buildComposerDraftContextKey, setEditorText } from '@/features/composer/lib'
+import { buildPendingSessionDraftContextKey } from '@/features/composer/lib'
 import { useComposerStore } from '@/features/composer/state'
+import { useSessionStore } from '@/features/sessions/state'
+import { refreshArchivedSessions } from '@/queries/archived-sessions'
+import { refreshAfterCommittedSessionMutation } from '@/queries/committed-session-refresh'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
+import { archiveWorkspaceOwner, deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { clearComposerDraftForSession, errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
 
+/** Live reads and moves for leaving a session that was archived or deleted while open. */
+export interface SidebarRemovalNavigation {
+  /** The live active session, read when an asynchronous mutation settles. */
+  readonly getActiveSessionId: () => SessionId | null
+  /** Whether a new-session draft is open, which the user chose after starting the removal. */
+  readonly hasDraftSession: () => boolean
+  /** Sessions in the order the sidebar renders them, read at action time. */
+  readonly getVisibleSessionIds: () => readonly SessionId[]
+  /** Whether a session is still listed (not archived or deleted meanwhile), read at settle time. */
+  readonly isSessionListed: (sessionId: SessionId) => boolean
+  readonly selectSession: (sessionId: SessionId) => void
+  /** Leave every session without creating a new draft session. */
+  readonly clearActiveSession: () => void
+}
+
 interface SidebarSessionActionDeps {
   readonly activeSessionId: SessionId | null
+  readonly removalNavigation: SidebarRemovalNavigation
   readonly matchingActiveSessionTree: SessionTree | null
   readonly matchingActiveWorkspace: SessionWorkspace | null
   readonly navigate: Navigate
   readonly projectPath: string | null
-  readonly selectedModel: SupportedModelId
+  readonly queryClient: QueryClient
+  readonly selectedModel: SupportedModelId | undefined
   readonly showToast: (message: string) => void
-  readonly startDraftSession: (projectPath: string | null) => void
   readonly clearTransientDraftContext: () => void
   readonly deleteSession: (sessionId: SessionId) => Promise<void>
   readonly loadChatSessions: () => Promise<void>
   readonly loadSessionTrees: () => Promise<void>
   readonly refreshSessionWorkspace: (sessionId: SessionId | null) => Promise<void>
+  /** Pin or unpin the session, resolved against the current Pinned sessions. */
+  readonly togglePin: (sessionId: SessionId) => void
 }
 
-function navigateHomeAfterActiveSessionChange(
+/**
+ * The row a reader lands on when the one they are viewing leaves the list: the nearest still-listed
+ * row after it, else before it. The order is captured when the removal starts; which rows are still
+ * listed is read when it settles, because neighbours can be archived or deleted meanwhile.
+ */
+export function adjacentSessionId(
+  visibleSessionIds: readonly SessionId[],
+  removedSessionId: SessionId,
+  isListed: (sessionId: SessionId) => boolean = () => true,
+) {
+  const index = visibleSessionIds.findIndex((id) => String(id) === String(removedSessionId))
+  const candidate = (id: SessionId | undefined) =>
+    id !== undefined && String(id) !== String(removedSessionId) && isListed(id)
+  if (index === -1) return visibleSessionIds.find(candidate) ?? null
+  const after = visibleSessionIds.slice(index + 1).find(candidate)
+  if (after) return after
+  return [...visibleSessionIds.slice(0, index)].reverse().find(candidate) ?? null
+}
+
+interface RemovalStart {
+  readonly order: readonly SessionId[]
+  readonly wasActive: boolean
+}
+
+/** Captured before the mutation: deletion clears the active session before it resolves. */
+function startRemoval(navigation: SidebarRemovalNavigation, sessionId: SessionId) {
+  return {
+    order: navigation.getVisibleSessionIds(),
+    wasActive: String(navigation.getActiveSessionId()) === String(sessionId),
+  }
+}
+
+/**
+ * Archiving or deleting the open session moves the reader to its neighbour in the sidebar. It
+ * used to start a new draft session instead, so every archive looked like it had created a
+ * session. With no neighbour left, the reader returns to the empty home, still without a draft.
+ * If the reader opened something else while the removal ran, they stay there.
+ */
+function leaveRemovedActiveSession(
   deps: SidebarSessionActionDeps,
   sessionId: SessionId,
+  start: RemovalStart,
 ) {
-  if (deps.activeSessionId !== sessionId) return
-  deps.startDraftSession(deps.projectPath)
+  const navigation = deps.removalNavigation
+  if (!start.wasActive) return
+  const active = navigation.getActiveSessionId()
+  if (active !== null && String(active) !== String(sessionId)) return
+  if (active === null && navigation.hasDraftSession()) return
+  const neighbour = adjacentSessionId(start.order, sessionId, navigation.isSessionListed)
+  if (neighbour) {
+    navigation.selectSession(neighbour)
+    return
+  }
+  deps.clearTransientDraftContext()
+  navigation.clearActiveSession()
   void deps.navigate({ to: '/' })
 }
 
@@ -39,91 +113,144 @@ function setComposerTextValue(text: string) {
   const composer = useComposerStore.getState()
   composer.setInput(text)
   composer.setCursorIndex(text.length)
-  if (composer.lexicalEditor) setEditorText(composer.lexicalEditor, text)
+  const editor = composer.lexicalEditor
+  if (!editor) return
+  void import('@/features/composer/lib').then(({ setEditorText }) => {
+    const current = useComposerStore.getState()
+    if (current.lexicalEditor === editor && current.input === text) {
+      setEditorText(editor, text)
+    }
+  })
 }
 
-function activateClonedSession(
-  deps: SidebarSessionActionDeps,
-  sessionId: SessionId,
-  project: string | null,
-) {
-  const contextKey = buildComposerDraftContextKey({ projectPath: project, sessionId })
-  useComposerStore.getState().switchScopedDraftContext(contextKey, { input: '', attachments: [] })
+function activateClonedSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
+  // The clone has no hydrated workspace yet, so its first draft is the Session's pending draft.
+  useComposerStore
+    .getState()
+    .switchScopedDraftContext(buildPendingSessionDraftContextKey(sessionId), {
+      input: '',
+      attachments: [],
+    })
   setComposerTextValue('')
   useChatStore.getState().setActiveSession(sessionId)
   void deps.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(sessionId) } })
 }
 
-function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
-  const targetNodeId =
-    deps.matchingActiveWorkspace?.activeNodeId ??
-    deps.matchingActiveSessionTree?.session.lastActiveNodeId
+async function cloneTargetNodeId(deps: SidebarSessionActionDeps, sessionId: SessionId) {
+  const draft = useSessionStore.getState().draftBranch
+  if (draft?.sessionId === sessionId) return draft.sourceNodeId
+  // A Session that is not open has nothing loaded to fall back on, so a failed read of its
+  // conversation is the clone's failure, not "no history".
+  if (useChatStore.getState().activeSessionId !== sessionId) {
+    const workspace = await api.getSessionWorkspace(sessionId)
+    return workspace?.tree.session.id === sessionId ? workspace.activeNodeId : null
+  }
+  const loadedTree =
+    deps.matchingActiveSessionTree?.session.id === sessionId ? deps.matchingActiveSessionTree : null
+  return (
+    (await resolveCurrentConversationNode(sessionId, deps.matchingActiveWorkspace ?? null)) ??
+    loadedTree?.session.lastActiveNodeId ??
+    null
+  )
+}
 
-  if (deps.activeSessionId !== sessionId) {
-    deps.showToast('Open this session before cloning it.')
+/**
+ * Clones any listed Session, open or not: its current conversation is read from the Host. The Host
+ * builds the copy's runtime from the Session's own model; the model named here is only validated,
+ * so a Session whose model cannot run now can still be cloned.
+ */
+async function cloneSession(deps: SidebarSessionActionDeps, sessionId: SessionId) {
+  const model = deps.selectedModel
+  if (!model) {
+    deps.showToast('Select a model before cloning.')
     return
   }
-  if (!targetNodeId) {
-    deps.showToast('No session history to clone.')
-    return
-  }
+  await runSessionCopyOnce(sessionId, () => cloneSessionWithModel(deps, sessionId, model))
+}
 
-  void api
-    .cloneSessionToNew(sessionId, deps.selectedModel, SessionNodeId(String(targetNodeId)))
-    .then((result) => {
-      if (result.cancelled) {
-        deps.showToast('Session clone cancelled.')
-        return
-      }
-      if (!result.session) {
-        deps.showToast('Session clone did not return a session.')
-        return
-      }
-      useChatStore.getState().upsertSession(result.session)
-      activateClonedSession(deps, result.session.id, result.session.projectPath)
-      return Promise.all([
-        deps.loadChatSessions(),
-        deps.loadSessionTrees(),
-        deps.refreshSessionWorkspace(result.session.id),
-      ])
-    })
-    .catch((error: unknown) => {
-      deps.showToast(`Failed to clone session: ${errorMessage(error)}`)
-    })
+async function cloneSessionWithModel(
+  deps: SidebarSessionActionDeps,
+  sessionId: SessionId,
+  model: SupportedModelId,
+) {
+  const activeAtStart = useChatStore.getState().activeSessionId
+  try {
+    const targetNodeId = await cloneTargetNodeId(deps, sessionId)
+    // The head may have been re-read from the Host; do not move a user who went elsewhere.
+    if (useChatStore.getState().activeSessionId !== activeAtStart) return
+    if (!targetNodeId) {
+      deps.showToast('No session history to clone.')
+      return
+    }
+    const result = await api.cloneSessionToNew(
+      sessionId,
+      model,
+      SessionNodeId(String(targetNodeId)),
+    )
+    if (result.cancelled) {
+      deps.showToast('Session clone cancelled.')
+      return
+    }
+    if (!result.session) {
+      deps.showToast('Session clone did not return a session.')
+      return
+    }
+    useChatStore.getState().upsertSession(result.session)
+    activateClonedSession(deps, result.session.id)
+    await Promise.all([
+      deps.loadChatSessions(),
+      deps.loadSessionTrees(),
+      deps.refreshSessionWorkspace(result.session.id),
+    ])
+  } catch (error) {
+    deps.showToast(sessionOperationFailureMessage('Failed to clone session', error))
+  }
 }
 
 export function createSidebarSessionActions(deps: SidebarSessionActionDeps) {
   return {
-    archive(sessionId: SessionId) {
+    archive: (sessionId: SessionId) => {
+      // Archiving is reversible from the archived list, so it does not ask first; only deletion does.
+      const start = startRemoval(deps.removalNavigation, sessionId)
       void (async () => {
-        const confirmed = await api.showConfirm(
-          'Archive this session?',
-          'Archiving hides the full session and all branches from normal navigation.',
-        )
-        if (!confirmed) return
         await api.archiveSession(sessionId)
-        clearComposerDraftForSession(sessionId)
-        await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
-        navigateHomeAfterActiveSessionChange(deps, sessionId)
+        await refreshAfterCommittedSessionMutation(
+          async () => {
+            await archiveWorkspaceOwner(String(sessionId))
+            clearComposerDraftForSession(sessionId)
+          },
+          () =>
+            Promise.all([
+              deps.loadChatSessions(),
+              deps.loadSessionTrees(),
+              refreshArchivedSessions(deps.queryClient),
+            ]),
+        )
+        leaveRemovedActiveSession(deps, sessionId, start)
       })().catch((error: unknown) => {
         deps.showToast(`Failed to archive session: ${errorMessage(error)}`)
       })
     },
-    clone(sessionId: SessionId) {
-      cloneSession(deps, sessionId)
+    clone: (sessionId: SessionId) => {
+      void cloneSession(deps, sessionId)
     },
-    delete(sessionId: SessionId) {
+    delete: (sessionId: SessionId) => {
+      const start = startRemoval(deps.removalNavigation, sessionId)
+      // The shell's panels, terminals and previews go with the Session. The chat store cannot
+      // clear them itself: the shell's features already depend on the chat store.
       void deps
         .deleteSession(sessionId)
-        .then(() => navigateHomeAfterActiveSessionChange(deps, sessionId))
+        .then(() => deleteWorkspaceOwner(String(sessionId)))
+        .then(() => leaveRemovedActiveSession(deps, sessionId, start))
         .catch((error: unknown) => {
           deps.showToast(`Failed to delete session: ${errorMessage(error)}`)
         })
     },
-    select(id: SessionId) {
-      deps.clearTransientDraftContext()
-      useChatStore.getState().setActiveSession(id)
-      void deps.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
+    select: (id: SessionId) => {
+      deps.removalNavigation.selectSession(id)
+    },
+    togglePin: (id: SessionId) => {
+      deps.togglePin(id)
     },
   }
 }

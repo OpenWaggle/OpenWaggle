@@ -1,10 +1,20 @@
-import type { AgentErrorCode, AgentErrorInfo } from '../types/errors'
+import type { AgentErrorCode } from '../types/errors'
 import { extractInnerErrorMessage } from './error-message-extraction'
+import { PI_SESSION_FILE_PROBLEM } from './pi-session-file-messages'
+import {
+  isWorktreePreparationMessage,
+  WORKTREE_PREPARATION_PROBLEM,
+} from './worktree-preparation-messages'
 
 interface ErrorCodeMeta {
   readonly userMessage: string
   readonly suggestion?: string
   readonly retryable: boolean
+  /**
+   * The error's own message says what happened and what to do, so it is shown from this text on,
+   * without the `Error:` or wrapper text before it.
+   */
+  readonly messageFrom?: string
 }
 
 interface ErrorClassificationRule {
@@ -19,8 +29,9 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     retryable: false,
   },
   'session-expired': {
-    userMessage: 'Session expired',
-    suggestion: 'Sign in again to refresh your provider session.',
+    userMessage: 'Provider credentials expired',
+    suggestion:
+      'Renew them, then try again. For an AWS SSO profile, run aws sso login for that profile. For a provider you signed in to, sign in again in Settings > Connections.',
     retryable: false,
   },
   'insufficient-credits': {
@@ -45,8 +56,9 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     retryable: false,
   },
   'provider-unavailable': {
-    userMessage: 'Could not connect to provider',
-    suggestion: 'Check your network connection and provider base URL in Settings.',
+    userMessage: 'Provider connection failed',
+    suggestion:
+      'Check that the provider is reachable. Long pauses may require a higher Pi HTTP idle timeout.',
     retryable: true,
   },
   'session-not-found': {
@@ -60,9 +72,10 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     retryable: false,
   },
   'persist-failed': {
-    userMessage: 'Failed to save session',
-    suggestion: 'Check disk space and file permissions.',
-    retryable: false,
+    userMessage: "This response couldn't be saved",
+    suggestion:
+      'The reply finished but was not written to the session, so it will not be there after a reload. Open the logs for details.',
+    retryable: true,
   },
   'context-overflow': {
     userMessage: 'Context window exceeded',
@@ -73,6 +86,16 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     userMessage: 'Runtime package manager unavailable',
     suggestion: 'OpenWaggle could not run npm while loading Pi extensions. Check the app logs.',
     retryable: false,
+  },
+  'pi-session-file-deleted': {
+    userMessage: "This Session's Pi session file cannot be used",
+    retryable: false,
+    messageFrom: PI_SESSION_FILE_PROBLEM,
+  },
+  'worktree-preparation-mismatch': {
+    userMessage: 'This worktree no longer matches its saved preparation',
+    retryable: false,
+    messageFrom: WORKTREE_PREPARATION_PROBLEM,
   },
   unknown: {
     userMessage: 'Something went wrong',
@@ -85,15 +108,20 @@ export function isAgentErrorCode(code: string): code is AgentErrorCode {
   return code in ERROR_CODE_META
 }
 
+function shownMessage(meta: ErrorCodeMeta, message: string) {
+  const start = meta.messageFrom ? message.indexOf(meta.messageFrom) : -1
+  return start < 0 ? meta.userMessage : message.slice(start)
+}
+
 /**
  * Build an `AgentErrorInfo` from a known error code and raw message.
  */
-export function makeErrorInfo(code: AgentErrorCode, message: string): AgentErrorInfo {
+export function makeErrorInfo(code: AgentErrorCode, message: string) {
   const meta = ERROR_CODE_META[code]
   return {
     code,
     message,
-    userMessage: meta.userMessage,
+    userMessage: shownMessage(meta, message),
     ...(meta.suggestion ? { suggestion: meta.suggestion } : {}),
     retryable: meta.retryable,
   }
@@ -101,6 +129,15 @@ export function makeErrorInfo(code: AgentErrorCode, message: string): AgentError
 
 function containsAny(message: string, patterns: readonly string[]) {
   return patterns.some((pattern) => message.includes(pattern))
+}
+
+/**
+ * An HTTP status as a standalone token. A bare substring match classified
+ * `connect ECONNREFUSED 127.0.0.1:5000` as a provider 500, and matched ports, ids, and counts
+ * generally. A status must not be part of a longer number.
+ */
+function containsStatus(message: string, statuses: readonly string[]) {
+  return statuses.some((status) => new RegExp(`(?<![\\d.])${status}(?!\\d)`).test(message))
 }
 
 function isInsufficientCreditsError(lower: string) {
@@ -115,6 +152,7 @@ function isInsufficientCreditsError(lower: string) {
       'purchase credits',
       'spending limit',
       'out of credits',
+      'requires more credits',
     ]) ||
     (lower.includes('payment required') && !lower.includes('subscription')) ||
     (lower.includes('billing') && !lower.includes('billing address'))
@@ -122,15 +160,38 @@ function isInsufficientCreditsError(lower: string) {
 }
 
 function isAuthError(lower: string) {
-  return containsAny(lower, [
-    '401',
-    '403',
-    'unauthorized',
-    'authentication',
-    'api key',
-    'invalid_api_key',
-    'incorrect api key',
-  ])
+  return (
+    containsStatus(lower, ['401', '403']) ||
+    containsAny(lower, [
+      'unauthorized',
+      'authentication',
+      'api key',
+      'invalid_api_key',
+      'incorrect api key',
+    ])
+  )
+}
+
+const EXPIRED_CREDENTIAL_PATTERNS = [
+  'session expired',
+  'sign in again',
+  // AWS SSO token provider: "Token is expired. To refresh this SSO session run 'aws sso login'..."
+  'token is expired',
+  'aws sso login',
+  // AWS STS credentials past their expiry (`ExpiredTokenException`, HTTP 403).
+  'expiredtoken',
+  'security token included in the request is expired',
+  'token has expired',
+  'credentials have expired',
+] as const
+
+/**
+ * Provider credentials that expired and must be renewed, such as an AWS SSO session behind
+ * Amazon Bedrock (#357). Checked before the generic authentication rule, which an STS expiry's
+ * HTTP 403 would otherwise match as an invalid API key.
+ */
+export function isExpiredCredentialMessage(message: string) {
+  return containsAny(message.toLowerCase(), EXPIRED_CREDENTIAL_PATTERNS)
 }
 
 function isRuntimePackageManagerError(lower: string) {
@@ -138,20 +199,19 @@ function isRuntimePackageManagerError(lower: string) {
 }
 
 function isRateLimitedError(lower: string) {
-  return containsAny(lower, ['429', 'rate limit', 'too many requests'])
+  return containsStatus(lower, ['429']) || containsAny(lower, ['rate limit', 'too many requests'])
 }
 
 function isProviderDownError(lower: string) {
-  return containsAny(lower, [
-    '500',
-    '502',
-    '503',
-    '529',
-    'overloaded',
-    'internal server error',
-    'service unavailable',
-    'bad gateway',
-  ])
+  return (
+    containsStatus(lower, ['500', '502', '503', '529']) ||
+    containsAny(lower, [
+      'overloaded',
+      'internal server error',
+      'service unavailable',
+      'bad gateway',
+    ])
+  )
 }
 
 function isContextOverflowError(lower: string) {
@@ -173,27 +233,33 @@ function isModelNotFoundError(lower: string) {
 }
 
 function isProviderUnavailableError(lower: string) {
-  return containsAny(lower, [
-    'econnrefused',
-    'enotfound',
-    'etimedout',
-    'fetch failed',
-    'network error',
-  ])
+  return (
+    lower === 'terminated' ||
+    containsAny(lower, ['econnrefused', 'enotfound', 'etimedout', 'fetch failed', 'network error'])
+  )
 }
 
 const ERROR_CLASSIFICATION_RULES: readonly ErrorClassificationRule[] = [
+  {
+    // First: these messages name a path, which could read as any other error.
+    code: 'worktree-preparation-mismatch',
+    matches: isWorktreePreparationMessage,
+  },
+  {
+    code: 'pi-session-file-deleted',
+    matches: (lower) => lower.includes(PI_SESSION_FILE_PROBLEM.toLowerCase()),
+  },
   {
     code: 'insufficient-credits',
     matches: isInsufficientCreditsError,
   },
   {
-    code: 'api-key-invalid',
-    matches: isAuthError,
+    code: 'session-expired',
+    matches: isExpiredCredentialMessage,
   },
   {
-    code: 'session-expired',
-    matches: (lower) => containsAny(lower, ['session expired', 'sign in again']),
+    code: 'api-key-invalid',
+    matches: isAuthError,
   },
   {
     code: 'runtime-package-manager-unavailable',
@@ -233,7 +299,7 @@ function resolveErrorCode(lowerMessage: string) {
  * This is the single source of truth for string-based error classification,
  * shared across main process and renderer.
  */
-export function classifyErrorMessage(message: string): AgentErrorInfo {
+export function classifyErrorMessage(message: string) {
   const extracted = extractInnerErrorMessage(message)
   const displayMessage = extracted?.message ?? message
   const classifyTarget = extracted?.classifyTarget ?? message

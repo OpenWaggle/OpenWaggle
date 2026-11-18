@@ -4,7 +4,12 @@ export const RESIZE_MOVE_THRESHOLD_PX = 2
 export const RESIZE_RAIL_HALF_WIDTH_PX = 8
 export const RESIZE_BODY_CLASS = 'right-sidebar-resizing'
 export const SHEET_MAX_WIDTH_PX = 820
-export const SHEET_VIEWPORT_WIDTH = '88vw'
+/**
+ * Set by the Panel rail while it is on screen, so a narrow-window sheet opens beside the rail
+ * instead of covering it (ADR 0043).
+ */
+export const RIGHT_PANEL_RAIL_INSET_VAR = '--right-panel-rail-inset'
+export const SHEET_VIEWPORT_WIDTH = `calc(100vw - var(${RIGHT_PANEL_RAIL_INSET_VAR}, 0px))`
 const ZERO_WIDTH_PX = 0
 const STORAGE_RADIX = 10
 
@@ -31,7 +36,7 @@ export function pixelValue(value: number) {
   return `${String(value)}px`
 }
 
-export function sidebarWidthValue(width: number, mainMinWidth: number): string {
+export function sidebarWidthValue(width: number, mainMinWidth: number) {
   return `min(${pixelValue(width)}, max(${pixelValue(ZERO_WIDTH_PX)}, calc(100% - ${pixelValue(mainMinWidth)})))`
 }
 
@@ -39,12 +44,15 @@ export function sidebarShellStyle(
   open: boolean,
   width: number,
   mainMinWidth: number,
-): CSSProperties {
-  return { width: open ? sidebarWidthValue(width, mainMinWidth) : ZERO_WIDTH_PX }
+  maximized = false,
+) {
+  return {
+    width: open ? (maximized ? '100%' : sidebarWidthValue(width, mainMinWidth)) : ZERO_WIDTH_PX,
+  } satisfies CSSProperties
 }
 
-export function sidebarPanelStyle(): CSSProperties {
-  return { width: '100%' }
+export function sidebarPanelStyle() {
+  return { width: '100%' } satisfies CSSProperties
 }
 
 export function resizeRailRightValue(open: boolean, width: number, mainMinWidth: number) {
@@ -53,7 +61,7 @@ export function resizeRailRightValue(open: boolean, width: number, mainMinWidth:
     : pixelValue(ZERO_WIDTH_PX)
 }
 
-export function resizeRailStyle(open: boolean, width: number, mainMinWidth: number): CSSProperties {
+export function resizeRailStyle(open: boolean, width: number, mainMinWidth: number) {
   return { right: resizeRailRightValue(open, width, mainMinWidth) }
 }
 

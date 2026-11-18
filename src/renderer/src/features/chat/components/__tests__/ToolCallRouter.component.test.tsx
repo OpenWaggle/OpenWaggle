@@ -44,7 +44,7 @@ function makeToolCallPart(
   id = 'tc-1',
   state: ToolCallPart['state'] = 'input-complete',
 ) {
-  return { type: 'tool-call', id, name, arguments: args, state }
+  return { type: 'tool-call', id, name, arguments: args, state } satisfies ToolCallPart
 }
 
 function emptyResults() {
@@ -58,14 +58,14 @@ function resultsWithEntry(
   error?: string,
 ) {
   const map = new Map<string, { content: unknown; state: string; error?: string }>()
-  map.set(id, { content, state, error })
+  map.set(id, { content, state, ...(error === undefined ? {} : { error }) })
   return map
 }
 
 const defaultSessionId = SessionId('session-1')
 const projectPath = '/test/project'
 
-function registryWithToolRenderer(toolName: string): ExtensionContributionRegistryView {
+function registryWithToolRenderer(toolName: string) {
   const entry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
@@ -99,13 +99,43 @@ function registryWithToolRenderer(toolName: string): ExtensionContributionRegist
     diagnostics: [],
   } satisfies ExtensionContributionRegistryEntry
 
-  return { projectPaths: [projectPath], entries: [entry] }
+  const view: ExtensionContributionRegistryView = {
+    projectPaths: [projectPath],
+    entries: [entry],
+  }
+  return view
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 describe('ToolCallRouter', () => {
+  it('renders the codemode card for a codemode call, with its live child calls', () => {
+    const part = makeToolCallPart(
+      'codemode',
+      JSON.stringify({ code: 'return 1' }),
+      'tc-1',
+      'executing',
+    )
+    render(
+      <ToolCallRouter
+        part={{
+          ...part,
+          partialOutput: {
+            content: [],
+            details: { calls: [{ id: 'tc-1/?', name: 'read', args: '{}', status: 'running' }] },
+          },
+        }}
+        toolResults={emptyResults()}
+        sessionId={defaultSessionId}
+        isStreaming
+      />,
+    )
+    expect(screen.queryByTestId('tool-call-block')).not.toBeInTheDocument()
+    expect(screen.getByText('Running a script…')).toBeInTheDocument()
+    expect(screen.getByText('read')).toBeInTheDocument()
+  })
+
   it('renders ToolCallBlock for generic tool calls', () => {
     const part = makeToolCallPart('read')
     render(

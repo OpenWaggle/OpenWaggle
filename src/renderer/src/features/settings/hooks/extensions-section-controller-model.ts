@@ -3,7 +3,6 @@ import type {
   ExtensionContributionRegistryView,
   ExtensionLifecycleMutationTarget,
   ExtensionManagerView,
-  ExtensionPackageLifecycleScope,
   ExtensionPackageSummary,
 } from '@shared/types/extensions'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -60,7 +59,7 @@ export function mutationSnapshot(input: {
   readonly error: Error | null
   readonly isPending: boolean
   readonly variables: ExtensionLifecycleMutationTarget | undefined
-}): MutationSnapshot {
+}) {
   return {
     error: input.error,
     pending: input.isPending,
@@ -246,9 +245,7 @@ export function controllerError({
   return latestMutationError ? describeExtensionControllerError(latestMutationError) : null
 }
 
-export function packageScopeToMutationScope(
-  extensionPackage: ExtensionPackageSummary,
-): ExtensionPackageLifecycleScope {
+export function packageScopeToMutationScope(extensionPackage: ExtensionPackageSummary) {
   if (extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
     return { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND }
   }

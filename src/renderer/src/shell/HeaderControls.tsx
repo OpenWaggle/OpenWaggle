@@ -1,14 +1,45 @@
-import type { GitStatusSummary } from '@shared/types/git'
-import { Hash, ListTree, PanelLeft, SquareTerminal } from 'lucide-react'
+import { runningWorkersLabel } from '@shared/domain/running-workers'
+import type { SessionId } from '@shared/types/brand'
+import { activeShortcutRuleForCommand } from '@shared/utils/shortcut-rules'
+import {
+  ChessQueen,
+  ChevronDown,
+  ChevronUp,
+  GitCommitHorizontal,
+  GitCompareArrows,
+  Hash,
+  LayoutList,
+  PanelLeft,
+  Pickaxe,
+  SquareTerminal,
+} from 'lucide-react'
+import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
 import { projectName } from '@/shared/lib/format'
+import { showRightPanelSurface } from '@/shared/lib/right-panel-surfaces'
+import {
+  formatAriaShortcutBinding,
+  formatShortcutBinding,
+  usesAppleShortcuts,
+} from '@/shared/lib/shortcut-display'
 import { Button } from '@/shared/ui/Button'
+import { HeaderSessionTitle } from './HeaderSessionTitle'
+
+export { DiffToggleButton } from './HeaderDiffToggleButton'
 
 interface HeaderLeftProps {
-  readonly activeBranchName: string
+  readonly activeBranchName: string | null
   readonly projectPath: string | null
   readonly sidebarOpen: boolean
+  /** The selected Session, null for a new-session draft whose title cannot be renamed yet. */
+  readonly sessionId: SessionId | null
   readonly title: string
+  readonly sessionIdentity?: {
+    readonly role?: 'queen' | 'worker'
+    readonly agentDefinitionName?: string
+    /** Workers below this Session with a live Run (ADR 0065); absent or zero hides the line. */
+    readonly runningWorkerCount?: number
+  }
   readonly onToggleSidebar: () => void
 }
 
@@ -24,32 +55,103 @@ interface CommitButtonProps {
   readonly onOpen: () => void
 }
 
-interface SessionTreeButtonProps {
-  readonly hasSessionTree: boolean
-  readonly isChatRoute: boolean
+interface SessionSummaryButtonProps {
   readonly open: boolean
+  readonly panelId: string
+  readonly suppressed: boolean
   readonly onToggle: () => void
 }
 
-interface DiffToggleButtonProps {
-  readonly error: string | null
-  readonly isChatRoute: boolean
-  readonly isLoading: boolean
-  readonly open: boolean
-  readonly projectPath: string | null
-  readonly status: GitStatusSummary | null
-  readonly onToggle: () => void
+/** The quiet second line naming the Session's Hive role and Agent definition. */
+function HeaderSessionIdentity({
+  sessionIdentity,
+}: {
+  readonly sessionIdentity: NonNullable<HeaderLeftProps['sessionIdentity']>
+}) {
+  const SessionIdentityIcon =
+    sessionIdentity.role === 'queen'
+      ? ChessQueen
+      : sessionIdentity.role === 'worker'
+        ? Pickaxe
+        : undefined
+
+  return (
+    <div
+      className="no-drag mt-0.5 ml-5 flex min-h-4 items-center gap-1.5 text-xs text-text-tertiary"
+      data-qa="header-session-identity"
+      title={
+        sessionIdentity.role === 'queen'
+          ? 'Queen Session: coordinates this Hive'
+          : sessionIdentity.role === 'worker'
+            ? 'Worker Session: reports through its Hive lineage'
+            : `Agent definition: ${sessionIdentity.agentDefinitionName ?? 'default'}`
+      }
+    >
+      {SessionIdentityIcon ? (
+        <>
+          <SessionIdentityIcon className="size-3 shrink-0 text-accent" />
+          <span className="font-medium text-text-secondary">
+            {sessionIdentity.role === 'queen' ? 'Queen' : 'Worker'}
+          </span>
+        </>
+      ) : null}
+      {sessionIdentity.agentDefinitionName ? (
+        <>
+          {SessionIdentityIcon ? <span className="text-border-strong">·</span> : null}
+          <span className="truncate">{sessionIdentity.agentDefinitionName}</span>
+        </>
+      ) : null}
+      <HeaderRunningWorkers count={sessionIdentity.runningWorkerCount ?? 0} />
+    </div>
+  )
+}
+
+/**
+ * Why a parent looks idle while its sidebar row reads Working (ADR 0065): its Workers still run.
+ * It opens the Hive panel, where they are listed, and offers no stop control: interrupting
+ * descendants is a deliberate act, not a status line's.
+ */
+function HeaderRunningWorkers({ count }: { readonly count: number }) {
+  if (count === 0) return null
+  const label = runningWorkersLabel(count)
+  return (
+    <>
+      <span className="text-border-strong">·</span>
+      <Button
+        variant="unstyled"
+        type="button"
+        data-qa="header-running-workers"
+        aria-label={`${label}, open Hive panel`}
+        title="Open Hive panel"
+        onClick={() => showRightPanelSurface('hive')}
+        className="inline-flex shrink-0 items-center gap-1 rounded px-0.5 text-progress hover:bg-bg-hover"
+      >
+        {/* The pulse runs on an HTML box, not the SVG, so it stays on the compositor. */}
+        <span className="grid size-3 place-items-center animate-pulse motion-reduce:animate-none">
+          <GitCompareArrows aria-hidden="true" className="size-3" />
+        </span>
+        <span className="tabular-nums">{label}</span>
+      </Button>
+    </>
+  )
 }
 
 export function HeaderLeft({
   activeBranchName,
   projectPath,
   sidebarOpen,
+  sessionId,
   title,
+  sessionIdentity,
   onToggleSidebar,
 }: HeaderLeftProps) {
+  const currentProjectName = projectName(projectPath)
+
   return (
-    <div className="flex items-center gap-2">
+    <div
+      data-qa="header-identity"
+      className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap"
+    >
       {!sidebarOpen && (
         <Button
           variant="ghost"
@@ -57,51 +159,90 @@ export function HeaderLeft({
           aria-label="Show sidebar"
           aria-expanded={sidebarOpen}
           onClick={onToggleSidebar}
-          className="no-drag"
+          className="no-drag shrink-0"
           title="Show sidebar"
         >
           <PanelLeft className="size-4" />
         </Button>
       )}
 
-      <Hash className="no-drag size-3.5 text-text-tertiary" />
-      <span className="no-drag text-[14px] font-medium text-text-primary">{title}</span>
-      <span className="no-drag text-[12px] text-text-tertiary">/ {activeBranchName}</span>
-      <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[12px] text-text-secondary">
-        {projectName(projectPath)}
-      </span>
-      <span className="no-drag text-[16px] leading-none text-text-tertiary">···</span>
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-2" data-qa="header-session-main">
+          <Hash className="no-drag size-3.5 shrink-0 text-text-tertiary" />
+          <HeaderSessionTitle key={String(sessionId)} sessionId={sessionId} title={title} />
+          {activeBranchName ? (
+            <span
+              className="no-drag min-w-0 max-w-40 shrink truncate text-xs text-text-tertiary"
+              title={activeBranchName}
+            >
+              / {activeBranchName}
+            </span>
+          ) : null}
+          <span
+            className="no-drag flex h-5 max-w-36 shrink-0 items-center truncate rounded border border-border bg-bg-tertiary px-2 text-xs text-text-secondary"
+            title={currentProjectName}
+          >
+            <span className="truncate">{currentProjectName}</span>
+          </span>
+        </div>
+        {sessionIdentity ? <HeaderSessionIdentity sessionIdentity={sessionIdentity} /> : null}
+      </div>
     </div>
   )
 }
 
-function terminalTitle(projectPath: string | null, terminalOpen: boolean) {
+function terminalTitle(
+  projectPath: string | null,
+  terminalOpen: boolean,
+  shortcut: ReturnType<
+    typeof usePreferencesStore.getState
+  >['settings']['shortcutBindings']['terminal.toggle'],
+) {
   if (!projectPath) {
     return 'No project selected'
   }
 
-  return terminalOpen ? 'Hide terminal' : 'Open terminal'
+  const action = terminalOpen ? 'Hide session terminal' : 'Open session terminal'
+  return `${action} (${formatShortcutBinding(shortcut)})`
 }
 
 export function TerminalButton({ open, projectPath, onToggle }: TerminalButtonProps) {
+  const shortcutRules = usePreferencesStore((state) => state.settings.shortcutRules)
+  const shortcut =
+    activeShortcutRuleForCommand(
+      shortcutRules,
+      'terminal.toggle',
+      {
+        terminalFocus: false,
+        terminalOpen: open,
+        previewFocus: false,
+        previewOpen: document.querySelector('[data-browser-preview-panel]') !== null,
+        modelPickerOpen: false,
+      },
+      usesAppleShortcuts(),
+    )?.shortcut ?? null
   return (
     <Button
       variant="secondary"
       size="none"
       radius="sm"
       aria-label={open ? 'Hide terminal' : 'Open terminal'}
+      aria-keyshortcuts={formatAriaShortcutBinding(shortcut)}
       aria-expanded={open}
       onClick={onToggle}
       className={cn(
-        'no-drag h-7 border-button-border px-2.5',
+        'no-drag h-7 gap-0.5 border-button-border px-1.5',
         !projectPath && 'pointer-events-none opacity-30',
       )}
       disabled={!projectPath}
-      title={terminalTitle(projectPath, open)}
+      title={terminalTitle(projectPath, open, shortcut)}
     >
       <SquareTerminal className="size-3.5 text-text-secondary" />
-      <span className="text-[13px] font-medium text-text-primary">{open ? 'Hide' : 'Open'}</span>
-      <span className="text-[9px] text-text-tertiary">&#x2228;</span>
+      {open ? (
+        <ChevronDown aria-hidden="true" className="size-3 text-text-tertiary" />
+      ) : (
+        <ChevronUp aria-hidden="true" className="size-3 text-text-tertiary" />
+      )}
     </Button>
   )
 }
@@ -116,87 +257,46 @@ export function CommitButton({ isCommitting, projectPath, onOpen }: CommitButton
       radius="sm"
       aria-label="Open commit dialog"
       onClick={onOpen}
-      className={cn('no-drag h-7 px-2.5', disabled && 'pointer-events-none opacity-40')}
+      className={cn(
+        'no-drag h-7 px-2.5 @max-[720px]/header:px-2',
+        disabled && 'pointer-events-none opacity-40',
+      )}
       disabled={disabled}
       title={projectPath ? 'Open commit dialog' : 'No project selected'}
     >
-      <span className="text-[13px] font-semibold text-bg">Commit</span>
-      <span className="text-[9px] text-bg/50">&#x2228;</span>
+      <GitCommitHorizontal
+        aria-hidden="true"
+        className="hidden size-3.5 @max-[720px]/header:block"
+      />
+      <span className="text-sm font-semibold text-bg @max-[720px]/header:hidden">Commit</span>
+      <span className="text-xs text-bg/50 @max-[720px]/header:hidden">&#x2228;</span>
     </Button>
   )
 }
 
-export function SessionTreeButton({
-  hasSessionTree,
-  isChatRoute,
+export function SessionSummaryButton({
   open,
+  panelId,
+  suppressed,
   onToggle,
-}: SessionTreeButtonProps) {
-  const disabled = !hasSessionTree || !isChatRoute
-
+}: SessionSummaryButtonProps) {
+  const label = open ? 'Hide Session Summary' : 'Open Session Summary'
+  const title = suppressed ? 'Session Summary is hidden while the side panel is open' : label
   return (
     <Button
       variant={open ? 'subtle' : 'secondary'}
       size="none"
       radius="sm"
-      aria-label="Toggle Session Tree"
-      aria-expanded={open}
+      id={`${panelId}-toggle`}
+      aria-pressed={open}
+      aria-controls={panelId}
+      aria-label={label}
       onClick={onToggle}
-      disabled={disabled}
-      className={cn(
-        'no-drag h-7 border-button-border px-2',
-        disabled && 'pointer-events-none opacity-30',
-      )}
-      title={hasSessionTree ? 'Toggle Session Tree' : 'No session tree available'}
+      disabled={suppressed}
+      className="no-drag h-7 border-button-border px-2 disabled:opacity-40"
+      title={title}
     >
-      <ListTree className="size-3.5 text-text-secondary" />
-    </Button>
-  )
-}
-
-function diffStatusText(error: string | null, isLoading: boolean) {
-  if (isLoading) {
-    return 'Loading diff…'
-  }
-
-  return error ? 'Git unavailable' : 'Diff unavailable'
-}
-
-export function DiffToggleButton({
-  error,
-  isChatRoute,
-  isLoading,
-  open,
-  projectPath,
-  status,
-  onToggle,
-}: DiffToggleButtonProps) {
-  const disabled = !projectPath || !isChatRoute
-
-  return (
-    <Button
-      variant="ghost"
-      size="none"
-      aria-label="Toggle diff panel"
-      onClick={onToggle}
-      disabled={disabled}
-      className={cn(
-        'no-drag gap-1 hover:opacity-80',
-        disabled && 'pointer-events-none opacity-30',
-        open && 'opacity-100',
-      )}
-      title="Toggle diff panel"
-    >
-      {status ? (
-        <>
-          <span className="text-[13px] font-medium text-success">+{status.additions}</span>
-          <span className="text-[13px] font-medium text-error">-{status.deletions}</span>
-        </>
-      ) : (
-        <span className="text-[13px] font-medium text-text-tertiary">
-          {diffStatusText(error, isLoading)}
-        </span>
-      )}
+      <LayoutList className="size-3.5 text-text-secondary" />
     </Button>
   )
 }

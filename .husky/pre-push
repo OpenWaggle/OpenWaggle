@@ -1,17 +1,4 @@
-MAIN_BRANCH_REF='refs/heads/main'
-IS_MAIN_PUSH=0
-
-while IFS=' ' read -r _local_ref _local_oid remote_ref _remote_oid; do
-  if [ "$remote_ref" = "$MAIN_BRANCH_REF" ]; then
-    IS_MAIN_PUSH=1
-    break
-  fi
-done
-
-if [ "$IS_MAIN_PUSH" -eq 0 ]; then
-  echo 'pre-push: skipping quality gates (no push target for main).'
-  exit 0
-fi
-
-echo 'pre-push: running quality gates for pushes to main.'
-pnpm prepush:main
+# Refuse force pushes, except a lease push that replays an agent's own ow/* PR branch (see the
+# git-guardrails skill), then run the fast verify, or the full gate for a push to main
+# (scripts/git-hooks/pre-push.ts). git's ref updates arrive on stdin; exec keeps them there.
+exec bun scripts/git-hooks/pre-push.ts

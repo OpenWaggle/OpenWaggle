@@ -1,9 +1,9 @@
-import type { SessionNode } from '@shared/types/session'
+import type { SessionTreeNode } from '@shared/types/session'
 
-export function sessionTreeNodeKey(node: SessionNode) {
+export function sessionTreeNodeKey(node: SessionTreeNode) {
   return String(node.id)
 }
 
-export function sessionTreeParentKey(node: SessionNode) {
+export function sessionTreeParentKey(node: SessionTreeNode) {
   return node.parentId ? String(node.parentId) : null
 }

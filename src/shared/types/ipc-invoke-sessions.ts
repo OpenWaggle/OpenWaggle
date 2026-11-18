@@ -1,0 +1,187 @@
+import type { AgentAuthorizationMode } from './agent-authorization'
+import type {
+  ArchivedItemRefsPage,
+  ArchivedItemsChange,
+  ArchivedItemsChangeResult,
+  ArchivedItemsPage,
+  ArchivedItemsQuery,
+  ArchivedItemsRefsQuery,
+  ArchivedSessionsDeletionResult,
+} from './archived-items'
+import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
+import type { SupportedModelId } from './llm'
+import type {
+  SessionCatalogPage,
+  SessionCopyToNewResult,
+  SessionDeleteOptions,
+  SessionDetail,
+  SessionNavigateTreeOptions,
+  SessionProjectPage,
+  SessionSummary,
+  SessionThinkingLevelChange,
+  SessionTree,
+  SessionTreeUiStatePatch,
+  SessionWorkspace,
+  SessionWorkspaceSelection,
+  SessionWorktreePlan,
+} from './session'
+import type { HiveSessionCatalogPage, HiveTreeSessionCatalogPage } from './session-hive-catalog'
+import type { SessionTitleRegenerationResult } from './session-title'
+import type { SessionDetailCursor, SessionWorkspaceRequest } from './session-transcript-window'
+import type { SessionTreeSearchCursor, SessionTreeSearchPage } from './session-tree-search'
+import type { ThinkingLevel } from './settings'
+
+export interface IpcSessionInvokeChannelMap {
+  /** With a cursor, a detail whose nodes were only appended to returns only the new messages. */
+  'sessions:get-detail': {
+    args: [id: SessionId, cursor?: SessionDetailCursor]
+    return: SessionDetail | null
+  }
+  'sessions:create': {
+    /**
+     * `thinkingLevel` is the level the new Session starts at, stored on it alone: unlike a
+     * desktop pick on an existing Session it never changes Pi's global default.
+     */
+    args: [
+      projectPath: string,
+      worktreePlan?: SessionWorktreePlan,
+      model?: SupportedModelId,
+      thinkingLevel?: ThinkingLevel,
+    ]
+    return: SessionDetail
+  }
+  'sessions:fork-to-new': {
+    args: [sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId]
+    return: SessionCopyToNewResult
+  }
+  'sessions:clone-to-new': {
+    args: [sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId]
+    return: SessionCopyToNewResult
+  }
+  'sessions:dismiss-interrupted-run': {
+    args: [sessionId: SessionId, runId: string]
+    return: undefined
+  }
+  /**
+   * `removingProject` deletes the Session as part of removing its project: a Pi session discovered
+   * from the `pi` CLI keeps its file and is listed again if the folder is added back (ADR 0051).
+   */
+  'sessions:delete': {
+    args: [id: SessionId, options?: SessionDeleteOptions]
+    return: undefined
+  }
+  /**
+   * The desktop app is about to remove a project and read the Sessions it deletes: Pi session
+   * discovery stops listing the project's `pi` sessions until the removal is done (ADR 0051).
+   */
+  'sessions:begin-project-removal': { args: [projectPath: string]; return: undefined }
+  'sessions:archive': { args: [id: SessionId]; return: undefined }
+  'sessions:unarchive': { args: [id: SessionId]; return: undefined }
+  'sessions:update-title': { args: [id: SessionId, title: string]; return: undefined }
+  /** Ask the Title model for a new title from the whole history and apply it (ADR 0043). */
+  'sessions:regenerate-title': {
+    args: [id: SessionId]
+    return: SessionTitleRegenerationResult
+  }
+  /** `null` clears the session override so the session inherits again. */
+  'sessions:set-authorization-mode': {
+    args: [id: SessionId, mode: AgentAuthorizationMode | null]
+    return: undefined
+  }
+  /** Switch the model the Session's next Run uses; refused while a Run is active. */
+  'sessions:set-model': { args: [id: SessionId, model: SupportedModelId]; return: undefined }
+  /**
+   * Set the Session thinking level its next Run uses, as the desktop user: refused while a Run is
+   * active, and also made Pi's global default for new Sessions.
+   */
+  'sessions:set-thinking-level': {
+    args: [id: SessionId, level: ThinkingLevel]
+    return: SessionThinkingLevelChange
+  }
+  /** Pi's global default thinking level, where every new Session starts (never a project one). */
+  'sessions:get-default-thinking-level': { args: []; return: ThinkingLevel }
+  /** Set Pi's global default thinking level, for a Session that does not exist yet. */
+  'sessions:set-default-thinking-level': { args: [level: ThinkingLevel]; return: undefined }
+  'sessions:list-by-ids': { args: [sessionIds: SessionId[]]; return: SessionSummary[] }
+  'sessions:list-page': {
+    args: [archived: boolean, limit: number, cursor?: string]
+    return: SessionCatalogPage
+  }
+  'sessions:list-projects': {
+    args: [limit: number, cursor?: string, search?: string]
+    return: SessionProjectPage
+  }
+  'sessions:list-hive-page': {
+    args: [sessionId: SessionId, limit: number, cursor?: string]
+    return: HiveSessionCatalogPage
+  }
+  'sessions:list-hive-tree-page': {
+    args: [sessionId: SessionId, limit: number, cursor?: string]
+    return: HiveTreeSessionCatalogPage
+  }
+  'sessions:list-archived-branches': {
+    args: [limit: number, cursor?: string]
+    return: SessionCatalogPage
+  }
+  /** One page of Settings > Archived items, with its Archive facet counts. */
+  'sessions:query-archived-items': { args: [query: ArchivedItemsQuery]; return: ArchivedItemsPage }
+  /** The Archived items a filter matches, for Select all. */
+  'sessions:list-archived-item-refs': {
+    args: [query: ArchivedItemsRefsQuery]
+    return: ArchivedItemRefsPage
+  }
+  /** Restores many Archived items at once, or archives them again to undo a restore. */
+  'sessions:set-archived-items': {
+    args: [change: ArchivedItemsChange]
+    return: ArchivedItemsChangeResult
+  }
+  /** Permanently deletes the given sessions that are still archived. */
+  'sessions:delete-archived-sessions': {
+    args: [sessionIds: SessionId[]]
+    return: ArchivedSessionsDeletionResult
+  }
+  'sessions:get-tree': { args: [sessionId: SessionId]; return: SessionTree | null }
+  'sessions:get-workspace': {
+    args: [
+      sessionId: SessionId,
+      selection?: SessionWorkspaceSelection,
+      request?: SessionWorkspaceRequest,
+    ]
+    return: SessionWorkspace | null
+  }
+  /**
+   * The Session tree nodes whose content, metadata or transcript text contains `query`
+   * (whitespace collapsed, case folded): the tree itself carries no content. Given the cursor of
+   * the previous search for the same query, only nodes appended since are read while no node
+   * changed (`incremental`).
+   */
+  'sessions:search-tree': {
+    args: [sessionId: SessionId, query: string, after?: SessionTreeSearchCursor]
+    return: SessionTreeSearchPage
+  }
+  'sessions:navigate-tree': {
+    args: [
+      sessionId: SessionId,
+      model: SupportedModelId,
+      targetNodeId: SessionNodeId,
+      options?: SessionNavigateTreeOptions,
+    ]
+    return: { editorText?: string; cancelled: boolean }
+  }
+  'sessions:rename-branch': {
+    args: [sessionId: SessionId, branchId: SessionBranchId, name: string]
+    return: undefined
+  }
+  'sessions:archive-branch': {
+    args: [sessionId: SessionId, branchId: SessionBranchId]
+    return: undefined
+  }
+  'sessions:restore-branch': {
+    args: [sessionId: SessionId, branchId: SessionBranchId]
+    return: undefined
+  }
+  'sessions:update-tree-ui-state': {
+    args: [sessionId: SessionId, patch: SessionTreeUiStatePatch]
+    return: undefined
+  }
+}

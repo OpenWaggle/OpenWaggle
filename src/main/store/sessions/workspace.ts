@@ -1,10 +1,10 @@
 import type {
   SessionBranch,
+  SessionContentTree,
   SessionNode,
-  SessionTree,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
-import { buildPiWorkingContextPath } from '../session-working-context'
+import { buildPiTranscriptPath } from '@shared/utils/session-entry-paths'
 
 function findBranchById(
   branches: readonly SessionBranch[],
@@ -23,7 +23,7 @@ function isVisibleBranch(branch: SessionBranch) {
   return branch.archived !== true
 }
 
-function getDefaultBranch(tree: SessionTree) {
+function getDefaultBranch(tree: SessionContentTree) {
   return (
     tree.branches.find((branch) => branch.isMain && isVisibleBranch(branch)) ??
     tree.branches.find(isVisibleBranch) ??
@@ -32,12 +32,12 @@ function getDefaultBranch(tree: SessionTree) {
   )
 }
 
-function getNodeBranch(tree: SessionTree, node: SessionNode | null) {
+function getNodeBranch(tree: SessionContentTree, node: SessionNode | null) {
   return node?.branchId ? findBranchById(tree.branches, node.branchId) : null
 }
 
 function resolveWorkspaceBranch(
-  tree: SessionTree,
+  tree: SessionContentTree,
   selection: SessionWorkspaceSelection | undefined,
   selectedNode: SessionNode | null,
 ) {
@@ -52,7 +52,7 @@ function resolveWorkspaceBranch(
 }
 
 function resolveWorkspaceNode(
-  tree: SessionTree,
+  tree: SessionContentTree,
   selection: SessionWorkspaceSelection | undefined,
   activeBranch: SessionBranch | null,
 ) {
@@ -65,20 +65,22 @@ function resolveWorkspaceNode(
   )
 }
 
-function buildTranscriptPath(tree: SessionTree, activeNodeId: SessionNode['id'] | null) {
-  return buildPiWorkingContextPath(activeNodeId ? String(activeNodeId) : null, tree.nodes, {
+/** The selected branch up to the active node, compacted history included (ADR 0048). */
+function buildTranscriptPath(tree: SessionContentTree, activeNodeId: SessionNode['id'] | null) {
+  return buildPiTranscriptPath(activeNodeId ? String(activeNodeId) : null, tree.nodes, {
     getId: (node) => String(node.id),
     getParentId: (node) => (node.parentId ? String(node.parentId) : null),
-    getKind: (node) => node.kind,
-    getContentJson: (node) => node.contentJson,
   }).map((node) => ({
     node,
-    branchId: node.branchId,
+    ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
     isActive: node.id === activeNodeId,
   }))
 }
 
-export function buildSessionWorkspace(tree: SessionTree, selection?: SessionWorkspaceSelection) {
+export function buildSessionWorkspace(
+  tree: SessionContentTree,
+  selection?: SessionWorkspaceSelection,
+) {
   const selectedNode = findNodeById(tree.nodes, selection?.nodeId)
   const activeBranch = resolveWorkspaceBranch(tree, selection, selectedNode)
   const activeNode = resolveWorkspaceNode(tree, selection, activeBranch)
@@ -88,7 +90,7 @@ export function buildSessionWorkspace(tree: SessionTree, selection?: SessionWork
     tree,
     activeBranchId: activeBranch?.id ?? null,
     activeNodeId: activeNode?.id ?? null,
-    activeBranchState,
+    ...(activeBranchState === undefined ? {} : { activeBranchState }),
     transcriptPath: buildTranscriptPath(tree, activeNode?.id ?? null),
   }
 }

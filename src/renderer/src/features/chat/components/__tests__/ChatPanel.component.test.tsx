@@ -1,119 +1,43 @@
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
-import type { UIMessage } from '@shared/types/chat-ui'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { fromPartial } from '@total-typescript/shoehorn'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMessageQueueStore } from '@/features/chat/state'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import { useComposerStore } from '@/features/composer/state'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import type { ChatPanelSections } from '../../model'
 import { ChatPanel } from '../ChatPanel'
+import { createSections, makeMessage, seedComposerWorkspace } from './ChatPanel.test-utils'
 
 const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
-const projectPath = '/test/project'
 
 vi.mock('../../hooks/use-chat-panel-controller', () => ({
   useChatPanelSections: useChatPanelSectionsMock,
 }))
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
     getGitStatus: vi.fn().mockResolvedValue(null),
-    listGitBranches: vi.fn().mockResolvedValue(null),
+    listGitBranches: vi.fn().mockResolvedValue({ currentBranch: 'main', branches: [] }),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    renameGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    deleteGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    setGitBranchUpstream: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     prepareAttachments: vi.fn().mockResolvedValue([]),
     onWaggleEvent: vi.fn(() => () => undefined),
     onWaggleTurnEvent: vi.fn(() => () => undefined),
-  },
+    listSessionResources: vi.fn().mockResolvedValue([]),
+    listArchivedSessions: vi.fn().mockResolvedValue([]),
+    onRunCompleted: vi.fn(() => () => undefined),
+    onSessionResourcesInvalidated: vi.fn(() => () => undefined),
+    activateSessionResourceOwner: vi.fn(),
+    getVcsStatus: vi.fn().mockResolvedValue(null),
+    onGitWorkingTreeChanged: vi.fn(() => () => undefined),
+  }),
 }))
-
-function makeMessage(overrides: Partial<UIMessage> & { id: string; role: 'user' | 'assistant' }) {
-  return fromPartial<UIMessage>({
-    parts: [],
-    ...overrides,
-  })
-}
-
-function createSections(
-  overrides: Partial<ChatPanelSections['transcript']> = {},
-  composerOverrides: Partial<ChatPanelSections['composer']> = {},
-) {
-  const transcript = {
-    messages: [],
-    isLoading: false,
-    projectPath,
-    recentProjects: [],
-    activeSessionId: SessionId('session-1'),
-    chatRows: [],
-    extensionRegistry: null,
-    extensionProjectPaths: [projectPath],
-    lastUserMessageId: null,
-    streamSignalVersion: 0,
-    userDidSend: false,
-    onUserDidSendConsumed: vi.fn(),
-    onOpenProject: vi.fn().mockResolvedValue(undefined),
-    onSelectProjectPath: vi.fn(),
-    onRetryText: vi.fn().mockResolvedValue(undefined),
-    onOpenSettings: vi.fn(),
-    onDismissError: vi.fn(),
-    onDismissInterruptedRun: vi.fn(),
-    onBranchFromMessage: vi.fn(),
-    onForkFromMessage: vi.fn(),
-    ...overrides,
-  }
-
-  return {
-    transcript,
-    composer: {
-      activeSessionId: transcript.activeSessionId,
-      waggleStatus: 'idle',
-      commandPaletteOpen: false,
-      slashSkills: [],
-      forkSelectorOpen: false,
-      forkTargets: [],
-      isLoading: transcript.isLoading,
-      status: transcript.isLoading ? 'streaming' : 'ready',
-      compactionStatus: null,
-      onStopCollaboration: vi.fn(),
-      onSelectSkill: vi.fn(),
-      onStartWaggle: vi.fn(),
-      onSendWithWaggle: vi.fn().mockResolvedValue(undefined),
-      onSteer: vi.fn().mockResolvedValue(undefined),
-      onCancel: vi.fn(),
-      onToast: vi.fn(),
-      onSkipBranchSummary: vi.fn(),
-      onSummarizeBranch: vi.fn(),
-      onStartCustomBranchSummary: vi.fn(),
-      onCancelBranchSummary: vi.fn(),
-      onOpenForkSelector: vi.fn(),
-      onCloseForkSelector: vi.fn(),
-      onSelectForkTarget: vi.fn(),
-      onCloneToNewSession: vi.fn(),
-      ...composerOverrides,
-    },
-    diff: {
-      projectPath: transcript.projectPath,
-      onSendMessage: transcript.onRetryText,
-    },
-    agentInteractions: [],
-    agentCustomMessages: [],
-    agentInteractionEvents: [],
-    extensionRegistry: transcript.extensionRegistry,
-    extensionProjectPaths: transcript.extensionProjectPaths,
-    onRespondAgentInteraction: vi.fn().mockResolvedValue(undefined),
-  }
-}
 
 function renderPanel(
   overrides: Partial<ChatPanelSections['transcript']> = {},
@@ -126,6 +50,7 @@ function renderPanel(
       mutations: { retry: false },
     },
   })
+  queryClients.push(queryClient)
   return render(
     <QueryClientProvider client={queryClient}>
       <ChatPanel />
@@ -133,11 +58,22 @@ function renderPanel(
   )
 }
 
+/** Every client a test rendered, cleared once it is unmounted so none of its timers outlive it. */
+const queryClients: QueryClient[] = []
+
+afterEach(async () => {
+  cleanup()
+  for (const queryClient of queryClients.splice(0)) queryClient.clear()
+  // Clearing notifies observers on the next tick; let that run while the DOM is still here.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+})
+
 describe('ChatPanel', () => {
   beforeEach(() => {
+    localStorage.clear()
     useBranchSummaryStore.setState(useBranchSummaryStore.getInitialState())
     useComposerStore.setState(useComposerStore.getInitialState())
-    useMessageQueueStore.setState({ queues: new Map() })
+    seedComposerWorkspace()
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
       settings: {
@@ -156,18 +92,27 @@ describe('ChatPanel', () => {
   it('shows welcome screen when no messages', () => {
     renderPanel()
     expect(screen.getByText("Let's build")).toBeInTheDocument()
-    expect(screen.queryByText('Explore more')).toBeNull()
+    expect(screen.queryByText('Build a coding game in this repo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Draft a one-page summary of this app')).not.toBeInTheDocument()
+    expect(screen.queryByText('Create a refactor plan for this codebase')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Welcome' })).toHaveClass(
+      'flex-1',
+      'items-center',
+      'justify-center',
+    )
   })
 
-  it('renders the welcome heading smaller and lighter than the project name', () => {
+  it('renders the welcome heading and project name with standard type steps', () => {
     renderPanel()
 
     const heading = screen.getByRole('heading', { name: "Let's build" })
     const projectPickerButton = screen.getByTitle('Open project picker')
 
-    expect(heading).toHaveClass('font-normal')
+    expect(heading).toHaveClass('text-2xl', 'font-normal')
+    expect(heading).toHaveClass('whitespace-nowrap')
+    expect(heading.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
     expect(heading).not.toHaveClass('font-semibold')
-    expect(projectPickerButton).toHaveClass('text-[clamp(28px,3.8vw,40px)]', 'font-light')
+    expect(projectPickerButton).toHaveClass('gap-1.5', 'text-2xl', 'font-light')
   })
 
   it('opens the folder picker directly from the empty-state CTA', () => {
@@ -195,14 +140,15 @@ describe('ChatPanel', () => {
     expect(screen.getByText('Recent projects')).toBeInTheDocument()
   })
 
-  it('shows thinking phase indicator when loading with no assistant message', () => {
+  it('shows thinking without a separator when loading with no assistant message', () => {
     renderPanel({
       isLoading: true,
-      chatRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 123 }],
+      chatRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 7_000 }],
     })
-    const spinner = document.querySelector('[class*="animate-spin"]')
-    expect(spinner).toBeInTheDocument()
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+
+    const thinking = screen.getByText('Thinking for 7s')
+    expect(thinking).toBeInTheDocument()
+    expect(thinking.parentElement?.parentElement).not.toHaveClass('border-b')
   })
 
   it('renders messages when present', () => {
@@ -213,7 +159,15 @@ describe('ChatPanel', () => {
     })
     renderPanel({
       messages: [message],
-      chatRows: [{ type: 'message', message, isStreaming: false, showTurnDivider: false }],
+      chatRows: [
+        {
+          type: 'message',
+          message,
+          isStreaming: false,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
+      ],
     })
     expect(screen.queryByText(/open a project/i)).toBeNull()
   })
@@ -222,6 +176,7 @@ describe('ChatPanel', () => {
     const onSendWithWaggle = vi.fn().mockResolvedValue(undefined)
     useBranchSummaryStore.getState().openPrompt({
       sessionId: SessionId('session-1'),
+      projectPath: '/test/project',
       sourceNodeId: SessionNodeId('source-node'),
       restoreSelection: { branchId: null, nodeId: null },
       previousComposerText: 'original prompt',
@@ -244,12 +199,30 @@ describe('ChatPanel', () => {
     expect(onSendWithWaggle).toHaveBeenCalledWith(
       expect.objectContaining({ text: 'focus on decisions' }),
     )
-    expect(useMessageQueueStore.getState().queues.get(SessionId('session-1'))).toBeUndefined()
   })
 
   it('renders the composer input area', () => {
     renderPanel()
     expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('focuses the message input from non-interactive composer chrome', async () => {
+    renderPanel()
+    const composer = screen.getByRole('region', { name: 'Composer file drop zone' })
+    const messageInput = screen.getByRole('textbox', { name: 'Message input' })
+    const addButton = screen.getByRole('button', { name: 'Add to message' })
+
+    addButton.focus()
+    expect(addButton).toHaveFocus()
+
+    fireEvent.mouseDown(composer)
+
+    await waitFor(() => expect(messageInput).toHaveFocus())
+    expect(composer).toHaveClass('cursor-text', '[&_button]:cursor-default')
+
+    addButton.focus()
+    fireEvent.mouseDown(addButton)
+    expect(addButton).toHaveFocus()
   })
 
   it('shows Writing phase when loading and assistant has streaming content', () => {
@@ -267,14 +240,24 @@ describe('ChatPanel', () => {
       messages: [userMessage, assistantMessage],
       isLoading: true,
       chatRows: [
-        { type: 'message', message: userMessage, isStreaming: false, showTurnDivider: false },
-        { type: 'message', message: assistantMessage, isStreaming: true, showTurnDivider: false },
+        {
+          type: 'message',
+          message: userMessage,
+          isStreaming: false,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
+        {
+          type: 'message',
+          message: assistantMessage,
+          isStreaming: true,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
         { type: 'phase-indicator', label: 'Writing', elapsedMs: 456 },
       ],
     })
-    const spinner = document.querySelector('[class*="animate-spin"]')
-    expect(spinner).toBeInTheDocument()
-    expect(screen.getByText('Writing...')).toBeInTheDocument()
+    expect(screen.getByText('Writing for 0s')).toBeInTheDocument()
   })
 
   it('does not show phase indicator when not loading', () => {
@@ -292,8 +275,20 @@ describe('ChatPanel', () => {
       messages: [userMessage, assistantMessage],
       isLoading: false,
       chatRows: [
-        { type: 'message', message: userMessage, isStreaming: false, showTurnDivider: false },
-        { type: 'message', message: assistantMessage, isStreaming: false, showTurnDivider: false },
+        {
+          type: 'message',
+          message: userMessage,
+          isStreaming: false,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
+        {
+          type: 'message',
+          message: assistantMessage,
+          isStreaming: false,
+          isRunActive: false,
+          showTurnDivider: false,
+        },
       ],
     })
     const spinner = document.querySelector('[class*="animate-spin"]')

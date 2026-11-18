@@ -1,122 +1,197 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSession, SessionEntry } from '@earendil-works/pi-coding-agent'
-import {
-  PI_WAGGLE_TURN_CUSTOM_TYPE,
-  parsePiWaggleTurnDetails,
-} from '@openwaggle/pi-waggle/protocol'
-import { parseJsonUnknown } from '@shared/schema'
+import { parseJsonUnknown, Schema } from '@shared/schema'
+import type { MessageScheduledTaskOrigin } from '@shared/types/agent'
+import { isObjectValue } from '@shared/utils/object-shape'
+import { Option } from 'effect'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
+import type { PiProjectionBase } from '../../../store/session-details/pi-projection-base'
+import { markRetainedSnapshotNode } from '../../../store/session-details/retained-snapshot-nodes'
+import { OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE } from '../run-attribution-extension'
+import { contextOmittedEntryIds } from './context-edit-omissions'
+import { createEntryModelSelection } from './entry-model-selection'
+import { PI_ENTRY_PROJECTION_VERSION } from './entry-projection-version'
 import { projectionForPiEntry } from './entry-projections'
+import { type PiEntryNodeIds, piEntryNodeIdsWithPrefix } from './pi-entry-node-ids'
+import { previouslyOmittedEntryIds, retainedEntryCount } from './projection-base-entries'
+import { findUserInputProjection } from './user-input-projection'
+import {
+  createWaggleTurnMetadataResolver,
+  isUserMessageEntry,
+  type PiAssistantMessageEntry,
+} from './waggle-turn-metadata'
 
 interface PiSessionSnapshotSource {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries' | 'getLeafId'>
 }
-
-type PiMessageEntry = Extract<SessionEntry, { type: 'message' }>
-type PiAssistantMessageEntry = PiMessageEntry & {
-  readonly message: Extract<PiMessageEntry['message'], { role: 'assistant' }>
-}
-type PiUserMessageEntry = PiMessageEntry & {
-  readonly message: Extract<PiMessageEntry['message'], { role: 'user' }>
-}
-type PiTurnCustomMessageEntry = Extract<SessionEntry, { type: 'custom_message' }>
 
 function parsePiEntryTimestamp(timestamp: string) {
   const parsed = Date.parse(timestamp)
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function isAssistantEntry(entry: SessionEntry): entry is PiAssistantMessageEntry {
   return entry.type === 'message' && entry.message.role === 'assistant'
 }
 
-function isUserMessageEntry(entry: SessionEntry): entry is PiUserMessageEntry {
-  return entry.type === 'message' && entry.message.role === 'user'
-}
-
-function isTurnCustomMessageEntry(entry: SessionEntry): entry is PiTurnCustomMessageEntry {
-  return entry.type === 'custom_message' && entry.customType === PI_WAGGLE_TURN_CUSTOM_TYPE
-}
-
-function turnMetadataFromCustomMessage(input: { readonly entry: PiTurnCustomMessageEntry }) {
-  const details = parsePiWaggleTurnDetails(input.entry.details)
-  if (!details) return null
-
-  return {
-    agentIndex: details.agentIndex,
-    agentLabel: details.agentLabel,
-    agentColor: details.agentColor,
-    agentModel: details.agentModel,
-    turnNumber: details.turnNumber,
-    sessionId: details.runId,
-  }
-}
-
-function turnMetadataForPromptParent(
-  parent: PiUserMessageEntry,
-  entryById: ReadonlyMap<string, SessionEntry>,
-) {
-  if (!parent.parentId) {
-    return null
-  }
-  const turnParent = entryById.get(parent.parentId)
-  return turnParent && isTurnCustomMessageEntry(turnParent)
-    ? turnMetadataFromCustomMessage({ entry: turnParent })
-    : null
-}
-
-function currentTurnMetadata(input: {
-  readonly entry: PiAssistantMessageEntry
-  readonly entryById: ReadonlyMap<string, SessionEntry>
-}) {
-  if (!input.entry.parentId) {
-    return null
-  }
-  const parent = input.entryById.get(input.entry.parentId)
-  if (!parent) {
-    return null
-  }
-  if (isTurnCustomMessageEntry(parent)) {
-    return turnMetadataFromCustomMessage({ entry: parent })
-  }
-  return isUserMessageEntry(parent) ? turnMetadataForPromptParent(parent, input.entryById) : null
-}
-
 function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
   const parsed = parseJsonUnknown(rawMetadataJson)
-  const metadata = isRecord(parsed) ? parsed : {}
+  const metadata = isObjectValue(parsed) ? parsed : {}
   return JSON.stringify({ ...metadata, waggle })
 }
 
-function projectPiEntry(input: {
+/** A response a context edit drops from the model's context, such as an attempt Pi retried. */
+function mergeMetadataJsonWithContextOmission(rawMetadataJson: string, omitted: boolean) {
+  if (!omitted) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), omittedFromContext: true })
+}
+
+function mergeMetadataJsonWithDurableText(rawMetadataJson: string, digest: string | null) {
+  if (!digest) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  const metadata = isObjectValue(parsed) ? parsed : {}
+  return JSON.stringify({ ...metadata, durableTextSha256: digest })
+}
+
+/** The Scheduled task whose run sent a user message, as the Host recorded it with the message. */
+function mergeMetadataJsonWithScheduledTask(
+  rawMetadataJson: string,
+  scheduledTask: MessageScheduledTaskOrigin | null,
+) {
+  if (!scheduledTask) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), scheduledTask })
+}
+
+/** The Session's model selection when a response was made, which a virtual model routed. */
+function mergeMetadataJsonWithSelectedModel(rawMetadataJson: string, selectedModel: string | null) {
+  if (!selectedModel) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  return JSON.stringify({ ...(isObjectValue(parsed) ? parsed : {}), selectedModel })
+}
+
+/** Message metadata JSON written by earlier runs; OpenWaggle's own fields sit under `openWaggle`. */
+const decodeOpenWaggleMetadata = Schema.decodeUnknownOption(
+  Schema.Struct({ openWaggle: Schema.optionalWith(Schema.Unknown, { exact: true }) }),
+)
+
+const decodeBoundaryData = Schema.decodeUnknownOption(Schema.Struct({ runId: Schema.String }))
+
+function mergeMetadataJsonWithRun(rawMetadataJson: string, runId: string | null) {
+  if (!runId) return rawMetadataJson
+  const parsed = parseJsonUnknown(rawMetadataJson)
+  const metadata = isObjectValue(parsed) ? parsed : {}
+  const stored = Option.getOrUndefined(decodeOpenWaggleMetadata(metadata))?.openWaggle
+  const existingOpenWaggle = isObjectValue(stored) ? stored : {}
+  return JSON.stringify({
+    ...metadata,
+    openWaggle: { ...existingOpenWaggle, runId },
+  })
+}
+
+function boundaryRunId(entry: SessionEntry) {
+  if (entry.type !== 'custom' || entry.customType !== OPENWAGGLE_RUN_BOUNDARY_CUSTOM_TYPE) {
+    return null
+  }
+  return Option.getOrUndefined(decodeBoundaryData(entry.data))?.runId ?? null
+}
+
+function runIdForEntry(input: {
+  readonly entryId: string
+  readonly entryById: ReadonlyMap<string, SessionEntry>
+  readonly runIdByEntryId: Map<string, string | null>
+}): string | null {
+  if (input.runIdByEntryId.has(input.entryId)) {
+    return input.runIdByEntryId.get(input.entryId) ?? null
+  }
+  const entry = input.entryById.get(input.entryId)
+  if (!entry) return null
+  const runId =
+    boundaryRunId(entry) ??
+    (entry.parentId
+      ? runIdForEntry({
+          entryId: entry.parentId,
+          entryById: input.entryById,
+          runIdByEntryId: input.runIdByEntryId,
+        })
+      : null)
+  input.runIdByEntryId.set(input.entryId, runId)
+  return runId
+}
+
+function userDisplayProjection(entry: SessionEntry, entryById: ReadonlyMap<string, SessionEntry>) {
+  return isUserMessageEntry(entry) ? findUserInputProjection(entry.parentId, entryById) : null
+}
+
+/** The entry with the ids it names expressed as node ids, for the content the projection keeps. */
+function withNodeReferences(entry: SessionEntry, nodeIds: PiEntryNodeIds) {
+  return matchBy(entry, 'type')
+    .with('compaction', (compaction) => ({
+      ...compaction,
+      firstKeptEntryId: nodeIds.toNodeId(compaction.firstKeptEntryId),
+    }))
+    .with('branch_summary', (summary) => ({
+      ...summary,
+      fromId: nodeIds.toNodeId(summary.fromId),
+    }))
+    .with('label', (label) => ({
+      ...label,
+      targetId: nodeIds.toNodeId(label.targetId),
+    }))
+    .otherwise((other) => other)
+}
+
+interface PiEntryProjectionInput {
   readonly entry: SessionEntry
   readonly entryById: ReadonlyMap<string, SessionEntry>
   readonly createdOrder: number
   readonly pathDepth: number
-}): ProjectedSessionNodeInput {
-  const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
-  const projection = projectionForPiEntry(input.entry)
-  const waggleMetadata = isAssistantEntry(input.entry)
-    ? currentTurnMetadata({ entry: input.entry, entryById: input.entryById })
-    : null
+  readonly runId: string | null
+  readonly nodeIds: PiEntryNodeIds
+  readonly selectedModel: string | null
+  readonly omittedFromContext: boolean
+  readonly waggleTurnOf: ReturnType<typeof createWaggleTurnMetadataResolver>
+}
 
-  return {
-    id: input.entry.id,
-    parentId: input.entry.parentId,
+function projectPiEntry(input: PiEntryProjectionInput) {
+  const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
+  const displayProjection = userDisplayProjection(input.entry, input.entryById)
+  const projection = projectionForPiEntry(withNodeReferences(input.entry, input.nodeIds), {
+    ...(displayProjection ? { userDisplayParts: displayProjection.parts } : {}),
+  })
+  const waggleMetadata = isAssistantEntry(input.entry) ? input.waggleTurnOf(input.entry) : null
+
+  const result: ProjectedSessionNodeInput = {
+    id: input.nodeIds.toNodeId(input.entry.id),
+    parentId: input.entry.parentId === null ? null : input.nodeIds.toNodeId(input.entry.parentId),
     piEntryType: input.entry.type,
     kind: projection.kind,
     role: projection.role,
     timestampMs,
     contentJson: projection.contentJson,
-    metadataJson: waggleMetadata
-      ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
-      : projection.metadataJson,
+    metadataJson: mergeMetadataJsonWithRun(
+      mergeMetadataJsonWithSelectedModel(
+        mergeMetadataJsonWithScheduledTask(
+          mergeMetadataJsonWithDurableText(
+            mergeMetadataJsonWithContextOmission(
+              waggleMetadata
+                ? mergeMetadataJsonWithWaggle(projection.metadataJson, waggleMetadata)
+                : projection.metadataJson,
+              input.omittedFromContext,
+            ),
+            displayProjection?.durableTextSha256 ?? null,
+          ),
+          displayProjection?.scheduledTask ?? null,
+        ),
+        isAssistantEntry(input.entry) ? input.selectedModel : null,
+      ),
+      input.runId,
+    ),
     pathDepth: input.pathDepth,
     createdOrder: input.createdOrder,
   }
+  return result
 }
 
 function getPiEntryDepth(input: {
@@ -145,20 +220,94 @@ function getPiEntryDepth(input: {
   return depth
 }
 
-export function projectPiSessionSnapshot(session: PiSessionSnapshotSource) {
+/**
+ * An entry the Session's current projection already holds, projected only if its content is read
+ * (D6). Its kind and role are the ones it was stored with; everything else an entry's projection
+ * depends on (its own bytes, its ancestors, whether a context edit drops it) is as it was then.
+ */
+function retainedPiEntryNode(
+  input: PiEntryProjectionInput,
+  stored: Pick<ProjectedSessionNodeInput, 'kind' | 'role'>,
+  revision: number,
+) {
+  let projected: ProjectedSessionNodeInput | undefined
+  const full = () => {
+    projected ??= projectPiEntry(input)
+    return projected
+  }
+  return markRetainedSnapshotNode(
+    {
+      id: input.nodeIds.toNodeId(input.entry.id),
+      parentId: input.entry.parentId === null ? null : input.nodeIds.toNodeId(input.entry.parentId),
+      piEntryType: input.entry.type,
+      kind: stored.kind,
+      role: stored.role,
+      timestampMs: parsePiEntryTimestamp(input.entry.timestamp),
+      get contentJson() {
+        return full().contentJson
+      },
+      get metadataJson() {
+        return full().metadataJson
+      },
+      pathDepth: input.pathDepth,
+      createdOrder: input.createdOrder,
+    },
+    revision,
+  )
+}
+
+/**
+ * `nodeIds` maps entry ids to the Session's node ids; a discovered Pi session keys them under a
+ * per-Session prefix (ADR 0051). Sessions OpenWaggle created use their entry ids unchanged.
+ *
+ * With `base`, the Session's current projection, the entries it already holds are kept rather
+ * than projected again (D6): only Pi's appended entries, and earlier ones a later context edit
+ * changed, are projected now. The snapshot is the same as a full projection; a kept node's content
+ * is computed only if read, and snapshot persistence leaves its stored row as it is. A base stored
+ * by another entry-projection version is not used, so a projection change reaches stored rows.
+ */
+export function projectPiSessionSnapshot(
+  session: PiSessionSnapshotSource,
+  nodeIds: PiEntryNodeIds = piEntryNodeIdsWithPrefix(undefined),
+  projectionBase: PiProjectionBase | null = null,
+) {
+  const base =
+    projectionBase?.tail.projectionVersion === PI_ENTRY_PROJECTION_VERSION ? projectionBase : null
   const entries = session.sessionManager.getEntries()
   const entryById = new Map(entries.map((entry) => [entry.id, entry]))
   const depthById = new Map<string, number>()
+  const runIdByEntryId = new Map<string, string | null>()
+  const leafId = session.sessionManager.getLeafId()
+  const selectedModelOf = createEntryModelSelection(entryById)
+  const omittedEntryIds = contextOmittedEntryIds(entries, entryById, leafId)
+  const waggleTurnOf = createWaggleTurnMetadataResolver(entries, entryById)
+  const keptCount = base ? retainedEntryCount(entries, base, nodeIds) : 0
+  const previouslyOmitted =
+    base && keptCount > 0 ? previouslyOmittedEntryIds(entries, keptCount, base, nodeIds) : null
 
   return {
-    activeNodeId: session.sessionManager.getLeafId(),
-    nodes: entries.map((entry, index) =>
-      projectPiEntry({
+    activeNodeId: leafId === null ? null : nodeIds.toNodeId(leafId),
+    piProjection: { version: PI_ENTRY_PROJECTION_VERSION },
+    nodes: entries.map((entry, index) => {
+      const input: PiEntryProjectionInput = {
         entry,
         entryById,
         createdOrder: index,
         pathDepth: getPiEntryDepth({ entryId: entry.id, entryById, depthById }),
-      }),
-    ),
+        runId: runIdForEntry({ entryId: entry.id, entryById, runIdByEntryId }),
+        nodeIds,
+        selectedModel: selectedModelOf(entry.parentId),
+        omittedFromContext: omittedEntryIds.has(entry.id),
+        waggleTurnOf,
+      }
+      const stored =
+        base && previouslyOmitted && index < keptCount
+          ? base.storedShapeByNodeId.get(nodeIds.toNodeId(entry.id))
+          : undefined
+      if (!base || !stored || previouslyOmitted?.has(entry.id) !== input.omittedFromContext) {
+        return projectPiEntry(input)
+      }
+      return retainedPiEntryNode(input, stored, base.revision)
+    }),
   }
 }

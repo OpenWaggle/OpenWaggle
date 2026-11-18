@@ -31,10 +31,10 @@ const PROVIDER_PROBE_TIMEOUT_MS = 15_000
 
 async function runPiPromptProbe(input: ProviderProbeInput, services: AgentSessionServices) {
   if (input.apiKey) {
-    services.authStorage.setRuntimeApiKey(input.providerId, input.apiKey)
+    await services.modelRuntime.setRuntimeApiKey(input.providerId, input.apiKey)
   }
 
-  const model = services.modelRegistry.find(input.providerId, input.modelId)
+  const model = services.modelRuntime.getModel(input.providerId, input.modelId)
   if (!model) {
     throw new Error(`Unknown provider/model: ${input.providerId}/${input.modelId}`)
   }
@@ -49,7 +49,7 @@ async function runPiPromptProbe(input: ProviderProbeInput, services: AgentSessio
   let timeoutId: ReturnType<typeof setTimeout> | null = null
   const timeoutPromise = new Promise<never>((_resolve, reject) => {
     timeoutId = setTimeout(() => {
-      void session.abort().catch((error) => {
+      void session.abort().catch((error: unknown) => {
         logger.warn('Failed to abort provider probe session after timeout', {
           error: error instanceof Error ? error.message : String(error),
           providerId: input.providerId,
@@ -82,7 +82,6 @@ async function createProbeRuntimeServices(
   const services = await createPiRuntimeServices(cwd, {
     enabledOpenWaggleExtensionPackagePaths,
     enabledOpenWaggleExtensionResourceRoots,
-    loadMcpAdapter: false,
   })
   return rejectMatchingOpenWaggleExtensionLoadErrors({
     result: services,

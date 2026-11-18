@@ -17,19 +17,17 @@ function messageText(message: Message) {
   return chunks.join('\n').trim()
 }
 
-export function getVisibleForkTargets(
-  workspace: SessionWorkspace | null,
-): readonly SessionForkTarget[] {
+export function getVisibleForkTargets(workspace: SessionWorkspace | null) {
   if (!workspace) {
-    return []
+    return [] satisfies readonly SessionForkTarget[]
   }
 
   const targets: SessionForkTarget[] = []
   for (const entry of workspace.transcriptPath) {
     const message = entry.node.message
-    if (entry.node.kind !== 'user_message' || message?.role !== 'user') {
-      continue
-    }
+    // The Host's Hive wake notice is not a message the user wrote, and Pi cannot fork there.
+    if (entry.node.kind !== 'user_message' || message?.role !== 'user') continue
+    if (entry.node.hiveWake || message.metadata?.hiveWake) continue
 
     const text = messageText(message)
     if (text) {

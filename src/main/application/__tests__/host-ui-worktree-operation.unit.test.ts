@@ -1,0 +1,315 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
+import * as Fiber from 'effect/Fiber'
+import * as Layer from 'effect/Layer'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { GitWorktreeService } from '../../ports/git-worktree-service'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
+import {
+  SessionWorkspaceResourceRepository,
+  type SessionWorkspaceResourceRepositoryShape,
+} from '../../ports/session-workspace-resource-repository'
+import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
+import { NoopActionRunServiceLayer } from './action-run-service-test-layer'
+import { NoopWorkspacePreparationLayer } from './workspace-preparation-test-layer'
+
+const mocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  admitRemoval: vi.fn(),
+  finalizeRemoval: vi.fn(),
+  remove: vi.fn(),
+  validateRemoval: vi.fn(),
+  preparationRead: vi.fn(),
+}))
+
+vi.mock('../../services/git-status-cache', () => ({
+  invalidateGitStatusCache: vi.fn(),
+}))
+
+import { createHostUiWorktree, removeHostUiWorktree } from '../host-ui-worktree-operation'
+import { NoopTerminalServiceLayer } from './terminal-service-test-layer'
+
+function workspaceRepository(input: {
+  readonly admission?: 'reserved' | 'unavailable'
+  readonly boundWorkspace?: null
+  readonly candidates?: readonly {
+    readonly id: string
+    readonly projectPath: string
+    readonly workingPath: string
+  }[]
+}) {
+  return SessionWorkspaceResourceRepository.of({
+    countBindings: () => Effect.succeed(0),
+    countActiveBindings: () => Effect.succeed(0),
+    countManagedWorktreeBindings: () => Effect.succeed(0),
+    listManagedWorktreeRemovalCandidates: () => Effect.succeed(input.candidates ?? []),
+    admitManagedWorktreeRemoval: (admissionInput) =>
+      Effect.sync(() => {
+        mocks.admitRemoval(admissionInput)
+        return input.admission === 'unavailable'
+          ? { status: 'unavailable' as const }
+          : {
+              status: 'reserved' as const,
+              resourceId: 'removal-resource',
+              createdReservation: true,
+            }
+      }),
+    finalizeManagedWorktreeRemoval: (finalization) =>
+      Effect.sync(() => mocks.finalizeRemoval(finalization)),
+    getById: () => Effect.succeed(null),
+    getBound: () => Effect.succeed(input.boundWorkspace ?? null),
+    listWorkspaceOccupants: () => Effect.succeed([]),
+  })
+}
+
+function operationLayer(
+  repository: SessionWorkspaceResourceRepositoryShape,
+  preparation = NoopWorkspacePreparationLayer,
+) {
+  return Layer.mergeAll(
+    NoopTerminalServiceLayer,
+    NoopActionRunServiceLayer,
+    preparation,
+    Layer.succeed(
+      SessionProjectionRepository,
+      fromPartial<SessionProjectionRepository['Type']>({
+        resetWorktreeSetup: () => Effect.void,
+      }),
+    ),
+    Layer.succeed(SessionWorkspaceResourceRepository, repository),
+    Layer.succeed(
+      GitWorktreeService,
+      GitWorktreeService.of({
+        create: (projectPath, payload) => Effect.promise(() => mocks.create(projectPath, payload)),
+        remove: (projectPath, payload) => Effect.promise(() => mocks.remove(projectPath, payload)),
+        validateRemoval: (projectPath, payload) =>
+          Effect.promise(() => mocks.validateRemoval(projectPath, payload)),
+        inspectLinkedWorktree: () => Effect.succeed('not-a-worktree'),
+        list: () => Effect.succeed({ worktrees: [] }),
+        countUnpublishedCommits: () => Effect.succeed(null),
+        countUncommittedChanges: () => Effect.succeed(null),
+        applicationCheckout: () => Effect.succeed(null),
+      }),
+    ),
+  )
+}
+
+describe('Host-backed worktree operations', () => {
+  let temporaryRoot = ''
+
+  beforeEach(() => {
+    temporaryRoot = ''
+    mocks.admitRemoval.mockReset()
+    mocks.create.mockReset()
+    mocks.finalizeRemoval.mockReset()
+    mocks.remove.mockReset().mockResolvedValue({
+      ok: true,
+      path: '/project/.openwaggle/worktrees/free',
+      message: 'Removed worktree.',
+    })
+    mocks.validateRemoval.mockReset().mockResolvedValue({
+      ok: true,
+      message: 'Worktree can be removed.',
+    })
+    mocks.preparationRead.mockReset()
+  })
+
+  afterEach(async () => {
+    if (temporaryRoot) await fs.rm(temporaryRoot, { recursive: true, force: true })
+  })
+
+  it('finds the Workspace of a Session opened in a subfolder when removal runs from the main checkout', async () => {
+    const effect = removeHostUiWorktree('/repo', { path: '/worktrees/feature' }).pipe(
+      Effect.provide(
+        operationLayer(
+          workspaceRepository({
+            candidates: [
+              { id: 'other', projectPath: '/elsewhere', workingPath: '/worktrees/other' },
+              {
+                id: 'feature',
+                projectPath: '/repo/packages/app',
+                workingPath: '/worktrees/feature',
+              },
+            ],
+          }),
+        ),
+      ),
+    )
+
+    await Effect.runPromise(effect)
+
+    expect(mocks.admitRemoval).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceId: 'feature', workingPath: '/worktrees/feature' }),
+    )
+  })
+
+  it('refuses a folder that Workspaces of more than one project record', async () => {
+    const shared = [
+      { id: 'sub', projectPath: '/repo/packages/app', workingPath: '/worktrees/feature' },
+      { id: 'main', projectPath: '/repo', workingPath: '/worktrees/feature' },
+    ]
+    const result = await Effect.runPromise(
+      removeHostUiWorktree('/repo', { path: '/worktrees/feature' }).pipe(
+        Effect.provide(operationLayer(workspaceRepository({ candidates: shared }))),
+      ),
+    )
+
+    expect(result).toMatchObject({ ok: false, code: 'workspace-bound' })
+    expect(mocks.admitRemoval).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('refuses a relative worktree path, naming the field', async () => {
+    const effect = removeHostUiWorktree('/project', { path: 'worktrees/feature' }).pipe(
+      Effect.provide(operationLayer(workspaceRepository({}))),
+    )
+
+    await expect(Effect.runPromise(effect)).rejects.toThrow('Worktree path must be absolute.')
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('rejects removal while an authoritative Workspace binding remains', async () => {
+    const effect = removeHostUiWorktree('/project', {
+      path: '/project/.openwaggle/worktrees/shared',
+    }).pipe(Effect.provide(operationLayer(workspaceRepository({ admission: 'unavailable' }))))
+
+    await expect(Effect.runPromise(effect)).resolves.toEqual({
+      ok: false,
+      code: 'workspace-bound',
+      message:
+        'A Session that is not archived, or has a Run, works in this worktree, or its Workspace is changing.',
+    })
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('removes an unbound worktree through the authoritative operation', async () => {
+    const effect = removeHostUiWorktree('/project', {
+      path: '/project/.openwaggle/worktrees/free',
+    }).pipe(Effect.provide(operationLayer(workspaceRepository({ admission: 'reserved' }))))
+
+    await expect(Effect.runPromise(effect)).resolves.toEqual(expect.objectContaining({ ok: true }))
+    expect(mocks.remove).toHaveBeenCalledWith('/project', {
+      path: '/project/.openwaggle/worktrees/free',
+    })
+    expect(mocks.finalizeRemoval).toHaveBeenCalledWith({
+      resourceId: 'removal-resource',
+      createdReservation: true,
+      removed: true,
+    })
+  })
+
+  it.each([
+    { condition: 'dirty', code: 'dirty-worktree', message: 'Worktree has uncommitted changes.' },
+    { condition: 'locked', code: 'unknown', message: 'Worktree is locked.' },
+  ])('does not run cleanup or remove a $condition worktree from Settings', async (refusal) => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-dirty-worktree-'))
+    const worktreePath = path.join(temporaryRoot, 'worktree')
+    await fs.mkdir(worktreePath)
+    mocks.validateRemoval.mockResolvedValue({
+      ok: false,
+      code: refusal.code,
+      message: refusal.message,
+    })
+    const preparation = Layer.succeed(
+      WorkspacePreparationService,
+      fromPartial<WorkspacePreparationService['Type']>({
+        read: () => Effect.sync(() => mocks.preparationRead()),
+      }),
+    )
+    const effect = removeHostUiWorktree(temporaryRoot, { path: worktreePath }).pipe(
+      Effect.provide(operationLayer(workspaceRepository({ admission: 'reserved' }), preparation)),
+    )
+
+    await expect(Effect.runPromise(effect)).resolves.toMatchObject({
+      ok: false,
+      code: refusal.code,
+    })
+    expect(mocks.validateRemoval).toHaveBeenCalledWith(temporaryRoot, { path: worktreePath })
+    expect(mocks.preparationRead).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.finalizeRemoval).toHaveBeenCalledWith({
+      resourceId: 'removal-resource',
+      createdReservation: true,
+      removed: false,
+    })
+  })
+
+  it('matches tracked worktrees through canonical filesystem identity', async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-worktree-alias-'))
+    const projectPath = path.join(temporaryRoot, 'project')
+    const worktreePath = path.join(temporaryRoot, 'worktree')
+    const projectAlias = path.join(temporaryRoot, 'project-alias')
+    const worktreeAlias = path.join(temporaryRoot, 'worktree-alias')
+    await Promise.all([fs.mkdir(projectPath), fs.mkdir(worktreePath)])
+    await Promise.all([
+      fs.symlink(projectPath, projectAlias),
+      fs.symlink(worktreePath, worktreeAlias),
+    ])
+    const effect = removeHostUiWorktree(projectAlias, { path: worktreeAlias }).pipe(
+      Effect.provide(
+        operationLayer(
+          workspaceRepository({
+            admission: 'reserved',
+            candidates: [{ id: 'tracked-resource', projectPath, workingPath: worktreePath }],
+          }),
+        ),
+      ),
+    )
+
+    await expect(Effect.runPromise(effect)).resolves.toEqual(expect.objectContaining({ ok: true }))
+    expect(mocks.admitRemoval).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceId: 'tracked-resource' }),
+    )
+  })
+
+  it('waits for Git removal and finalizes its reservation when interrupted', async () => {
+    let finishRemoval: (result: {
+      readonly ok: true
+      readonly path: string
+      readonly message: string
+    }) => void = () => undefined
+    mocks.remove.mockReturnValue(
+      new Promise((resolve) => {
+        finishRemoval = resolve
+      }),
+    )
+    const effect = removeHostUiWorktree('/project', {
+      path: '/project/.openwaggle/worktrees/interrupted',
+    }).pipe(Effect.provide(operationLayer(workspaceRepository({ admission: 'reserved' }))))
+    const fiber = Effect.runFork(effect)
+    await vi.waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce())
+
+    const interrupt = Effect.runPromise(Fiber.interrupt(fiber))
+    await Promise.resolve()
+    expect(mocks.finalizeRemoval).not.toHaveBeenCalled()
+    finishRemoval({
+      ok: true,
+      path: '/project/.openwaggle/worktrees/interrupted',
+      message: 'Removed worktree.',
+    })
+    await interrupt
+
+    expect(mocks.finalizeRemoval).toHaveBeenCalledWith({
+      resourceId: 'removal-resource',
+      createdReservation: true,
+      removed: true,
+    })
+  })
+
+  it('rejects Session-bound creation after the binding disappears', async () => {
+    const effect = createHostUiWorktree('/project', {
+      path: '/renderer-selected',
+      branch: 'renderer-selected',
+      baseRef: 'main',
+      sessionId: 'deleted-session',
+    }).pipe(Effect.provide(operationLayer(workspaceRepository({ boundWorkspace: null }))))
+
+    await expect(Effect.runPromise(effect)).resolves.toEqual(
+      expect.objectContaining({ ok: false, message: expect.stringContaining('no longer') }),
+    )
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+})

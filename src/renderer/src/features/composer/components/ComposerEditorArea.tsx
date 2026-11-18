@@ -4,34 +4,43 @@ import { LexicalComposerEditor } from './LexicalComposerEditor'
 
 interface ComposerEditorAreaProps {
   readonly onSubmit: (text?: string) => void
+  /** Escape in the input, when the composer has something to back out of. */
+  readonly onEscape?: () => void
   readonly disabled?: boolean
   readonly placeholder?: string
   readonly isLoading: boolean
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
+  readonly onPaste?: (event: ClipboardEvent) => boolean
 }
 
 export function ComposerEditorArea({
   onSubmit,
+  onEscape,
   disabled,
   placeholder,
   isLoading,
   editorRef,
   checkAndConvertPaste,
+  onPaste,
 }: ComposerEditorAreaProps) {
   return (
-    <div className="relative min-h-[60px] px-4 py-[14px]">
+    <div className="relative px-4 py-4">
       <LexicalComposerEditor
         onSubmit={onSubmit}
-        disabled={disabled}
+        {...(onEscape === undefined ? {} : { onEscape })}
+        {...(disabled === undefined ? {} : { disabled })}
         placeholder={placeholder ?? getDefaultPlaceholder(isLoading)}
         editorRef={editorRef}
         checkAndConvertPaste={checkAndConvertPaste}
+        {...(onPaste === undefined ? {} : { onPaste })}
       />
     </div>
   )
 }
 
 function getDefaultPlaceholder(isLoading: boolean) {
-  return isLoading ? 'Add a message to the session...' : 'Ask for follow-up changes'
+  return isLoading
+    ? 'Add a message · / skills & Waggle · @ files'
+    : 'Ask anything · / skills & Waggle · @ files'
 }

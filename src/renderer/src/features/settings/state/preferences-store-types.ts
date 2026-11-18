@@ -1,24 +1,112 @@
+import type { PiSessionContinuationChoice } from '@shared/pi-session-continuation'
+import type { SessionTitleModelSetting } from '@shared/session-title-model'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
+import type {
+  AppearanceMotionPreference,
+  AppearancePreferences,
+  AppearanceTerminalPalettePreferences,
+  AppearanceTypographyPreferences,
+} from '@shared/types/appearance-preferences'
 import type { SupportedModelId } from '@shared/types/brand'
-import type { Settings, ThinkingLevel } from '@shared/types/settings'
+import type {
+  BrowserPreviewAppearance,
+  BrowserPreviewRecordingFrameRate,
+  BrowserPreviewViewport,
+  BrowserPreviewZoomFactor,
+} from '@shared/types/browser-preview-controls'
+import type { BrowserProfile } from '@shared/types/browser-profile'
+import type { DesktopNotificationSettings } from '@shared/types/desktop-notification'
+import type { SessionEnvironmentMode } from '@shared/types/git'
+import type {
+  BrowserLinkTarget,
+  DiffSyntaxTheme,
+  DiffView,
+  PiCacheWarmingMode,
+  Settings,
+} from '@shared/types/settings'
+import type { ShortcutBinding, ShortcutCommand, ShortcutRules } from '@shared/types/shortcuts'
+import type { SyntaxAppearanceVariant, SyntaxThemeId } from '@shared/types/syntax'
+import type { UpdateChannel } from '@shared/types/update-channel'
+import type { AutomaticWorktreeRemovalSettings } from '@shared/types/worktree-inventory'
 
 export interface PreferencesState {
   settings: Settings
+  persistedAppearancePreferences: AppearancePreferences
   isLoaded: boolean
   loadError: string | null
 
-  loadSettings: () => Promise<void>
-  retryLoad: () => Promise<void>
+  /** `prefetched` is a `getSettings` request started earlier, as startup does (B11). */
+  loadSettings: (prefetched?: Promise<Settings>) => Promise<void>
   setSelectedModel: (model: SupportedModelId) => Promise<void>
   toggleFavoriteModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
-  setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
+  setUpdateChannel: (channel: UpdateChannel) => Promise<void>
+  setUsageStatisticsEnabled: (enabled: boolean) => Promise<void>
+  /** Settings → Notifications (ADR 0062), saved whole. */
+  setDesktopNotifications: (value: DesktopNotificationSettings) => Promise<void>
+  setDefaultAuthorizationMode: (mode: AgentAuthorizationMode) => Promise<void>
+  setDefaultSessionEnvironmentMode: (mode: SessionEnvironmentMode) => Promise<void>
+  /** Automatic worktree removal (ADR 0060), app-wide and off until the user turns it on. */
+  setAutomaticWorktreeRemoval: (value: AutomaticWorktreeRemovalSettings) => Promise<void>
+  setMultiAgentEnabled: (enabled: boolean) => Promise<void>
+  setSessionHostParentConcurrencyLimit: (limit: number) => Promise<void>
+  setSessionHostRunCeiling: (limit: number) => Promise<void>
+  setSessionHostIdleGracePeriodMs: (milliseconds: number) => Promise<void>
+  setProjectMultiAgentEnabled: (projectPath: string, enabled: boolean | null) => Promise<void>
+  setProjectParentConcurrencyLimit: (projectPath: string, limit: number | null) => Promise<void>
+  /** Remembers a project's Pi continuation choice, or forgets it with null (ADR 0051). */
+  setProjectPiSessionContinuation: (
+    projectPath: string,
+    choice: PiSessionContinuationChoice | null,
+  ) => Promise<void>
+  setDiffSyntaxTheme: (theme: DiffSyntaxTheme) => Promise<void>
+  setSyntaxTheme: (variant: SyntaxAppearanceVariant, themeId: SyntaxThemeId) => Promise<void>
+  setDiffView: (view: DiffView) => Promise<void>
+  setDiffWrapLines: (wrap: boolean) => Promise<void>
+  setRightPanelRailVisibleWhenClosed: (visible: boolean) => Promise<void>
+  setBrowserLinkTarget: (target: BrowserLinkTarget) => Promise<void>
+  setBrowserProfiles: (profiles: readonly BrowserProfile[]) => Promise<void>
+  setBrowserDefaultProfileId: (profileId: string) => Promise<void>
+  setBrowserDefaultViewport: (viewport: BrowserPreviewViewport) => Promise<void>
+  setBrowserDefaultZoomFactor: (zoomFactor: BrowserPreviewZoomFactor) => Promise<void>
+  setBrowserDefaultAppearance: (appearance: BrowserPreviewAppearance) => Promise<void>
+  setBrowserRecordingFrameRate: (frameRate: BrowserPreviewRecordingFrameRate) => Promise<void>
+  setBrowserAutoShowFloatingPreview: (enabled: boolean) => Promise<void>
+  setEnableAgentBrowserAccess: (enabled: boolean) => Promise<void>
+  setCompactionThresholdPercent: (percent: number) => Promise<void>
+  setCodemodeEnabled: (enabled: boolean) => Promise<void>
+  setCacheWarming: (mode: PiCacheWarmingMode) => Promise<void>
+  setSessionTitleModel: (model: SessionTitleModelSetting) => Promise<void>
+  setAppearanceTypography: (typography: Partial<AppearanceTypographyPreferences>) => Promise<void>
+  setAppearanceTerminalPalette: (
+    palette: Partial<AppearanceTerminalPalettePreferences>,
+  ) => Promise<void>
+  setAppearanceMotion: (motion: AppearanceMotionPreference) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
+  setShortcutBinding: (command: ShortcutCommand, binding: ShortcutBinding | null) => Promise<void>
+  setShortcutRules: (rules: ShortcutRules) => Promise<void>
+  /** Assigns or clears (null) the shortcut of one extension side panel surface. */
+  setExtensionPanelShortcutBinding: (
+    surfaceId: string,
+    binding: ShortcutBinding | null,
+  ) => Promise<void>
+  resetShortcutBindings: () => Promise<void>
+  resetShortcutRules: () => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>
   removeProjectReferences: (path: string) => Promise<void>
   loadProjectPreferences: (projectPath: string) => Promise<void>
 }
 
-export type PreferencesActions = Omit<PreferencesState, 'settings' | 'isLoaded' | 'loadError'>
+export type PreferencesActions = Omit<
+  PreferencesState,
+  'settings' | 'persistedAppearancePreferences' | 'isLoaded' | 'loadError'
+>
+
+export type PreferencesSet = (
+  partial: Partial<PreferencesState> | ((state: PreferencesState) => Partial<PreferencesState>),
+) => void
+
+export type PreferencesGet = () => PreferencesState

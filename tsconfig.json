@@ -2,7 +2,6 @@
   "compilerOptions": {
     "moduleResolution": "bundler",
     "paths": {
-      "*": ["./*"],
       "@/*": ["./src/renderer/src/*"],
       "@shared/*": ["./src/shared/*"],
       "@openwaggle/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
@@ -16,8 +15,12 @@
   },
   "files": [],
   "references": [
+    { "path": "./tsconfig.packages.json" },
+    { "path": "./tsconfig.scripts.json" },
     { "path": "./tsconfig.node.json" },
     { "path": "./tsconfig.web.json" },
-    { "path": "./tsconfig.renderer-tests.json" }
+    { "path": "./tsconfig.renderer-tests.json" },
+    { "path": "./tsconfig.shared.json" },
+    { "path": "./tsconfig.website.json" }
   ]
 }

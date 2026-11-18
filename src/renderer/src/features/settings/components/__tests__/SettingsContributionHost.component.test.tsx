@@ -102,16 +102,16 @@ const BLOCKED_ENTRY: ExtensionContributionRegistryEntry = {
   ],
 }
 
-function registryWith(
-  entries: readonly ExtensionContributionRegistryEntry[],
-): ExtensionContributionRegistryView {
-  return {
+function registryWith(entries: readonly ExtensionContributionRegistryEntry[]) {
+  const view: ExtensionContributionRegistryView = {
     projectPaths: ['/tmp/project'],
     entries,
   }
+  return view
 }
 
-function ThrowingContribution(): never {
+// An arrow, so the inferred return type is `never` and it is a valid component.
+const ThrowingContribution = () => {
   throw new Error('Slot exploded')
 }
 

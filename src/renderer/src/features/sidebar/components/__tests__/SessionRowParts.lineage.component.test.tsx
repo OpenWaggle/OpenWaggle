@@ -1,0 +1,83 @@
+import { SessionId } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { SessionLineageIndicator } from '../SessionRowSecondLine'
+
+function session(lineage: SessionSummary['lineage']) {
+  return {
+    id: SessionId('session-target'),
+    title: 'Target Session',
+    projectPath: '/project',
+    createdAt: 1,
+    updatedAt: 1,
+    ...(lineage ? { lineage } : {}),
+  } satisfies SessionSummary
+}
+
+function renderIndicator(target: SessionSummary) {
+  return render(<SessionLineageIndicator session={target} />)
+}
+
+describe('Session row lineage glyphs', () => {
+  it('names a Queen and includes its direct Worker count', () => {
+    renderIndicator(session({ role: 'queen', directWorkerCount: 2, activeDirectWorkerCount: 1 }))
+
+    expect(screen.getByRole('img', { name: 'Queen Session · 2 direct Workers' })).toHaveAttribute(
+      'title',
+      'Queen Session · 2 direct Workers',
+    )
+  })
+
+  it('names a Worker and its parent Queen', () => {
+    renderIndicator(
+      session({
+        role: 'worker',
+        parentSessionId: SessionId('session-queen'),
+        parentTitle: 'Release Queen',
+        directWorkerCount: 0,
+        activeDirectWorkerCount: 0,
+      }),
+    )
+
+    expect(
+      screen.getByRole('img', { name: 'Worker Session · Spawned by Release Queen' }),
+    ).toHaveAttribute('title', 'Worker Session · Spawned by Release Queen')
+  })
+
+  it('keeps a recursive Worker role and shows its direct Worker count', () => {
+    renderIndicator(
+      session({
+        role: 'worker',
+        parentSessionId: SessionId('session-queen'),
+        parentTitle: 'Release Queen',
+        directWorkerCount: 2,
+        activeDirectWorkerCount: 1,
+      }),
+    )
+
+    const indicator = screen.getByRole('img', {
+      name: 'Worker Session · Spawned by Release Queen · 2 direct Workers',
+    })
+    expect(indicator).toHaveTextContent('2')
+    expect(indicator).toHaveClass('pointer-events-none')
+  })
+
+  it('names the parent of a pinned Worker in the Hive panel’s words', () => {
+    render(
+      <SessionLineageIndicator
+        session={session({
+          role: 'worker',
+          parentSessionId: SessionId('session-queen'),
+          parentTitle: 'Release Queen',
+          directWorkerCount: 0,
+          activeDirectWorkerCount: 0,
+        })}
+        showParent
+      />,
+    )
+
+    expect(screen.getByText('Spawned by Release Queen')).toBeInTheDocument()
+    expect(screen.queryByText(/via /u)).toBeNull()
+  })
+})

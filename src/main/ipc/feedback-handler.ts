@@ -1,13 +1,15 @@
 import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
+import path from 'node:path'
 import { BASE_TEN } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE, FEEDBACK } from '@shared/constants/resource-limits'
-import type { DiagnosticsInfo, FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
+import type { FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
-import { getGhCliEnv } from '../env'
-import { createLogger, getLogFilePath } from '../logger'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { getSourceControlCliEnv } from '../env'
+import { createLogger, getLogFilePath, sessionHostLogPathFor } from '../logger'
+import { userFacingErrorDetail } from '../utils/describe-error'
 import { redactSensitiveText } from '../utils/redact'
 import { typedHandle } from './typed-ipc'
 
@@ -15,12 +17,8 @@ const logger = createLogger('ipc:feedback')
 
 const FEEDBACK_REPO = 'OpenWaggle/OpenWaggle'
 
-function execFilePromise(
-  command: string,
-  args: string[],
-  options?: { env?: NodeJS.ProcessEnv },
-): Promise<{ readonly stdout: string; readonly stderr: string }> {
-  return new Promise((resolve, reject) => {
+function execFilePromise(command: string, args: string[], options?: { env?: NodeJS.ProcessEnv }) {
+  return new Promise<{ readonly stdout: string; readonly stderr: string }>((resolve, reject) => {
     execFile(
       command,
       args,
@@ -47,28 +45,39 @@ function humanOsName() {
   return `${platform} ${os.release()}`
 }
 
-function collectDiagnostics(): DiagnosticsInfo {
+function collectDiagnostics() {
   return {
     os: humanOsName(),
-    appVersion: app.getVersion(),
+    appVersion: appLifecycle.version(),
     electronVersion: process.versions.electron,
     nodeVersion: process.versions.node,
     arch: process.arch,
   }
 }
 
+async function readLogTail(filePath: string, lineCount: number) {
+  try {
+    const content = await readFile(filePath, 'utf8')
+    return content.split('\n').slice(-lineCount).join('\n')
+  } catch {
+    return ''
+  }
+}
+
+/** Recent GUI and Session Host log lines; run failures are recorded by the Host (ADR 0037). */
 async function readRecentLogs(lineCount: number) {
   const logPath = getLogFilePath()
   if (!logPath) return ''
 
-  try {
-    const content = await readFile(logPath, 'utf8')
-    const lines = content.split('\n')
-    const recent = lines.slice(-lineCount).join('\n')
-    return redactSensitiveText(recent)
-  } catch {
-    return ''
-  }
+  const hostLogPath = sessionHostLogPathFor(logPath)
+  const [guiLines, hostLines] = await Promise.all([
+    readLogTail(logPath, lineCount),
+    hostLogPath === logPath ? Promise.resolve('') : readLogTail(hostLogPath, lineCount),
+  ])
+  const combined = hostLines
+    ? `${guiLines}\n--- Session Host (${path.basename(hostLogPath)}) ---\n${hostLines}`
+    : guiLines
+  return redactSensitiveText(combined)
 }
 
 function buildDescriptionSection(payload: FeedbackPayload) {
@@ -119,7 +128,8 @@ function buildErrorContextSection(payload: FeedbackPayload) {
     '<details><summary>Raw error</summary>',
     '',
     '```',
-    ctx.message,
+    // The detail can carry provider output or paths; it is redacted again at the submission boundary.
+    userFacingErrorDetail(ctx.message),
     '```',
     '',
     '</details>',
@@ -177,22 +187,26 @@ async function buildMarkdownBody(payload: FeedbackPayload) {
   return sections.join('\n\n')
 }
 
-export function registerFeedbackHandlers(): void {
+export function registerFeedbackHandlers() {
   typedHandle('feedback:check-gh', () =>
     Effect.gen(function* () {
-      const ghAvailable = yield* Effect.tryPromise({
-        try: () => execFilePromise('which', ['gh']).then(() => true),
-        catch: () => false,
-      })
+      // A failed command answers false; it is not an IPC failure.
+      const ghAvailable = yield* Effect.promise(() =>
+        execFilePromise('which', ['gh']).then(
+          () => true,
+          () => false,
+        ),
+      )
       if (!ghAvailable) {
         return { available: false, authenticated: false }
       }
 
-      const authenticated = yield* Effect.tryPromise({
-        try: () =>
-          execFilePromise('gh', ['auth', 'status'], { env: getGhCliEnv() }).then(() => true),
-        catch: () => false,
-      })
+      const authenticated = yield* Effect.promise(() =>
+        execFilePromise('gh', ['auth', 'status'], { env: getSourceControlCliEnv() }).then(
+          () => true,
+          () => false,
+        ),
+      )
       return { available: true, authenticated }
     }),
   )
@@ -221,7 +235,7 @@ export function registerFeedbackHandlers(): void {
         markdown,
       ]
 
-      const env = getGhCliEnv()
+      const env = getSourceControlCliEnv()
 
       // Try with label first, fall back without if label doesn't exist in repo
       const stdoutResult = yield* Effect.tryPromise({

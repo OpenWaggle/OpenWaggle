@@ -3,10 +3,17 @@ import { dirname, join } from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { SqliteClient } from '@effect/sql-sqlite-node'
 import { Context, Effect, Layer } from 'effect'
-import { app } from 'electron'
+import { appPaths } from '../desktop-shell/app-paths'
 import { DatabaseBootstrapError } from '../errors'
-import { DATABASE_FILE_NAME, SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
-import { APP_MIGRATIONS } from './database-migrations'
+import {
+  type AppDatabaseAccess,
+  isAppDatabaseClientIsolated,
+  setAppDatabaseAccessMode,
+} from './database-access-mode'
+import { SQLITE_PREPARE_CACHE_SIZE } from './database-constants'
+import { runMigrations } from './database-migration-runner'
+import { normalizeSessionSummaryMigrationLedger } from './database-summary-migration-compatibility'
+import { repairSessionHostMigrationLedger } from './session-host-ledger-repair'
 
 export interface AppDatabaseService {
   readonly path: string
@@ -18,7 +25,19 @@ export class AppDatabase extends Context.Tag('@openwaggle/AppDatabase')<
 >() {}
 
 function getDatabasePath() {
-  return join(app.getPath('userData'), DATABASE_FILE_NAME)
+  return join(appPaths.userData(), 'session-host', 'session-host.sqlite')
+}
+
+export type { AppDatabaseAccess } from './database-access-mode'
+export { isAppDatabaseClientIsolated } from './database-access-mode'
+
+let databaseLayerCreated = false
+
+export function configureAppDatabaseAccess(access: AppDatabaseAccess) {
+  if (databaseLayerCreated) {
+    throw new Error('App database access must be configured before runtime initialization.')
+  }
+  setAppDatabaseAccessMode(access)
 }
 
 const createMigrationsTable = Effect.gen(function* () {
@@ -32,38 +51,16 @@ const createMigrationsTable = Effect.gen(function* () {
   `)
 })
 
-const runMigrations = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient
+export const runAppDatabaseMigrations = Effect.gen(function* () {
   yield* createMigrationsTable
-
-  for (const migration of APP_MIGRATIONS) {
-    const existingRows = yield* sql<{ id: number }>`
-      SELECT id
-      FROM _migrations
-      WHERE id = ${migration.id}
-      LIMIT 1
-    `
-
-    if (existingRows.length > 0) {
-      continue
-    }
-
-    yield* sql.withTransaction(
-      Effect.gen(function* () {
-        for (const statement of migration.statements) {
-          yield* sql.unsafe(statement)
-        }
-        yield* sql`
-          INSERT INTO _migrations (id, name, applied_at)
-          VALUES (${migration.id}, ${migration.name}, ${new Date().toISOString()})
-        `
-      }),
-    )
-  }
+  yield* normalizeSessionSummaryMigrationLedger(yield* SqlClient.SqlClient)
+  yield* repairSessionHostMigrationLedger
+  yield* runMigrations()
 })
 
 const makeDatabaseLayer = Effect.gen(function* () {
-  const databasePath = getDatabasePath()
+  databaseLayerCreated = true
+  const databasePath = isAppDatabaseClientIsolated() ? ':memory:' : getDatabasePath()
 
   yield* Effect.tryPromise({
     try: () => mkdir(dirname(databasePath), { recursive: true }),
@@ -93,10 +90,10 @@ const makeDatabaseLayer = Effect.gen(function* () {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
 
-      yield* sql.unsafe('PRAGMA journal_mode = WAL;')
       yield* sql.unsafe('PRAGMA foreign_keys = ON;')
       yield* sql.unsafe('PRAGMA busy_timeout = 5000;')
-      yield* runMigrations
+      yield* sql.unsafe('PRAGMA journal_mode = WAL;')
+      yield* runAppDatabaseMigrations
     }).pipe(
       Effect.mapError(
         (cause) =>

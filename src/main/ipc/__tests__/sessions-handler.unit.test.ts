@@ -2,6 +2,7 @@ import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { emptySessionCatalogMethods } from '../../application/__tests__/session-repository-test-support'
 import { SessionRepository } from '../../ports/session-repository'
 import { registerSessionsHandlers } from '../sessions-handler'
 
@@ -17,6 +18,7 @@ const {
   archiveBranchMock,
   restoreBranchMock,
   updateTreeUiStateMock,
+  mutateLocalUiSessionMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   listMock: vi.fn(),
@@ -29,20 +31,41 @@ const {
   archiveBranchMock: vi.fn(),
   restoreBranchMock: vi.fn(),
   updateTreeUiStateMock: vi.fn(),
+  mutateLocalUiSessionMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+  }
+})
 
-vi.mock('../../application/agent-session-service', () => ({
-  navigateAgentSessionTree: () => Effect.succeed({ cancelled: false }),
+vi.mock('../../application/local-session-command-dispatcher', () => ({
+  dispatchLocalSessionCommand: (input: {
+    readonly payload: { readonly request: { readonly command: unknown } }
+  }) =>
+    Effect.sync(() => {
+      mutateLocalUiSessionMock(input.payload.request.command)
+      return {
+        contract: 'local-ui-v1',
+        response: {
+          requestId: 'request-ui',
+          effect: 'tree-ui-state-updated',
+          sessionId: 'session-1',
+        },
+      }
+    }),
 }))
 
 const TestSessionRepositoryLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: (limit) => Effect.sync(() => listMock(limit)),
   listArchivedBranches: (limit) => Effect.sync(() => listArchivedBranchesMock(limit)),
   getTree: (sessionId) => Effect.sync(() => getTreeMock(sessionId)),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: (sessionId, selection) => Effect.sync(() => getWorkspaceMock(sessionId, selection)),
   persistSnapshot: (input) => Effect.sync(() => persistSnapshotMock(input)),
   updateRuntime: (input) => Effect.sync(() => updateRuntimeMock(input)),
@@ -85,20 +108,34 @@ describe('registerSessionsHandlers', () => {
     archiveBranchMock.mockReset()
     restoreBranchMock.mockReset()
     updateTreeUiStateMock.mockReset()
+    mutateLocalUiSessionMock.mockReset()
   })
 
-  it('registers session branch and tree UI IPC channels', () => {
+  it('registers the session tree and workspace channels no other case invokes', () => {
     registerSessionsHandlers()
 
     const channels = typedHandleMock.mock.calls
       .map((call) => (typeof call[0] === 'string' ? call[0] : ''))
       .filter(Boolean)
 
-    expect(channels).toContain('sessions:rename-branch')
-    expect(channels).toContain('sessions:archive-branch')
-    expect(channels).toContain('sessions:restore-branch')
-    expect(channels).toContain('sessions:update-tree-ui-state')
-    expect(channels).toContain('sessions:list-archived-branches')
+    expect(channels).toEqual(
+      expect.arrayContaining([
+        'sessions:list-by-ids',
+        'sessions:list-page',
+        'sessions:list-projects',
+        'sessions:list-hive-page',
+        'sessions:list-hive-tree-page',
+        'sessions:list-archived-branches',
+        'sessions:query-archived-items',
+        'sessions:list-archived-item-refs',
+        'sessions:set-archived-items',
+        'sessions:delete-archived-sessions',
+        'sessions:get-tree',
+        'sessions:get-workspace',
+        'sessions:search-tree',
+        'sessions:navigate-tree',
+      ]),
+    )
   })
 
   it('validates and dispatches branch rename requests', async () => {
@@ -107,11 +144,12 @@ describe('registerSessionsHandlers', () => {
 
     await handler({}, SessionId('session-1'), SessionBranchId('branch-1'), '  Review path  ')
 
-    expect(renameBranchMock).toHaveBeenCalledWith(
-      SessionId('session-1'),
-      SessionBranchId('branch-1'),
-      'Review path',
-    )
+    expect(mutateLocalUiSessionMock).toHaveBeenCalledWith({
+      operation: 'rename-branch',
+      sessionId: SessionId('session-1'),
+      branchId: SessionBranchId('branch-1'),
+      name: 'Review path',
+    })
   })
 
   it('rejects empty branch names before dispatching rename', async () => {
@@ -132,14 +170,16 @@ describe('registerSessionsHandlers', () => {
     await archiveHandler({}, SessionId('session-1'), SessionBranchId('branch-1'))
     await restoreHandler({}, SessionId('session-1'), SessionBranchId('branch-1'))
 
-    expect(archiveBranchMock).toHaveBeenCalledWith(
-      SessionId('session-1'),
-      SessionBranchId('branch-1'),
-    )
-    expect(restoreBranchMock).toHaveBeenCalledWith(
-      SessionId('session-1'),
-      SessionBranchId('branch-1'),
-    )
+    expect(mutateLocalUiSessionMock).toHaveBeenNthCalledWith(1, {
+      operation: 'archive-branch',
+      sessionId: SessionId('session-1'),
+      branchId: SessionBranchId('branch-1'),
+    })
+    expect(mutateLocalUiSessionMock).toHaveBeenNthCalledWith(2, {
+      operation: 'restore-branch',
+      sessionId: SessionId('session-1'),
+      branchId: SessionBranchId('branch-1'),
+    })
   })
 
   it('rejects missing branch IDs before dispatching branch mutations', async () => {
@@ -161,9 +201,13 @@ describe('registerSessionsHandlers', () => {
       branchesSidebarCollapsed: true,
     })
 
-    expect(updateTreeUiStateMock).toHaveBeenCalledWith(SessionId('session-1'), {
-      expandedNodeIds: [SessionNodeId('node-1')],
-      branchesSidebarCollapsed: true,
+    expect(mutateLocalUiSessionMock).toHaveBeenCalledWith({
+      operation: 'update-tree-ui-state',
+      sessionId: SessionId('session-1'),
+      patch: {
+        expandedNodeIds: [SessionNodeId('node-1')],
+        branchesSidebarCollapsed: true,
+      },
     })
   })
 

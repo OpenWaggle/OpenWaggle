@@ -7,15 +7,11 @@ import type {
   ExtensionApplyPackageRemoveInput,
   ExtensionApplyPackageWriteInput,
   ExtensionPackageFileWrite,
-  ExtensionPackageRemoveOperation,
-  ExtensionPackageRemoveProposalView,
   ExtensionPackageWorkflowActor,
   ExtensionPackageWorkflowGlobalConfirmation,
   ExtensionPackageWorkflowUserApproval,
   ExtensionPackageWriteMode,
-  ExtensionPackageWriteOperation,
   ExtensionPackageWriteProposalFileView,
-  ExtensionPackageWriteProposalView,
   ExtensionProposePackageRemoveInput,
   ExtensionProposePackageWriteInput,
 } from '@shared/types/extension-package-workflow'
@@ -102,46 +98,50 @@ function packageWorkflowManifestFile(files: readonly ExtensionPackageFileWrite[]
   )
 }
 
-function invalidManifestValidation(message: string): ExtensionPackageWriteManifestValidation {
-  return { _tag: 'invalid', message }
+function invalidManifestValidation(message: string) {
+  return { _tag: 'invalid', message } satisfies ExtensionPackageWriteManifestValidation
 }
 
-function invalidManifestSchemaValidation(
-  issues: readonly string[],
-): ExtensionPackageWriteManifestValidation {
+function invalidManifestSchemaValidation(issues: readonly string[]) {
   return invalidManifestValidation(
     `${EXTENSION_PACKAGE_WORKFLOW.ERROR.MANIFEST_INVALID} ${issues.join('; ')}`,
-  )
+  ) satisfies ExtensionPackageWriteManifestValidation
 }
 
 export function validateExtensionPackageWriteManifestIdentity(input: {
   readonly extensionId: string
   readonly files: readonly ExtensionPackageFileWrite[]
-}): ExtensionPackageWriteManifestValidation {
+}) {
   const manifestFile = packageWorkflowManifestFile(input.files)
   if (!manifestFile) {
-    return invalidManifestValidation(EXTENSION_PACKAGE_WORKFLOW.ERROR.MANIFEST_REQUIRED)
+    return invalidManifestValidation(
+      EXTENSION_PACKAGE_WORKFLOW.ERROR.MANIFEST_REQUIRED,
+    ) satisfies ExtensionPackageWriteManifestValidation
   }
 
   let parsedManifest: unknown
   try {
     parsedManifest = parseJsonUnknown(manifestFile.content)
   } catch {
-    return invalidManifestValidation(EXTENSION_PACKAGE_WORKFLOW.ERROR.MANIFEST_INVALID)
+    return invalidManifestValidation(
+      EXTENSION_PACKAGE_WORKFLOW.ERROR.MANIFEST_INVALID,
+    ) satisfies ExtensionPackageWriteManifestValidation
   }
 
   const decoded = safeDecodeUnknown(openWaggleExtensionManifestSchema, parsedManifest)
   if (!decoded.success) {
-    return invalidManifestSchemaValidation(decoded.issues)
+    return invalidManifestSchemaValidation(
+      decoded.issues,
+    ) satisfies ExtensionPackageWriteManifestValidation
   }
 
   if (decoded.data.id !== input.extensionId) {
     return invalidManifestValidation(
       `${EXTENSION_PACKAGE_WORKFLOW.ERROR.MANIFEST_ID_MISMATCH} Expected "${input.extensionId}", received "${decoded.data.id}".`,
-    )
+    ) satisfies ExtensionPackageWriteManifestValidation
   }
 
-  return { _tag: 'valid' }
+  return { _tag: 'valid' } satisfies ExtensionPackageWriteManifestValidation
 }
 
 function packageFileContentHash(content: string) {
@@ -150,9 +150,7 @@ function packageFileContentHash(content: string) {
     .digest(OPENWAGGLE_EXTENSION.HASH.ENCODING)
 }
 
-function packageProposalFileView(
-  file: ExtensionPackageFileWrite,
-): ExtensionPackageWriteProposalFileView {
+function packageProposalFileView(file: ExtensionPackageFileWrite) {
   return {
     relativePath: normalizedWorkflowFilePath(file.relativePath),
     byteLength: Buffer.byteLength(file.content, 'utf8'),
@@ -208,19 +206,15 @@ export function getExtensionPackageWriteProposalHash(input: {
   return hash.digest(OPENWAGGLE_EXTENSION.HASH.ENCODING)
 }
 
-export function getExtensionPackageWriteOperation(
-  mode: ExtensionPackageWriteMode,
-): ExtensionPackageWriteOperation {
-  return mode === 'create' ? 'write:create' : 'write:update'
+export function getExtensionPackageWriteOperation(mode: ExtensionPackageWriteMode) {
+  return mode === 'create' ? ('write:create' as const) : ('write:update' as const)
 }
 
-export function getExtensionPackageRemoveOperation(): ExtensionPackageRemoveOperation {
-  return 'remove'
+export function getExtensionPackageRemoveOperation() {
+  return 'remove' as const
 }
 
-export function getExtensionPackageWriteProposal(
-  input: ExtensionPackageWriteProposalInput,
-): ExtensionPackageWriteProposalView {
+export function getExtensionPackageWriteProposal(input: ExtensionPackageWriteProposalInput) {
   const files = sortedWorkflowFiles(input.files).map(packageProposalFileView)
   const requiresGlobalConfirmation = input.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
 
@@ -252,9 +246,7 @@ export function getExtensionPackageRemoveProposalHash(input: {
   }).digest(OPENWAGGLE_EXTENSION.HASH.ENCODING)
 }
 
-export function getExtensionPackageRemoveProposal(
-  input: ExtensionPackageRemoveProposalInput,
-): ExtensionPackageRemoveProposalView {
+export function getExtensionPackageRemoveProposal(input: ExtensionPackageRemoveProposalInput) {
   const requiresGlobalConfirmation = input.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
 
   return {

@@ -1,0 +1,224 @@
+import { SessionId } from '@shared/types/brand'
+import type {
+  SessionResource,
+  SessionResourceBackfillStatus,
+  SessionResourceList,
+} from '@shared/types/session-resource'
+import { type QueryClient, queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { whenRendererIdle } from '@/shared/lib/idle-task'
+import { api } from '@/shared/lib/ipc'
+
+export { useSessionImageResourcesByNodeIds } from './useSessionMessageResources'
+export {
+  sessionResourceCatalogQueryKey,
+  useSessionImageLocation,
+  useSessionResource,
+  useSessionResourceCatalog,
+} from './useSessionResourceCatalog'
+
+const SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS = 100
+const SESSION_RESOURCE_BACKFILL_MAX_POLL_INTERVAL_MS = 2_000
+const SESSION_RESOURCE_BACKFILL_MAX_STALLED_ATTEMPTS = 5
+const SESSION_RESOURCE_BACKFILL_DELAY_MULTIPLIER = 2
+const SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS = 1_000
+const SESSION_RESOURCE_THUMBNAIL_MAX_ATTEMPTS = 3
+
+class SessionResourceBackfillStalledError extends Error {}
+
+interface SessionResourceBackfillState extends SessionResourceBackfillStatus {
+  readonly stalledAttempts: number
+}
+
+export const sessionResourcesQueryKey = (sessionId: string) =>
+  ['session-resources', sessionId] as const
+
+export function invalidateSessionResourceQueries(queryClient: QueryClient, sessionId: string) {
+  return queryClient.invalidateQueries({
+    predicate: (query) => {
+      const [scope, candidateSessionId] = query.queryKey
+      return (
+        candidateSessionId === sessionId &&
+        (scope === 'session-resources' ||
+          scope === 'session-resource-catalog' ||
+          scope === 'session-resource-exact' ||
+          scope === 'session-resource-image-location' ||
+          scope === 'session-resource-nodes')
+      )
+    },
+  })
+}
+
+/**
+ * The Session once the renderer was idle after it was shown. Indexing an old Session's resources
+ * reads its whole history on the Host, slice after slice; started as the Session opened, it ran
+ * beside the reads that open the Session and delayed its transcript.
+ */
+function useSessionShownAndIdle(sessionId: string | null) {
+  const [idleSessionId, setIdleSessionId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!sessionId) return
+    let current = true
+    void whenRendererIdle().then(() => {
+      if (current) setIdleSessionId(sessionId)
+    })
+    return () => {
+      current = false
+    }
+  }, [sessionId])
+  return sessionId !== null && idleSessionId === sessionId ? sessionId : null
+}
+
+export function useSessionResourceBackfill(sessionId: string | null) {
+  const queryClient = useQueryClient()
+  const query = useQuery(sessionResourceBackfillQueryOptions(useSessionShownAndIdle(sessionId)))
+  const progressedAt = query.data?.progressed ? query.dataUpdatedAt : 0
+  useEffect(() => {
+    if (!sessionId || progressedAt === 0) return
+    void invalidateSessionResourceQueries(queryClient, sessionId)
+  }, [progressedAt, queryClient, sessionId])
+  return query
+}
+
+export function sessionResourceBackfillQueryOptions(sessionId: string | null) {
+  return queryOptions({
+    queryKey: ['session-resource-backfill', sessionId ?? 'none'] as const,
+    queryFn: async ({ client, queryKey }) => {
+      if (!sessionId) {
+        return {
+          backfillComplete: true,
+          progressed: false,
+          stalledAttempts: 0,
+        } satisfies SessionResourceBackfillState
+      }
+      const previous = client.getQueryData<SessionResourceBackfillState>(queryKey)
+      // Each slice is background work: it waits for the renderer to be idle.
+      await whenRendererIdle()
+      const status = await api.advanceSessionResourceBackfill(SessionId(sessionId))
+      const stalledAttempts =
+        status.backfillComplete || status.progressed ? 0 : (previous?.stalledAttempts ?? 0) + 1
+      if (stalledAttempts >= SESSION_RESOURCE_BACKFILL_MAX_STALLED_ATTEMPTS) {
+        throw new SessionResourceBackfillStalledError(
+          'Historical session resource indexing stalled. Retry to continue.',
+        )
+      }
+      return { ...status, stalledAttempts } satisfies SessionResourceBackfillState
+    },
+    enabled: sessionId !== null,
+    refetchInterval: (current) => {
+      if (current.state.status === 'error' || current.state.data?.backfillComplete !== false) {
+        return false
+      }
+      return Math.min(
+        SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS *
+          SESSION_RESOURCE_BACKFILL_DELAY_MULTIPLIER ** current.state.data.stalledAttempts,
+        SESSION_RESOURCE_BACKFILL_MAX_POLL_INTERVAL_MS,
+      )
+    },
+  })
+}
+
+interface SessionResourceQueryState extends SessionResourceList {
+  readonly stalledAttempts: number
+}
+
+function normalizeSessionResourceList(result: SessionResourceList | SessionResource[]) {
+  return (
+    'resources' in result ? result : { resources: result, backfillComplete: true }
+  ) satisfies SessionResourceList
+}
+
+export function sessionResourcesQueryOptions(sessionId: string | null) {
+  return queryOptions({
+    queryKey: sessionResourcesQueryKey(sessionId ?? 'none'),
+    queryFn: async ({ client, queryKey }) => {
+      if (!sessionId) return { resources: [], backfillComplete: true, stalledAttempts: 0 }
+      const previous = client.getQueryData<SessionResourceQueryState>(queryKey)
+      if (previous?.backfillComplete === false) {
+        const status = await api.advanceSessionResourceBackfill(SessionId(sessionId))
+        if (!status.backfillComplete) {
+          const stalledAttempts = status.progressed ? 0 : previous.stalledAttempts + 1
+          if (stalledAttempts >= SESSION_RESOURCE_BACKFILL_MAX_STALLED_ATTEMPTS) {
+            throw new SessionResourceBackfillStalledError(
+              'Historical session resource indexing stalled. Retry to continue.',
+            )
+          }
+          return { ...previous, stalledAttempts }
+        }
+      }
+      const result: SessionResourceList | SessionResource[] = await api.listSessionResources(
+        SessionId(sessionId),
+      )
+      return { ...normalizeSessionResourceList(result), stalledAttempts: 0 }
+    },
+    select: (result) => result.resources,
+    refetchInterval: (query) => {
+      if (query.state.status === 'error' || query.state.data?.backfillComplete !== false) {
+        return false
+      }
+      return Math.min(
+        SESSION_RESOURCE_BACKFILL_POLL_INTERVAL_MS *
+          SESSION_RESOURCE_BACKFILL_DELAY_MULTIPLIER ** query.state.data.stalledAttempts,
+        SESSION_RESOURCE_BACKFILL_MAX_POLL_INTERVAL_MS,
+      )
+    },
+  })
+}
+
+export function sessionResourceContentQueryOptions(
+  sessionId: string,
+  resourceId: string,
+  resourceRevision: number,
+  preferredFileName?: string,
+) {
+  return queryOptions({
+    queryKey: preferredFileName
+      ? ([
+          'session-resource-content',
+          sessionId,
+          resourceId,
+          resourceRevision,
+          preferredFileName,
+        ] as const)
+      : (['session-resource-content', sessionId, resourceId, resourceRevision] as const),
+    queryFn: () =>
+      preferredFileName
+        ? api.readSessionResource(SessionId(sessionId), resourceId, preferredFileName)
+        : api.readSessionResource(SessionId(sessionId), resourceId),
+    gcTime: 0,
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+export const sessionResourceThumbnailQueryKey = (sessionId: string, resourceId: string) =>
+  ['session-resource-thumbnail', sessionId, resourceId] as const
+
+export function sessionResourceThumbnailQueryOptions(
+  sessionId: string,
+  resourceId: string,
+  resourceRevision: number,
+) {
+  return queryOptions({
+    queryKey: ['session-resource-thumbnail', sessionId, resourceId, resourceRevision] as const,
+    queryFn: () => api.readSessionResourceThumbnail(SessionId(sessionId), resourceId),
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchInterval: (query) =>
+      query.state.data === null &&
+      query.state.dataUpdateCount < SESSION_RESOURCE_THUMBNAIL_MAX_ATTEMPTS
+        ? SESSION_RESOURCE_THUMBNAIL_RETRY_INTERVAL_MS
+        : false,
+  })
+}
+
+export function useSessionResources(sessionId: string | null) {
+  return useQuery({ ...sessionResourcesQueryOptions(sessionId), enabled: sessionId !== null })
+}
+
+export function useSessionResourceInvalidation() {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    return api.onSessionResourcesInvalidated((payload) => {
+      void invalidateSessionResourceQueries(queryClient, String(payload.sessionId))
+    })
+  }, [queryClient])
+}

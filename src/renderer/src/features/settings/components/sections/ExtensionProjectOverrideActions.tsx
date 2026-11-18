@@ -65,7 +65,7 @@ function ProjectOverrideAvailability({
 
   return (
     <div className="mt-3 basis-full rounded-md border border-border/70 bg-bg-secondary/40 p-2">
-      <div className="mb-2 text-[11px] font-medium text-text-tertiary">Project availability</div>
+      <div className="mb-2 text-xs font-medium text-text-tertiary">Project availability</div>
       <div className="flex flex-wrap gap-2">
         {projectOverrides.map((projectOverride) => {
           const projectDisabled = projectOverride.disabled

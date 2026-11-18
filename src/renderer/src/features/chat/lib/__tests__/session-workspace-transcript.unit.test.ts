@@ -1,4 +1,5 @@
 import { MessageId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { resolveTranscriptMessages } from '../session-workspace-transcript'
@@ -13,7 +14,7 @@ function uiMessage(id: string, role: 'user' | 'assistant', content: string) {
     role,
     parts: [{ type: 'text', content }],
     createdAt: new Date(1),
-  }
+  } satisfies UIMessage
 }
 
 function sessionNode(
@@ -22,7 +23,10 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
+  options: { readonly messageId?: string; readonly branchId?: SessionBranchId } = {},
 ) {
+  const messageId = options.messageId ?? id
+  const branchId = options.branchId ?? MAIN_BRANCH_ID
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -33,22 +37,24 @@ function sessionNode(
     timestampMs: createdOrder + 1,
     createdOrder,
     pathDepth: createdOrder,
-    branchId: MAIN_BRANCH_ID,
+    branchId,
     message: {
-      id: MessageId(id),
+      id: MessageId(messageId),
       role,
       parts: [{ type: 'text', text: content }],
       createdAt: createdOrder + 1,
     },
     contentJson: JSON.stringify({ parts: [{ type: 'text', text: content }], model: null }),
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 function workspaceWithPath(
   nodes: readonly SessionNode[],
   activeNodeId: SessionNodeId,
   lastActiveNodeId: SessionNodeId,
+  updatedAt = 4,
+  sessionHeadNodeId = lastActiveNodeId,
 ) {
   return {
     tree: {
@@ -57,8 +63,8 @@ function workspaceWithPath(
         title: 'Branch test',
         projectPath: '/tmp/project',
         createdAt: 1,
-        updatedAt: 4,
-        lastActiveNodeId,
+        updatedAt,
+        lastActiveNodeId: sessionHeadNodeId,
         lastActiveBranchId: MAIN_BRANCH_ID,
       },
       nodes,
@@ -83,7 +89,7 @@ function workspaceWithPath(
       .filter((node) => node.createdOrder <= activeNodeIdCreatedOrder(nodes, activeNodeId))
       .map((node) => ({
         node,
-        branchId: node.branchId,
+        ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
         isActive: node.id === activeNodeId,
       })),
   }
@@ -98,6 +104,39 @@ function activeNodeIdCreatedOrder(nodes: readonly SessionNode[], activeNodeId: S
 }
 
 describe('resolveTranscriptMessages', () => {
+  /*
+   * Every render used to rebuild every message, so each streamed token re-rendered every mounted
+   * message bubble. An unchanged message must keep its identity across renders.
+   */
+  it('keeps unchanged messages identical across renders so their rows can bail out', () => {
+    const first = sessionNode('node-a', null, 'user', 'Question', 0)
+    const second = sessionNode('node-b', 'node-a', 'assistant', 'Answer', 1)
+    const workspace = workspaceWithPath([first, second], second.id, second.id)
+    const live = uiMessage('node-a', 'user', 'Question')
+    const input = { activeSessionId: SESSION_DETAIL_ID, activeWorkspace: workspace }
+
+    const before = resolveTranscriptMessages({ ...input, messages: [live] })
+    const after = resolveTranscriptMessages({ ...input, messages: [live] })
+
+    expect(after[0]).toBe(before[0])
+    expect(after[1]).toBe(before[1])
+    const edited = uiMessage('node-a', 'user', 'Edited question')
+    expect(resolveTranscriptMessages({ ...input, messages: [edited] })[0]).not.toBe(before[0])
+  })
+
+  it('carries the persisted node identity when it differs from the message id', () => {
+    const node = sessionNode('persisted-node', null, 'user', 'Reference', 0, {
+      messageId: 'pi-message',
+    })
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeWorkspace: workspaceWithPath([node], node.id, node.id),
+      messages: [uiMessage('pi-message', 'user', 'Reference')],
+    })
+
+    expect(resolved[0]?.id).toBe('pi-message')
+    expect(resolved[0]?.metadata?.sessionNodeId).toBe('persisted-node')
+  })
   it('uses the selected workspace transcript path instead of later main-branch messages', () => {
     const beforeBranch = sessionNode('user-before-branch', null, 'user', 'Before branch', 0)
     const answerBeforeBranch = sessionNode(
@@ -190,5 +229,97 @@ describe('resolveTranscriptMessages', () => {
       'assistant-head',
       'completed-assistant',
     ])
+  })
+
+  it('keeps a replacement message snapshot visible when the active-head workspace is stale', () => {
+    const visualization = sessionNode(
+      'visualization-assistant',
+      null,
+      'assistant',
+      'Interactive visualization',
+      0,
+    )
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspaceWithPath([visualization], visualization.id, visualization.id, 4),
+      messages: [
+        uiMessage('replacement-user', 'user', 'What did I select?'),
+        uiMessage('replacement-assistant', 'assistant', 'You selected sandbox.'),
+      ],
+    })
+
+    expect(resolved.map((message) => message.id)).toEqual([
+      'visualization-assistant',
+      'replacement-user',
+      'replacement-assistant',
+    ])
+  })
+
+  it('accepts a visible active-branch head when the raw session head is hidden', () => {
+    const visibleAssistant = sessionNode(
+      'visible-assistant',
+      null,
+      'assistant',
+      'Visible answer before hidden state',
+      0,
+    )
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspaceWithPath(
+        [visibleAssistant],
+        visibleAssistant.id,
+        visibleAssistant.id,
+        4,
+        SessionNodeId('hidden-mode-state'),
+      ),
+      messages: [
+        uiMessage('replacement-user', 'user', 'What happened next?'),
+        uiMessage('replacement-assistant', 'assistant', 'The hidden state completed.'),
+      ],
+    })
+
+    expect(resolved.map((message) => message.id)).toEqual([
+      'visible-assistant',
+      'replacement-user',
+      'replacement-assistant',
+    ])
+  })
+
+  it('does not merge a disjoint active transcript into a current selected workspace', () => {
+    const selectedNode = sessionNode(
+      'selected-branch-assistant',
+      null,
+      'assistant',
+      'Selected branch',
+      0,
+    )
+    const branchHead = sessionNode(
+      'later-branch-assistant',
+      'selected-branch-assistant',
+      'assistant',
+      'Later branch answer',
+      1,
+    )
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeSessionUpdatedAt: 10,
+      activeWorkspace: workspaceWithPath(
+        [selectedNode, branchHead],
+        selectedNode.id,
+        branchHead.id,
+        4,
+      ),
+      messages: [
+        uiMessage('other-branch-user', 'user', 'Other branch'),
+        uiMessage('other-branch-assistant', 'assistant', 'Other answer'),
+      ],
+    })
+
+    expect(resolved.map((message) => message.id)).toEqual(['selected-branch-assistant'])
   })
 })

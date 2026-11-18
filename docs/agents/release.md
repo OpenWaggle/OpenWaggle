@@ -1,20 +1,73 @@
 # Agent Release Context
 
-Use this file for agent-facing release and update-track decisions. The canonical release reference is `docs/release-and-versioning.md`.
+Use this file for agent-facing release and update-channel decisions. The canonical release reference is `docs/release-and-versioning.md`.
 
 ## Current Release Model
 
-OpenWaggle uses semver prerelease stages. The current release train is `0.3.0-alpha.N`.
+OpenWaggle uses semver release channels. Stable is the default user channel; Beta and Alpha are
+explicit opt-ins. The `0.x` prerelease trains end without a Stable release: the first Stable
+release is `1.0.0`, reached through the `1.0.0-<stage>.N` prerelease train. From `1.0.0` onward a
+breaking change to a covered surface requires a major version. The `1.0.0` line starts at `1.0.0-beta.1`, the first signed macOS build; there is no
+`1.0.0-alpha.N` stage. After `1.0.0` there is one release line: merges prepare the next Stable version, and a
+Beta/Alpha line opens only by explicit dispatch when it is expected to be promoted within about a
+week.
+
+The desktop app, `openwaggle update`, and `scripts/install.sh` use the same channel vocabulary:
+
+- Stable accepts plain semver releases only.
+- Beta accepts Beta, RC, and Stable releases.
+- Alpha accepts Alpha, Beta, RC, and Stable releases.
+- Channel changes never authorize an automatic downgrade.
+- `--version` and `OPENWAGGLE_RELEASE_TAG` are exact, one-time selections and do not change the
+persisted channel. `openwaggle update --version` refuses a version older than the installed one
+(exit 2); downgrades are unsupported.
+- `openwaggle update --check` is read-only: with `--channel` it checks that channel without saving it.
+  `--check --json` prints `{schemaVersion, type: "response", command: "update", result}` with the
+  saved channel in `result.savedChannel`; a failed release check prints the error envelope with an
+  additive top-level `savedChannel`.
+- `install.sh` changes the saved channel only with `OPENWAGGLE_CHANNEL`. A re-run without it reads
+  the installed app's `savedChannel`, installs from that channel, and writes no intent; a fresh
+  install, an installed version up to `1.0.0-beta.37`, an unknown installed version, or a failed
+  read saves the default.
+- With no Stable release yet, `install.sh` defaults to Beta, never Alpha, and a Stable check reports
+  "up to date", not an error.
+- A release counts only once it has the platform's channel metadata asset (for example
+  `beta-mac.yml`), so a check during the asset upload falls back to the previous release.
+
+The shell installer writes the selected automatic channel into the canonical released-app
+user-data directory. The authoritative Session Host consumes that one-time intent before serving
+settings, so an Alpha policy remains Alpha even when the selected artifact is Beta or Stable. On
+macOS, automatic staging on quit stays disabled: the renderer's eligible **Restart to update**
+action hands the selected zip to Squirrel.Mac, avoiding a stale staged prerelease after narrowing
+the channel.
+
+RC is not a separate channel, but RC releases reach Beta and Alpha automatically. The app selects
+the eligible release itself (`src/main/update-feed.ts`) and points a generic feed at it, so
+electron-updater's GitHub-provider rule that treats RC as a custom channel does not apply. RC
+releases publish `rc`, `beta`, and `alpha` metadata. An RC build with no saved preference defaults
+to Beta.
+
+GitHub's `prerelease` flag is not the channel authority. Version semantics decide eligibility, so
+historical Alpha releases accidentally marked as ordinary GitHub releases cannot enter Stable.
+Use the Release workflow's `target_version` dispatch for a deliberate promotion or a new
+prerelease line. Dispatch it from `main`; manual runs fail closed on any other ref or without an
+explicit target. It still produces the ordinary release PR and never bypasses the
+maintainer merge gate.
+Pass the bare version without a leading `v`, and pause `feat:`/`fix:` merges to `main` until the
+dispatched PR merges; see the `target_version` dispatch notes in `docs/release-and-versioning.md` for the
+competing-PR race and how to recover from it.
 
 Release automation is GitHub-based:
 
 - CI runs typecheck, lint, and tests on PRs and pushes to `main`.
 - Release workflow derives version bumps from Conventional Commit-style release-eligible commits.
-- Release workflow opens a generated version PR, reruns GitHub's approval-required PR-associated CI for the exact head, and merges through normal `main` protection. Strict-base drift updates the branch and repeats CI before another merge attempt. The same run verifies the resulting protected merge commit, creates only its tag, then builds platform artifacts, publishes a GitHub Release, and attaches checksums. Reruns resume only compatible existing branch, PR, merge, and tag state; conflicting durable state fails closed.
+- Release workflow opens a generated version PR, reruns GitHub's approval-required PR-associated CI for the exact head, and leaves the green PR open for a maintainer. Strict-base drift updates the branch and repeats CI, but automation never merges the PR. A maintainer's protected merge starts a second run that verifies the exact version-only commit and associated same-repository release PR, creates only its tag, then builds platform artifacts, uploads them and their checksums to a draft GitHub Release, verifies the draft (`scripts/verify-release-assets.ts`), and only then publishes it. Preparation runs coalesce, but publication runs use the immutable merge SHA as their concurrency key so a later `main` push cannot replace a queued release. Reruns resume only compatible existing branch, PR, merge, and tag state; conflicting durable state fails closed.
 
 The `0.3.0-alpha.44` recovery is intentionally exceptional: an earlier blocked direct push left that tag pointing to an unreachable commit. The reconciliation commit records `0.3.0-alpha.44` on `main` with a non-version `chore(release):` subject so no tag or build runs. Preserve the orphan tag; the next generated version PR must advance to `0.3.0-alpha.45`.
 
-Published artifacts are currently unsigned. macOS notarization and Windows signing are release/distribution trust work, not routine implementation tasks.
+macOS artifacts are Developer ID signed and notarized. Without the signing secrets the release workflow refuses an RC or Stable version in the version job, before any release PR or tag exists, and `build-macos` checks again before it builds. Windows and Linux artifacts are unsigned, and Windows signing is post-v1. See `docs/release-and-versioning.md` for the platform trust rules.
+
+Supported platforms are a covered surface with stated minimums: macOS 13.4, Windows 10 x64, and Linux x64 with glibc 2.35. `scripts/supported-platform-floor.ts` holds the thresholds, and `scripts/check-native-platform-floor.ts` runs after every release and nightly build and fails when a packaged native binary needs a newer OS. Keep the Linux build on `ubuntu-22.04` and `LSMinimumSystemVersion` at 12.0. See "Supported platform minimums" in `docs/release-and-versioning.md` for the exception that lets a minimum rise in a minor version.
 
 ## When To Load The Release Skill
 
@@ -25,12 +78,22 @@ Load `.agents/skills/release/SKILL.md` before changing:
 - updater behavior
 - release notes
 - installer packaging
-- alpha/beta/stable track behavior
+- alpha/beta/stable channel behavior
 - signing, notarization, or platform distribution
 
 ## Release Notes
 
-Until release-intent files exist, product-impacting PRs should include reviewer-facing release notes in the PR body:
+Conventional Commits decide app releases and Stable version bumps; there are no release-intent
+files. A change that breaks a covered surface needs a `!` title. Every release PR writes its
+version's `CHANGELOG.md` entry from the squash subjects merged since the previous release (the PR
+title, or the commit subject of a single-commit PR), and the GitHub Release and
+openwaggle.ai/changelog publish it (ADR 0070). Write the PR title, and a lone commit's subject, as
+the line a user reads in the changelog. Never edit a release PR's files or click **Update branch**
+on it: CI fails it until the workflow writes them again. When users need more than that line (an upgrade step, a behavior change
+worth explaining, any new major), add a note under `## [Unreleased]` in `CHANGELOG.md` with a
+heading such as `### Highlights`; the next Stable release PR moves it into its entry. Never edit a
+release PR's `CHANGELOG.md` or a released entry. Product-impacting PRs should include
+reviewer-facing release notes in the PR body:
 
 - user-visible feature or behavior changes
 - relevant docs updates
@@ -47,24 +110,25 @@ Use `.agents/verification.md` for baseline validation. For release work, prefer 
 
 OpenWaggle npm packages use Release Please manifest mode through `release-please-config.json`, `.release-please-manifest.json`, and `.github/workflows/package-release.yml`.
 
-- This workflow is separate from the desktop app release workflow. Package versions use path-scoped Conventional Commits; app versions use app release-intent files.
+- This workflow is separate from the desktop app release workflow. Package versions use path-scoped Conventional Commits interpreted by Release Please; the app version uses the Conventional Commits of merges to `main` through the app release workflow.
 - Release Please owns one coordinated package release PR, package-local `CHANGELOG.md` files, package-specific GitHub Releases, and short component tags such as `extension-sdk-v0.1.0`.
 - Package release automation validates the exact generated PR head through the normal pull-request CI path and retains the attested final tarballs for post-merge promotion.
 - Release-eligible commits that touch `packages/<name>/**` or an affected package's canonical generated documentation source directly release that package. Unrelated app, website, general docs, fixture, or workflow changes do not publish npm packages.
 - Pull request titles must be Conventional Commit subjects so squash merges retain package release intent. Repository policy disables merge commits and preserves squash and rebase: squash a one-intent PR, and rebase a mixed-intent PR when separate commits carry distinct release impacts. Reverts use `revert(scope): ...` rather than generated `Revert "..."` subjects.
 - `@openwaggle/extension-react` is dependency-bumped when `@openwaggle/extension-sdk` changes, and `@openwaggle/pi-waggle` is dependency-bumped when `@openwaggle/waggle-core` changes, via the Release Please `node-workspace` plugin. Plan resolution and promotion reject either base release without its mandatory dependent release.
-- `Package Release Gate` is always reported. Relevant PRs run the full Node 22.19/24, four-package-manager, browser, tarball, docs, and API rehearsal; Release Please PRs also build and attest final tarballs.
-- Authors prepare future major.minor guides under `website/src/content/package-docs-next/<package>/`; published version directories remain immutable. Release Please automation runs `pnpm package-docs:update`, promotes and commits the pending line to the release branch, and dispatches CI for that exact synchronized head before maintainers can merge it.
+- `Package Release Gate` and `Package Release Candidate` are always reported. An unprivileged classifier makes the artifact job's intentional skip explicit on ordinary PRs; only the trusted coordinated Release Please branch grants artifact permissions and builds and attests final tarballs. The candidate aggregator fails closed unless the artifact result matches that classification. A PR that changes packages runs the Package Consumer Rehearsal (Node 22.19, four package managers, browser); one that changes the website or docs runs the Website & Docs Rehearsal (Node 24).
+- Release Please's runtime is pinned to the exact version embedded in the immutable action revision. Verify that version in the revision's `dist/index.js`, not from dependency metadata. Upgrades must change the root exact pin and lockfile, central action/runtime contract, workflow SHA, validator fixtures and tests, and workflow AST hash together. Preflight generates representative changelog output and parses the configured coordinated PR title with that runtime, so incompatible action output fails before merge.
+- Authors prepare future major.minor guides under `website/src/content/package-docs-next/<package>/`; published version directories remain immutable. Release Please automation runs `bun run package-docs:update`, which regenerates an API-reference page only once the package version differs from the one the page records, promotes and commits the pending line to the release branch, and dispatches CI for that exact synchronized head before maintainers can merge it.
 - Merging the Release Please PR is an explicit maintainer or authorized-agent action. Never auto-merge it and do not rely on a ruleset bypass.
 - Post-merge publication performs no build, test, or docs generation. It verifies the successful PR artifact's Git tree, SHA-256, `.github/workflows/ci.yml` signer identity, selected source SHA and workflow run, OIDC identity, dependency state, and unpublished version, then publishes that exact tarball through npm Trusted Publishing. Every npm integrity or dependency read retries only bounded transient failures; deterministic failures are single-attempt and fail closed.
 - Create immutable package tags only after npm accepts the version, and publish the GitHub Release only after the npm version is resolvable.
 - Publish `extension-sdk` and `waggle-core` before `extension-react` and `pi-waggle`, respectively.
 - Do not add `NPM_TOKEN`, `NODE_AUTH_TOKEN`, `npm stage publish`, or a local fallback for real package versions.
-- Recovery resumes one exact attested release-candidate artifact. It must not rebuild or replace an existing npm version.
+- Recovery uses a manual Package Release workflow dispatch from `main` with the exact merged release commit SHA. The typed release context requires that commit to be reachable from `origin/main`, finds the package-version commit on first-parent history and uses its parent as the pre-release baseline, then resumes the exact matching attested release-candidate artifact without rebuilding or replacing an existing npm version.
 - A PR that changes `packages/**` needs a `fix`, `feat`, or `revert` squash title so Release Please creates the required version. Package-changing `docs`, `chore`, and `refactor` titles fail CI; generated Release Please titles are allowed.
 - All packages require Node.js `>=22.19.0`. Release validation covers Node 22.19+ and Node 24; publication uses Node 24 and pinned npm `11.18.0` until deliberately updated.
-- The one-time `pnpm package-release:bootstrap --execute` path may publish deprecated `0.0.0-bootstrap.0` namespace placeholders under the `bootstrap` dist-tag, configure `npm trust`, and disable token publication. It must never publish a real package version.
+- The one-time `bun run package-release:bootstrap --execute` path may publish deprecated `0.0.0-bootstrap.0` namespace placeholders under the `bootstrap` dist-tag, configure `npm trust`, and disable token publication. It must never publish a real package version.
 - Bootstrap verifies repository merge settings and fails compatibility when they drift. Execution patches only `allow_merge_commit=false`, `allow_squash_merge=true`, and `allow_rebase_merge=true`, then reads the settings back before continuing.
 - Bad published versions are deprecated and replaced with a new patch; they are not overwritten or routinely unpublished.
 
-For package release workflow changes, run `pnpm package-release:validate`, `pnpm check`, package build/pack checks, package-doc drift checks, API snapshot checks, packed consumer smoke tests, and a Release Please dry-run where credentials allow it.
+For package release workflow changes, run `bun run package-release:validate`, `bun run check`, package build/pack checks, package-doc drift checks, API snapshot checks, packed consumer smoke tests, and a Release Please dry-run where credentials allow it.

@@ -1,23 +1,52 @@
-export const MCP_ADAPTER_PACKAGE_NAME = 'pi-mcp-adapter'
-export const MCP_ADAPTER_PACKAGE_VERSION = '2.5.4'
-export const MCP_ADAPTER_PACKAGE_SOURCE = `extensions/${MCP_ADAPTER_PACKAGE_NAME}`
-export const MCP_ADAPTER_PACKAGE_SOURCES = [MCP_ADAPTER_PACKAGE_SOURCE] as const
+import type { McpServerEntryInput } from '../types/mcp-configuration-operations'
+
+export const MCP_LATEST_PROTOCOL_VERSION = '2026-07-28'
+
+export interface McpCatalogServer {
+  /** The server name its entry is saved under. */
+  readonly name: string
+  readonly title: string
+  readonly description: string
+  /** An ordinary Pi `mcpServers` entry. */
+  readonly entry: McpServerEntryInput
+}
+
+/** Curated first-party catalog: a one-click install of an ordinary entry (ADR 0051). */
+export const MCP_CATALOG_SERVERS: readonly McpCatalogServer[] = [
+  {
+    name: 'playwright',
+    title: 'Playwright MCP',
+    description: 'Browser automation and accessibility-tree inspection by Microsoft.',
+    entry: { command: 'npx', args: ['@playwright/mcp@latest'] },
+  },
+  {
+    name: 'chrome-devtools',
+    title: 'Chrome DevTools MCP',
+    description: 'Chrome DevTools debugging, performance traces, and network inspection by Google.',
+    entry: { command: 'npx', args: ['chrome-devtools-mcp@latest'] },
+  },
+]
+
+export const MCP_MODERN_PROTOCOL_VERSIONS = [MCP_LATEST_PROTOCOL_VERSION] as const
+
+export const MCP_LEGACY_PROTOCOL_VERSIONS = [
+  '2025-11-25',
+  '2025-06-18',
+  '2025-03-26',
+  '2024-11-05',
+  '2024-10-07',
+] as const
+
+export const MCP_SUPPORTED_PROTOCOL_VERSIONS = [
+  ...MCP_MODERN_PROTOCOL_VERSIONS,
+  ...MCP_LEGACY_PROTOCOL_VERSIONS,
+] as const
 
 export const MCP_CONFIG = {
   JSON_INDENT_SPACES: 2,
-  CONFIG_HASH_PREFIX_LENGTH: 16,
-  GENERATED_CONFIG_DIR: 'openwaggle-mcp',
-  GENERATED_ADAPTER_CWD_DIR: 'adapter-cwd',
-  NPM_CACHE_DIR: 'npm-cache',
-  GLOBAL_STANDARD_CONFIG_DIR: ['.config', 'mcp'],
-  PROJECT_STANDARD_CONFIG_FILE_NAME: '.mcp.json',
-  PROJECT_AGENTS_CONFIG_DIR: '.agents',
-  PROJECT_PI_CONFIG_DIR: '.pi',
-  PROJECT_OPENWAGGLE_CONFIG_DIR: ['.openwaggle', 'agent'],
-  CONFIG_FILE_NAME: 'mcp.json',
-  SETTINGS_FILE_NAME: 'settings.json',
-  OPENWAGGLE_KEY: 'openwaggle',
-  DISABLED_SERVERS_KEY: 'disabledMcpServers',
-  ARG_CONFIG_FLAG: '--mcp-config',
-  EMPTY_CONFIG_RAW_JSON: '{\n  "mcpServers": {}\n}\n',
+  /** OpenWaggle's MCP data directory under the home directory: the encrypted vault lives here. */
+  GLOBAL_STATE_DIR: ['.openwaggle', 'mcp'],
+  GLOBAL_VAULT_FILE_NAME: 'vault.json',
+  STATE_VERSION: 1,
+  PROBE_TIMEOUT_MS: 3_000,
 } as const

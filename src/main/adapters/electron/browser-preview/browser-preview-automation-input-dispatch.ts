@@ -1,0 +1,44 @@
+import {
+  BrowserPreviewAutomationDeadline,
+  type BrowserPreviewAutomationRunOptions,
+} from './browser-preview-automation-deadline'
+import { ensureBrowserPreviewAutomationDebugger } from './browser-preview-automation-debugger'
+import type { BrowserPreviewAutomationControlSession } from './browser-preview-automation-session'
+import { assertBrowserPreviewContentsAvailable } from './browser-preview-quarantine'
+import type { CdpCommandParams } from './browser-preview-cdp-input-params'
+
+const INPUT_CLEANUP_TIMEOUT_MS = 2_000
+
+export async function sendBrowserPreviewAutomationInputCleanup(
+  session: BrowserPreviewAutomationControlSession,
+  method: string,
+  params?: CdpCommandParams,
+) {
+  if (session.disposed) return null
+  assertBrowserPreviewContentsAvailable(session.contents)
+  const options: BrowserPreviewAutomationRunOptions = { timeoutMs: INPUT_CLEANUP_TIMEOUT_MS }
+  const deadline = new BrowserPreviewAutomationDeadline(options)
+  try {
+    await deadline.race(ensureBrowserPreviewAutomationDebugger(session))
+    assertBrowserPreviewContentsAvailable(session.contents)
+    const result: unknown = await deadline.race(session.debugger.sendCommand(method, params))
+    return result
+  } finally {
+    deadline.dispose()
+  }
+}
+
+export async function withExpectedBrowserPreviewAutomationInput<A>(
+  session: BrowserPreviewAutomationControlSession,
+  method: string,
+  params: CdpCommandParams | undefined,
+  operation: () => Promise<A>,
+) {
+  const expectation = session.inputArbitrator.expect(method, params)
+  try {
+    return await operation()
+  } catch (error) {
+    session.inputArbitrator.cancel(expectation)
+    throw error
+  }
+}

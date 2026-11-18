@@ -28,7 +28,10 @@ export interface PiWaggleModeState {
   readonly updatedAt: number
 }
 
-function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
+/** The declared fields of `T`, each still unchecked: what a parser reads before it validates. */
+type UncheckedFields<T> = { readonly [K in keyof T]?: unknown }
+
+function isObjectValue(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -62,21 +65,22 @@ function parseAgentColor(value: unknown) {
   return undefined
 }
 
-export function createPiWaggleTurnDetails(input: PiWaggleTurnDetails): PiWaggleTurnDetails {
+export function createPiWaggleTurnDetails(input: PiWaggleTurnDetails) {
   return input
 }
 
-export function parsePiWaggleTurnDetails(value: unknown): PiWaggleTurnDetails | null {
-  if (!isRecord(value)) {
+export function parsePiWaggleTurnDetails(value: unknown) {
+  if (!isObjectValue(value)) {
     return null
   }
 
-  const runId = optionalString(value.runId)
-  const turnNumber = nonNegativeInteger(value.turnNumber)
-  const agentIndex = nonNegativeInteger(value.agentIndex)
-  const agentLabel = optionalString(value.agentLabel)
-  const agentModel = optionalString(value.agentModel)
-  const agentColor = parseAgentColor(value.agentColor)
+  const fields: UncheckedFields<PiWaggleTurnDetails> = value
+  const runId = optionalString(fields.runId)
+  const turnNumber = nonNegativeInteger(fields.turnNumber)
+  const agentIndex = nonNegativeInteger(fields.agentIndex)
+  const agentLabel = optionalString(fields.agentLabel)
+  const agentModel = optionalString(fields.agentModel)
+  const agentColor = parseAgentColor(fields.agentColor)
 
   if (
     !runId ||
@@ -89,37 +93,47 @@ export function parsePiWaggleTurnDetails(value: unknown): PiWaggleTurnDetails | 
     return null
   }
 
-  return { runId, turnNumber, agentIndex, agentLabel, agentModel, agentColor }
+  const details: PiWaggleTurnDetails = {
+    runId,
+    turnNumber,
+    agentIndex,
+    agentLabel,
+    agentModel,
+    agentColor,
+  }
+  return details
 }
 
-export function createPiWaggleModeState(input: PiWaggleModeState): PiWaggleModeState {
+export function createPiWaggleModeState(input: PiWaggleModeState) {
   return input
 }
 
-export function parsePiWaggleModeState(value: unknown): PiWaggleModeState | null {
-  if (!isRecord(value)) {
+export function parsePiWaggleModeState(value: unknown) {
+  if (!isObjectValue(value)) {
     return null
   }
 
-  if (typeof value.enabled !== 'boolean') {
+  const fields: UncheckedFields<PiWaggleModeState> = value
+  if (typeof fields.enabled !== 'boolean') {
     return null
   }
 
-  const updatedAt = nonNegativeTimestamp(value.updatedAt)
+  const updatedAt = nonNegativeTimestamp(fields.updatedAt)
   if (updatedAt === undefined) {
     return null
   }
 
-  const presetId = optionalString(value.presetId)
-  const configResult = value.config === undefined ? undefined : parseWaggleConfig(value.config)
+  const presetId = optionalString(fields.presetId)
+  const configResult = fields.config === undefined ? undefined : parseWaggleConfig(fields.config)
   if (configResult && !configResult.success) {
     return null
   }
 
-  return {
-    enabled: value.enabled,
+  const state: PiWaggleModeState = {
+    enabled: fields.enabled,
     ...(presetId ? { presetId } : {}),
     ...(configResult?.success ? { config: configResult.value } : {}),
     updatedAt,
   }
+  return state
 }

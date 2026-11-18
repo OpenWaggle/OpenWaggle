@@ -1,9 +1,11 @@
 import type { PreparedAttachment } from '@shared/types/agent'
+import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
 import { createScopedDraftActions, removeScopedDraft } from './composer-drafts'
 import { createHistoryActions } from './composer-history'
 import { INITIAL_COMPOSER_STATE } from './composer-initial-state'
-import type { ComposerGet, ComposerSet, MenuKind } from './composer-store-types'
+import { markPendingDraftEdited } from './composer-pending-draft'
+import type { ComposerGet, ComposerSet, ComposerState, MenuKind } from './composer-store-types'
 
 export function createComposerStoreState(set: ComposerSet, get: ComposerGet) {
   return {
@@ -11,6 +13,15 @@ export function createComposerStoreState(set: ComposerSet, get: ComposerGet) {
     ...createTextActions(set),
     ...createHistoryActions(set, get),
     ...createAttachmentActions(set),
+    setSelectedWagglePreset(preset: WagglePreset | null) {
+      set((state) => ({
+        selectedWagglePreset: preset,
+        editedPendingDrafts:
+          state.selectedWagglePreset === preset
+            ? state.editedPendingDrafts
+            : markPendingDraftEdited(state),
+      }))
+    },
     ...createScopedDraftActions(set, get),
     ...createMenuActions(set),
     ...createSlashSkillActions(set),
@@ -22,7 +33,11 @@ export function createComposerStoreState(set: ComposerSet, get: ComposerGet) {
 function createTextActions(set: ComposerSet) {
   return {
     setInput(value: string) {
-      set({ input: value })
+      set((state) => ({
+        input: value,
+        editedPendingDrafts:
+          state.input === value ? state.editedPendingDrafts : markPendingDraftEdited(state),
+      }))
     },
 
     setCursorIndex(index: number) {
@@ -34,16 +49,30 @@ function createTextActions(set: ComposerSet) {
 function createAttachmentActions(set: ComposerSet) {
   return {
     addAttachments(files: PreparedAttachment[]) {
-      set((state) => ({ attachments: [...state.attachments, ...files] }))
+      set((state) => ({
+        attachments: [...state.attachments, ...files],
+        editedPendingDrafts:
+          files.length > 0 ? markPendingDraftEdited(state) : state.editedPendingDrafts,
+      }))
     },
 
     replaceAttachments(files: readonly PreparedAttachment[]) {
-      set({ attachments: [...files] })
+      set((state) => ({
+        attachments: [...files],
+        editedPendingDrafts:
+          files.length !== state.attachments.length ||
+          files.some((file, index) => file !== state.attachments[index])
+            ? markPendingDraftEdited(state)
+            : state.editedPendingDrafts,
+      }))
     },
 
     removeAttachment(id: string) {
       set((state) => ({
         attachments: state.attachments.filter((attachment) => attachment.id !== id),
+        editedPendingDrafts: state.attachments.some((attachment) => attachment.id === id)
+          ? markPendingDraftEdited(state)
+          : state.editedPendingDrafts,
       }))
     },
 
@@ -71,8 +100,16 @@ function createSlashSkillActions(set: ComposerSet) {
       set({ slashHighlightIndex: index })
     },
 
+    setActiveSlashCommand(match: ComposerState['activeSlashCommand']) {
+      set({ activeSlashCommand: match })
+    },
+
     setDismissedSlashToken(token: string | null) {
       set({ dismissedSlashToken: token })
+    },
+
+    setSlashMenuFilter(filter: ComposerState['slashMenuFilter']) {
+      set({ slashMenuFilter: filter })
     },
   }
 }
@@ -95,8 +132,11 @@ function resetComposerState(set: ComposerSet, get: ComposerGet) {
     draftInput: '',
     attachments: [],
     attachmentError: null,
+    selectedWagglePreset: null,
     dismissedSlashToken: null,
     slashHighlightIndex: 0,
+    activeSlashCommand: null,
+    slashMenuFilter: 'all',
     thinkingMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,

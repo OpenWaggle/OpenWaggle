@@ -8,6 +8,7 @@ import type {
   ExtensionDocsDiscoverPayload,
   ExtensionInvokeInput,
 } from '@shared/types/extension-broker'
+import type { DocsListInput } from '@shared/types/docs'
 import * as Effect from 'effect/Effect'
 import { validateRequiredProjectPath } from '../utils/project-path-validation'
 import { listDocsDiscoveryView, resolveDocsTopic } from './docs-discovery-service'
@@ -24,7 +25,7 @@ interface BrokerDocsRouteInput {
 }
 
 type DocsListPayloadValidation =
-  | { readonly _tag: 'valid'; readonly payload: ExtensionDocsDiscoverPayload }
+  | { readonly _tag: 'valid'; readonly payload: DocsListInput }
   | { readonly _tag: 'invalid'; readonly issues: readonly string[] }
   | {
       readonly _tag: 'out-of-scope'
@@ -120,36 +121,42 @@ function validateDocsListProjectPaths(projectPaths: readonly string[]) {
 function normalizeDocsListProjectPaths(
   input: BrokerDocsRouteInput,
   projectPaths: readonly string[] | undefined,
-): Effect.Effect<DocsListPayloadValidation> {
+) {
   const scopeProjectPath = getScopeProjectPath(input.invocation.scope)
   if (projectPaths === undefined && scopeProjectPath === undefined) {
-    return Effect.succeed({ _tag: 'valid', payload: {} })
+    const effect: Effect.Effect<DocsListPayloadValidation> = Effect.succeed({
+      _tag: 'valid',
+      payload: {},
+    })
+    return effect
   }
 
   const requestedProjectPaths = projectPaths ?? (scopeProjectPath ? [scopeProjectPath] : [])
 
-  return validateDocsListProjectPaths(requestedProjectPaths).pipe(
-    Effect.flatMap((validatedProjectPaths) =>
-      scopeProjectPath
-        ? validateRequiredProjectPath(scopeProjectPath).pipe(
-            Effect.map((allowedProjectPath): DocsListPayloadValidation => {
-              const outOfScopeRequestedProjectPath = validatedProjectPaths.find(
-                (projectPath) => projectPath !== allowedProjectPath,
-              )
-              return outOfScopeRequestedProjectPath
-                ? {
-                    _tag: 'out-of-scope',
-                    allowedProjectPath,
-                    projectPath: outOfScopeRequestedProjectPath,
-                  }
-                : { _tag: 'valid', payload: { projectPaths: [allowedProjectPath] } }
-            }),
-          )
-        : Effect.succeed({
-            _tag: 'valid',
-            payload: { projectPaths: validatedProjectPaths },
-          } satisfies DocsListPayloadValidation),
-    ),
+  const effect: Effect.Effect<DocsListPayloadValidation> = Effect.gen(function* () {
+    const validatedProjectPaths = yield* validateDocsListProjectPaths(requestedProjectPaths)
+    if (scopeProjectPath === undefined) {
+      return {
+        _tag: 'valid',
+        payload: { projectPaths: validatedProjectPaths },
+      } satisfies DocsListPayloadValidation
+    }
+
+    const allowedProjectPath = yield* validateRequiredProjectPath(scopeProjectPath)
+    const outOfScopeRequestedProjectPath = validatedProjectPaths.find(
+      (projectPath) => projectPath !== allowedProjectPath,
+    )
+    return outOfScopeRequestedProjectPath
+      ? ({
+          _tag: 'out-of-scope',
+          allowedProjectPath,
+          projectPath: outOfScopeRequestedProjectPath,
+        } satisfies DocsListPayloadValidation)
+      : ({
+          _tag: 'valid',
+          payload: { projectPaths: [allowedProjectPath] },
+        } satisfies DocsListPayloadValidation)
+  }).pipe(
     Effect.catchAll((error) =>
       Effect.succeed<DocsListPayloadValidation>({
         _tag: 'invalid',
@@ -157,12 +164,13 @@ function normalizeDocsListProjectPaths(
       }),
     ),
   )
+  return effect
 }
 
 function normalizeDocsDiscoverPayload(
   input: BrokerDocsRouteInput,
   payload: ExtensionDocsDiscoverPayload,
-): Effect.Effect<DocsListPayloadValidation> {
+) {
   return normalizeDocsListProjectPaths(input, payload.projectPaths).pipe(
     Effect.map((validation) => {
       if (validation._tag !== 'valid') {
@@ -179,7 +187,7 @@ function normalizeDocsDiscoverPayload(
         },
       } satisfies DocsListPayloadValidation
     }),
-  )
+  ) satisfies Effect.Effect<DocsListPayloadValidation>
 }
 
 function discoverDocs(input: BrokerDocsRouteInput) {

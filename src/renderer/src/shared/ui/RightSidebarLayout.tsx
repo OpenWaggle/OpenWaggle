@@ -1,16 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
-import { RightSidebarDockedLayout } from './RightSidebarDockedLayout'
+import { RightSidebarFrame } from './RightSidebarFrame'
 import { RightSidebarResizeRail } from './RightSidebarResizeRail'
 import { RightSidebarSheet } from './RightSidebarSheet'
-import {
-  clampWidth,
-  persistWidth,
-  pixelValue,
-  readStoredWidth,
-  sidebarWidthValue,
-} from './right-sidebar-layout-sizing'
+import { clampWidth, pixelValue, sidebarWidthValue } from './right-sidebar-layout-sizing'
 import type { RightSidebarLayoutProps } from './right-sidebar-layout-types'
+import { initialStoredWidth, useSidebarWidthStore } from './right-sidebar-width-store'
 
 export { sidebarWidthValue } from './right-sidebar-layout-sizing'
 
@@ -23,23 +18,23 @@ function useStoredSidebarWidth({
   RightSidebarLayoutProps['sizing'],
   'defaultWidth' | 'maxWidth' | 'minWidth' | 'storageKey'
 >) {
-  const [width, setWidth] = useState(() =>
-    clampWidth(readStoredWidth(storageKey, defaultWidth), minWidth, maxWidth),
-  )
+  const sharedWidth = useSidebarWidthStore((state) => state.widths[storageKey])
+  const [initialWidth] = useState(() => initialStoredWidth(storageKey, defaultWidth))
+  const width = clampWidth(sharedWidth ?? initialWidth, minWidth, maxWidth)
   const widthRef = useRef(width)
 
   function commitWidth(nextWidth: number) {
     const clampedWidth = clampWidth(nextWidth, minWidth, maxWidth)
     widthRef.current = clampedWidth
-    setWidth(clampedWidth)
-    persistWidth(storageKey, clampedWidth)
+    useSidebarWidthStore.getState().setWidth(storageKey, clampedWidth)
   }
 
-  return { commitWidth, setWidth, width, widthRef }
+  return { commitWidth, width, widthRef }
 }
 
 export function RightSidebarLayout({
   children,
+  maximized = false,
   open,
   sizing,
   sidebar,
@@ -65,10 +60,14 @@ export function RightSidebarLayout({
     widthRef.current = width
     sidebarRef.current?.style.setProperty(
       'width',
-      open ? sidebarWidthValue(width, mainMinWidth) : pixelValue(0),
+      open && !isSheet
+        ? maximized
+          ? '100%'
+          : sidebarWidthValue(width, mainMinWidth)
+        : pixelValue(0),
     )
     panelRef.current?.style.setProperty('width', '100%')
-  }, [mainMinWidth, open, width, widthRef])
+  }, [isSheet, mainMinWidth, maximized, open, width, widthRef])
 
   useEffect(() => {
     const panel = panelRef.current
@@ -77,13 +76,24 @@ export function RightSidebarLayout({
     mainRef.current?.focus({ preventScroll: true })
   }, [open])
 
+  useEffect(() => {
+    const panel = panelRef.current
+    if (isSheet || !open || !panel || panel.contains(document.activeElement)) return
+    queueMicrotask(() => {
+      const target = panel.querySelector<HTMLElement>(
+        '[data-right-sidebar-focus-target="true"], button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      )
+      ;(target ?? panel).focus({ preventScroll: true })
+    })
+  }, [isSheet, open])
+
   function captureSidebar(node: HTMLDivElement | null) {
     sidebarRef.current = node
-    if (node && open) setHasOpened(true)
   }
 
   function captureRoot(node: HTMLDivElement | null) {
     rootRef.current = node
+    if (node && open) setHasOpened(true)
   }
 
   function captureMain(node: HTMLDivElement | null) {
@@ -96,37 +106,36 @@ export function RightSidebarLayout({
 
   function applyWidth(nextWidth: number) {
     widthRef.current = nextWidth
-    sidebarRef.current?.style.setProperty('width', sidebarWidthValue(nextWidth, mainMinWidth))
+    sidebarRef.current?.style.setProperty(
+      'width',
+      maximized ? '100%' : sidebarWidthValue(nextWidth, mainMinWidth),
+    )
     panelRef.current?.style.setProperty('width', '100%')
   }
 
-  if (isSheet) {
-    return (
-      <>
-        {children}
-        {shouldRenderSidebar ? (
-          <RightSidebarSheet open={open} onOpenChange={onOpenChange}>
-            {sidebar}
-          </RightSidebarSheet>
-        ) : null}
-      </>
-    )
-  }
-
   return (
-    <RightSidebarDockedLayout
+    <RightSidebarFrame
       captures={{ captureMain, capturePanel, captureRoot }}
       content={{ children, sidebar }}
       rail={
-        <RightSidebarResizeRail
-          actions={{ applyWidth, commitWidth }}
-          bounds={{ maxWidth, mainMinWidth, minWidth }}
-          handles={{ panel: panelRef, root: rootRef, sidebar: sidebarRef, width: widthRef }}
-          state={{ open, width }}
-          shouldAcceptWidth={shouldAcceptWidth}
-        />
+        !maximized && (
+          <RightSidebarResizeRail
+            actions={{ applyWidth, commitWidth }}
+            bounds={{ maxWidth, mainMinWidth, minWidth }}
+            handles={{ panel: panelRef, root: rootRef, sidebar: sidebarRef, width: widthRef }}
+            state={{ open, width }}
+            {...(shouldAcceptWidth === undefined ? {} : { shouldAcceptWidth })}
+          />
+        )
       }
-      shell={{ mainMinWidth, open, shouldRenderSidebar, width, captureSidebar }}
+      shell={{ isSheet, maximized, mainMinWidth, open, shouldRenderSidebar, width, captureSidebar }}
+      sheet={
+        isSheet && shouldRenderSidebar ? (
+          <RightSidebarSheet open={open} onOpenChange={onOpenChange} focusFallback={mainRef}>
+            {sidebar}
+          </RightSidebarSheet>
+        ) : null
+      }
     />
   )
 }

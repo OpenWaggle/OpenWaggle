@@ -1,0 +1,306 @@
+import type * as SqlClient from '@effect/sql/SqlClient'
+import { assertSessionTitle, SESSION_TITLE_MAX_LENGTH } from '@shared/session-title'
+import { DEFAULT_SESSION_TITLE, type SessionTitleSource } from '@shared/session-title-source'
+import { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
+import { buildDeterministicTitle } from '../agent/title-generator'
+import { isAgentWorkRun } from '../domain/session-control/person-started-run'
+import { SessionLifecycleRepositoryError } from '../errors'
+import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
+import { encodeSessionAuthoritySnapshot } from '../session-host/session-authority-snapshot'
+import { mainBranchId } from '../store/session-details/branch-utils'
+import {
+  DEFAULT_BRANCH_UI_STATE_JSON,
+  EXPANDED_NODE_IDS_DEFAULT_JSON,
+  EXPANDED_NODE_IDS_UNTOUCHED,
+  MAIN_BRANCH_NAME,
+  STANDARD_FUTURE_MODE,
+  TREE_SIDEBAR_EXPANDED,
+} from '../store/session-details/constants'
+import { persistSessionSnapshotWithSql } from '../store/session-details/persist-snapshot'
+import { copySessionMcpSwitch } from '../store/session-details/session-creation'
+import { sessionAgentSourceId } from './session-lifecycle-execution-profile'
+import type { LifecycleWorkspaceRow } from './sqlite-session-lifecycle-support'
+import { persistSessionReportReferences } from './sqlite-session-report-reference-catalog'
+
+type ExecuteInput = Parameters<SessionLifecycleRepositoryShape['execute']>[0]
+
+function repositoryError(operation: string, cause: unknown) {
+  return new SessionLifecycleRepositoryError({ operation, cause })
+}
+
+function agentDefinitionName(profile: unknown) {
+  if (
+    typeof profile === 'object' &&
+    profile !== null &&
+    'agentDefinitionName' in profile &&
+    typeof profile.agentDefinitionName === 'string'
+  ) {
+    return profile.agentDefinitionName
+  }
+  return undefined
+}
+
+function initialRunIntent(input: ExecuteInput) {
+  const command = input.request.command
+  if (command.operation === 'create' || command.operation === 'fork') return undefined
+  const text = command.operation === 'launch' ? command.objective : command.delegation.objective
+  const attachmentIds = command.attachmentIds ?? []
+  return {
+    text,
+    attachmentIds,
+    ...(command.interactionTimeoutMs !== undefined
+      ? { interactionTimeoutMs: command.interactionTimeoutMs }
+      : {}),
+    ...(command.runAuthorizationOverride
+      ? { runAuthorizationOverride: command.runAuthorizationOverride }
+      : {}),
+    callerId: input.callerId,
+    acceptedAt: input.now,
+    idempotencyKey: input.request.idempotencyKey,
+  }
+}
+
+/**
+ * The Session whose MCP switch a new Session starts with: a fork's source, as a desktop fork or
+ * clone does, a Worker's parent, and the Session whose agent launched a root. A root the user
+ * creates or launches starts with MCP on.
+ */
+function mcpSwitchSourceSessionId(command: ExecuteInput['request']['command'], callerId: string) {
+  if (command.operation === 'fork') return command.sourceSessionId
+  if (command.operation === 'spawn') return command.parentSessionId
+  if (command.operation === 'launch') return sessionAgentSourceId(callerId)
+  return undefined
+}
+
+function persistSessionMetadata(
+  sql: SqlClient.SqlClient,
+  input: ExecuteInput,
+  projectPath: string,
+  workspace: LifecycleWorkspaceRow,
+  authorityOriginCallerId: string,
+  authorityScope: ExecuteInput['callerAuthorityScope'],
+) {
+  const command = input.request.command
+  const explicitTitle = lifecycleTitleFromCommand(command)
+  const environmentMode = workspace.kind === 'managed-worktree' ? 'worktree' : 'local'
+  const worktreePath =
+    workspace.kind === 'managed-worktree' && workspace.lifecycle_state === 'ready'
+      ? workspace.working_path
+      : null
+  const branchId = mainBranchId(input.session.sessionId)
+  return Effect.gen(function* () {
+    const { title, source: titleSource } =
+      explicitTitle ?? (yield* defaultLifecycleTitle(sql, command))
+    yield* sql`
+      INSERT INTO sessions (
+        id, pi_session_id, pi_session_file, project_path, title, title_source, archived,
+        created_at, updated_at, last_active_branch_id, environment_mode, worktree_path,
+        worktree_base_ref, worktree_start_from_origin, authorization_mode_override
+      ) VALUES (
+        ${input.session.sessionId}, ${input.session.piSessionId},
+        ${input.session.piSessionFile ?? null}, ${projectPath}, ${title}, ${titleSource}, ${0},
+        ${input.now}, ${input.now}, ${branchId}, ${environmentMode}, ${worktreePath},
+        ${workspace.worktree_base_ref}, ${workspace.worktree_start_from_origin},
+        ${null}
+      )
+    `
+    yield* sql`
+      INSERT INTO session_branches (
+        id, session_id, source_node_id, head_node_id, name, is_main,
+        archived_at, created_at, updated_at
+      ) VALUES (
+        ${branchId}, ${input.session.sessionId}, ${null}, ${null}, ${MAIN_BRANCH_NAME}, ${1},
+        ${null}, ${input.now}, ${input.now}
+      )
+    `
+    yield* sql`
+      INSERT INTO session_branch_state (
+        branch_id, future_mode, waggle_preset_id, waggle_config_json,
+        last_active_at, ui_state_json
+      ) VALUES (
+        ${branchId}, ${STANDARD_FUTURE_MODE}, ${null}, ${null},
+        ${input.now}, ${DEFAULT_BRANCH_UI_STATE_JSON}
+      )
+    `
+    yield* sql`
+      INSERT INTO session_tree_ui_state (
+        session_id, expanded_node_ids_json, expanded_node_ids_touched,
+        branches_sidebar_collapsed, updated_at
+      ) VALUES (
+        ${input.session.sessionId}, ${EXPANDED_NODE_IDS_DEFAULT_JSON},
+        ${EXPANDED_NODE_IDS_UNTOUCHED}, ${TREE_SIDEBAR_EXPANDED}, ${input.now}
+      )
+    `
+    yield* sql`
+      INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
+      VALUES (${input.session.sessionId}, ${workspace.id}, ${input.now})
+    `
+    yield* sql`
+      INSERT INTO session_execution_profiles (
+        session_id, profile_json, resolved_agent_snapshot_json,
+        authority_origin_caller_id, authority_scope_snapshot_json,
+        authorization_ceiling, created_at, updated_at
+      ) VALUES (
+        ${input.session.sessionId}, ${JSON.stringify(input.executionSnapshot.profile)},
+        ${
+          input.executionSnapshot.resolvedAgentSnapshot === undefined
+            ? null
+            : JSON.stringify(input.executionSnapshot.resolvedAgentSnapshot)
+        },
+        ${authorityOriginCallerId},
+        ${
+          authorityScope
+            ? encodeSessionAuthoritySnapshot({
+                scope: authorityScope,
+                projectPath,
+                workingPath: workspace.working_path,
+              })
+            : null
+        },
+        ${input.executionSnapshot.authorizationCeiling}, ${input.now}, ${input.now}
+      )
+    `
+    const mcpSwitchSource = mcpSwitchSourceSessionId(command, input.callerId)
+    if (mcpSwitchSource) {
+      yield* copySessionMcpSwitch(sql, mcpSwitchSource, input.session.sessionId, input.now)
+    }
+    const selectedAgentDefinitionName = agentDefinitionName(input.executionSnapshot.profile)
+    yield* persistSessionReportReferences(sql, {
+      sessionId: input.session.sessionId,
+      title,
+      ...(selectedAgentDefinitionName ? { agentDefinitionName: selectedAgentDefinitionName } : {}),
+    })
+  })
+}
+
+/**
+ * Truncates to a UTF-16 length, which is what the title limit counts, without splitting a
+ * surrogate pair.
+ */
+function truncateTitle(title: string, maxLength: number) {
+  let truncated = ''
+  for (const character of title) {
+    if (truncated.length + character.length > maxLength) break
+    truncated += character
+  }
+  return truncated.trimEnd()
+}
+
+/** A marker left by an earlier fork or copy, so a fork of a fork is not "X (fork) (fork)". */
+const COPY_TITLE_SUFFIX = / \((?:fork|copy)\)$/
+
+interface LifecycleTitle {
+  readonly title: string
+  readonly source: SessionTitleSource
+}
+
+const DEFAULT_LIFECYCLE_TITLE: LifecycleTitle = { title: DEFAULT_SESSION_TITLE, source: 'default' }
+
+/**
+ * A Worker or a root launched without a title starts with its objective trimmed like a first
+ * message, a Provisional title the Title model replaces in the background. An explicitly given
+ * title is manual and never generated over.
+ */
+function lifecycleTitleFromCommand(command: ExecuteInput['request']['command']) {
+  if (command.operation === 'spawn' && command.title === undefined) {
+    return { title: buildDeterministicTitle(command.delegation.objective), source: 'provisional' }
+  }
+  // A launched root already has its first message; show it while its first Run is still queued.
+  if (command.operation === 'launch' && command.title === undefined) {
+    return { title: buildDeterministicTitle(command.objective), source: 'provisional' }
+  }
+  return command.title === undefined
+    ? null
+    : { title: assertSessionTitle(command.title), source: 'manual' }
+}
+
+/**
+ * An untitled fork is named after its source, marked as a fork or a copy, and keeps that title like
+ * a rename. A fork of a Session still titled "New session" keeps the default title instead: a
+ * `default` title is owed a generated one whatever the message count (`sessionTitleOwed`), so
+ * the fork is titled from its next message rather than named "New session (copy)".
+ */
+function defaultLifecycleTitle(
+  sql: SqlClient.SqlClient,
+  command: ExecuteInput['request']['command'],
+) {
+  if (command.operation !== 'fork') return Effect.succeed(DEFAULT_LIFECYCLE_TITLE)
+  const suffix = (command.position ?? 'at') === 'before' ? ' (fork)' : ' (copy)'
+  return Effect.gen(function* () {
+    const rows = yield* sql<{ readonly title: string }>`
+      SELECT title FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
+    `
+    const source = rows[0]?.title.replace(COPY_TITLE_SUFFIX, '').trim()
+    if (!source || source === DEFAULT_SESSION_TITLE) return DEFAULT_LIFECYCLE_TITLE
+    return {
+      title: assertSessionTitle(
+        `${truncateTitle(source, SESSION_TITLE_MAX_LENGTH - suffix.length)}${suffix}`,
+      ),
+      source: 'manual',
+    }
+  })
+}
+
+export function persistLifecycleSession(
+  sql: SqlClient.SqlClient,
+  input: ExecuteInput,
+  projectPath: string,
+  workspace: LifecycleWorkspaceRow,
+  authorityOriginCallerId: string,
+  authorityScope?: ExecuteInput['callerAuthorityScope'],
+) {
+  return Effect.gen(function* () {
+    yield* persistSessionMetadata(
+      sql,
+      input,
+      projectPath,
+      workspace,
+      authorityOriginCallerId,
+      authorityScope,
+    )
+    const operation = input.request.command.operation
+    const startsRun = operation === 'launch' || operation === 'spawn'
+    const runId = startsRun ? input.runId : undefined
+    if (startsRun && !runId) {
+      return yield* Effect.fail(repositoryError('run-identity-required', { operation }))
+    }
+    const intent = initialRunIntent(input)
+    if (runId && intent) {
+      yield* sql`
+        INSERT INTO session_runs (
+          id, session_id, status, intent_json, created_at, updated_at, work_by_agent
+        )
+        VALUES (
+          ${runId}, ${input.session.sessionId}, ${'starting'},
+          ${JSON.stringify(intent)}, ${input.now}, ${input.now}, ${isAgentWorkRun(intent) ? 1 : 0}
+        )
+      `
+    }
+    yield* sql`
+      INSERT INTO session_control_states (
+        session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+      ) VALUES (
+        ${input.session.sessionId}, ${runId ? 1 : 0}, ${runId ?? null},
+        ${'running'}, ${0}, ${input.now}
+      )
+    `
+    if (operation === 'fork') {
+      if (!input.forkSnapshot) {
+        return yield* Effect.fail(repositoryError('fork-snapshot-required', { operation }))
+      }
+      yield* persistSessionSnapshotWithSql(
+        sql,
+        {
+          sessionId: SessionId(input.session.sessionId),
+          nodes: input.forkSnapshot.nodes,
+          activeNodeId: input.forkSnapshot.activeNodeId,
+          piSessionId: input.session.piSessionId,
+          ...(input.session.piSessionFile ? { piSessionFile: input.session.piSessionFile } : {}),
+        },
+        input.now,
+      )
+    }
+    return runId
+  })
+}

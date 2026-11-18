@@ -1,0 +1,291 @@
+import { mkdir, rename, rm } from 'node:fs/promises'
+import path from 'node:path'
+import {
+  defaultSessionEmbeddingModel,
+  type SessionEmbeddingModel,
+} from '../adapters/multilingual-e5-session-embedding-model'
+import {
+  SESSION_HOST_BASELINE_MIGRATION_ID,
+  SESSION_HOST_BASELINE_MIGRATION_NAME,
+  SESSION_HOST_CUTOVER_REVISION,
+  SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID,
+  SESSION_HOST_DISCOVERY_TERM_MIGRATION_NAME,
+  SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_ID,
+  SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
+} from '../services/session-host-schema-identity'
+import {
+  SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS,
+  SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS,
+} from '../services/session-host-target-schema'
+import { type HostSqliteDatabase, openHostSqliteDatabase } from './host-sqlite-database'
+import { validateSessionHostCompletionSeal } from './session-host-completion-seal'
+import {
+  normalizeLegacyMigrationLedger,
+  readCutoverCount,
+  sourceSchemaRevision,
+} from './session-host-cutover-database'
+import {
+  normalizeLegacySessionColumns,
+  populateSessionHostTarget,
+} from './session-host-cutover-population'
+import {
+  exists,
+  type SessionHostCutoverPaths,
+  sessionHostSourceExists,
+} from './session-host-cutover-presence'
+import { normalizeLegacySessionTitles } from './session-host-cutover-title-normalization'
+import { validateSessionHostTarget } from './session-host-cutover-validation'
+import { acquireSessionHostOwnership } from './session-host-ownership'
+
+export {
+  type SessionHostCutoverPaths,
+  sessionHostSourceExists,
+  sessionHostTargetExists,
+} from './session-host-cutover-presence'
+export { SESSION_HOST_SCHEMA_REVISION } from './session-host-cutover-validation'
+
+export const SESSION_HOST_CUTOVER_MIGRATION_ID = SESSION_HOST_BASELINE_MIGRATION_ID
+export const SESSION_HOST_CUTOVER_MIGRATION_REVISION = SESSION_HOST_CUTOVER_REVISION
+const OWNER_DIRECTORY_MODE = 0o700
+const CUTOVER_CACHE_KIB = 131_072
+
+export type SessionHostCutoverResult =
+  | { readonly status: 'fresh-install' }
+  | { readonly status: 'already-complete'; readonly targetDatabasePath: string }
+  | {
+      readonly status: 'migrated'
+      readonly targetDatabasePath: string
+      readonly recoveryDatabasePath: string
+      readonly sessionCount: number
+      readonly nodeCount: number
+    }
+
+function applyTargetSchema(database: HostSqliteDatabase) {
+  for (const statement of SESSION_HOST_CUTOVER_TARGET_SCHEMA_STATEMENTS) database.exec(statement)
+}
+
+function applyPostPopulationSchema(database: HostSqliteDatabase) {
+  for (const statement of SESSION_HOST_POST_POPULATION_SCHEMA_STATEMENTS) {
+    database.exec(statement)
+  }
+}
+
+function recordMigrationMetadata(
+  database: HostSqliteDatabase,
+  input: {
+    readonly now: number
+    readonly sourceSchemaRevision: number
+    readonly sourceCounts: { readonly sessions: number; readonly nodes: number }
+  },
+) {
+  database
+    .prepare(`
+      UPDATE session_host_schema_metadata
+      SET migration_revision = ?, source_high_watermark_json = ?, completed_at = ?
+      WHERE singleton = 1
+    `)
+    .run(
+      SESSION_HOST_CUTOVER_MIGRATION_REVISION,
+      JSON.stringify({ ...input.sourceCounts, sourceSchemaRevision: input.sourceSchemaRevision }),
+      input.now,
+    )
+  database
+    .prepare('INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)')
+    .run(
+      SESSION_HOST_CUTOVER_MIGRATION_ID,
+      SESSION_HOST_BASELINE_MIGRATION_NAME,
+      new Date(input.now).toISOString(),
+    )
+  // Cutover builds the normalized term table directly. Replaying migration 51 would copy the
+  // entire transcript corpus on first launch, after it was already indexed in staging.
+  database
+    .prepare('INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)')
+    .run(
+      SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_ID,
+      SESSION_HOST_TRANSCRIPT_TERM_NORMALIZATION_MIGRATION_NAME,
+      new Date(input.now).toISOString(),
+    )
+  database
+    .prepare('INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)')
+    .run(
+      SESSION_HOST_DISCOVERY_TERM_MIGRATION_ID,
+      SESSION_HOST_DISCOVERY_TERM_MIGRATION_NAME,
+      new Date(input.now).toISOString(),
+    )
+}
+
+function prepareStagingDatabase(stagingPath: string, now: number) {
+  const database = openHostSqliteDatabase(stagingPath)
+  try {
+    database.exec(`
+      PRAGMA foreign_keys = ON;
+      PRAGMA cache_size = -${CUTOVER_CACHE_KIB};
+      PRAGMA temp_store = FILE;
+      BEGIN IMMEDIATE;
+    `)
+    normalizeLegacyMigrationLedger(database)
+    const revision = sourceSchemaRevision(database)
+    const sourceCounts = {
+      sessions: readCutoverCount(database, 'sessions'),
+      nodes: readCutoverCount(database, 'session_nodes'),
+    }
+    try {
+      normalizeLegacySessionColumns(database)
+      normalizeLegacySessionTitles(database)
+      applyTargetSchema(database)
+      populateSessionHostTarget(database, now)
+      applyPostPopulationSchema(database)
+      database.exec('COMMIT;')
+      return { revision, sourceCounts }
+    } catch (error) {
+      database.exec('ROLLBACK;')
+      throw error
+    }
+  } finally {
+    database.close()
+  }
+}
+
+function finalizeStagingDatabase(
+  stagingPath: string,
+  now: number,
+  prepared: ReturnType<typeof prepareStagingDatabase>,
+  model: SessionEmbeddingModel,
+) {
+  const database = openHostSqliteDatabase(stagingPath)
+  try {
+    database.exec('PRAGMA foreign_keys = ON; BEGIN IMMEDIATE;')
+    try {
+      const validation = validateSessionHostTarget(
+        database,
+        prepared.sourceCounts,
+        model.metadata,
+        {
+          requireCompleteSemanticCoverage: false,
+        },
+      )
+      recordMigrationMetadata(database, {
+        now,
+        sourceSchemaRevision: prepared.revision,
+        sourceCounts: prepared.sourceCounts,
+      })
+      database.exec('COMMIT;')
+      return validation
+    } catch (error) {
+      database.exec('ROLLBACK;')
+      throw error
+    }
+  } finally {
+    database.close()
+  }
+}
+
+function validateCompletedTarget(targetPath: string) {
+  const database = openHostSqliteDatabase(targetPath, { readonly: true })
+  try {
+    validateSessionHostCompletionSeal(database)
+  } finally {
+    database.close()
+  }
+}
+
+function validateStagedTarget(targetPath: string, model: SessionEmbeddingModel) {
+  const database = openHostSqliteDatabase(targetPath, { readonly: true })
+  try {
+    database.exec('BEGIN')
+    try {
+      const validation = validateSessionHostTarget(database, undefined, model.metadata, {
+        requireCompleteSemanticCoverage: false,
+      })
+      database.exec('COMMIT')
+      return validation
+    } catch (error) {
+      database.exec('ROLLBACK')
+      throw error
+    }
+  } finally {
+    database.close()
+  }
+}
+
+async function copySourceToStaging(sourcePath: string, stagingPath: string) {
+  const source = openHostSqliteDatabase(sourcePath)
+  try {
+    source.exec('PRAGMA wal_checkpoint(TRUNCATE);')
+    source.prepare('VACUUM INTO ?').run(stagingPath)
+  } finally {
+    source.close()
+  }
+}
+
+async function installMigratedDatabase(paths: SessionHostCutoverPaths, stagingPath: string) {
+  await rename(paths.sourceDatabasePath, paths.recoveryDatabasePath)
+  try {
+    await rename(stagingPath, paths.targetDatabasePath)
+  } catch (error) {
+    await rename(paths.recoveryDatabasePath, paths.sourceDatabasePath)
+    throw error
+  }
+}
+
+export async function runSessionHostCutover(
+  paths: SessionHostCutoverPaths,
+  now = Date.now(),
+  model: SessionEmbeddingModel = defaultSessionEmbeddingModel,
+) {
+  const stagingPath = `${paths.targetDatabasePath}.partial`
+  await mkdir(path.dirname(paths.targetDatabasePath), {
+    recursive: true,
+    mode: OWNER_DIRECTORY_MODE,
+  })
+  if (await exists(paths.targetDatabasePath)) {
+    validateCompletedTarget(paths.targetDatabasePath)
+    return {
+      status: 'already-complete',
+      targetDatabasePath: paths.targetDatabasePath,
+    } satisfies SessionHostCutoverResult
+  }
+  const ownership = await acquireSessionHostOwnership(`${paths.targetDatabasePath}.cutover`)
+  try {
+    if (await exists(paths.targetDatabasePath)) {
+      validateCompletedTarget(paths.targetDatabasePath)
+      return {
+        status: 'already-complete',
+        targetDatabasePath: paths.targetDatabasePath,
+      } satisfies SessionHostCutoverResult
+    }
+    if (await exists(paths.recoveryDatabasePath)) {
+      if (await exists(stagingPath)) {
+        validateStagedTarget(stagingPath, model)
+        await rename(stagingPath, paths.targetDatabasePath)
+        return {
+          status: 'already-complete',
+          targetDatabasePath: paths.targetDatabasePath,
+        } satisfies SessionHostCutoverResult
+      }
+      throw new Error(
+        `Session Host cutover is incomplete: recovery database exists without an active or staged database: ${paths.recoveryDatabasePath}`,
+      )
+    }
+    if (!(await sessionHostSourceExists(paths))) {
+      return { status: 'fresh-install' } satisfies SessionHostCutoverResult
+    }
+    await rm(stagingPath, { force: true })
+    await copySourceToStaging(paths.sourceDatabasePath, stagingPath)
+    const prepared = prepareStagingDatabase(stagingPath, now)
+    const validation = finalizeStagingDatabase(stagingPath, now, prepared, model)
+    await installMigratedDatabase(paths, stagingPath)
+    return {
+      status: 'migrated',
+      targetDatabasePath: paths.targetDatabasePath,
+      recoveryDatabasePath: paths.recoveryDatabasePath,
+      sessionCount: validation.sessions,
+      nodeCount: validation.nodes,
+    } satisfies SessionHostCutoverResult
+  } catch (error) {
+    await rm(stagingPath, { force: true })
+    throw error
+  } finally {
+    await ownership.release()
+  }
+}

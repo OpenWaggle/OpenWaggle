@@ -53,7 +53,7 @@ export function ContextMeterRing({
         />
       </svg>
       <span
-        className="absolute font-mono text-[8.5px] font-semibold leading-none tabular-nums"
+        className="absolute font-mono text-xs font-semibold leading-none tabular-nums"
         style={{ color: strokeColor }}
       >
         {displayValue}

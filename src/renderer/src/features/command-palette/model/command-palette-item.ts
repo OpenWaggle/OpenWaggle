@@ -1,9 +1,9 @@
-import type { WaggleConfig, WagglePreset } from '@shared/types/waggle'
+import type { WagglePreset } from '@shared/types/waggle'
 import type { ReactNode } from 'react'
 
 export interface CommandPaletteCallbacks {
   readonly onSelectSkill: (skillId: string, skillName?: string) => void
-  readonly onStartWaggle: (config: WaggleConfig) => void
+  readonly onStartWaggle: (preset: WagglePreset) => void
   readonly onOpenSessionTree?: () => void
   readonly onForkToNewSession?: () => void
   readonly onCloneToNewSession?: () => void
@@ -17,17 +17,15 @@ export interface CommandPaletteItem {
   readonly section?: string
   readonly trailing?: string
   readonly trailingBadge?: string
+  readonly disabled?: boolean
+  /** When the typed command is the whole draft, leave Enter to the composer to submit it. */
+  readonly submitsOnEnter?: boolean
   readonly action: () => void
 }
 
 export interface CommandPaletteActionHandlers {
-  readonly closeCommandPalette: () => void
+  readonly closeSlashCommandMenu: () => void
   readonly configureWaggle: () => void
   readonly selectPreset: (preset: WagglePreset) => void
-  readonly startWaggle: () => void
   readonly selectSkill: (skillId: string, skillName?: string) => void
-  readonly openSessionTree?: () => void
-  readonly forkToNewSession?: () => void
-  readonly cloneToNewSession?: () => void
-  readonly insertCompactCommand: () => void
 }

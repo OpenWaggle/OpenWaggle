@@ -1,61 +1,99 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WagglePreset } from '@shared/types/waggle'
+import { skillCommandText } from '@shared/utils/skill-id'
 import {
   Archive,
+  ChartNoAxesCombined,
   Copy,
-  GitBranch,
+  GitFork,
   GitPullRequest,
-  ListTree,
-  MessageSquare,
+  type LucideIcon,
   Settings,
   Shield,
   ShieldAlert,
   Swords,
   User,
-  Waypoints,
 } from 'lucide-react'
+import { BUILT_IN_COMPOSER_SLASH_COMMAND } from '@/features/composer/commands'
 import { COMMAND_PALETTE } from '../constants/command-palette'
 import type {
   CommandPaletteActionHandlers,
   CommandPaletteItem,
 } from '../model/command-palette-item'
-import { openFeedbackModal } from './command-palette-actions'
 import { truncateCommandDescription } from './command-palette-text'
 
-export function createBaseCommands(actions: CommandPaletteActionHandlers) {
-  const optionalCommands: CommandPaletteItem[] = []
-  appendOptionalCommand(optionalCommands, createSessionTreeCommand(actions))
-  appendOptionalCommand(optionalCommands, createForkCommand(actions))
-  appendOptionalCommand(optionalCommands, createCloneCommand(actions))
-
-  return [
-    {
-      id: 'waggle',
-      label: 'Waggle Mode',
-      description: 'Start LLM collaboration session',
-      icon: <Waypoints className="size-3.5" />,
-      action: actions.startWaggle,
-    },
-    {
-      id: 'feedback',
-      label: 'Feedback',
-      icon: <MessageSquare className="size-3.5" />,
-      action: openFeedbackModal,
-    },
-    {
-      id: 'compact',
-      label: 'Compact session',
-      description: 'Run /compact with optional instructions',
-      icon: <Archive className="size-3.5" />,
-      action: actions.insertCompactCommand,
-    },
-    ...optionalCommands,
-  ]
+interface BuiltInComposerCommand {
+  readonly command: string
+  readonly label: string
+  readonly description: string
+  readonly Icon: LucideIcon
 }
 
-export function filterBaseCommands(commands: readonly CommandPaletteItem[], lowerQuery: string) {
-  if (!lowerQuery) return commands
-  return commands.filter((command) => commandMatchesQuery(command, lowerQuery))
+/**
+ * GUI-only built-in text commands, mirroring Pi's slash-command set. They are listed in the
+ * composer chooser so they are discoverable and so a fuzzy skill match (for example a skill whose
+ * description mentions "compact") can never capture Enter on a fully typed built-in command.
+ */
+const BUILT_IN_COMPOSER_COMMANDS: readonly BuiltInComposerCommand[] = [
+  {
+    command: BUILT_IN_COMPOSER_SLASH_COMMAND.COMPACT,
+    label: 'Compact session',
+    description: 'Manually compact the session context',
+    Icon: Archive,
+  },
+  {
+    command: BUILT_IN_COMPOSER_SLASH_COMMAND.FORK,
+    label: 'Fork session',
+    description: 'Create a new fork from a previous user message',
+    Icon: GitFork,
+  },
+  {
+    command: BUILT_IN_COMPOSER_SLASH_COMMAND.CLONE,
+    label: 'Clone session',
+    description: 'Duplicate the current session',
+    Icon: Copy,
+  },
+]
+
+/** Like Pi's TUI, built-ins match by command name so short queries still reach skills. */
+function builtInCommandMatchesQuery(entry: BuiltInComposerCommand, lowerQuery: string) {
+  return entry.command.slice(1).startsWith(lowerQuery)
+}
+
+export function createBuiltInCommandItems(
+  lowerQuery: string,
+  insertCommand: (command: string) => void,
+) {
+  return BUILT_IN_COMPOSER_COMMANDS.filter((entry) =>
+    builtInCommandMatchesQuery(entry, lowerQuery),
+  ).map((entry) => ({
+    id: `command-${entry.command.slice(1)}`,
+    label: entry.label,
+    description: entry.description,
+    icon: <entry.Icon className="size-3.5" />,
+    section: 'Commands',
+    trailing: entry.command,
+    // A fully typed command that is the whole draft submits on Enter, like Pi's TUI; Tab or a
+    // click completes it so arguments such as /compact instructions can be added.
+    submitsOnEnter: entry.command.slice(1) === lowerQuery,
+    action: () => insertCommand(entry.command),
+  }))
+}
+
+/**
+ * The lowercased names this project's enabled skills are offered under: the frontmatter name each
+ * SKILL.md declares, which is also what Pi matches after `/skill:`. The slash menu withholds a Pi
+ * extension command under one of these names, so a name never labels two rows. A skill's folder id
+ * is not one of them: Pi resolves a skill by name alone, so an extension command named after the
+ * folder still runs and keeps its row.
+ */
+export function skillOwnedCommandNames(skills: readonly SkillDiscoveryItem[]) {
+  const names = new Set<string>()
+  for (const skill of skills) {
+    if (!skill.enabled || skill.loadStatus !== 'ok') continue
+    names.add(skill.name.toLowerCase())
+  }
+  return names
 }
 
 export function createSkillItems(
@@ -64,7 +102,26 @@ export function createSkillItems(
   selectSkill: CommandPaletteActionHandlers['selectSkill'],
 ) {
   const items: CommandPaletteItem[] = []
+  if (visualizeSkillMatchesQuery(lowerQuery)) {
+    const diagnostic = slashSkills.find(
+      (skill) => skill.id === 'visualize' && skill.loadStatus === 'error',
+    )
+    items.push({
+      id: 'skill-visualize',
+      label: 'Visualize',
+      description: diagnostic
+        ? `Unavailable: ${diagnostic.loadError ?? diagnostic.description}`
+        : 'Create an interactive visualization in this conversation',
+      icon: <ChartNoAxesCombined className="size-3.5" />,
+      section: 'Skills',
+      trailing: skillCommandText('visualize'),
+      disabled: diagnostic !== undefined,
+      action: diagnostic ? () => undefined : () => selectSkill('visualize', 'Visualize'),
+    })
+  }
+
   for (const skill of slashSkills) {
+    if (skill.id === 'visualize') continue
     if (!skill.enabled || skill.loadStatus !== 'ok') continue
     if (!skillMatchesQuery(skill, lowerQuery)) continue
 
@@ -74,11 +131,23 @@ export function createSkillItems(
       description: truncateCommandDescription(skill.description, COMMAND_PALETTE.DESCRIPTION_LIMIT),
       icon: <Shield className="size-3.5" />,
       section: 'Skills',
-      action: () => selectSkill(skill.id, skill.name),
+      // Pi resolves a skill command by the `name` in SKILL.md's frontmatter, not by the folder the
+      // skill lives in, so the invocation the chip carries must be that name (`skill.id` is the
+      // normalized folder). Pi passes an unknown name through silently, so the id would look
+      // handled while the body never loaded.
+      action: () => selectSkill(skill.name, skill.name),
     })
   }
 
   return items
+}
+
+function visualizeSkillMatchesQuery(lowerQuery: string) {
+  return (
+    !lowerQuery ||
+    'visualize'.includes(lowerQuery) ||
+    'create an interactive visualization in this conversation'.includes(lowerQuery)
+  )
 }
 
 export function createPresetItems(
@@ -100,7 +169,7 @@ export function createPresetItems(
       icon: presetIcon(preset),
       section: 'Waggle Mode',
       trailing: 'Sequential',
-      trailingBadge: preset.isBuiltIn ? undefined : 'Custom',
+      ...(preset.isBuiltIn ? {} : { trailingBadge: 'Custom' }),
       action: () => selectPreset(preset),
     })
   }
@@ -120,46 +189,6 @@ export function createConfigureWaggleItem(lowerQuery: string, configureWaggle: (
       action: configureWaggle,
     },
   ]
-}
-
-function createSessionTreeCommand(actions: CommandPaletteActionHandlers) {
-  if (!actions.openSessionTree) return null
-  return {
-    id: 'session-tree',
-    label: 'Open Session Tree',
-    description: 'Navigate the Pi session tree',
-    icon: <ListTree className="size-3.5" />,
-    action: actions.openSessionTree,
-  }
-}
-
-function createForkCommand(actions: CommandPaletteActionHandlers) {
-  if (!actions.forkToNewSession) return null
-  return {
-    id: 'session-fork-to-new',
-    label: 'Fork to new session...',
-    description: 'Select a previous user message and continue in a new session',
-    icon: <GitBranch className="size-3.5" />,
-    action: actions.forkToNewSession,
-  }
-}
-
-function createCloneCommand(actions: CommandPaletteActionHandlers) {
-  if (!actions.cloneToNewSession) return null
-  return {
-    id: 'session-clone-to-new',
-    label: 'Clone to new session',
-    description: 'Duplicate the current session position',
-    icon: <Copy className="size-3.5" />,
-    action: actions.cloneToNewSession,
-  }
-}
-
-function commandMatchesQuery(command: CommandPaletteItem, lowerQuery: string) {
-  return (
-    command.label.toLowerCase().includes(lowerQuery) ||
-    Boolean(command.description?.toLowerCase().includes(lowerQuery))
-  )
 }
 
 function skillMatchesQuery(skill: SkillDiscoveryItem, lowerQuery: string) {
@@ -194,10 +223,4 @@ function presetIcon(preset: WagglePreset) {
   if (name.includes('red team')) return <ShieldAlert className="size-3.5" />
   if (name.includes('qa') || name.includes('test')) return <Shield className="size-3.5" />
   return <User className="size-3.5" />
-}
-
-function appendOptionalCommand(commands: CommandPaletteItem[], command: CommandPaletteItem | null) {
-  if (command) {
-    commands.push(command)
-  }
 }

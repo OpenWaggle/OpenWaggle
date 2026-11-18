@@ -1,0 +1,121 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  recordSessionChangeRequestInputSchema,
+  sessionResourceCatalogPageRequestSchema,
+  sessionResourceCatalogViewSchema,
+  sessionResourceKindSchema,
+  sessionResourceNodePageRequestSchema,
+  sessionResourceRouteSelectionSchema,
+} from '@shared/schemas/session-resource'
+import type { SessionId } from './brand'
+
+export type SessionResourceKind = SchemaType<typeof sessionResourceKindSchema>
+
+export type SessionResourceActivity = 'provided' | 'read' | 'created' | 'updated'
+
+export type SessionResourceActor = 'user' | 'agent' | 'tool' | 'extension'
+
+export interface SessionResourceOccurrence {
+  readonly id: string
+  readonly nodeId: string | null
+  readonly branchId: string | null
+  readonly actor: SessionResourceActor
+  readonly activity: SessionResourceActivity
+  readonly label: string | null
+  /** Name of this particular image use; resource.title may belong to an earlier deduplicated use. */
+  readonly displayName?: string | null
+  /** Image position in its message, shared by generated and linked images. */
+  readonly displayOrder?: number | null
+  /** Original path or URL observed for this exact use, before resource-level deduplication. */
+  readonly locator: string | null
+  readonly createdAt: number
+}
+
+export interface SessionResource {
+  readonly id: string
+  readonly sessionId: SessionId
+  readonly canonicalKey: string
+  readonly kind: SessionResourceKind
+  readonly title: string
+  readonly mimeType: string | null
+  readonly locator: string | null
+  /** Whether OpenWaggle has an immutable managed copy in addition to the original locator. */
+  readonly managed: boolean
+  readonly available: boolean
+  readonly isSource: boolean
+  readonly isOutput: boolean
+  readonly occurrences: readonly SessionResourceOccurrence[]
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export interface SessionResourceList {
+  readonly resources: SessionResource[]
+  readonly backfillComplete: boolean
+}
+
+export type SessionResourceCatalogView = SchemaType<typeof sessionResourceCatalogViewSchema>
+
+export const SESSION_RESOURCE_CATALOG_STALE_MESSAGE =
+  'Session resource catalog changed; restart pagination.'
+
+export type SessionResourceRouteSelection = SchemaType<typeof sessionResourceRouteSelectionSchema>
+
+export type SessionResourceCatalogPageRequest = SchemaType<
+  typeof sessionResourceCatalogPageRequestSchema
+>
+
+export interface SessionResourceCatalogPage {
+  readonly resources: readonly SessionResource[]
+  /** Exact number of resources matching this view in the owning session. */
+  readonly total: number
+  readonly nextCursor: string | null
+  /** Monotonic session catalog identity; changes after resources, occurrences, or branch order. */
+  readonly orderRevision: string
+}
+
+export interface SessionResourceImageLocation {
+  readonly resource: SessionResource
+  readonly previous: SessionResource | null
+  readonly next: SessionResource | null
+  /** Zero-based position in the stable Session image ordering. */
+  readonly index: number
+  readonly total: number
+  readonly orderRevision: string
+}
+
+export type SessionResourceNodePageRequest = SchemaType<typeof sessionResourceNodePageRequestSchema>
+
+export interface SessionResourceBackfillStatus {
+  readonly backfillComplete: boolean
+  /** Whether this page durably advanced the historical projection cursor. */
+  readonly progressed: boolean
+}
+
+export interface SessionResourceContent {
+  readonly resourceId: string
+  readonly fileName: string
+  readonly mimeType: string
+  readonly url: string
+  readonly downloadUrl: string
+}
+
+/** Bounded image payload used only across the local GUI-to-Session-Host boundary. */
+export interface SessionResourceHostContent {
+  readonly resourceId: string
+  readonly fileName: string
+  readonly mimeType: string
+  readonly dataBase64: string
+}
+
+/** A bounded renderer preview. Full Session resource bytes never cross IPC. */
+export interface SessionResourceThumbnailPreview {
+  readonly resourceId: string
+  readonly fileName: string
+  readonly mimeType: string
+  readonly dataBase64: string
+}
+
+export type RecordSessionChangeRequestInput = SchemaType<
+  typeof recordSessionChangeRequestInputSchema
+>

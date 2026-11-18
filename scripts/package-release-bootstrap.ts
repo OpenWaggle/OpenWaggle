@@ -4,8 +4,6 @@ import { redactBootstrapDiagnostic } from './package-release-bootstrap-commands'
 import { executeBootstrap } from './package-release-bootstrap-execute'
 import { inspectBootstrapPreflight } from './package-release-bootstrap-preflight'
 import type {
-  BootstrapCommandRequest,
-  BootstrapCommandResult,
   BootstrapDependencies,
   PackageReleaseBootstrapInput,
   PackageReleaseBootstrapResult,
@@ -23,7 +21,9 @@ const USER_ARGUMENT_START_INDEX = 2
 
 function parseMode(args: readonly string[]) {
   if (args.some((arg) => /(?:auth|otp|token)/iu.test(arg))) {
-    throw new Error('Credential arguments are not supported; use authenticated npm and gh sessions.')
+    throw new Error(
+      'Credential arguments are not supported; use authenticated npm and gh sessions.',
+    )
   }
   if (args.length === 0) return 'preflight' as const
   if (args.length === 1 && args[0] === '--execute') return 'execute' as const
@@ -33,7 +33,7 @@ function parseMode(args: readonly string[]) {
 export async function runPackageReleaseBootstrap(
   input: PackageReleaseBootstrapInput,
   dependencies: BootstrapDependencies,
-): Promise<PackageReleaseBootstrapResult> {
+) {
   const mode = parseMode(input.args)
   const preflight = await inspectBootstrapPreflight(input.projectRoot, dependencies)
   const hasConflict = preflight.packages.some((item) => item.state === 'conflict')
@@ -47,10 +47,11 @@ export async function runPackageReleaseBootstrap(
   }
   const nextAction =
     mode === 'preflight' && ok
-      ? 'Run pnpm package-release:bootstrap --execute.'
+      ? 'Run bun run package-release:bootstrap --execute.'
       : 'Resolve every blocker and rerun the preflight.'
   dependencies.writeLine(`Package namespace bootstrap ${mode}: ${ok ? 'ready' : 'blocked'}.`)
-  return { ...preflight, mode, nextAction, ok }
+  const result: PackageReleaseBootstrapResult = { ...preflight, mode, nextAction, ok }
+  return result
 }
 
 function printBootstrapResult(result: PackageReleaseBootstrapResult) {

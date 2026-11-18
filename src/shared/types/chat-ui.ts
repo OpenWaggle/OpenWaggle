@@ -1,3 +1,8 @@
+import type { MessageScheduledTaskOrigin } from './agent'
+import type { SessionId } from './brand'
+import type { NestedToolCalls } from './tools'
+import type { WaggleInvocationMetadata } from './waggle'
+
 export type ChatMessageRole = 'system' | 'user' | 'assistant'
 
 export interface ChatTextPart {
@@ -19,6 +24,11 @@ export interface ChatToolCallPart {
   readonly state: string
   readonly output?: unknown
   readonly partialOutput?: unknown
+  /**
+   * Calls this tool made through Pi `ctx.executeTool()`, seen live while it ran, in a record with
+   * Pi's limits. They have no transcript entry of their own and render under this call's card.
+   */
+  readonly nestedCalls?: NestedToolCalls
 }
 
 export interface ChatToolResultPart {
@@ -26,9 +36,10 @@ export interface ChatToolResultPart {
   readonly toolCallId: string
   readonly content: unknown
   readonly state: string
-  readonly sourceMessageId?: string
   readonly error?: string
   readonly output?: unknown
+  /** Nested calls Pi recorded on the persisted tool result. */
+  readonly nestedCalls?: NestedToolCalls
 }
 
 interface ChatBinarySource {
@@ -38,6 +49,8 @@ interface ChatBinarySource {
 export interface ChatImagePart {
   readonly type: 'image'
   readonly source: ChatBinarySource
+  readonly name?: string
+  readonly attachmentIndex?: number
 }
 
 export interface ChatAudioPart {
@@ -68,6 +81,7 @@ export type UIMessagePart =
 export interface ChatCompactionSummaryMetadata {
   readonly summary: string
   readonly tokensBefore: number
+  readonly reason?: 'manual' | 'threshold' | 'overflow'
 }
 
 export interface ChatBranchSummaryMetadata {
@@ -75,8 +89,26 @@ export interface ChatBranchSummaryMetadata {
 }
 
 export interface UIMessageMetadata {
+  /** Persisted Session node identity used by branch-scoped resource provenance. */
+  readonly sessionNodeId?: string
+  readonly sessionNodeCreatedOrder?: number
+  readonly durableTextSha256?: string
+  readonly visualizationSessionId?: SessionId
   readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata
+  readonly waggleInvocation?: WaggleInvocationMetadata
+  /** The provider error this response ended with. */
+  readonly error?: string
+  readonly steerDelivery?: 'waiting-for-compaction' | 'sending'
+  /**
+   * A user row the Run published when it incorporated the message, before its node was persisted:
+   * its id is a stream id, not a Session node id.
+   */
+  readonly liveIncorporated?: true
+  /** A user message a Scheduled task run delivered (Host-recorded), shown as "Scheduled · name". */
+  readonly scheduledTask?: MessageScheduledTaskOrigin
+  /** The Host's Hive wake notice: a row the Host wrote, shown as "Hive · Worker updates arrived". */
+  readonly hiveWake?: true
 }
 
 export interface UIMessage {

@@ -1,0 +1,253 @@
+import {
+  AGENT_AUTHORIZATION_MODE_LABELS,
+  AGENT_AUTHORIZATION_MODES,
+  type AgentAuthorizationMode,
+  isAgentAuthorizationMode,
+} from '@shared/types/agent-authorization'
+import { useEffect, useState } from 'react'
+import {
+  invalidateProjectAuthorizationDefault,
+  usePreferencesStore,
+} from '@/features/settings/state'
+import { persistProjectPreference } from '@/features/settings/state/project-preference-writes'
+import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
+import { Button } from '@/shared/ui/Button'
+import { Select } from '@/shared/ui/Select'
+import { AuthorizationGrantsCard } from './AuthorizationGrantsCard'
+
+const logger = createRendererLogger('settings')
+
+/** Sentinel for the select option that clears a project override. */
+const INHERIT_VALUE = 'inherit'
+
+/** A finished read of a project's access mode, for the request it answered. */
+interface ProjectAuthorizationRead {
+  readonly request: string
+  readonly mode: AgentAuthorizationMode | null
+  readonly error: boolean
+}
+
+function useProjectAuthorizationDefault(projectPath: string | null) {
+  const [read, setRead] = useState<ProjectAuthorizationRead | null>(null)
+  const [retryRevision, setRetryRevision] = useState(0)
+  const readable = projectPath !== null && projectPath !== ''
+  const request = readable ? `${projectPath}\u0000${String(retryRevision)}` : null
+
+  useEffect(() => {
+    if (request === null || !projectPath) return
+
+    let cancelled = false
+    api
+      .getProjectPreferences(projectPath)
+      .then((preferences) => {
+        if (cancelled) return
+        setRead({ request, mode: preferences?.authorizationMode ?? null, error: false })
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        logger.warn('Failed to load project authorization preferences', {
+          error: String(err),
+          attempt: retryRevision + 1,
+        })
+        setRead({ request, mode: null, error: true })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectPath, request, retryRevision])
+
+  // Only the read for the project and attempt on screen counts; until it arrives it is loading.
+  const current = request !== null && read?.request === request ? read : null
+  return {
+    loading: request !== null && current === null,
+    mode: current?.mode ?? null,
+    setMode: (mode: AgentAuthorizationMode | null) =>
+      setRead((previous) => (previous === null ? previous : { ...previous, mode })),
+    error: current?.error ?? false,
+    retry: () => setRetryRevision((revision) => revision + 1),
+  }
+}
+
+function ModeOptions() {
+  return (
+    <>
+      {AGENT_AUTHORIZATION_MODES.map((mode) => (
+        <option key={mode} value={mode}>
+          {AGENT_AUTHORIZATION_MODE_LABELS[mode]}
+        </option>
+      ))}
+    </>
+  )
+}
+
+function ProjectAuthorizationControls({
+  projectPath,
+  authorization,
+  saving,
+  onChange,
+}: {
+  readonly projectPath: string | null
+  readonly authorization: ReturnType<typeof useProjectAuthorizationDefault>
+  readonly saving: boolean
+  readonly onChange: (mode: AgentAuthorizationMode | null) => void
+}) {
+  const description = !projectPath
+    ? 'Choose a project to give it its own access mode.'
+    : authorization.error
+      ? 'Could not load this project’s access mode.'
+      : authorization.loading
+        ? 'Loading this project’s access mode…'
+        : authorization.mode
+          ? 'This project overrides the default above.'
+          : 'This project uses the default above.'
+
+  return (
+    <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs font-medium text-text-primary">Selected project</span>
+        <span className="text-xs text-text-tertiary">{description}</span>
+      </div>
+      <Select
+        aria-label="Selected project access mode"
+        disabled={!projectPath || authorization.loading || authorization.error || saving}
+        onChange={(event) => {
+          const raw = event.currentTarget.value
+          if (raw === INHERIT_VALUE) {
+            onChange(null)
+            return
+          }
+          if (isAgentAuthorizationMode(raw)) onChange(raw)
+        }}
+        value={
+          authorization.error || authorization.loading ? '' : (authorization.mode ?? INHERIT_VALUE)
+        }
+      >
+        <option value="" disabled>
+          Unknown
+        </option>
+        <option value={INHERIT_VALUE}>Use default</option>
+        <ModeOptions />
+      </Select>
+    </div>
+  )
+}
+
+export function AgentAccessSection({
+  projectPath: selectedProjectPath,
+}: {
+  readonly projectPath?: string | null
+}) {
+  const settings = usePreferencesStore((s) => s.settings)
+  const setDefaultAuthorizationMode = usePreferencesStore((s) => s.setDefaultAuthorizationMode)
+  const projectPath = selectedProjectPath === undefined ? settings.projectPath : selectedProjectPath
+  const projectAuthorization = useProjectAuthorizationDefault(projectPath)
+  const [savingGlobal, setSavingGlobal] = useState(false)
+  const [savingProject, setSavingProject] = useState(false)
+  const [modeError, setModeError] = useState<string | null>(null)
+
+  function handleGlobalChange(mode: AgentAuthorizationMode) {
+    if (mode === settings.defaultAuthorizationMode || savingGlobal) return
+
+    setModeError(null)
+    setSavingGlobal(true)
+    setDefaultAuthorizationMode(mode)
+      .catch((err: unknown) => {
+        logger.warn('Failed to update global authorization mode', { error: String(err) })
+        setModeError('Could not change the default access mode. The previous mode still applies.')
+      })
+      .finally(() => {
+        setSavingGlobal(false)
+      })
+  }
+
+  /** `null` clears the override, so the project inherits the global default again. */
+  function handleProjectChange(mode: AgentAuthorizationMode | null) {
+    if (
+      !projectPath ||
+      projectAuthorization.loading ||
+      projectAuthorization.error ||
+      mode === projectAuthorization.mode ||
+      savingProject
+    ) {
+      return
+    }
+
+    setModeError(null)
+    setSavingProject(true)
+    // Routed through the tracked writer so a concurrent model removal waits for this write
+    // instead of being overtaken by its legacy migration.
+    persistProjectPreference(projectPath, { authorizationMode: mode })
+      .then(() => {
+        projectAuthorization.setMode(mode)
+        // The composer names the mode in force for inheriting sessions, so it has to be told the
+        // project default moved or it keeps naming the old one while runs use the new one.
+        invalidateProjectAuthorizationDefault(projectPath)
+      })
+      .catch((err: unknown) => {
+        logger.warn('Failed to update project authorization mode', { error: String(err) })
+        setModeError(
+          'Could not change this project’s access mode. The previous mode still applies.',
+        )
+      })
+      .finally(() => {
+        setSavingProject(false)
+      })
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-text-primary">Agent access</h3>
+
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
+        <div className="flex min-h-14 items-center justify-between gap-4 border-b border-border px-5 py-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-medium text-text-primary">Default access mode</span>
+            <span className="text-xs text-text-tertiary">
+              Used by any session and any project that has not set its own.
+            </span>
+          </div>
+          <Select
+            aria-label="Default access mode"
+            disabled={savingGlobal}
+            onChange={(event) => {
+              if (isAgentAuthorizationMode(event.currentTarget.value)) {
+                handleGlobalChange(event.currentTarget.value)
+              }
+            }}
+            value={settings.defaultAuthorizationMode}
+          >
+            <ModeOptions />
+          </Select>
+        </div>
+
+        <ProjectAuthorizationControls
+          projectPath={projectPath}
+          authorization={projectAuthorization}
+          saving={savingProject}
+          onChange={handleProjectChange}
+        />
+      </div>
+
+      {projectAuthorization.error ? (
+        <div role="alert" className="flex items-center gap-2 text-xs text-error-text">
+          <span>
+            Could not load this project’s access mode. Its current permissions are unknown.
+          </span>
+          <Button size="xs" variant="secondary" onClick={projectAuthorization.retry}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {modeError ? (
+        <p className="text-xs text-error-text" role="alert">
+          {modeError}
+        </p>
+      ) : null}
+
+      <AuthorizationGrantsCard projectPath={projectPath} />
+    </div>
+  )
+}

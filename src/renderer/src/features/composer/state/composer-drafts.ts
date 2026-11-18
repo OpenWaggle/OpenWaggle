@@ -4,11 +4,13 @@ import type {
   ComposerSet,
   ComposerState,
 } from './composer-store-types'
+import { abandonQueuedMessageEdits } from './queued-message-edit-abandon'
 
 export function normalizeScopedDraft(draft: ComposerScopedDraft) {
   return {
     input: draft.input,
     attachments: [...draft.attachments],
+    wagglePreset: draft.wagglePreset ?? null,
   }
 }
 
@@ -34,14 +36,25 @@ export function createScopedDraftActions(set: ComposerSet, get: ComposerGet) {
     ) {
       const state = get()
       if (state.activeDraftContextKey === contextKey) {
-        return normalizeScopedDraft({ input: state.input, attachments: state.attachments })
+        return normalizeScopedDraft({
+          input: state.input,
+          attachments: state.attachments,
+          wagglePreset: state.selectedWagglePreset,
+        })
       }
-      const currentDraft = currentDraftOverride ?? normalizeScopedDraft(state)
+      const currentDraft =
+        currentDraftOverride ??
+        normalizeScopedDraft({
+          input: state.input,
+          attachments: state.attachments,
+          wagglePreset: state.selectedWagglePreset,
+        })
       const scopedDrafts = state.activeDraftContextKey
         ? upsertScopedDraft(state.scopedDrafts, state.activeDraftContextKey, currentDraft)
         : state.scopedDrafts
       const nextDraft = normalizeScopedDraft(
-        scopedDrafts[contextKey] ?? fallbackDraft ?? { input: '', attachments: [] },
+        scopedDrafts[contextKey] ??
+          fallbackDraft ?? { input: '', attachments: [], wagglePreset: null },
       )
       set(buildDraftContextState(contextKey, scopedDrafts, nextDraft, state.promptHistory.length))
       return nextDraft
@@ -56,7 +69,14 @@ export function createScopedDraftActions(set: ComposerSet, get: ComposerGet) {
     },
 
     clearScopedDraft(contextKey: string) {
-      set((state) => ({ scopedDrafts: removeScopedDraft(state.scopedDrafts, contextKey) }))
+      set((state) => {
+        const editedPendingDrafts = { ...state.editedPendingDrafts }
+        delete editedPendingDrafts[contextKey]
+        return {
+          scopedDrafts: removeScopedDraft(state.scopedDrafts, contextKey),
+          editedPendingDrafts,
+        }
+      })
     },
 
     clearScopedDraftsForSession(sessionId: string) {
@@ -78,7 +98,7 @@ export function createScopedDraftActions(set: ComposerSet, get: ComposerGet) {
 }
 
 function isEmptyScopedDraft(draft: ComposerScopedDraft) {
-  return draft.input.trim().length === 0 && draft.attachments.length === 0
+  return draft.input.trim().length === 0 && draft.attachments.length === 0 && !draft.wagglePreset
 }
 
 function upsertScopedDraft(
@@ -107,9 +127,11 @@ function buildDraftContextState(
     input: nextDraft.input,
     cursorIndex: nextDraft.input.length,
     attachments: [...nextDraft.attachments],
+    selectedWagglePreset: nextDraft.wagglePreset ?? null,
     attachmentError: null,
     dismissedSlashToken: null,
     slashHighlightIndex: 0,
+    activeSlashCommand: null,
     historyIndex: promptHistoryLength,
     draftInput: '',
   }
@@ -120,11 +142,20 @@ function clearMatchingScopedDrafts(
   matchesContext: (contextKey: string) => boolean,
 ) {
   const nextDrafts = { ...state.scopedDrafts }
+  const editedPendingDrafts = { ...state.editedPendingDrafts }
+  // A queued-message edit in a cleared draft has nowhere left to go: end it and drop its stash.
+  const abandonedStashKeys = new Set(abandonQueuedMessageEdits(matchesContext))
   for (const contextKey of Object.keys(nextDrafts)) {
-    if (matchesContext(contextKey)) delete nextDrafts[contextKey]
+    if (matchesContext(contextKey) || abandonedStashKeys.has(contextKey)) {
+      delete nextDrafts[contextKey]
+    }
+  }
+  for (const contextKey of Object.keys(editedPendingDrafts)) {
+    if (matchesContext(contextKey)) delete editedPendingDrafts[contextKey]
   }
   return {
     scopedDrafts: nextDrafts,
+    editedPendingDrafts,
     ...(state.activeDraftContextKey && matchesContext(state.activeDraftContextKey)
       ? clearActiveDraftContextState()
       : {}),
@@ -145,6 +176,7 @@ function clearActiveDraftContextState() {
     input: '',
     cursorIndex: 0,
     attachments: [],
+    selectedWagglePreset: null,
     attachmentError: null,
   }
 }

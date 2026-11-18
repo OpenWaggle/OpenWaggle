@@ -6,49 +6,10 @@ export type {
   ExtensionDocsDiscoverResult,
   ExtensionDocsResolveTopicPayload,
   ExtensionDocsResolveTopicResult,
-} from './docs.js'
+} from './generated/docs.js'
+export type * from './generated/openwaggle.js'
 
-export interface ExtensionModelPrefs {
-  readonly selectedModel: string
-  readonly favoriteModels: readonly string[]
-  readonly enabledModels: readonly string[]
-  readonly thinkingLevel: string
-}
-
-export interface ExtensionProjectView {
-  readonly projectPath: string
-  readonly displayName: string | null
-  readonly active: boolean
-}
-
-export interface ExtensionSessionView {
-  readonly sessionId: string
-  readonly title: string
-  readonly projectPath: string | null
-}
-
-export interface ExtensionBranchView {
-  readonly branchId: string
-  readonly sessionId: string
-  readonly name: string
-  readonly main: boolean
-  readonly archived: boolean
-}
-
-export interface ExtensionStateReadResult {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE
-  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE
-  readonly scope: ExtensionInvokeScope
-  readonly activeProjectPath: string | null
-  readonly currentProject: ExtensionProjectView | null
-  readonly currentSession: ExtensionSessionView | null
-  readonly currentBranch: ExtensionBranchView | null
-  readonly recentProjects: readonly string[]
-  readonly modelPreferences: ExtensionModelPrefs
-}
-
+/** The result of reading one state selector; each `ExtensionState*ReadResult` narrows it. */
 export interface ExtensionSelectedStateReadResult<TValue> {
   readonly extensionId: string
   readonly contributionId: string
@@ -57,85 +18,4 @@ export interface ExtensionSelectedStateReadResult<TValue> {
   readonly scope: ExtensionInvokeScope
   readonly selector: ExtensionStateSelector
   readonly value: TValue
-}
-
-export type ExtensionStateCurrentProjectReadResult =
-  ExtensionSelectedStateReadResult<ExtensionProjectView | null>
-export type ExtensionStateCurrentSessionReadResult =
-  ExtensionSelectedStateReadResult<ExtensionSessionView | null>
-export type ExtensionStateCurrentBranchReadResult =
-  ExtensionSelectedStateReadResult<ExtensionBranchView | null>
-export type ExtensionStateRecentProjectsReadResult = ExtensionSelectedStateReadResult<
-  readonly string[]
->
-export type ExtensionStateModelPreferencesReadResult =
-  ExtensionSelectedStateReadResult<ExtensionModelPrefs>
-
-export interface ExtensionActionSelectProjectResult {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS
-  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT
-  readonly previousProjectPath: string | null
-  readonly projectPath: string
-  readonly recentProjects: readonly string[]
-}
-
-export interface ExtensionSettingsView {
-  readonly modelPreferences: ExtensionModelPrefs
-  readonly projectDisplayNames: Readonly<Record<string, string>>
-}
-
-export interface ExtensionModelPreferencesSettingsPatch {
-  readonly selectedModel?: string
-  readonly favoriteModels?: readonly string[]
-  readonly enabledModels?: readonly string[]
-  readonly thinkingLevel?: string
-}
-
-export type ExtensionSettingsUpdatePayload = ExtensionModelPreferencesSettingsPatch & {
-  readonly projectDisplayNames?: Readonly<Record<string, string>>
-}
-
-export interface ExtensionSettingsGetResult {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS
-  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS
-  readonly settings: ExtensionSettingsView
-}
-
-export interface ExtensionSettingsUpdateResult {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS
-  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS
-  readonly settings: ExtensionSettingsView
-}
-
-export type ExtensionSettingsSelectedValue =
-  | {
-      readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES
-      readonly value: ExtensionModelPrefs
-    }
-  | {
-      readonly key: typeof OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.PROJECT_DISPLAY_NAME
-      readonly projectPath: string
-      readonly value: string | null
-    }
-
-export interface ExtensionSettingsGetSettingResult {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS
-  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTING
-  readonly setting: ExtensionSettingsSelectedValue
-}
-
-export interface ExtensionSettingsUpdateSettingResult {
-  readonly extensionId: string
-  readonly contributionId: string
-  readonly capability: typeof OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS
-  readonly method: typeof OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTING
-  readonly setting: ExtensionSettingsSelectedValue
 }

@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn'
 import { describe, expect, it } from 'vitest'
 import { piHistoryToProjectedMessages } from '../pi-message-mapper'
 
@@ -46,6 +47,21 @@ describe('piHistoryToProjectedMessages', () => {
         details: { args: { path: 'README.md' }, duration: 12 },
       },
     })
+  })
+
+  // Regression: the tool-call shape took any non-null `arguments`, so a string became a tool call.
+  it('projects no tool call whose arguments are not an object', () => {
+    const result = piHistoryToProjectedMessages([
+      fromAny({
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Reading.' },
+          { type: 'toolCall', id: 'tool-1', name: 'read', arguments: '{"path":"README.md"}' },
+        ],
+      }),
+    ])
+
+    expect(result[0]?.parts.map((part) => part.type)).toEqual(['text'])
   })
 
   it('preserves Pi edit diff details when projecting tool results', () => {

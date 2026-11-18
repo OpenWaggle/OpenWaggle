@@ -46,83 +46,86 @@ afterEach(async () => {
 })
 
 describe('session branch state projection', () => {
-  it.each(
-    BRANCH_CONTRACT_FUTURE_MODES,
-  )('preserves %s branch future-mode state across Pi reprojection', async (futureMode) => {
-    const session = await createSession({
-      projectPath: `/tmp/project-${futureMode}-branch-contract`,
-      piSessionId: `pi-session-${futureMode}-branch-contract`,
-      piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
-    })
-    const sessionId = SessionId(String(session.id))
-    const mainBranchId = `${sessionId}:main`
-    const nodes: ProjectedSessionNodeInput[] = [
-      {
-        id: 'root-user',
-        parentId: null,
-        piEntryType: 'message',
-        kind: 'user_message',
-        role: 'user',
-        timestampMs: 10,
-        contentJson: JSON.stringify({
-          parts: [{ type: 'text', text: 'Start' }],
-          model: null,
-        }),
-        metadataJson: '{}',
-        pathDepth: 0,
-        createdOrder: 0,
-      },
-      {
-        id: 'assistant-1',
-        parentId: 'root-user',
-        piEntryType: 'message',
-        kind: 'assistant_message',
-        role: 'assistant',
-        timestampMs: 20,
-        contentJson: JSON.stringify({
-          parts: [{ type: 'text', text: 'Continue' }],
-          model: 'openai/gpt-5.4',
-        }),
-        metadataJson: '{}',
-        pathDepth: 1,
-        createdOrder: 1,
-      },
-    ]
+  it.each(BRANCH_CONTRACT_FUTURE_MODES)(
+    'preserves %s branch future-mode state across Pi reprojection',
+    async (futureMode) => {
+      const session = await createSession({
+        projectPath: `/tmp/project-${futureMode}-branch-contract`,
+        piSessionId: `pi-session-${futureMode}-branch-contract`,
+        piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
+      })
+      const sessionId = SessionId(String(session.id))
+      const mainBranchId = `${sessionId}:main`
+      const nodes: ProjectedSessionNodeInput[] = [
+        {
+          id: 'root-user',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'user_message',
+          role: 'user',
+          timestampMs: 10,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: 'Start' }],
+            model: null,
+          }),
+          metadataJson: '{}',
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+        {
+          id: 'assistant-1',
+          parentId: 'root-user',
+          piEntryType: 'message',
+          kind: 'assistant_message',
+          role: 'assistant',
+          timestampMs: 20,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: 'Continue' }],
+            model: 'openai/gpt-5.4',
+          }),
+          metadataJson: '{}',
+          pathDepth: 1,
+          createdOrder: 1,
+        },
+      ]
 
-    await persistSessionSnapshot({
-      sessionId,
-      piSessionId: `pi-session-${futureMode}-branch-contract`,
-      piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
-      activeNodeId: 'assistant-1',
-      nodes,
-    })
+      await persistSessionSnapshot({
+        sessionId,
+        piSessionId: `pi-session-${futureMode}-branch-contract`,
+        piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
+        activeNodeId: 'assistant-1',
+        nodes,
+      })
 
-    await runAppEffect(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        yield* sql`
+      await runAppEffect(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`
             UPDATE session_branch_state
             SET future_mode = ${futureMode},
                 ui_state_json = ${`{"mode":"${futureMode}"}`}
             WHERE branch_id = ${mainBranchId}
           `
-      }),
-    )
+        }),
+      )
 
-    await persistSessionSnapshot({
-      sessionId,
-      piSessionId: `pi-session-${futureMode}-branch-contract`,
-      piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
-      activeNodeId: 'assistant-1',
-      nodes,
-    })
+      await persistSessionSnapshot({
+        sessionId,
+        piSessionId: `pi-session-${futureMode}-branch-contract`,
+        piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
+        activeNodeId: 'assistant-1',
+        nodes,
+      })
 
-    const tree = await getSessionTree(sessionId)
-    const branchState = tree?.branchStates.find((state) => String(state.branchId) === mainBranchId)
+      const tree = await getSessionTree(sessionId)
+      const branchState = tree?.branchStates.find(
+        (state) => String(state.branchId) === mainBranchId,
+      )
 
-    expect(branchState?.futureMode).toBe(futureMode)
-    expect(branchState?.uiStateJson).toBe(`{"mode":"${futureMode}"}`)
-  })
+      expect(branchState?.futureMode).toBe(futureMode)
+      expect(branchState?.uiStateJson).toBe(`{"mode":"${futureMode}"}`)
+    },
+  )
 
   it('preserves interrupted run indicators across Pi reprojection', async () => {
     const session = await createSession({

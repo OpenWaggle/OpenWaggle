@@ -1,8 +1,8 @@
 import {
   OPENWAGGLE_EXTENSION_UI_CLASS_NAMES as CANONICAL_UI_CLASS_NAMES,
-  createExtensionBrokerSdk as createCanonicalExtensionBrokerSdk,
   createOpenWaggleExtensionTheme as createCanonicalOpenWaggleExtensionTheme,
 } from '@openwaggle/extension-sdk'
+import { createExtensionBrokerSdk as createCanonicalExtensionBrokerSdk } from '@openwaggle/extension-sdk/testing'
 import {
   createExtensionBrokerSdk,
   createOpenWaggleExtensionTheme,

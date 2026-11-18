@@ -5,7 +5,9 @@ import {
   clearStreamBuffer,
   getStreamBuffer,
   listStreamBuffers,
+  setWorktreeLaunchSnapshot,
   startStreamBuffer,
+  startStreamBufferFromAgentStart,
 } from '../stream-buffer'
 
 const SESSION_ID = SessionId('session-stream-buffer')
@@ -35,18 +37,86 @@ describe('stream-buffer', () => {
     startStreamBuffer(SESSION_ID, MODEL, 'classic')
 
     expect(listStreamBuffers()).toEqual([
-      { sessionId: SESSION_ID, model: MODEL, mode: 'classic', startedAt: STARTED_AT.getTime() },
+      {
+        activity: 'agent-run',
+        sessionId: SESSION_ID,
+        model: MODEL,
+        mode: 'classic',
+        startedAt: STARTED_AT.getTime(),
+        activityEvents: [],
+      },
     ])
     expect(getStreamBuffer(SESSION_ID)).toEqual({
+      activity: 'agent-run',
       sessionId: SESSION_ID,
       model: MODEL,
       mode: 'classic',
       startedAt: STARTED_AT.getTime(),
       parts: [],
+      activityEvents: [],
     })
 
     clearStreamBuffer(SESSION_ID)
     expect(getStreamBuffer(SESSION_ID)).toBeNull()
+  })
+
+  it('creates remote Waggle buffers before model attribution and enriches them later', () => {
+    startStreamBufferFromAgentStart(SESSION_ID, {
+      type: 'agent_start',
+      runId: `waggle-${SESSION_ID}`,
+      timestamp: 100,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      model: '',
+      mode: 'waggle',
+      startedAt: 100,
+    })
+
+    startStreamBufferFromAgentStart(SESSION_ID, {
+      type: 'agent_start',
+      runId: `waggle-${SESSION_ID}`,
+      timestamp: 101,
+      model: MODEL,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)).toMatchObject({
+      model: MODEL,
+      mode: 'waggle',
+      startedAt: 100,
+    })
+  })
+
+  it('preserves a pre-agent Waggle mode when the durable Run id has no Waggle prefix', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'waggle')
+    startStreamBufferFromAgentStart(SESSION_ID, {
+      type: 'agent_start',
+      runId: 'run-from-session-host',
+      timestamp: 100,
+      model: MODEL,
+    })
+
+    expect(getStreamBuffer(SESSION_ID)?.mode).toBe('waggle')
+  })
+
+  it('keeps worktree launch progress in the reconnectable run snapshot', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+
+    setWorktreeLaunchSnapshot(SESSION_ID, {
+      status: 'running',
+      stage: 'checking-out-files',
+      startedAt: STARTED_AT.getTime(),
+      updatedAt: STARTED_AT.getTime(),
+      details: ['Creating ow/session-session-stream-buffer from main'],
+    })
+
+    expect(getStreamBuffer(SESSION_ID)?.worktreeLaunch).toEqual({
+      status: 'running',
+      stage: 'checking-out-files',
+      startedAt: STARTED_AT.getTime(),
+      updatedAt: STARTED_AT.getTime(),
+      details: ['Creating ow/session-session-stream-buffer from main'],
+    })
   })
 
   it('accumulates assistant text, reasoning, tool calls, and tool results from transport events', () => {
@@ -116,6 +186,33 @@ describe('stream-buffer', () => {
         },
       ],
     })
+  })
+
+  it('accounts for long text streams without serializing the accumulated payload per delta', () => {
+    startStreamBuffer(SESSION_ID, MODEL, 'classic')
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
+
+    for (let index = 0; index < 10_000; index += 1) {
+      applyEventToStreamBuffer(SESSION_ID, {
+        type: 'message_update',
+        messageId: 'assistant-message-1',
+        role: 'assistant',
+        timestamp: index,
+        assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'ab' },
+      })
+    }
+
+    const serializedObjects = stringifySpy.mock.calls.filter(
+      ([value]) => typeof value === 'object' && value !== null,
+    )
+    const serializedStrings = stringifySpy.mock.calls
+      .map(([value]) => value)
+      .filter((value): value is string => typeof value === 'string')
+    expect(serializedObjects).toHaveLength(1)
+    expect(Math.max(...serializedStrings.map((value) => value.length))).toBeLessThanOrEqual(3)
+    expect(getStreamBuffer(SESSION_ID)?.parts).toEqual([
+      { type: 'text', text: 'ab'.repeat(10_000), contentIndex: 0 },
+    ])
   })
 
   it('resets buffered parts when a new assistant message starts', () => {

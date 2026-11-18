@@ -74,32 +74,32 @@ export function packageFiles(extensionId: string) {
   ]
 }
 
-function approvedUserApproval(proposalHash: string): ExtensionPackageWorkflowUserApproval {
+function approvedUserApproval(proposalHash: string) {
   return {
     approved: true,
     approvedProposalHash: proposalHash,
     approvedBy: 'User',
     approvedAt: 1000,
-  }
+  } satisfies ExtensionPackageWorkflowUserApproval
 }
 
 function globalConfirmation(input: {
   readonly extensionId: string
   readonly proposalHash: string
-}): ExtensionPackageWorkflowGlobalConfirmation {
+}) {
   return {
     confirmed: true,
     confirmedExtensionId: input.extensionId,
     confirmedProposalHash: input.proposalHash,
     risk: EXTENSION_PACKAGE_WORKFLOW.GLOBAL_CONFIRMATION_RISK,
-  }
+  } satisfies ExtensionPackageWorkflowGlobalConfirmation
 }
 
 export function approvedWriteInput(
   input: Omit<ExtensionPackageWriteWorkflowInput, 'userApproval' | 'globalConfirmation'> & {
     readonly includeGlobalConfirmation?: boolean
   },
-): ExtensionPackageWriteWorkflowInput {
+) {
   const proposalHash = getExtensionPackageWriteProposalHash(input)
   return {
     ...input,
@@ -114,7 +114,7 @@ export function approvedRemoveInput(
   input: Omit<ExtensionPackageRemoveWorkflowInput, 'userApproval' | 'globalConfirmation'> & {
     readonly includeGlobalConfirmation?: boolean
   },
-): ExtensionPackageRemoveWorkflowInput {
+) {
   const proposalHash = getExtensionPackageRemoveProposalHash(input)
   return {
     ...input,

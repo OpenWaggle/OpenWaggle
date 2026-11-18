@@ -1,0 +1,141 @@
+import { matchBy } from '@diegogbrisa/ts-match'
+import type { FollowUpId, RunId } from '@shared/types/brand'
+import type {
+  PauseFollowUpQueue,
+  ReorderFollowUps,
+  ResumeFollowUpQueue,
+  WithdrawFollowUp,
+} from './follow-up-queue'
+import { mutateFollowUpQueue } from './follow-up-queue'
+import type { SessionControlSessionState } from './message-aggregate'
+
+const STATE_REVISION_INCREMENT = 1
+
+export type SessionControlQueueMutation =
+  | WithdrawFollowUp
+  | ReorderFollowUps
+  | PauseFollowUpQueue
+  | ResumeFollowUpQueue
+
+type QueueMutationOperation = 'queue-withdraw' | 'queue-reorder' | 'queue-pause' | 'queue-resume'
+
+export type ApplyQueueMutationResult =
+  | {
+      readonly accepted: true
+      readonly state: SessionControlSessionState
+      readonly outcome: {
+        readonly operation: QueueMutationOperation
+        readonly effect: 'queue-updated'
+        readonly sessionId: SessionControlSessionState['sessionId']
+        readonly queueState: 'running' | 'paused'
+        readonly queueRevision: number
+        readonly remainingFollowUpIds: readonly string[]
+        readonly withdrawnFollowUpIds?: readonly string[]
+        readonly stateRevision: number
+      }
+    }
+  | {
+      readonly accepted: true
+      readonly state: SessionControlSessionState
+      readonly outcome: {
+        readonly operation: 'queue-resume'
+        readonly effect: 'started-run'
+        readonly sessionId: SessionControlSessionState['sessionId']
+        readonly runId: RunId
+        readonly followUpId: FollowUpId
+        readonly queueRevision: number
+        readonly stateRevision: number
+      }
+    }
+  | {
+      readonly accepted: false
+      readonly code:
+        | 'queue_revision_changed'
+        | 'follow_up_already_exists'
+        | 'queue_capacity_reached'
+        | 'queue_byte_capacity_reached'
+        | 'follow_up_not_found'
+        | 'queue_order_mismatch'
+        | 'queue_already_paused'
+        | 'queue_already_running'
+      readonly currentRevision: number
+      readonly state: SessionControlSessionState
+    }
+
+export interface ApplyQueueMutationInput {
+  readonly state: SessionControlSessionState
+  readonly mutation: SessionControlQueueMutation
+  readonly nextRunId: RunId
+}
+
+function operationForMutation(mutation: SessionControlQueueMutation) {
+  return matchBy(mutation, 'type')
+    .with('withdraw', () => 'queue-withdraw')
+    .with('reorder', () => 'queue-reorder')
+    .with('pause', () => 'queue-pause')
+    .with('resume', () => 'queue-resume')
+    .exhaustive()
+}
+
+export function applyQueueMutation(input: ApplyQueueMutationInput) {
+  const queueResult = mutateFollowUpQueue(input.state.followUpQueue, input.mutation)
+  if (!queueResult.accepted) {
+    const result: ApplyQueueMutationResult = { ...queueResult, state: input.state }
+    return result
+  }
+
+  const nextRevision = input.state.revision + STATE_REVISION_INCREMENT
+  const nextFollowUp = queueResult.queue.items[0]
+  if (
+    input.mutation.type === 'resume' &&
+    input.state.run.state === 'idle' &&
+    nextFollowUp?.deliveryState === 'pending' &&
+    !nextFollowUp.editHold
+  ) {
+    const queueRevision = queueResult.queue.revision + STATE_REVISION_INCREMENT
+    const result: ApplyQueueMutationResult = {
+      accepted: true,
+      state: {
+        ...input.state,
+        revision: nextRevision,
+        run: { state: 'starting', runId: input.nextRunId, intent: nextFollowUp.intent },
+        followUpQueue: {
+          ...queueResult.queue,
+          revision: queueRevision,
+          items: queueResult.queue.items.slice(1),
+        },
+      },
+      outcome: {
+        operation: 'queue-resume',
+        effect: 'started-run',
+        sessionId: input.state.sessionId,
+        runId: input.nextRunId,
+        followUpId: nextFollowUp.id,
+        queueRevision,
+        stateRevision: nextRevision,
+      },
+    }
+    return result
+  }
+  const result: ApplyQueueMutationResult = {
+    accepted: true,
+    state: {
+      ...input.state,
+      revision: nextRevision,
+      followUpQueue: queueResult.queue,
+    },
+    outcome: {
+      operation: operationForMutation(input.mutation),
+      effect: 'queue-updated',
+      sessionId: input.state.sessionId,
+      queueState: queueResult.queue.state,
+      queueRevision: queueResult.queue.revision,
+      remainingFollowUpIds: queueResult.queue.items.map((item) => item.id),
+      ...(input.mutation.type === 'withdraw'
+        ? { withdrawnFollowUpIds: [...input.mutation.followUpIds] }
+        : {}),
+      stateRevision: nextRevision,
+    },
+  }
+  return result
+}

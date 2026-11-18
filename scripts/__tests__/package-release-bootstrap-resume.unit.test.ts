@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { runPackageReleaseBootstrap, type BootstrapCommandResult } from '../package-release-bootstrap'
+import {
+  runPackageReleaseBootstrap,
+  type BootstrapCommandResult,
+} from '../package-release-bootstrap'
 import {
   compatibleTrustConfiguration,
   compatibleRuleset,
@@ -49,7 +52,10 @@ describe('package release namespace bootstrap resume behavior', () => {
       ],
     ])
     for (const packageName of PACKAGE_NAMES) {
-      overrides.set(`npm view ${packageName} --json`, successful(JSON.stringify({ name: packageName })))
+      overrides.set(
+        `npm view ${packageName} --json`,
+        successful(JSON.stringify({ name: packageName })),
+      )
       overrides.set(
         `npm view ${packageName}@0.0.0-bootstrap.0 --json`,
         successful(
@@ -105,7 +111,7 @@ describe('package release namespace bootstrap resume behavior', () => {
   it('reports sanitized resume state and cleans temp files after a partial publish failure', async () => {
     const firstPackage = PACKAGE_NAMES[0]
     const overrides = new Map<string, BootstrapCommandResult>([
-      ['pnpm check', successful()],
+      ['bun run check', successful()],
       [
         `npm trust github ${firstPackage} --file package-release.yml --repository OpenWaggle/OpenWaggle --environment npm --allow-publish --yes`,
         successful(),
@@ -170,16 +176,17 @@ describe('package release namespace bootstrap resume behavior', () => {
     expect(result.packages[0]?.state).toBe('complete')
     expect(result.packages[1]?.nextAction).toBe('publish bootstrap placeholder')
     expect(result.nextAction).toBe(
-      'Rerun pnpm package-release:bootstrap to inspect and resume partial state.',
+      'Rerun bun run package-release:bootstrap to inspect and resume partial state.',
     )
     expect(removedDirectories).toEqual([
       '/tmp/openwaggle-bootstrap-test',
       '/tmp/openwaggle-bootstrap-test',
     ])
-    expect(requests.filter((request) => request.mutates).map((request) => [
-      request.command,
-      ...request.args,
-    ].join(' '))).toEqual([
+    expect(
+      requests
+        .filter((request) => request.mutates)
+        .map((request) => [request.command, ...request.args].join(' ')),
+    ).toEqual([
       'npm publish --tag bootstrap --access public --ignore-scripts',
       `npm access set mfa=publish ${firstPackage}`,
       `npm deprecate ${firstPackage}@0.0.0-bootstrap.0 Namespace bootstrap placeholder; use a released version.`,
@@ -263,17 +270,13 @@ describe('package release namespace bootstrap resume behavior', () => {
   })
 
   it('rejects token-bearing environments without accepting or printing token values', async () => {
-    const { dependencies, requests } = createDependencies(
-      new Map(),
-      new Map(),
-      {
-        GH_TOKEN: 'github_secret_do_not_print',
-        NODE_AUTH_TOKEN: 'node_auth_secret_do_not_print',
-        NPM_CONFIG__AUTHTOKEN: 'configuration_token_do_not_print',
-        NPM_CONFIG_OTP: '123456',
-        NPM_TOKEN: 'npm_secret_do_not_print_this_value',
-      },
-    )
+    const { dependencies, requests } = createDependencies(new Map(), new Map(), {
+      GH_TOKEN: 'github_secret_do_not_print',
+      NODE_AUTH_TOKEN: 'node_auth_secret_do_not_print',
+      NPM_CONFIG__AUTHTOKEN: 'configuration_token_do_not_print',
+      NPM_CONFIG_OTP: '123456',
+      NPM_TOKEN: 'npm_secret_do_not_print_this_value',
+    })
 
     const result = await runPackageReleaseBootstrap(
       { args: ['--execute'], projectRoot: '/workspace/OpenWaggle' },

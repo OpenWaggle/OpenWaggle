@@ -2,6 +2,7 @@ import { MessageId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionNode } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { getVisibleForkTargets } from '../session-fork-targets'
+import { required } from '@/test-utils/required'
 
 const SESSION_ID = SessionId('session-1')
 
@@ -24,7 +25,7 @@ function node(id: string, role: 'user' | 'assistant', text: string) {
     },
     contentJson: '{}',
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
 function workspace(nodes: readonly SessionNode[]) {
@@ -62,5 +63,20 @@ describe('getVisibleForkTargets', () => {
       { entryId: SessionNodeId('user-2'), text: 'Follow-up' },
       { entryId: SessionNodeId('user-1'), text: 'Initial request' },
     ])
+  })
+
+  it('never offers the Host’s Hive wake notice, which Pi cannot fork at', () => {
+    const wake = node('wake-1', 'user', 'Worker updates arrived')
+    const targets = getVisibleForkTargets(
+      workspace([
+        node('user-1', 'user', 'Initial request'),
+        {
+          ...wake,
+          message: { ...required(wake.message), metadata: { hiveWake: true } },
+        },
+      ]),
+    )
+
+    expect(targets).toEqual([{ entryId: SessionNodeId('user-1'), text: 'Initial request' }])
   })
 })

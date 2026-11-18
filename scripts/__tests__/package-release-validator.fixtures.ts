@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { RELEASE_PLEASE_CONTRACT } from '../release-please-contract'
+
 const packageDirectories = [
   'packages/extension-sdk',
   'packages/extension-react',
@@ -23,6 +25,11 @@ export const validWorkflow = readFileSync(
 
 export const validCiWorkflow = readFileSync(
   path.join(process.cwd(), '.github/workflows/ci.yml'),
+  'utf8',
+)
+
+const validPerformanceWorkflow = readFileSync(
+  path.join(process.cwd(), '.github/workflows/session-performance.yml'),
   'utf8',
 )
 
@@ -51,6 +58,16 @@ const validLocatorSource = readFileSync(
   'utf8',
 )
 
+const validContextSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-context.ts'),
+  'utf8',
+)
+
+export const validProvenanceSource = readFileSync(
+  path.join(process.cwd(), 'scripts/package-release-provenance.ts'),
+  'utf8',
+)
+
 async function writeFile(filePath: string, contents: string) {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(filePath, contents, 'utf8')
@@ -66,6 +83,7 @@ export async function writeMinimalPackageReleaseProject(
   version = '0.1.0',
   manifestState: 'released' | 'bootstrap' = 'released',
   ciWorkflowText = validCiWorkflow,
+  provenanceSource = validProvenanceSource,
 ) {
   await writeJson(path.join(projectRoot, 'release-please-config.json'), {
     'release-type': 'node',
@@ -75,6 +93,7 @@ export async function writeMinimalPackageReleaseProject(
     'include-component-in-tag': true,
     'include-v-in-tag': true,
     'always-link-local': true,
+    'group-pull-request-title-pattern': 'chore(${branch}): release OpenWaggle packages',
     packages: {
       'packages/extension-sdk': {
         'package-name': '@openwaggle/extension-sdk',
@@ -111,18 +130,45 @@ export async function writeMinimalPackageReleaseProject(
         },
   )
   await writeJson(path.join(projectRoot, 'package.json'), {
+    devDependencies: {
+      'release-please': RELEASE_PLEASE_CONTRACT.bundledRuntimeVersion,
+    },
     scripts: {
-      check: 'pnpm typecheck && pnpm package:smoke',
+      'build:package-dependencies':
+        'bun run --filter @openwaggle/waggle-core build && bun run --filter @openwaggle/extension-sdk build',
+      'build:packages':
+        'bun run build:package-dependencies && bun run --filter @openwaggle/pi-waggle build && bun run --filter @openwaggle/extension-react build',
+      check: 'bun scripts/check/run.ts check',
+      lint: 'bun scripts/check/run.ts --only format,lint,repository-standards',
+      'lint:fix': 'bun run build:package-dependencies && bun scripts/lint.ts --fix',
       'package-release:publish': 'node scripts/package-release-publish.ts',
     },
   })
   await writeFile(path.join(projectRoot, '.github/workflows/package-release.yml'), workflowText)
   await writeFile(path.join(projectRoot, '.github/workflows/ci.yml'), ciWorkflowText)
+  await writeFile(
+    path.join(projectRoot, '.github/workflows/session-performance.yml'),
+    validPerformanceWorkflow,
+  )
   await writeFile(path.join(projectRoot, 'scripts/package-release-promote.ts'), validPromoteSource)
-  await writeFile(path.join(projectRoot, 'scripts/package-release-promotion.ts'), validPromotionSource)
-  await writeFile(path.join(projectRoot, 'scripts/package-release-artifacts.ts'), validArtifactsSource)
-  await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-contract.ts'), validArtifactContractSource)
-  await writeFile(path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'), validLocatorSource)
+  await writeFile(
+    path.join(projectRoot, 'scripts/package-release-promotion.ts'),
+    validPromotionSource,
+  )
+  await writeFile(
+    path.join(projectRoot, 'scripts/package-release-artifacts.ts'),
+    validArtifactsSource,
+  )
+  await writeFile(
+    path.join(projectRoot, 'scripts/package-release-artifact-contract.ts'),
+    validArtifactContractSource,
+  )
+  await writeFile(
+    path.join(projectRoot, 'scripts/package-release-artifact-locator.ts'),
+    validLocatorSource,
+  )
+  await writeFile(path.join(projectRoot, 'scripts/package-release-context.ts'), validContextSource)
+  await writeFile(path.join(projectRoot, 'scripts/package-release-provenance.ts'), provenanceSource)
 
   for (const [index, packageDirectory] of packageDirectories.entries()) {
     const dependencies =

@@ -1,0 +1,275 @@
+import { randomUUID } from 'node:crypto'
+import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import {
+  SESSION_QUERY_CONTRACT_VERSION,
+  SESSION_QUERY_DISCOVERY_LIMIT,
+  SESSION_QUERY_TRANSCRIPT_LIMIT,
+} from '@shared/types/session-query'
+import {
+  buildSessionsToolCollaborationPayload,
+  isSessionsToolCollaborationAction,
+} from './sessions-tool-collaboration-payload'
+import {
+  buildSessionsToolControlPayload,
+  isSessionsToolControlAction,
+} from './sessions-tool-control-payload'
+import {
+  buildSessionsToolExportOperationPayload,
+  isSessionsToolExportOperation,
+} from './sessions-tool-export-operation-payload'
+import { buildSessionsToolExportPayload } from './sessions-tool-export-payload'
+import {
+  buildSessionsToolLifecyclePayload,
+  isSessionsToolLifecycleAction,
+} from './sessions-tool-lifecycle-payload'
+import {
+  buildSessionsToolOrganizationPayload,
+  isSessionsToolOrganization,
+} from './sessions-tool-organization-payload'
+import type { SessionsToolParameters } from './sessions-tool-parameters'
+import {
+  buildSessionsToolQueuePayload,
+  isSessionsToolQueueAction,
+} from './sessions-tool-queue-payload'
+import {
+  buildSessionsToolSchedulePayload,
+  isSessionsToolScheduleAction,
+} from './sessions-tool-schedule-payload'
+import { buildSessionsToolWaitPayload } from './sessions-tool-wait-payload'
+
+const DEFAULT_LIST_LIMIT = 50
+const DEFAULT_SEARCH_LIMIT = 20
+
+export interface SessionsToolSource {
+  readonly sessionId: string
+  readonly runId: string
+  readonly workingDirectory?: string
+  readonly projectPath?: string
+  /** The Pi tool call, which keys a retried Scheduled task create. */
+  readonly toolCallId?: string
+}
+
+type CatalogScopedInput = Extract<
+  SessionsToolParameters,
+  { action: 'list' | 'search' | 'delegations_list' | 'delegations_conflicts' }
+>
+
+/**
+ * `current` (the default) is the caller's project with every worktree of it: the Host maps the
+ * working directory to its project. `project` names another project explicitly, which the Host
+ * authorizes as a target; the caller's own project is the same as `current`, so a Worker, whose
+ * reach is its Hive, is not refused it.
+ */
+function catalogFilter(input: CatalogScopedInput, source: SessionsToolSource) {
+  const catalogScope = input.catalogScope ?? 'current'
+  if (catalogScope === 'all') return {}
+  if (
+    catalogScope === 'project' &&
+    input.projectPath !== undefined &&
+    input.projectPath !== source.projectPath
+  ) {
+    return { projectPath: input.projectPath }
+  }
+  return { workingPath: source.workingDirectory ?? source.projectPath ?? process.cwd() }
+}
+
+function catalogPayload(
+  input: Extract<SessionsToolParameters, { action: 'list' | 'search' }>,
+  source: SessionsToolSource,
+) {
+  const filter = catalogFilter(input, source)
+  const query =
+    input.action === 'list'
+      ? {
+          operation: 'list' as const,
+          limit: input.limit ?? DEFAULT_LIST_LIMIT,
+          ...(input.cursor ? { cursor: input.cursor } : {}),
+          ...filter,
+          ...(input.parentSessionId ? { parentSessionId: input.parentSessionId } : {}),
+          // Like search, list leaves archived Sessions out unless asked for only those.
+          archived: input.archived ?? false,
+        }
+      : {
+          operation: 'search' as const,
+          query: input.query,
+          limit: input.limit ?? DEFAULT_SEARCH_LIMIT,
+          ...(input.cursor ? { cursor: input.cursor } : {}),
+          ...(input.fullTranscript ? { searchScope: 'full-transcript' as const } : {}),
+          ...(input.mode ? { mode: input.mode } : {}),
+          ...(input.includeArchived ? { includeArchived: true } : {}),
+          ...(input.requireFresh ? { requireFresh: true } : {}),
+          ...(input.waitTimeoutMs === undefined ? {} : { waitTimeoutMs: input.waitTimeoutMs }),
+          ...filter,
+        }
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-query-v2',
+    request: { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: randomUUID(), query },
+  }
+  return payload
+}
+
+function readPayload(
+  input: Extract<
+    SessionsToolParameters,
+    { action: 'read' | 'turns' | 'status' | 'queue_list' | 'requests_list' }
+  >,
+) {
+  const query =
+    input.action === 'queue_list'
+      ? {
+          operation: 'queue-list' as const,
+          sessionId: input.sessionId,
+          ...(input.includeBodies ? { includeBodies: true } : {}),
+        }
+      : input.action === 'requests_list'
+        ? { operation: 'requests-list' as const, sessionId: input.sessionId }
+        : input.action === 'turns'
+          ? {
+              operation: 'turns' as const,
+              sessionId: input.sessionId,
+              limit: input.limit ?? DEFAULT_LIST_LIMIT,
+              ...(input.cursor ? { cursor: input.cursor } : {}),
+            }
+          : { operation: input.action, sessionId: input.sessionId }
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-query-v2',
+    request: { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: randomUUID(), query },
+  }
+  return payload
+}
+
+function itemsPayload(input: Extract<SessionsToolParameters, { action: 'items' }>) {
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-query-v2',
+    request: {
+      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+      requestId: randomUUID(),
+      query: {
+        operation: 'items',
+        sessionId: input.sessionId,
+        ...(input.runId ? { runId: input.runId } : {}),
+        branchScope: input.branchScope ?? 'active-branch',
+        ...(input.branchId ? { branchId: input.branchId } : {}),
+        limit:
+          input.limit ?? Math.min(SESSION_QUERY_DISCOVERY_LIMIT, SESSION_QUERY_TRANSCRIPT_LIMIT),
+        ...(input.afterCreatedOrder === undefined
+          ? {}
+          : { afterCreatedOrder: input.afterCreatedOrder }),
+        ...(input.throughCreatedOrder === undefined
+          ? {}
+          : { throughCreatedOrder: input.throughCreatedOrder }),
+        ...(input.snapshotHeadNodeId ? { snapshotHeadNodeId: input.snapshotHeadNodeId } : {}),
+      },
+    },
+  }
+  return payload
+}
+
+type DelegationListInput = Extract<SessionsToolParameters, { action: 'delegations_list' }>
+type DelegationConflictsInput = Extract<SessionsToolParameters, { action: 'delegations_conflicts' }>
+
+function delegationListQuery(input: DelegationListInput, source: SessionsToolSource) {
+  return {
+    operation: 'delegations-list' as const,
+    limit: input.limit ?? DEFAULT_LIST_LIMIT,
+    ...(input.cursor ? { cursor: input.cursor } : {}),
+    ...catalogFilter(input, source),
+    ...(input.parentSessionId ? { parentSessionId: input.parentSessionId } : {}),
+    ...(input.workerSessionId ? { workerSessionId: input.workerSessionId } : {}),
+    ...(input.states ? { states: [...new Set(input.states)] } : {}),
+  }
+}
+
+function delegationConflictsQuery(input: DelegationConflictsInput, source: SessionsToolSource) {
+  return {
+    operation: 'delegations-conflicts' as const,
+    limit: input.limit ?? DEFAULT_LIST_LIMIT,
+    ...(input.cursor ? { cursor: input.cursor } : {}),
+    ...catalogFilter(input, source),
+    ...(input.parentSessionId ? { parentSessionId: input.parentSessionId } : {}),
+    ...(input.workerSessionId ? { workerSessionId: input.workerSessionId } : {}),
+    ...(input.delegationId ? { delegationId: input.delegationId } : {}),
+    ...(input.kinds ? { kinds: [...new Set(input.kinds)] } : {}),
+    ...(input.statuses ? { statuses: [...new Set(input.statuses)] } : {}),
+  }
+}
+
+function delegationQueryPayload(
+  input: Extract<
+    SessionsToolParameters,
+    { action: 'delegations_list' | 'delegations_read' | 'delegations_conflicts' }
+  >,
+  source: SessionsToolSource,
+) {
+  const query =
+    input.action === 'delegations_read'
+      ? {
+          operation: 'delegations-read' as const,
+          delegationId: input.delegationId,
+          ...(input.limit ? { limit: input.limit } : {}),
+          ...(input.cursor ? { cursor: input.cursor } : {}),
+        }
+      : input.action === 'delegations_conflicts'
+        ? delegationConflictsQuery(input, source)
+        : delegationListQuery(input, source)
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-query-v2',
+    request: { contractVersion: SESSION_QUERY_CONTRACT_VERSION, requestId: randomUUID(), query },
+  }
+  return payload
+}
+
+function isDelegationQueryAction(
+  input: SessionsToolParameters,
+): input is Extract<
+  SessionsToolParameters,
+  { action: 'delegations_list' | 'delegations_read' | 'delegations_conflicts' }
+> {
+  return (
+    input.action === 'delegations_list' ||
+    input.action === 'delegations_read' ||
+    input.action === 'delegations_conflicts'
+  )
+}
+
+function basicReadPayload(input: SessionsToolParameters) {
+  if (
+    input.action !== 'read' &&
+    input.action !== 'turns' &&
+    input.action !== 'status' &&
+    input.action !== 'queue_list' &&
+    input.action !== 'requests_list'
+  ) {
+    return undefined
+  }
+  return readPayload(input)
+}
+
+export function buildSessionsToolPayload(
+  input: SessionsToolParameters,
+  source: SessionsToolSource,
+) {
+  if (isSessionsToolLifecycleAction(input)) {
+    return buildSessionsToolLifecyclePayload(input, source)
+  }
+  if (input.action === 'list' || input.action === 'search') return catalogPayload(input, source)
+  const basicRead = basicReadPayload(input)
+  if (basicRead) return basicRead
+  if (input.action === 'items') return itemsPayload(input)
+  if (input.action === 'export') return buildSessionsToolExportPayload(input)
+  if (isSessionsToolExportOperation(input)) {
+    return buildSessionsToolExportOperationPayload(input, source)
+  }
+  if (isSessionsToolOrganization(input)) return buildSessionsToolOrganizationPayload(input)
+  if (isDelegationQueryAction(input)) {
+    return delegationQueryPayload(input, source)
+  }
+  if (input.action === 'wait') return buildSessionsToolWaitPayload(input)
+  if (isSessionsToolQueueAction(input)) return buildSessionsToolQueuePayload(input)
+  if (isSessionsToolCollaborationAction(input)) {
+    return buildSessionsToolCollaborationPayload(input, source)
+  }
+  if (isSessionsToolControlAction(input)) return buildSessionsToolControlPayload(input)
+  if (isSessionsToolScheduleAction(input)) return buildSessionsToolSchedulePayload(input, source)
+  throw new Error(`Unsupported Hive tool action: ${input.action}`)
+}

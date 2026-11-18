@@ -1,10 +1,14 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { SessionWorkspace } from '@shared/types/session'
-import { messagePartToUIParts } from '@/features/chat/lib/useAgentChat.utils'
+import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
+import {
+  messageMetadataToUI,
+  messagePartToUIParts,
+} from '@/features/chat/lib/chat-message-conversion'
 
 interface ResolveTranscriptMessagesInput {
   readonly activeSessionId: SessionId | null
+  readonly activeSessionUpdatedAt?: number
   readonly activeWorkspace: SessionWorkspace | null
   readonly messages: UIMessage[]
   readonly draftBranchSourceNodeId?: SessionNodeId | null
@@ -14,41 +18,75 @@ function workspaceBelongsToSession(workspace: SessionWorkspace, sessionId: Sessi
   return String(workspace.tree.session.id) === String(sessionId)
 }
 
+/*
+ * Derived messages are cached by the identity of what they were derived from.
+ *
+ * Every render rebuilt every message with a fresh object, so each streamed token re-rendered every
+ * mounted message bubble (about 1,000 re-rendered components per commit with 40 rows, 2,600 with
+ * 140). A message that did not change now keeps its identity and its bubble bails out.
+ */
+const liveMessageWithNode = new WeakMap<UIMessage, { nodeId: string; message: UIMessage }>()
+const persistedMessage = new WeakMap<object, { nodeId: string; message: UIMessage }>()
+
+function withSessionNodeId(message: UIMessage, nodeId: string) {
+  const cached = liveMessageWithNode.get(message)
+  if (cached?.nodeId === nodeId) return cached.message
+  const next = { ...message, metadata: { ...message.metadata, sessionNodeId: nodeId } }
+  liveMessageWithNode.set(message, { nodeId, message: next })
+  return next
+}
+
+function fromWorkspaceNode(
+  message: NonNullable<SessionWorkspace['transcriptPath'][number]['node']['message']>,
+  nodeId: string,
+) {
+  const cached = persistedMessage.get(message)
+  if (cached?.nodeId === nodeId) return cached.message
+  const next: UIMessage = {
+    id: String(message.id),
+    role: message.role,
+    parts: message.parts.flatMap(messagePartToUIParts),
+    createdAt: new Date(message.createdAt),
+    // The same metadata the active branch's rows keep, so a row reads alike on every branch.
+    metadata: { sessionNodeId: nodeId, ...messageMetadataToUI(message.metadata) },
+  }
+  persistedMessage.set(message, { nodeId, message: next })
+  return next
+}
+
+/**
+ * A reconciled user row keeps its optimistic id for React identity (see
+ * `reconcileSnapshotUserMessages`), so its persisted identity is the node recorded in its metadata.
+ */
+function persistedNodeId(message: UIMessage) {
+  const nodeId = message.metadata?.sessionNodeId
+  return nodeId ?? null
+}
+
+function indexMessagesByPersistedIdentity(messages: readonly UIMessage[]) {
+  const messagesById = new Map<string, UIMessage>()
+  for (const message of messages) {
+    const nodeId = persistedNodeId(message)
+    if (nodeId !== null && !messagesById.has(nodeId)) messagesById.set(nodeId, message)
+  }
+  for (const message of messages) messagesById.set(message.id, message)
+  return messagesById
+}
+
 function workspacePathToMessages(workspace: SessionWorkspace, messages: UIMessage[]) {
-  const messagesById = new Map(messages.map((message) => [message.id, message]))
+  const messagesById = indexMessagesByPersistedIdentity(messages)
   const workspaceMessages: UIMessage[] = []
 
   for (const entry of workspace.transcriptPath) {
     const message = entry.node.message
-    if (!message) {
-      continue
-    }
-
-    const messageId = String(message.id)
-    const existingMessage = messagesById.get(messageId)
-    if (existingMessage) {
-      workspaceMessages.push(existingMessage)
-      continue
-    }
-
-    workspaceMessages.push({
-      id: messageId,
-      role: message.role,
-      parts: message.parts.flatMap(messagePartToUIParts),
-      createdAt: new Date(message.createdAt),
-      ...(message.metadata?.branchSummary || message.metadata?.compactionSummary
-        ? {
-            metadata: {
-              ...(message.metadata.branchSummary
-                ? { branchSummary: message.metadata.branchSummary }
-                : {}),
-              ...(message.metadata.compactionSummary
-                ? { compactionSummary: message.metadata.compactionSummary }
-                : {}),
-            },
-          }
-        : {}),
-    })
+    if (!message) continue
+    const nodeId = String(entry.node.id)
+    const existingMessage = messagesById.get(String(message.id)) ?? messagesById.get(nodeId)
+    workspaceMessages.push(
+      existingMessage
+        ? withSessionNodeId(existingMessage, nodeId)
+        : fromWorkspaceNode(message, nodeId),
+    )
   }
 
   return workspaceMessages
@@ -64,6 +102,22 @@ function isViewingActiveBranchHead(workspace: SessionWorkspace) {
     activeHeadNodeId !== undefined &&
     activeHeadNodeId !== null &&
     String(workspace.activeNodeId) === String(activeHeadNodeId)
+  )
+}
+
+function isViewingSessionHead(workspace: SessionWorkspace) {
+  if (!isViewingActiveBranchHead(workspace)) {
+    return false
+  }
+
+  const sessionBranchId =
+    workspace.tree.session.lastActiveBranchId ??
+    workspace.tree.branches.find((branch) => branch.isMain)?.id
+
+  return (
+    workspace.activeBranchId !== null &&
+    sessionBranchId !== undefined &&
+    String(workspace.activeBranchId) === String(sessionBranchId)
   )
 }
 
@@ -92,24 +146,50 @@ function isViewingDraftBranchSource(
   )
 }
 
+const persistedIdsByTree = new WeakMap<
+  SessionWorkspace['tree'],
+  { readonly messageIds: ReadonlySet<string>; readonly nodeIds: ReadonlySet<string> }
+>()
+
+/** Every persisted message and node id of a tree; built once per loaded tree, not per delta. */
+function persistedIds(tree: SessionWorkspace['tree']) {
+  const cached = persistedIdsByTree.get(tree)
+  if (cached) return cached
+  const ids = {
+    messageIds: new Set(
+      // A message's id is its node's id; the tree carries no messages (B5).
+      tree.nodes.flatMap((node) => (node.hasMessage ? [String(node.id)] : [])),
+    ),
+    nodeIds: new Set(tree.nodes.map((node) => String(node.id))),
+  }
+  persistedIdsByTree.set(tree, ids)
+  return ids
+}
+
 function unsavedLiveTail(
   workspace: SessionWorkspace,
   messages: UIMessage[],
   lastWorkspaceMessageIndex: number,
 ) {
-  const persistedMessageIds = new Set(
-    workspace.tree.nodes.flatMap((node) => (node.message ? [String(node.message.id)] : [])),
+  const { messageIds: persistedMessageIds, nodeIds: persistedNodeIds } = persistedIds(
+    workspace.tree,
   )
 
-  return messages
-    .slice(lastWorkspaceMessageIndex + 1)
-    .filter((message) => !persistedMessageIds.has(message.id))
+  // A persisted message from another branch is not a live tail, including a reconciled user row
+  // whose optimistic id hides its node: showing it put the abandoned branch into a retry draft.
+  return messages.slice(lastWorkspaceMessageIndex + 1).filter((message) => {
+    const nodeId = persistedNodeId(message)
+    return (
+      !persistedMessageIds.has(message.id) && (nodeId === null || !persistedNodeIds.has(nodeId))
+    )
+  })
 }
 
 function appendLiveTailWhenViewingHeadOrDraftSource(
   workspace: SessionWorkspace,
   workspaceMessages: UIMessage[],
   messages: UIMessage[],
+  activeSessionUpdatedAt?: number,
   draftBranchSourceNodeId?: SessionNodeId | null,
 ) {
   const viewingHead = isViewingActiveBranchHead(workspace)
@@ -119,7 +199,23 @@ function appendLiveTailWhenViewingHeadOrDraftSource(
   }
 
   const lastWorkspaceMessageIndex = findLastWorkspaceMessageIndex(messages, workspaceMessages)
-  if (lastWorkspaceMessageIndex < 0 || lastWorkspaceMessageIndex === messages.length - 1) {
+  if (lastWorkspaceMessageIndex < 0) {
+    // Session detail can refresh before the workspace after completion. Only treat the disjoint
+    // detail as a replacement tail when freshness proves this is the session head, not the head
+    // of another selected branch.
+    const workspaceIsStale =
+      activeSessionUpdatedAt !== undefined &&
+      activeSessionUpdatedAt > workspace.tree.session.updatedAt
+    if (!isViewingSessionHead(workspace) || !workspaceIsStale) {
+      return workspaceMessages
+    }
+
+    const replacementTail = unsavedLiveTail(workspace, messages, lastWorkspaceMessageIndex)
+    return replacementTail.length > 0
+      ? [...workspaceMessages, ...replacementTail]
+      : workspaceMessages
+  }
+  if (lastWorkspaceMessageIndex === messages.length - 1) {
     return workspaceMessages
   }
 
@@ -129,17 +225,16 @@ function appendLiveTailWhenViewingHeadOrDraftSource(
 
 export function resolveTranscriptMessages({
   activeSessionId,
+  activeSessionUpdatedAt,
   activeWorkspace,
   messages,
   draftBranchSourceNodeId,
-}: ResolveTranscriptMessagesInput): UIMessage[] {
+}: ResolveTranscriptMessagesInput) {
   if (!activeSessionId || !activeWorkspace) {
     return messages
   }
 
-  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) {
-    return messages
-  }
+  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) return messages
 
   const workspaceMessages = workspacePathToMessages(activeWorkspace, messages)
   if (workspaceMessages.length === 0) {
@@ -150,6 +245,27 @@ export function resolveTranscriptMessages({
     activeWorkspace,
     workspaceMessages,
     messages,
+    activeSessionUpdatedAt,
     draftBranchSourceNodeId,
   )
+}
+
+/**
+ * Whether the Session's newer detail replaced the transcript the loaded workspace shows: it holds
+ * messages, none of them in the workspace's tree, as when a created Session whose Pi file was
+ * deleted started a new transcript. The workspace then shows the old path with the new messages
+ * after it, until it is loaded again.
+ */
+export function detailReplacedWorkspaceTranscript(input: {
+  readonly activeSessionId: SessionId | null
+  readonly activeSession: SessionDetail | null
+  readonly activeWorkspace: SessionWorkspace | null
+}) {
+  const { activeSessionId, activeSession, activeWorkspace } = input
+  if (!activeSessionId || !activeSession || !activeWorkspace) return false
+  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) return false
+  if (activeSession.updatedAt <= activeWorkspace.tree.session.updatedAt) return false
+  if (activeSession.messages.length === 0 || !isViewingSessionHead(activeWorkspace)) return false
+  const { messageIds } = persistedIds(activeWorkspace.tree)
+  return activeSession.messages.every((message) => !messageIds.has(String(message.id)))
 }

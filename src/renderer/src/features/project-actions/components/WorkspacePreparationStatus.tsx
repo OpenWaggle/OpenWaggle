@@ -1,0 +1,247 @@
+import type { ActionCatalog } from '@shared/types/action-definitions'
+import type { ActionManagementScope } from '@shared/types/action-management'
+import type {
+  PreparationExecution,
+  PreparationOperation,
+  WorkspacePreparation,
+} from '@shared/types/workspace-preparation'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
+import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
+import { useNativeActions } from '../hooks/useNativeActions'
+import { useWorkspacePreparation } from '../hooks/useWorkspacePreparation'
+import { useActionPanelStore } from '../state/action-panel-store'
+
+type Mutation = ReturnType<typeof useWorkspacePreparation>['mutation']
+type Change = Exclude<PreparationOperation, { type: 'preparation' }>
+const SETUP_BUTTON_LABELS: Record<PreparationExecution['status'], string> = {
+  idle: 'Run setup',
+  running: 'Setting up…',
+  succeeded: 'Run setup',
+  failed: 'Retry setup',
+  skipped: 'Run setup',
+  'review-required': 'Run setup',
+}
+export function WorkspacePreparationStatus({ scope }: { readonly scope: ActionManagementScope }) {
+  const catalog = useNativeActions(scope)
+  const preparation = useWorkspacePreparation(scope)
+  const state = preparation.data
+  const configured = hasPreparation(catalog.data)
+  const error = preparation.mutation.error ?? preparation.error
+  if (!state && !configured && !preparation.error) return null
+  return (
+    <section
+      aria-label="Workspace preparation status"
+      className="space-y-3 rounded-lg border border-border p-3"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-xs font-medium text-text-secondary">Workspace preparation</h3>
+        <span className="text-xs text-text-tertiary">
+          {state?.snapshot.profile.name ?? 'Choose profile'}
+        </span>
+      </div>
+      {state ? (
+        <PreparationSnapshotDetails
+          projectPath={scope.projectPath}
+          multipleProfiles={(catalog.data?.profiles.length ?? 0) > 1}
+          state={state}
+          mutation={preparation.mutation}
+        />
+      ) : (
+        <WorkspaceProfilePicker
+          profiles={catalog.data?.profiles ?? []}
+          mutation={preparation.mutation}
+        />
+      )}
+      {state?.catalogError ? (
+        <p role="alert" className="text-xs text-error-text">
+          Current project configuration: {state.catalogError} The saved workspace snapshot is still
+          in use.
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-xs text-error-text">
+          {error.message}
+        </p>
+      ) : null}
+    </section>
+  )
+}
+function WorkspaceProfilePicker({
+  profiles,
+  mutation,
+}: {
+  readonly profiles: ActionCatalog['profiles']
+  readonly mutation: Mutation
+}) {
+  const id = useId()
+  const [profileId, setProfileId] = useState('default')
+  return (
+    <div className="space-y-3">
+      <label htmlFor={id} className="block text-xs text-text-tertiary">
+        Profile for this workspace
+      </label>
+      <select
+        id={id}
+        className="min-h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm"
+        value={profileId}
+        onChange={(event) => setProfileId(event.target.value)}
+      >
+        {profiles.map(({ definition }) => (
+          <option key={definition.id} value={definition.id}>
+            {definition.name}
+          </option>
+        ))}
+      </select>
+      <Button
+        disabled={mutation.isPending}
+        onClick={() =>
+          mutation.mutate({ type: 'select-preparation', profileId, expectedRevision: 0 })
+        }
+      >
+        Use this profile
+      </Button>
+      <p className="text-xs leading-5 text-text-tertiary">
+        New worktrees run setup before their first turn. Existing checkouts run it only when you
+        choose Run setup.
+      </p>
+    </div>
+  )
+}
+function PreparationSnapshotDetails({
+  projectPath,
+  multipleProfiles,
+  state,
+  mutation,
+}: {
+  readonly projectPath: string
+  /** Profiles are named only once a project has more than one (ADR 0038). */
+  readonly multipleProfiles: boolean
+  readonly state: WorkspacePreparation
+  readonly mutation: Mutation
+}) {
+  const openedReviewRevision = useRef<number | null>(null)
+  const reviewable = state.snapshot.definitions.find(
+    (entry) => entry.definition.phase === 'setup' && entry.review !== 'enabled',
+  )
+  const blocked = state.setup.status === 'failed' || state.setup.status === 'review-required'
+  // Only a change that still needs review opens the panel by itself; after "Keep it off" the
+  // entry is disabled, not required, so declining never reopens it.
+  const automaticReview =
+    reviewable?.review === 'required' && state.setup.status === 'review-required'
+  const busy = mutation.isPending || state.setup.status === 'running'
+  const attemptId = state.setup.attemptId
+  function apply(operation: Change) {
+    mutation.mutate(operation)
+  }
+  function openReview(automatic: boolean) {
+    if (!reviewable) return
+    const definitionId = reviewable.definition.id
+    useActionPanelStore.getState().openPanel({
+      kind: 'review',
+      projectPath,
+      review: {
+        entry: reviewable,
+        profileName: state.snapshot.profile.name,
+        showProfile: multipleProfiles,
+        automatic,
+        decide: (enabled) =>
+          mutation.mutateAsync({
+            type: 'review-snapshot',
+            definitionId,
+            enabled,
+            expectedRevision: state.revision,
+          }),
+      },
+    })
+  }
+  // A blocked worktree opens the review by itself, once per revision (ADR 0038).
+  const openAutomaticReview = useEffectEvent(() => openReview(true))
+  useEffect(() => {
+    if (!automaticReview || openedReviewRevision.current === state.revision) return
+    openedReviewRevision.current = state.revision
+    openAutomaticReview()
+  }, [automaticReview, state.revision])
+  return (
+    <>
+      <p className="text-xs text-text-tertiary">Setup: {state.setup.status.replaceAll('-', ' ')}</p>
+      <PreparationOutput execution={state.setup} />
+      <div className="flex flex-wrap gap-2">
+        {state.setup.status === 'running' && attemptId ? (
+          <Button
+            disabled={mutation.isPending}
+            onClick={() => apply({ type: 'stop-setup', attemptId })}
+          >
+            Stop setup
+          </Button>
+        ) : null}
+        {reviewable ? (
+          <Button disabled={busy} onClick={() => openReview(false)}>
+            Check the setup
+          </Button>
+        ) : null}
+        <Button
+          disabled={busy || Boolean(reviewable)}
+          onClick={() =>
+            apply({ type: 'run-preparation', phase: 'setup', expectedRevision: state.revision })
+          }
+        >
+          {SETUP_BUTTON_LABELS[state.setup.status]}
+        </Button>
+        {blocked ? (
+          <Button
+            disabled={busy}
+            onClick={() =>
+              apply({ type: 'skip-preparation', phase: 'setup', expectedRevision: state.revision })
+            }
+          >
+            Continue anyway
+          </Button>
+        ) : null}
+      </div>
+      {state.updateAvailable ? (
+        <details className="text-xs text-text-tertiary">
+          <summary className="cursor-pointer">A newer profile version is available</summary>
+          <p className="my-2 leading-5">
+            Adopting it replaces this workspace’s setup and cleanup snapshot and clears its prepared
+            environment. Setup will need to complete again.
+          </p>
+          <Button
+            disabled={busy}
+            onClick={() => apply({ type: 'adopt-preparation', expectedRevision: state.revision })}
+          >
+            Adopt updated profile
+          </Button>
+        </details>
+      ) : null}
+    </>
+  )
+}
+function PreparationOutput({ execution }: { readonly execution: PreparationExecution }) {
+  return (
+    <>
+      {execution.error ? (
+        <p role="alert" className="text-xs leading-5 text-error-text">
+          {execution.error}
+        </p>
+      ) : null}
+      {execution.output ? (
+        <details>
+          <summary className="cursor-pointer text-xs text-text-tertiary">
+            Setup output{execution.truncated ? ' · older output trimmed' : ''}
+          </summary>
+          <PlainTextBlock
+            reason="terminal"
+            className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap bg-bg p-2 text-xs"
+          >
+            {execution.output}
+          </PlainTextBlock>
+        </details>
+      ) : null}
+    </>
+  )
+}
+
+function hasPreparation(catalog: ActionCatalog | undefined) {
+  return Boolean(catalog?.preparation.length) || (catalog?.profiles.length ?? 0) > 1
+}

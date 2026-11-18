@@ -7,9 +7,11 @@ import type {
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import type { useNavigate } from '@tanstack/react-router'
+import { isSessionModelActionable } from '@/features/chat/lib'
 import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
 import { useComposerStore } from '@/features/composer/state'
 import { api } from '@/shared/lib/ipc'
+import { sessionOperationFailureMessage } from '@/shared/lib/session-operation-failure'
 import { errorMessage } from './sidebar-action-utils'
 
 type Navigate = ReturnType<typeof useNavigate>
@@ -25,7 +27,8 @@ interface SidebarBranchActionDeps {
     sessionId: SessionId | null,
     selection?: SessionWorkspaceSelection,
   ) => Promise<void>
-  readonly selectedModel: SupportedModelId
+  /** The global settings default — the fallback for a historical session without a profile. */
+  readonly defaultModel: SupportedModelId
   readonly sessions: readonly SessionSummary[]
   readonly showToast: (message: string) => void
 }
@@ -64,35 +67,48 @@ function refreshBranchWorkspace(
   })
 }
 
-function switchSessionBranch(
+async function switchSessionBranch(
   deps: SidebarBranchActionDeps,
   sessionId: string,
   branch: SessionBranch,
 ) {
   const targetSessionId = SessionId(sessionId)
-  const { headNodeId, targetBranchId } = navigateToSessionBranch(deps, sessionId, branch)
+  try {
+    const detail =
+      useChatStore.getState().sessionById.get(targetSessionId) ??
+      (await api.getSessionDetail(targetSessionId))
+    const targetModel = detail?.executionModel ?? deps.defaultModel
+    if (!isSessionModelActionable(detail, targetModel)) {
+      deps.showToast('Select a model before switching branches.')
+      return
+    }
+    const { headNodeId, targetBranchId } = navigateToSessionBranch(deps, sessionId, branch)
 
-  useBranchSummaryStore.getState().clearPrompt()
-  if (deps.activeSessionId) deps.clearDraftBranchForSession(deps.activeSessionId)
-  deps.clearDraftBranchForSession(targetSessionId)
-  useChatStore.getState().setActiveSession(targetSessionId)
+    useBranchSummaryStore.getState().clearPrompt()
+    if (deps.activeSessionId) deps.clearDraftBranchForSession(deps.activeSessionId)
+    deps.clearDraftBranchForSession(targetSessionId)
+    useChatStore.getState().setActiveSession(targetSessionId)
 
-  if (!headNodeId) return
+    if (!headNodeId) return
 
-  const targetNodeId = SessionNodeId(headNodeId)
-  void api
-    .navigateSessionTree(targetSessionId, deps.selectedModel, targetNodeId, { summarize: false })
-    .catch((error: unknown) => {
-      deps.showToast(`Failed to switch session branch: ${errorMessage(error)}`)
-    })
-    .finally(() => refreshBranchWorkspace(deps, targetSessionId, targetBranchId, targetNodeId))
+    const targetNodeId = SessionNodeId(headNodeId)
+    try {
+      await api.navigateSessionTree(targetSessionId, targetModel, targetNodeId, {
+        summarize: false,
+      })
+    } finally {
+      refreshBranchWorkspace(deps, targetSessionId, targetBranchId, targetNodeId)
+    }
+  } catch (error) {
+    deps.showToast(sessionOperationFailureMessage('Failed to switch session branch', error))
+  }
 }
 
 function navigateToMainBranchAfterArchive(deps: SidebarBranchActionDeps, sessionId: string) {
   const session = deps.sessions.find((item) => String(item.id) === sessionId)
   const mainBranch = session?.branches?.find((branch) => branch.isMain)
   if (mainBranch) {
-    switchSessionBranch(deps, sessionId, mainBranch)
+    void switchSessionBranch(deps, sessionId, mainBranch)
     return
   }
 
@@ -101,7 +117,7 @@ function navigateToMainBranchAfterArchive(deps: SidebarBranchActionDeps, session
 
 export function createSidebarBranchActions(deps: SidebarBranchActionDeps) {
   return {
-    archive(sessionId: string, branch: SessionBranch) {
+    archive: (sessionId: string, branch: SessionBranch) => {
       const targetSessionId = SessionId(sessionId)
       if (branch.isMain) {
         deps.archiveSession(targetSessionId)
@@ -121,7 +137,7 @@ export function createSidebarBranchActions(deps: SidebarBranchActionDeps) {
           deps.showToast(`Failed to archive branch: ${errorMessage(error)}`)
         })
     },
-    rename(sessionId: string, branch: SessionBranch, name: string) {
+    rename: (sessionId: string, branch: SessionBranch, name: string) => {
       const targetSessionId = SessionId(sessionId)
       void api
         .renameSessionBranch(targetSessionId, branch.id, name)
@@ -130,10 +146,10 @@ export function createSidebarBranchActions(deps: SidebarBranchActionDeps) {
           deps.showToast(`Failed to rename branch: ${errorMessage(error)}`)
         })
     },
-    select(sessionId: string, branch: SessionBranch) {
-      switchSessionBranch(deps, sessionId, branch)
+    select: (sessionId: string, branch: SessionBranch) => {
+      void switchSessionBranch(deps, sessionId, branch)
     },
-    toggle(sessionId: SessionId, collapsed: boolean) {
+    toggle: (sessionId: SessionId, collapsed: boolean) => {
       void api
         .updateSessionTreeUiState(sessionId, { branchesSidebarCollapsed: collapsed })
         .then(() => deps.refreshAfterSessionMutation(sessionId))

@@ -46,24 +46,23 @@ export function makeBuildLog(input: {
 export function buildFailedDiagnostic(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly exitCode: number | null
-}): ExtensionDiagnostic {
-  return {
+}) {
+  const diagnostic: ExtensionDiagnostic = {
     severity: 'error',
     code: 'build-failed',
     message: `Build command failed with exit code ${input.exitCode === null ? 'unknown' : String(input.exitCode)}.`,
     path: input.extensionPackage.packagePath,
   }
+  return diagnostic
 }
 
-export function buildArtifactsInvalidDiagnostic(
-  extensionPackage: DiscoveredExtensionPackage,
-): ExtensionDiagnostic {
+export function buildArtifactsInvalidDiagnostic(extensionPackage: DiscoveredExtensionPackage) {
   return {
     severity: 'error',
     code: 'build-artifacts-invalid',
     message: OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_ARTIFACT_VALIDATION_ERROR,
     path: extensionPackage.packagePath,
-  }
+  } satisfies ExtensionDiagnostic
 }
 
 export function buildOutputsAreValid(

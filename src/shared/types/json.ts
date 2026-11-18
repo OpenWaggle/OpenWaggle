@@ -1,1 +1,1 @@
-export type { JsonArray, JsonObject, JsonPrimitive, JsonValue } from '@openwaggle/extension-sdk'
+export type { JsonObject, JsonValue } from '@openwaggle/extension-sdk'

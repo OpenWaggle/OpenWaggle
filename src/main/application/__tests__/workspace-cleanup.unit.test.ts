@@ -1,0 +1,176 @@
+import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
+import { fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
+import { describe, expect, it, vi } from 'vitest'
+import type { WorkspaceGenerationCheck } from '../../domain/workspace-generation'
+import { ActionRunService } from '../../ports/action-run-service'
+import { WorkspacePreparationService } from '../../ports/workspace-preparation-service'
+import { prepareWorkspaceRemoval } from '../workspace-cleanup'
+
+const warn = vi.hoisted(() => vi.fn())
+vi.mock('../../logger', () => ({
+  createLogger: () => ({ error: vi.fn(), warn, info: vi.fn(), debug: vi.fn() }),
+}))
+
+const workspace = {
+  workspaceId: 'workspace',
+  projectPath: '/repo',
+  workspacePath: '/repo/worktree',
+}
+const recorded = { device: '16777233', inode: '408642463', birthtime: '1792486351612449418' }
+const replaced: WorkspaceGenerationCheck = {
+  status: 'replaced',
+  workspacePath: '/repo/worktree',
+  recorded,
+  observed: { device: '16777230', inode: '500', birthtime: '1792563460000000000' },
+}
+type SnapshotDefinition = WorkspacePreparation['snapshot']['definitions'][number]
+function definition(phase: 'setup' | 'cleanup') {
+  return fromPartial<SnapshotDefinition>({
+    definition: { id: phase, profileId: 'default', phase },
+    review: 'enabled',
+  })
+}
+function fixture(
+  status: WorkspacePreparation['cleanup']['status'],
+  generation: WorkspaceGenerationCheck = { status: 'current' },
+  definitions: readonly SnapshotDefinition[] = [definition('setup'), definition('cleanup')],
+) {
+  const state = fromPartial<WorkspacePreparation>({
+    workspaceId: workspace.workspaceId,
+    revision: 4,
+    snapshot: { definitions },
+    cleanup: { status, error: 'cleanup failed', output: 'retained output' },
+  })
+  const order: string[] = []
+  const stop = vi.fn(() =>
+    Effect.sync(() => {
+      order.push('stop')
+    }),
+  )
+  const run = vi.fn(() =>
+    Effect.sync(() => {
+      order.push('cleanup')
+      return state
+    }),
+  )
+  const skip = vi.fn(() => Effect.succeed(state))
+  const inspectWorkspaceGeneration = vi.fn(() => Effect.succeed(generation))
+  const perform = (options: { retryFailed: boolean; skipCleanup?: boolean }) =>
+    Effect.runPromise(
+      prepareWorkspaceRemoval(workspace, options).pipe(
+        Effect.provideService(ActionRunService, fromPartial({ stopWorkspaceRuns: stop })),
+        Effect.provideService(
+          WorkspacePreparationService,
+          fromPartial({
+            read: () => Effect.succeed(state),
+            inspectWorkspaceGeneration,
+            run,
+            skip,
+          }),
+        ),
+      ),
+    )
+  return { perform, run, skip, inspectWorkspaceGeneration, order }
+}
+describe('workspace cleanup removal boundary', () => {
+  it('stops owned executions before cleanup and retains the workspace on failure', async () => {
+    const test = fixture('failed')
+    expect(await test.perform({ retryFailed: true })).toMatchObject({
+      ok: false,
+      code: 'cleanup-failed',
+      preparation: { workspaceId: 'workspace' },
+    })
+    expect(test.order).toEqual(['stop', 'cleanup'])
+    expect(test.skip).not.toHaveBeenCalled()
+  })
+  it('does not automatically retry failed cleanup during Host recovery', async () => {
+    const test = fixture('failed')
+    expect(await test.perform({ retryFailed: false })).toMatchObject({ code: 'cleanup-failed' })
+    expect(test.run).not.toHaveBeenCalled()
+  })
+  it.each(['review-required', 'idle'] as const)(
+    'records an explicit Delete anyway for %s cleanup and permits removal without running it',
+    async (status) => {
+      const test = fixture(status)
+      expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
+      expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+      expect(test.run).not.toHaveBeenCalled()
+      expect(test.order).toEqual(['stop'])
+    },
+  )
+  it('permits removal after successful cleanup', async () => {
+    const test = fixture('succeeded')
+    expect(await test.perform({ retryFailed: true })).toBeNull()
+  })
+  it.each(['failed', 'succeeded'] as const)(
+    'never runs retained %s cleanup in a replacement checkout at the same path',
+    async (status) => {
+      const test = fixture(status, replaced)
+      expect(await test.perform({ retryFailed: true })).toMatchObject({
+        ok: false,
+        code: 'cleanup-failed',
+        message: expect.stringContaining(
+          'no longer matches the checkout that captured its preparation: /repo/worktree is a different folder from the one that was prepared. Its pinned cleanup cannot run here. Choose Delete anyway to remove this checkout without running that cleanup. Prepared: inode 408642463, created 2026-10-20 08:52:31 UTC; found: inode 500, created 2026-10-21 06:17:40 UTC.',
+        ),
+      })
+      expect(warn).toHaveBeenCalledWith(
+        'Worktree cleanup refused: it failed its saved-preparation check',
+        { workspaceId: workspace.workspaceId, ...replaced },
+      )
+      expect(test.run).not.toHaveBeenCalled()
+      expect(test.skip).not.toHaveBeenCalled()
+      expect(await test.perform({ retryFailed: true, skipCleanup: true })).toBeNull()
+      expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+    },
+  )
+  it.each([
+    ['no definitions', []],
+    ['only a setup definition', [definition('setup')]],
+  ] as const)(
+    'removes a replaced checkout whose snapshot pins no cleanup (%s) without Delete anyway',
+    async (_label, definitions) => {
+      const test = fixture('idle', replaced, definitions)
+      expect(await test.perform({ retryFailed: true })).toBeNull()
+      expect(test.skip).toHaveBeenCalledWith(workspace, 'cleanup', 4)
+      expect(test.inspectWorkspaceGeneration).not.toHaveBeenCalled()
+      expect(test.run).not.toHaveBeenCalled()
+      expect(test.order).toEqual(['stop'])
+    },
+  )
+  it('still refuses a replaced checkout whose snapshot pins a cleanup', async () => {
+    const test = fixture('idle', replaced, [definition('cleanup')])
+    expect(await test.perform({ retryFailed: true })).toMatchObject({
+      ok: false,
+      code: 'cleanup-failed',
+      message: expect.stringContaining('Its pinned cleanup cannot run here.'),
+    })
+    expect(test.skip).not.toHaveBeenCalled()
+    expect(test.run).not.toHaveBeenCalled()
+  })
+  it.each([
+    [
+      { status: 'unrecorded', workspacePath: '/repo/worktree' },
+      'This worktree cannot be checked against the checkout that captured its preparation: the preparation has no record of the folder /repo/worktree. Its pinned cleanup cannot run here.',
+    ],
+    [
+      { status: 'awaiting-birth', workspacePath: '/repo/worktree' },
+      'This worktree cannot be checked against the checkout that captured its preparation: the preparation was reset for a new worktree and has not recorded /repo/worktree yet.',
+    ],
+    [
+      { status: 'unreadable', workspacePath: '/repo/worktree', reason: 'not-a-folder', recorded },
+      'This worktree no longer matches the checkout that captured its preparation: /repo/worktree is not a plain folder. Its pinned cleanup cannot run here.',
+    ],
+  ] satisfies [WorkspaceGenerationCheck, string][])(
+    'refuses cleanup and names the %o check',
+    async (generation, message) => {
+      const test = fixture('idle', generation)
+      expect(await test.perform({ retryFailed: true })).toMatchObject({
+        ok: false,
+        code: 'cleanup-failed',
+        message: expect.stringContaining(message),
+      })
+      expect(test.run).not.toHaveBeenCalled()
+    },
+  )
+})

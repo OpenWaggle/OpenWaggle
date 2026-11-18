@@ -1,11 +1,11 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionFactory, InlineExtension } from '@earendil-works/pi-coding-agent'
+import { DEFAULT_COMPACTION_THRESHOLD_PERCENT } from '@shared/types/settings'
 import { loadWithRuntimeFailureIsolation } from '../../../extensions/runtime-load-isolation'
 import {
   getRuntimeEnabledPackagePiResourceRoots,
   type RuntimeEnabledOpenWaggleExtensionPackage,
 } from '../openwaggle-pi-extension-selection'
-import type { OpenWaggleExtensionPiResourceRoot } from '../openwaggle-pi-settings-resources'
 import { createPiProjectModelRuntime, type PiProjectModelRuntime } from '../pi-provider-catalog'
 import {
   getPiRuntimeExtensionLoadErrors,
@@ -28,8 +28,14 @@ type RuntimeExtensionSelection = RuntimePackageSelection | RuntimePackagePathSel
 export interface PiProjectRuntimeIsolationOptions {
   readonly projectPath: string
   readonly modelReference: string
+  readonly fallbackModelReference?: string
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
-  readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly skillAllowlist?: readonly string[]
+  readonly extensionFactories?: readonly InlineExtension[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
+  readonly visualizationDirectory?: string
 }
 
 export interface IsolatedPiProjectModelRuntime {
@@ -47,21 +53,21 @@ export interface PiRuntimeExtensionIsolationInput {
   ) => Promise<void>
 }
 
-function packageSelections(
-  packages: readonly RuntimeEnabledOpenWaggleExtensionPackage[],
-): readonly RuntimeExtensionSelection[] {
-  return packages.map((selection) => ({
+function packageSelections(packages: readonly RuntimeEnabledOpenWaggleExtensionPackage[]) {
+  const result: readonly RuntimeExtensionSelection[] = packages.map((selection) => ({
     type: 'runtime-enabled-package',
     packagePath: selection.packagePath,
     selection,
   }))
+  return result
 }
 
-function pathSelections(packagePaths: readonly string[]): readonly RuntimeExtensionSelection[] {
-  return packagePaths.map((packagePath) => ({
+function pathSelections(packagePaths: readonly string[]) {
+  const selection: readonly RuntimeExtensionSelection[] = packagePaths.map((packagePath) => ({
     type: 'package-path',
     packagePath,
   }))
+  return selection
 }
 
 function runtimeExtensionSelections(
@@ -69,7 +75,7 @@ function runtimeExtensionSelections(
     PiRuntimeExtensionIsolationInput,
     'enabledOpenWaggleExtensionPackages' | 'enabledOpenWaggleExtensionPackagePaths'
   >,
-): readonly RuntimeExtensionSelection[] {
+) {
   if (input.enabledOpenWaggleExtensionPackages) {
     return packageSelections(input.enabledOpenWaggleExtensionPackages)
   }
@@ -80,7 +86,7 @@ function runtimeExtensionSelections(
 function runtimeExtensionResourceRoots(
   selections: readonly RuntimeExtensionSelection[],
   packagePaths: readonly string[],
-): readonly OpenWaggleExtensionPiResourceRoot[] {
+) {
   const selectedPaths = new Set(packagePaths)
   return selections.flatMap((selection) =>
     matchBy(selection, 'type')
@@ -94,13 +100,12 @@ function runtimeExtensionResourceRoots(
   )
 }
 
-async function recordRuntimeExtensionFailure(
-  input: Pick<PiRuntimeExtensionIsolationInput, 'recordOpenWaggleExtensionRuntimeFailure'> & {
-    readonly selection: RuntimeExtensionSelection
-    readonly error: unknown
-    readonly operation: string
-  },
-) {
+async function recordRuntimeExtensionFailure(input: {
+  readonly recordOpenWaggleExtensionRuntimeFailure: PiRuntimeExtensionIsolationInput['recordOpenWaggleExtensionRuntimeFailure']
+  readonly selection: RuntimeExtensionSelection
+  readonly error: unknown
+  readonly operation: string
+}) {
   return matchBy(input.selection, 'type')
     .with('runtime-enabled-package', (runtimeSelection) =>
       input.recordOpenWaggleExtensionRuntimeFailure?.(
@@ -119,8 +124,23 @@ export async function createPiProjectModelRuntimeWithoutOpenWaggleExtensions(
   return createPiProjectModelRuntime({
     projectPath: options.projectPath,
     modelReference: options.modelReference,
+    ...(options.fallbackModelReference
+      ? { fallbackModelReference: options.fallbackModelReference }
+      : {}),
+    compactionThresholdPercent:
+      options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
     ...(options.skillToggles ? { skillToggles: options.skillToggles } : {}),
+    ...(options.skillAllowlist ? { skillAllowlist: options.skillAllowlist } : {}),
     ...(options.extensionFactories ? { extensionFactories: options.extensionFactories } : {}),
+    ...(options.trustedExtensionFactories
+      ? { trustedExtensionFactories: options.trustedExtensionFactories }
+      : {}),
+    ...(options.systemPromptAppendices
+      ? { systemPromptAppendices: options.systemPromptAppendices }
+      : {}),
+    ...(options.visualizationDirectory
+      ? { visualizationDirectory: options.visualizationDirectory }
+      : {}),
   })
 }
 
@@ -128,7 +148,7 @@ export async function createIsolatedPiProjectRuntime(input: {
   readonly operation: string
   readonly extensionIsolation: PiRuntimeExtensionIsolationInput
   readonly options: PiProjectRuntimeIsolationOptions
-}): Promise<IsolatedPiProjectModelRuntime> {
+}) {
   const selections = runtimeExtensionSelections(input.extensionIsolation)
   return loadPiRuntimeWithExtensionFailureIsolation({
     operation: input.operation,
@@ -141,7 +161,13 @@ export async function createIsolatedPiProjectRuntime(input: {
       const runtime = await createPiProjectModelRuntime({
         projectPath: input.options.projectPath,
         modelReference: input.options.modelReference,
+        ...(input.options.fallbackModelReference
+          ? { fallbackModelReference: input.options.fallbackModelReference }
+          : {}),
+        compactionThresholdPercent:
+          input.options.compactionThresholdPercent ?? DEFAULT_COMPACTION_THRESHOLD_PERCENT,
         ...(input.options.skillToggles ? { skillToggles: input.options.skillToggles } : {}),
+        ...(input.options.skillAllowlist ? { skillAllowlist: input.options.skillAllowlist } : {}),
         ...(enabledOpenWaggleExtensionPackagePaths.length > 0
           ? { enabledOpenWaggleExtensionPackagePaths }
           : {}),
@@ -150,6 +176,15 @@ export async function createIsolatedPiProjectRuntime(input: {
           : {}),
         ...(input.options.extensionFactories
           ? { extensionFactories: input.options.extensionFactories }
+          : {}),
+        ...(input.options.trustedExtensionFactories
+          ? { trustedExtensionFactories: input.options.trustedExtensionFactories }
+          : {}),
+        ...(input.options.systemPromptAppendices
+          ? { systemPromptAppendices: input.options.systemPromptAppendices }
+          : {}),
+        ...(input.options.visualizationDirectory
+          ? { visualizationDirectory: input.options.visualizationDirectory }
           : {}),
       })
       return {
@@ -168,7 +203,7 @@ export async function loadPiRuntimeWithExtensionFailureIsolation<Result>(input: 
   readonly operation: string
   readonly extensionIsolation: PiRuntimeExtensionIsolationInput
   readonly load: (enabledOpenWaggleExtensionPackagePaths: readonly string[]) => Promise<Result>
-}): Promise<Result> {
+}) {
   return loadWithRuntimeFailureIsolation({
     selections: runtimeExtensionSelections(input.extensionIsolation),
     load: input.load,

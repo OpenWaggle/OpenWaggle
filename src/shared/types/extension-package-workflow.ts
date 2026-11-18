@@ -1,66 +1,42 @@
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { SchemaType } from '@shared/schema'
 import type {
-  ExtensionLifecycleMutationTarget,
-  ExtensionPackageLifecycleScope,
-} from './extension-package-scope'
+  extensionApplyPackageRemoveInputSchema,
+  extensionApplyPackageWriteInputSchema,
+  extensionPackageFileWriteSchema,
+  extensionPackageWorkflowActorSchema,
+  extensionPackageWorkflowGlobalConfirmationSchema,
+  extensionPackageWorkflowUserApprovalSchema,
+  extensionPackageWriteModeSchema,
+  extensionProposePackageRemoveInputSchema,
+  extensionProposePackageWriteInputSchema,
+} from '@shared/schemas/extensions'
+import type { ExtensionPackageLifecycleScope } from './extension-package-scope'
 
-export type ExtensionPackageWriteMode = 'create' | 'update'
+export type ExtensionPackageWriteMode = SchemaType<typeof extensionPackageWriteModeSchema>
 export type ExtensionPackageWriteOperation = 'write:create' | 'write:update'
 export type ExtensionPackageRemoveOperation = 'remove'
 
-export interface ExtensionPackageFileWrite {
-  readonly relativePath: string
-  readonly content: string
-}
-
-export type ExtensionPackageWorkflowActor =
-  | {
-      readonly kind: 'agent'
-      readonly agentId: string
-      readonly sessionId?: string
-    }
-  | {
-      readonly kind: 'user'
-      readonly userId?: string
-    }
-  | {
-      readonly kind: 'extension'
-      readonly extensionId: string
-    }
-
-export interface ExtensionPackageWorkflowUserApproval {
-  readonly approved: boolean
-  readonly approvedProposalHash: string
-  readonly approvedBy: string
-  readonly approvedAt: number
-}
-
-export interface ExtensionPackageWorkflowGlobalConfirmation {
-  readonly confirmed: boolean
-  readonly confirmedExtensionId: string
-  readonly confirmedProposalHash: string
-  readonly risk: typeof OPENWAGGLE_EXTENSION.PACKAGE_WORKFLOW.GLOBAL_CONFIRMATION_RISK
-}
-
-export interface ExtensionProposePackageWriteInput extends ExtensionLifecycleMutationTarget {
-  readonly mode: ExtensionPackageWriteMode
-  readonly files: readonly ExtensionPackageFileWrite[]
-  readonly actor: ExtensionPackageWorkflowActor
-}
-
-export interface ExtensionApplyPackageWriteInput extends ExtensionProposePackageWriteInput {
-  readonly userApproval: ExtensionPackageWorkflowUserApproval
-  readonly globalConfirmation?: ExtensionPackageWorkflowGlobalConfirmation
-}
-
-export interface ExtensionProposePackageRemoveInput extends ExtensionLifecycleMutationTarget {
-  readonly actor: ExtensionPackageWorkflowActor
-}
-
-export interface ExtensionApplyPackageRemoveInput extends ExtensionProposePackageRemoveInput {
-  readonly userApproval: ExtensionPackageWorkflowUserApproval
-  readonly globalConfirmation?: ExtensionPackageWorkflowGlobalConfirmation
-}
+export type ExtensionPackageFileWrite = SchemaType<typeof extensionPackageFileWriteSchema>
+export type ExtensionPackageWorkflowActor = SchemaType<typeof extensionPackageWorkflowActorSchema>
+export type ExtensionPackageWorkflowUserApproval = SchemaType<
+  typeof extensionPackageWorkflowUserApprovalSchema
+>
+export type ExtensionPackageWorkflowGlobalConfirmation = SchemaType<
+  typeof extensionPackageWorkflowGlobalConfirmationSchema
+>
+export type ExtensionProposePackageWriteInput = SchemaType<
+  typeof extensionProposePackageWriteInputSchema
+>
+export type ExtensionApplyPackageWriteInput = SchemaType<
+  typeof extensionApplyPackageWriteInputSchema
+>
+export type ExtensionProposePackageRemoveInput = SchemaType<
+  typeof extensionProposePackageRemoveInputSchema
+>
+export type ExtensionApplyPackageRemoveInput = SchemaType<
+  typeof extensionApplyPackageRemoveInputSchema
+>
 
 export interface ExtensionPackageWriteProposalFileView {
   readonly relativePath: string

@@ -83,7 +83,7 @@ function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
 }
 
 function extensionFrameId(frame: HTMLIFrameElement) {
-  const frameId = frame.dataset.extensionFrameId
+  const frameId = frame.getAttribute('data-extension-frame-id')
   if (!frameId) {
     throw new Error('Expected extension module iframe id.')
   }
@@ -117,6 +117,7 @@ describe('ExtensionContributionRuntimeHost trusted renderer path', () => {
     apiMock.openExternal.mockReset()
     apiMock.registerExtensionFrame.mockReset()
     apiMock.unregisterExtensionFrame.mockReset()
+    apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
     apiMock.invokeExtension.mockResolvedValue(INVOKE_FAILURE)
     apiMock.openExternal.mockResolvedValue(undefined)
     apiMock.registerExtensionFrame.mockImplementation((input: { readonly frameId: string }) =>

@@ -1,18 +1,16 @@
 import type { SessionNodeId } from '@shared/types/brand'
-import type { SessionNode, SessionTreeUiState } from '@shared/types/session'
+import type { SessionTreeNode, SessionTreeUiState } from '@shared/types/session'
 
-export function getDefaultExpandedSessionTreeNodeIds(
-  nodes: readonly SessionNode[],
-): readonly SessionNodeId[] {
+export function getDefaultExpandedSessionTreeNodeIds(nodes: readonly SessionTreeNode[]) {
   const parentIds = new Set(nodes.flatMap((node) => (node.parentId ? [String(node.parentId)] : [])))
-  return nodes.filter((node) => parentIds.has(String(node.id))).map((node) => node.id)
+  return nodes.flatMap((node) => (parentIds.has(String(node.id)) ? [node.id] : []))
 }
 
 export function resolveExpandedSessionTreeNodeIds(input: {
-  readonly nodes: readonly SessionNode[]
+  readonly nodes: readonly SessionTreeNode[]
   readonly uiState: SessionTreeUiState | null
   readonly overrideNodeIds: readonly SessionNodeId[] | null
-}): readonly SessionNodeId[] {
+}) {
   if (input.overrideNodeIds) {
     return input.overrideNodeIds
   }
@@ -25,12 +23,19 @@ export function resolveExpandedSessionTreeNodeIds(input: {
 }
 
 export function resolveSessionTreeRowExpandedNodeIds(input: {
-  readonly filteredNodes: readonly SessionNode[]
+  /** Every node of the tree, including the ones the filter and search leave out. */
+  readonly nodes: readonly SessionTreeNode[]
+  readonly filteredNodes: readonly SessionTreeNode[]
   readonly expandedNodeIds: readonly SessionNodeId[]
   readonly searchActive: boolean
-}): readonly SessionNodeId[] {
+}) {
   if (input.searchActive) {
-    return getDefaultExpandedSessionTreeNodeIds(input.filteredNodes)
+    /*
+     * A match stays hidden while any ancestor is collapsed, including one the filter leaves out,
+     * such as the model and thinking-level entries every Session starts with. Expanding only the
+     * parents among the results hid every match under them, so a search expands every parent.
+     */
+    return getDefaultExpandedSessionTreeNodeIds(input.nodes)
   }
 
   return input.expandedNodeIds

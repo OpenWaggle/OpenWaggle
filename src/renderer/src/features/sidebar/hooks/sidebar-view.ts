@@ -1,7 +1,13 @@
-import type { SidebarView } from '../model'
+import type { SidebarView } from '../model/sidebar-types'
 
-export function activeViewFromPathname(pathname: string): SidebarView {
-  if (pathname.startsWith('/skills')) return 'skills'
-  if (pathname.startsWith('/settings')) return 'settings'
-  return 'chat'
+export function activeViewFromPathname(pathname: string) {
+  if (
+    pathname.startsWith('/settings') ||
+    pathname.startsWith('/agents') ||
+    pathname.startsWith('/skills') ||
+    pathname.startsWith('/usage')
+  ) {
+    return 'settings' satisfies SidebarView
+  }
+  return 'chat' satisfies SidebarView
 }

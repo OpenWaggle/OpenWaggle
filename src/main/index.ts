@@ -1,110 +1,138 @@
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, shell } from 'electron'
-import { configureApplicationMenu, installDevToolsShortcut } from './application-menu'
+import { setTimeout as delay } from 'node:timers/promises'
+// Must be first: renames dev builds before any module reads app userData.
+import './apply-build-identity'
+import './restore-host-temporary-directory' // before any module caches a temp path
+import './apply-pi-package-directory' // before any Pi module reads its package.json
+import { MAC_DEV_DOCK_ICON_FILE } from '@shared/build-identity-runtime'
+import { registerAppQuitCleanup } from './app-quit-cleanup'
+import { readInlineVisualizationSource } from './application/inline-visualization-source-service'
+import { applicationCliArguments } from './application-cli-arguments'
+import { registerApplicationProtocols } from './application-protocols'
+import { installDesktopNotificationPresenter } from './desktop-notification-presenter'
+import { shellEnvironmentCacheFile } from './desktop-shell-environment-cache'
+import { installDesktopShellEnvironment } from './desktop-shell-environment-process'
+import { appLifecycle } from './desktop-shell/app-lifecycle'
+import { appPaths } from './desktop-shell/app-paths'
+import { desktopWindows } from './desktop-shell/desktop-windows'
+import { systemIntegration } from './desktop-shell/system-integration'
+import { webSecurity } from './desktop-shell/web-security'
+import { focusExistingWindow, getAllBrowserWindows, isAutomationMode } from './desktop-ui'
+import { configureDesktopUiAfterReady, prepareDesktopUi } from './desktop-window-policy'
 import { env } from './env'
-import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
-import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
-import { createLogger, initFileLogger } from './logger'
+import { openExternalFromRenderer as openLink } from './external-navigation'
+import { describeError } from './error-description'
+import { disposeGuiAutoUpdater, isGuiInstallingUpdate } from './gui-auto-updater'
+import { holdGuiBackendGate } from './gui-backend-gate'
 import {
-  devRendererUrl,
-  INDEX_HTML,
-  RENDERER_PROTOCOL,
-  RENDERER_PROTOCOL_HOST,
-  RENDERER_PROTOCOL_ORIGIN,
-  registerRendererProtocolOnce,
+  clearGuiBackend,
+  describeStartupFailure,
+  guiDesktopServicesCleanup,
+  guiSessionHostLifecycle,
+  publishStartupStatus,
+  startGuiBackend,
+} from './gui-backend-startup'
+import { exitAfterBootstrapFailure, reportGuiStartupFailure } from './gui-bootstrap-failure'
+import { createGuiStartupCoordinator, type GuiStartupCoordinator } from './gui-startup-coordinator'
+import { openWindowThenRegisterIpc } from './gui-window-bootstrap'
+import { createLogger, initFileLogger } from './logger'
+import { claimAppInstance } from './open-project-requests'
+import {
+  configureInlineVisualizationProcessIsolation,
   registerRendererScheme,
 } from './renderer-protocol'
-import {
-  assertSecureWebPreferences,
-  installCspHeaders,
-  SECURE_WEB_PREFERENCES,
-} from './security/electron-security'
+import { beginAppCliShimSetupWhen } from './services/cli-shim-startup'
+import { setAppDatabaseAccessMode } from './services/database-access-mode'
 import { configureAppStoragePaths } from './session-data'
+import { configureSessionEmbeddingModel } from './session-embedding-model-setup'
+import { hasSessionHostPrelaunch } from './session-host/session-host-prelaunch-handoff'
+import { forwardSessionLinksFromBackgroundProcess } from './session-link-forwarding'
+import { sessionLinkHost } from './session-link-host'
+import { installSessionLinkProtocol } from './session-link-protocol'
+import { requestOpenSessionLink } from './session-link-requests'
+import { createStartupMark } from './startup-timing'
+import { startTopLevelCli, type TopLevelCliLaunch } from './top-level-cli-entry'
 
-const WIDTH = 1200
-const HEIGHT = 800
-const MIN_WIDTH = 800
-const MIN_HEIGHT = 600
-const X = 16
-const Y = 16
 const FAILURE_EXIT_CODE = 1
-const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
-const STARTUP_TIMING_PRECISION = 1
+const AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS = 5_000
+/** At most this long the window waits for the Host process to be launched or reached. */
+const HOST_LAUNCH_HEAD_START_MAX_MS = 150
+const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH =
+  'openwaggle-automation-single-instance-lock-denied-marker'
+const AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT = 'single-instance-lock-denied\n'
 
 const importAgentHandlerModule = () => import('./ipc/agent-handler')
-const importAgentRunServiceModule = () => import('./application/agent-run-service')
 const importIpcHandlersModule = () => import('./ipc/handlers')
-const importRuntimeModule = () => import('./runtime')
-const importSettingsStoreModule = () => import('./store/settings')
-const importUpdaterModule = () => import('./updater')
+const importRuntimeModule = () => import('./gui-runtime')
 
 type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
 type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
 type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
 
+configureInlineVisualizationProcessIsolation()
 registerRendererScheme()
 
-const appIconPath = is.dev
-  ? join(__dirname, '../../build/icon.png')
+configureSessionEmbeddingModel()
+
+const appIconPath = !appLifecycle.isPackaged()
+  ? join(__dirname, '../../build/icon-dev.png')
   : join(process.resourcesPath, 'icon.png')
+// Unpackaged builds have no bundle icon, so macOS takes their Dock icon at runtime; use the
+// generated rounded-square macOS icon rather than the free-form window icon.
+const devDockIconPath = join(__dirname, '../../build', MAC_DEV_DOCK_ICON_FILE)
 const logger = createLogger('main/index')
-const startupStartedAt = performance.now()
 let ipcHandlersRegistered = false
-let beforeQuitCleanupDone = false
+let mainWindowCreated = false
 let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
-let disposeAutoUpdaterOnce: (() => void) | null = null
 let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
 let runtimeModulePromise: Promise<RuntimeModule> | null = null
 
-function describeError(error: unknown) {
-  return error instanceof Error
-    ? { message: error.message, name: error.name, stack: error.stack }
-    : { message: String(error) }
-}
+const startupMark = createStartupMark('main/index')
 
-function startupMark(label: string) {
-  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
+function quitAutomationSecondInstance() {
+  const markerPath = appLifecycle.commandLine.getSwitchValue(
+    AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_SWITCH,
+  )
+  if (!markerPath) {
+    logger.error('Automation second-instance probe omitted its lock-denied marker path')
+    appLifecycle.exit(FAILURE_EXIT_CODE)
     return
   }
-
-  logger.info('Startup timing', {
-    label,
-    elapsedMs: Number((performance.now() - startupStartedAt).toFixed(STARTUP_TIMING_PRECISION)),
-  })
+  void writeFile(markerPath, AUTOMATION_SINGLE_INSTANCE_LOCK_DENIED_MARKER_CONTENT, {
+    flag: 'wx',
+  }).then(
+    () => setTimeout(() => appLifecycle.quit(), AUTOMATION_SECOND_INSTANCE_EXIT_GRACE_MS),
+    (error: unknown) => {
+      logger.error('Automation second-instance lock-denied marker failed', describeError(error))
+      appLifecycle.exit(FAILURE_EXIT_CODE)
+    },
+  )
 }
 
 function getRuntimeModule() {
   runtimeModulePromise ??= importRuntimeModule()
   return runtimeModulePromise
 }
-
-async function registerIpcHandlersOnce() {
+async function registerIpcHandlersOnce(startup: GuiStartupCoordinator) {
   if (ipcHandlersRegistered) {
     logger.warn('Skipping duplicate IPC handler registration')
     return
   }
 
-  const [ipcHandlersModule, agentHandlerModule] = await Promise.all([
+  const [ipcHandlersModule, agentHandlerModule, startupHandlerModule] = await Promise.all([
     importIpcHandlersModule(),
     importAgentHandlerModule(),
+    import('./ipc/startup-handler'),
   ])
 
   ipcHandlersRegistered = true
   cleanupTerminalsOnce = ipcHandlersModule.cleanupTerminals
   persistAllActiveRunsOnce = agentHandlerModule.persistAllActiveRuns
 
+  startupHandlerModule.registerStartupHandlers(startup)
+  // Registered before the backend is ready; they wait at the backend gate until it is.
   ipcHandlersModule.registerAllIpcHandlers()
-}
-
-async function initializeAutoUpdaterAfterWindow() {
-  try {
-    const { disposeAutoUpdater, initAutoUpdater } = await importUpdaterModule()
-    disposeAutoUpdaterOnce = disposeAutoUpdater
-    initAutoUpdater()
-  } catch (error) {
-    logger.warn('Failed to initialize auto-updater', describeError(error))
-  }
 }
 
 async function persistActiveRunsBeforeQuit() {
@@ -112,244 +140,185 @@ async function persistActiveRunsBeforeQuit() {
     getRuntimeModule(),
     persistAllActiveRunsOnce ? Promise.resolve(null) : importAgentHandlerModule(),
   ])
-  const persistAllActiveRuns =
-    persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+  const resolved = persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+  if (!resolved) return
 
-  if (!persistAllActiveRuns) {
-    return
-  }
-
-  await runtimeModule.runAppEffect(persistAllActiveRuns())
+  await runtimeModule.runGuiEffect(resolved())
 }
 
 async function bootstrapServicesAndWindow() {
   startupMark('bootstrap-start')
-
-  const [runtimeModule, settingsStoreModule, agentRunServiceModule] = await Promise.all([
-    getRuntimeModule(),
-    importSettingsStoreModule(),
-    importAgentRunServiceModule(),
-  ])
-  startupMark('startup-modules-imported')
-
-  await runtimeModule.initializeAppRuntime()
-  startupMark('app-runtime-initialized')
-
-  await settingsStoreModule.initializeSettingsStore()
-  startupMark('settings-store-initialized')
-
-  await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
-  startupMark('interrupted-runs-reconciled')
-
-  const trustedMainActivationModule = await import(
-    './application/extension-trusted-main-activation-service'
-  )
-  await runtimeModule.runAppEffect(
-    trustedMainActivationModule.activateTrustedMainExtensionsForActiveProjectSafely(),
-  )
-
-  await registerIpcHandlersOnce()
-  startupMark('ipc-handlers-registered')
-
-  registerRendererProtocolOnce()
-  registerExtensionFrameProtocolOnce()
-  registerExtensionRuntimeProtocolOnce()
-  startupMark('protocol-handlers-registered')
-
-  createWindow()
-  startupMark('main-window-created')
-
-  void initializeAutoUpdaterAfterWindow()
-}
-
-function isTrustedRendererProtocolRequest(url: string) {
-  try {
-    const parsedUrl = new URL(url)
-    return (
-      parsedUrl.protocol === `${RENDERER_PROTOCOL}:` && parsedUrl.host === RENDERER_PROTOCOL_HOST
-    )
-  } catch {
-    return false
-  }
-}
-
-function isTrustedRendererRequest(url: string) {
-  if (url.startsWith('file://')) return true
-  if (isTrustedRendererProtocolRequest(url)) return true
-  if (!env.ELECTRON_RENDERER_URL) return false
-
-  try {
-    return new URL(url).origin === new URL(env.ELECTRON_RENDERER_URL).origin
-  } catch {
-    return false
-  }
-}
-
-function createWindow() {
-  const webPreferences = {
-    preload: join(__dirname, '../preload/index.js'),
-    ...SECURE_WEB_PREFERENCES,
-  }
-  assertSecureWebPreferences(webPreferences)
-
-  const mainWindow = new BrowserWindow({
-    width: WIDTH,
-    height: HEIGHT,
-    minWidth: MIN_WIDTH,
-    minHeight: MIN_HEIGHT,
-    show: false,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: X, y: Y },
-    backgroundColor: '#141619',
-    icon: appIconPath,
-    webPreferences,
-  })
-  installCspHeaders(mainWindow.webContents.session)
-  installDevToolsShortcut(mainWindow)
-
-  mainWindow.on('ready-to-show', () => {
-    startupMark('window-ready-to-show')
-    mainWindow.show()
-    startupMark('window-shown')
-  })
-
-  mainWindow.webContents.once('dom-ready', () => startupMark('renderer-dom-ready'))
-  mainWindow.webContents.once('did-finish-load', () => startupMark('renderer-did-finish-load'))
-
-  mainWindow.on('enter-full-screen', () => {
-    mainWindow.webContents.send('window:fullscreen-changed', true)
-  })
-  mainWindow.on('leave-full-screen', () => {
-    mainWindow.webContents.send('window:fullscreen-changed', false)
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // Prevent in-app navigation — all external URLs open in the user's default browser
-  const rendererOrigin =
-    is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : RENDERER_PROTOCOL_ORIGIN
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(rendererOrigin)) {
-      event.preventDefault()
-      shell.openExternal(url)
-    }
-  })
-
-  const mediaPermissions = new Set(['media', 'microphone'])
-  mainWindow.webContents.session.setPermissionCheckHandler(
-    (_webContents, permission, requestingOrigin) => {
-      if (!mediaPermissions.has(permission)) return false
-      return isTrustedRendererRequest(requestingOrigin)
+  // Never awaited by startup: terminals, project actions and git wait for it themselves (A-F7).
+  void installDesktopShellEnvironment({
+    cacheFile: shellEnvironmentCacheFile(appPaths.userData()),
+  }).refreshed.then(
+    () => startupMark('desktop-shell-environment-refreshed'),
+    (error: unknown) => {
+      logger.warn('The login-shell environment could not be read', describeError(error))
     },
   )
-  mainWindow.webContents.session.setPermissionRequestHandler(
-    (_webContents, permission, callback, details) => {
-      if (!mediaPermissions.has(permission)) {
-        callback(false)
-        return
-      }
-      callback(isTrustedRendererRequest(details.requestingUrl))
-    },
-  )
+  // The window has no database of its own; Settings come from the Host (A-F5).
+  setAppDatabaseAccessMode('client-isolated')
 
-  const rendererDevUrl = devRendererUrl()
-  startupMark('renderer-load-start')
-  if (rendererDevUrl !== null) {
-    void mainWindow.loadURL(rendererDevUrl)
-  } else {
-    void mainWindow.loadURL(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`)
-  }
+  // Renderer requests wait here until the backend is ready (A-F2).
+  holdGuiBackendGate()
+  const hostUnderway = Promise.withResolvers<void>()
+  // A Host the boot shim launched is under way already; the window need not wait for it.
+  const hostHeadStart = hasSessionHostPrelaunch()
+    ? Promise.resolve()
+    : Promise.race([hostUnderway.promise, delay(HOST_LAUNCH_HEAD_START_MAX_MS)])
+  const startup = createGuiStartupCoordinator({
+    start: (progress, signal) =>
+      startGuiBackend({
+        progress,
+        signal,
+        onHostUnderway: hostUnderway.resolve,
+        hostHeadStart,
+        startupMark,
+        loadRuntime: getRuntimeModule,
+      }),
+    publish: (status) => publishStartupStatus(startupMark, status),
+    onFailure: reportGuiStartupFailure,
+    describeFailure: describeStartupFailure,
+    restart: () => {
+      appLifecycle.relaunch()
+      appLifecycle.quit()
+    },
+  })
+  // The Host launch starts now, in parallel with the window (A-F1). Its process is spawned
+  // before this one evaluates the IPC handlers and opens the window, which keep its thread busy;
+  // a Host that takes longer to reach (an update hand-off) does not hold the window back.
+  startup.run()
+  await hostHeadStart
+  startupMark('session-host-underway')
+
+  await openWindowThenRegisterIpc({
+    registerProtocols: () =>
+      registerApplicationProtocols({
+        readInlineVisualizationSource: async (input) =>
+          (await getRuntimeModule()).runGuiEffect(readInlineVisualizationSource(input)),
+      }),
+    createWindow: () => {
+      createMainWindowWithVisualizationGuard()
+      mainWindowCreated = true
+    },
+    registerIpc: async () => {
+      await getRuntimeModule()
+      await registerIpcHandlersOnce(startup)
+    },
+    startupMark,
+  })
 }
 
-function focusExistingWindow() {
-  const existingWindow = BrowserWindow.getAllWindows()[0]
-  if (!existingWindow) {
-    return
-  }
+/** A later launch focuses the window, or creates one after startup as the Dock icon does. */
+function revealMainWindow() {
+  if (getAllBrowserWindows().length > 0 || !mainWindowCreated) focusExistingWindow()
+  else createMainWindowWithVisualizationGuard()
+}
 
-  if (existingWindow.isMinimized()) {
-    existingWindow.restore()
-  }
-
-  existingWindow.show()
-  existingWindow.focus()
+function createMainWindowWithVisualizationGuard() {
+  const mainWindow = desktopWindows.openMainWindow({ appIconPath, startupMark, openLink })
+  webSecurity.guardEmbeddedFrames(mainWindow.webContents)
 }
 
 function registerAppLifecycle() {
-  app
+  appLifecycle
     .whenReady()
     .then(() => {
-      electronApp.setAppUserModelId('com.openwaggle.app')
-      if (process.platform === 'darwin') {
-        app.dock?.setIcon(appIconPath)
-      }
-
-      app.on('browser-window-created', (_, window) => {
-        optimizer.watchWindowShortcuts(window)
-      })
-
-      configureApplicationMenu(app.name)
+      systemIntegration.setAppUserModelId('com.openwaggle.app')
+      configureDesktopUiAfterReady(devDockIconPath)
+      installDesktopNotificationPresenter({ revealWindow: revealMainWindow })
 
       // Initialize file logger now that app paths are available
-      void initFileLogger(app.getPath('logs'))
+      void initFileLogger(appPaths.logs())
+      webSecurity.maintainCaches()
 
-      void bootstrapServicesAndWindow().catch((error: unknown) => {
-        logger.error('Bootstrap failed; quitting for safety', describeError(error))
-        app.exit(FAILURE_EXIT_CODE)
-      })
+      // CLI recovery must remain available even if the Session Host or window cannot start.
+      const cliSetup = beginAppCliShimSetupWhen(appLifecycle.isPackaged() && !isAutomationMode())
 
-      app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow()
-      })
+      void bootstrapServicesAndWindow().catch((error: unknown) =>
+        exitAfterBootstrapFailure({
+          error,
+          cliSetup,
+          cleanupDesktopServices: async () => guiDesktopServicesCleanup()?.(),
+          exit: (code) => appLifecycle.exit(code),
+        }),
+      )
 
-      app.on('will-quit', () => {
-        void runtimeModulePromise?.then(({ disposeAppRuntime }) => disposeAppRuntime())
+      appLifecycle.onActivate(() => {
+        if (getAllBrowserWindows().length === 0) {
+          createMainWindowWithVisualizationGuard()
+        }
       })
     })
     .catch((error: unknown) => {
       logger.error('App startup failed before ready', describeError(error))
     })
 
-  app.on('window-all-closed', () => {
-    cleanupTerminalsOnce?.()
+  appLifecycle.onWindowAllClosed(() => {
+    // Session terminals outlive window closes; shells die in the quit shutdown.
     if (process.platform !== 'darwin') {
-      app.quit()
+      appLifecycle.quit()
     }
   })
 
-  app.on('before-quit', (e) => {
-    disposeAutoUpdaterOnce?.()
-    if (!beforeQuitCleanupDone) {
-      e.preventDefault()
-      persistActiveRunsBeforeQuit()
-        .then(() => {
-          beforeQuitCleanupDone = true
-          app.quit()
+  registerAppQuitCleanup({
+    disposeAutoUpdater: disposeGuiAutoUpdater,
+    persistActiveRuns: persistActiveRunsBeforeQuit,
+    cleanupTerminals: async () => {
+      const cleanupDesktopServices = guiDesktopServicesCleanup()
+      if (cleanupDesktopServices) await cleanupDesktopServices()
+      else await cleanupTerminalsOnce?.()
+    },
+    disposeRuntime: async () => {
+      try {
+        // The installer cannot replace the app while its detached Host still runs (ADR 0047).
+        await guiSessionHostLifecycle()?.stop({
+          releaseHostForUpdate: isGuiInstallingUpdate(),
         })
-        .catch(() => {
-          beforeQuitCleanupDone = true
-          app.quit()
-        })
-    }
+      } finally {
+        try {
+          await (await getRuntimeModule()).disposeGuiRuntime()
+        } finally {
+          clearGuiBackend()
+        }
+      }
+    },
   })
 }
 
-function startApp() {
-  configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
+function startApp(launch: Extract<TopLevelCliLaunch, { readonly kind: 'gui' }>) {
+  configureAppStoragePaths(env.OPENWAGGLE_USER_DATA_DIR)
+  prepareDesktopUi()
 
-  if (env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1') {
-    if (!app.requestSingleInstanceLock()) {
-      logger.warn('Another OpenWaggle instance is already running; quitting this instance')
-      app.quit()
-      return
-    }
-    app.on('second-instance', focusExistingWindow)
+  const singleInstance = env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1'
+  const instance = {
+    host: systemIntegration,
+    ...launch,
+    singleInstance,
+    revealWindow: revealMainWindow,
+  }
+  if (claimAppInstance(instance) === 'secondary') {
+    logger.warn('Another OpenWaggle instance is already running; quitting this instance')
+    if (env.OPENWAGGLE_AUTOMATION === '1') quitAutomationSecondInstance()
+    else appLifecycle.quit()
+    return
   }
 
+  installSessionLinkProtocol({
+    host: sessionLinkHost(),
+    automation: isAutomationMode(),
+    openLink: (url) => {
+      if (requestOpenSessionLink(url)) revealMainWindow()
+    },
+  })
   registerAppLifecycle()
 }
 
-startApp()
+const cliArguments = applicationCliArguments(process.argv, {
+  isPackaged: appLifecycle.isPackaged(),
+})
+
+const launch = startTopLevelCli(cliArguments)
+if (launch.kind === 'gui') startApp(launch)
+else forwardSessionLinksFromBackgroundProcess(sessionLinkHost())

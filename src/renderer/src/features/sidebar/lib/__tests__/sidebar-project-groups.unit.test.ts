@@ -1,7 +1,7 @@
 import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
-import { buildSidebarProjectGroups } from '../sidebar-project-groups'
+import { buildSidebarProjectGroups, sidebarListsWorkersFlat } from '../sidebar-project-groups'
 
 const CREATED_AT = 10
 const UPDATED_AT_OLD = 20
@@ -15,7 +15,7 @@ function makeSession(
   projectPath: string | null,
   updatedAt: number,
   createdAt = CREATED_AT,
-): SessionSummary {
+) {
   return {
     id: SessionId(id),
     title,
@@ -26,6 +26,60 @@ function makeSession(
     lastActiveBranchId: null,
   }
 }
+
+function makeWorker(id: string, updatedAt: number) {
+  return {
+    ...makeSession(id, `Worker ${id}`, '/repo/current', updatedAt),
+    lineage: {
+      role: 'worker',
+      parentSessionId: SessionId('queen'),
+      hiveRootSessionId: SessionId('queen'),
+      directWorkerCount: 0,
+      activeDirectWorkerCount: 0,
+    },
+  } satisfies SessionSummary
+}
+
+describe('buildSidebarProjectGroups Worker exclusion (ADR 0051)', () => {
+  const sessions = [
+    makeSession('queen', 'Queen', '/repo/current', UPDATED_AT_NEW),
+    makeWorker('hidden', UPDATED_AT_MIDDLE),
+    makeWorker('pinned', UPDATED_AT_OLD),
+  ]
+  const input = {
+    currentProjectPath: '/repo/current',
+    recentProjects: [],
+    sortMode: 'recent' as const,
+    sessions,
+    pinnedSessionIds: ['pinned'],
+  }
+
+  it('lists only the Queen while unpinned Workers live in the Hive panel', () => {
+    const [group] = buildSidebarProjectGroups({ ...input, excludeUnpinnedWorkers: true }).projects
+    expect(group?.sessions.map((session) => String(session.id))).toEqual(['queen'])
+    // Only the Pinned Worker is "pinned above"; the hidden one is not counted as pinned.
+    expect(group?.hoistedPinnedCount).toBe(1)
+    // Project-wide actions still see every Session, Workers included.
+    expect(group?.allSessions.map((session) => String(session.id))).toContain('hidden')
+  })
+
+  it('lists unpinned Workers flat when the sidebar is narrowed', () => {
+    const [group] = buildSidebarProjectGroups({ ...input, excludeUnpinnedWorkers: false }).projects
+    expect(group?.sessions.map((session) => String(session.id))).toEqual(['queen', 'hidden'])
+    expect(group?.hoistedPinnedCount).toBe(1)
+  })
+})
+
+describe('sidebarListsWorkersFlat', () => {
+  it('leaves Workers to the Hive panel only while nothing narrows the sidebar', () => {
+    expect(sidebarListsWorkersFlat({ filterState: null, normalizedQuery: '' })).toBe(false)
+  })
+
+  it('lists Workers flat for a status filter or a search', () => {
+    expect(sidebarListsWorkersFlat({ filterState: 'working', normalizedQuery: '' })).toBe(true)
+    expect(sidebarListsWorkersFlat({ filterState: null, normalizedQuery: 'audit' })).toBe(true)
+  })
+})
 
 describe('buildSidebarProjectGroups', () => {
   it('groups Pi session summaries under current and recent project sections', () => {
@@ -116,5 +170,68 @@ describe('buildSidebarProjectGroups', () => {
     })
 
     expect(grouped.projects).toEqual([])
+  })
+})
+
+describe('a project group carries every session it owns', () => {
+  /*
+   * `sessions` is what the tree renders: narrowed by the filter and with pinned rows hoisted out.
+   * A project-wide action must not act on that subset. Archiving from the project menu offered the
+   * visible count and archived only those, and a project whose sessions were all pinned reported
+   * nothing to archive at all.
+   */
+  it('keeps the sessions a filter hid out of the rendered rows', () => {
+    const visible = [makeSession('a', 'Session a', '/repo', 3)]
+    const everything = [
+      makeSession('a', 'Session a', '/repo', 3),
+      makeSession('b', 'Session b', '/repo', 2),
+      makeSession('c', 'Session c', '/repo', 1),
+    ]
+
+    const groups = buildSidebarProjectGroups({
+      sessions: visible,
+      currentProjectPath: '/repo',
+      recentProjects: [],
+      sortMode: 'recent',
+      allSessions: everything,
+    })
+
+    const group = groups.projects.find((candidate) => candidate.projectPath === '/repo')
+    expect(group?.sessions).toHaveLength(1)
+    expect(group?.allSessions).toHaveLength(3)
+  })
+
+  it('keeps the pinned sessions hoisted out of the rendered rows', () => {
+    const everything = [
+      makeSession('a', 'Session a', '/repo', 2),
+      makeSession('b', 'Session b', '/repo', 1),
+    ]
+
+    const groups = buildSidebarProjectGroups({
+      sessions: everything,
+      currentProjectPath: '/repo',
+      recentProjects: [],
+      sortMode: 'recent',
+      pinnedSessionIds: ['a', 'b'],
+      allSessions: everything,
+    })
+
+    const group = groups.projects.find((candidate) => candidate.projectPath === '/repo')
+    // Every row is pinned away, so the group renders nothing but still owns both sessions.
+    expect(group?.sessions).toHaveLength(0)
+    expect(group?.allSessions).toHaveLength(2)
+  })
+
+  it('falls back to the rendered sessions when no unfiltered list is given', () => {
+    const rendered = [makeSession('a', 'Session a', '/repo', 1)]
+
+    const groups = buildSidebarProjectGroups({
+      sessions: rendered,
+      currentProjectPath: '/repo',
+      recentProjects: [],
+      sortMode: 'recent',
+    })
+
+    expect(groups.projects[0]?.allSessions).toHaveLength(1)
   })
 })

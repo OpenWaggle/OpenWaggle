@@ -1,11 +1,26 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { match } from '@diegogbrisa/ts-match'
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema } from 'effect'
+import {
+  APP_VERSION_PATTERN,
+  promotionBase,
+  promotionGuardViolations,
+  ROOT_MANIFEST_PATH,
+} from './app-release-promotion'
+import {
+  createReleaseCommit,
+  releaseDate,
+  releaseTreeProblems,
+  restoreReleaseFilesCommit,
+} from './app-release-tree'
 
 const ARG_VALUE_OFFSET = 1
 const CLI_COMMAND_INDEX = 2
-const JSON_INDENT = 2
+const RELEASE_SUBJECT_PATTERN =
+  /^chore\(release\): v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?: \(#[0-9]+\))?$/u
+const CHANNEL_RANK = { alpha: 0, beta: 1, rc: 2, stable: 3 } as const
 
 const pullRequestSchema = Schema.Struct({
   baseRefName: Schema.String,
@@ -21,9 +36,6 @@ const pullRequestSchema = Schema.Struct({
   url: Schema.String,
 })
 const pullRequestListJsonSchema = Schema.parseJson(Schema.Array(pullRequestSchema))
-const manifestJsonSchema = Schema.parseJson(
-  Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-)
 
 export type AppReleasePullRequest = typeof pullRequestSchema.Type
 
@@ -33,53 +45,118 @@ export interface ReleasePullRequestIdentity {
   readonly repository: string
 }
 
-export interface MergeRecoveryInput {
-  readonly mergeStateStatus: string
-  readonly state: string
-}
-
-export type MergeRecoveryAction = 'complete' | 'conflict' | 'poll' | 'retry'
-
 export function selectOwnedReleasePullRequests(
   pullRequests: readonly AppReleasePullRequest[],
   identity: ReleasePullRequestIdentity,
 ) {
   return pullRequests.filter(
     (pullRequest) =>
-      pullRequest.isCrossRepository === false &&
+      !pullRequest.isCrossRepository &&
       pullRequest.headRepositoryOwner.login === identity.owner &&
       pullRequest.headRepository.name === identity.repository &&
       pullRequest.headRefName === identity.branch,
   )
 }
 
-export function expectedVersionOnlyManifest(baseManifestJson: string, version: string) {
-  const manifest = Schema.decodeUnknownSync(manifestJsonSchema)(baseManifestJson)
-  return `${JSON.stringify({ ...manifest, version }, null, JSON_INDENT)}\n`
+function git(args: readonly string[]) {
+  return execFileSync('git', args, { encoding: 'utf8' })
 }
 
-export function mergeRecoveryAction(input: MergeRecoveryInput): MergeRecoveryAction {
-  return match(input)
-    .when(
-      ({ state }) => state === 'MERGED',
-      () => 'complete' as const,
+function verifyPromotion(
+  targetVersion: string,
+  candidateRef: string,
+  releasesPath: string | undefined,
+) {
+  const base = promotionBase({
+    targetVersion,
+    gitHubReleaseLines:
+      releasesPath === undefined ? undefined : fs.readFileSync(releasesPath, 'utf8'),
+    localTags: git(['tag', '--list', `v${targetVersion}-rc.*`])
+      .split('\n')
+      .filter(Boolean),
+  })
+  if (base.kind === 'skip') {
+    process.stdout.write(`${base.reason}\n`)
+    return
+  }
+  const releaseCandidateTag = base.tag
+  if (base.ignoredTags.length > 0) {
+    process.stdout.write(
+      `Ignoring release candidate tags without a published release: ${base.ignoredTags.join(', ')}.\n`,
     )
-    .when(
-      ({ mergeStateStatus, state }) => state === 'OPEN' && mergeStateStatus === 'BEHIND',
-      () => 'retry' as const,
+  }
+  // --no-renames lists both sides of a move, so moving app code into an ignored path still counts.
+  const changedPaths = git([
+    'diff',
+    '--name-only',
+    '--no-renames',
+    releaseCandidateTag,
+    candidateRef,
+  ])
+    .split('\n')
+    .filter(Boolean)
+  const violations = promotionGuardViolations({
+    changedPaths,
+    releaseCandidateManifestJson: git(['show', `${releaseCandidateTag}:${ROOT_MANIFEST_PATH}`]),
+    candidateManifestJson: git(['show', `${candidateRef}:${ROOT_MANIFEST_PATH}`]),
+  })
+  if (violations.length > 0) {
+    throw new Error(
+      `Stable ${targetVersion} must match ${releaseCandidateTag}, the last published release candidate, apart from its version and non-app paths. ` +
+        `Revert these changes or release them as the next release candidate:\n${violations.join('\n')}`,
     )
-    .when(
-      ({ mergeStateStatus, state }) =>
-        state === 'OPEN' &&
-        ['UNKNOWN', 'BLOCKED', 'UNSTABLE', 'CLEAN'].includes(mergeStateStatus),
-      () => 'poll' as const,
-    )
-    .otherwise(() => 'conflict' as const)
+  }
+  process.stdout.write(
+    `Stable ${targetVersion} matches ${releaseCandidateTag}, the last published release candidate.\n`,
+  )
+}
+
+export function releaseSubjectVersion(subject: string) {
+  return RELEASE_SUBJECT_PATTERN.exec(subject)?.[1] ?? null
+}
+
+function parseAppVersion(version: string) {
+  const match = APP_VERSION_PATTERN.exec(version)
+  if (!match) throw new Error(`Invalid desktop app version: ${version}.`)
+  const [, major, minor, patch, channel, sequence] = match
+  const normalizedChannel = channel ?? 'stable'
+  if (!isMatching(P.union('alpha', 'beta', 'rc', 'stable'), normalizedChannel)) {
+    throw new Error(`Invalid desktop app release channel: ${normalizedChannel}.`)
+  }
+  return {
+    core: [Number(major), Number(minor), Number(patch)] as const,
+    channel: normalizedChannel,
+    sequence: sequence === undefined ? 0 : Number(sequence),
+  }
+}
+
+export function assertForwardAppVersionTransition(current: string, target: string) {
+  const from = parseAppVersion(current)
+  const to = parseAppVersion(target)
+  for (let index = 0; index < from.core.length; index += 1) {
+    const difference = (to.core[index] ?? 0) - (from.core[index] ?? 0)
+    if (difference > 0) return
+    if (difference < 0) throw new Error(`Release target ${target} is older than ${current}.`)
+  }
+  const channelDifference = CHANNEL_RANK[to.channel] - CHANNEL_RANK[from.channel]
+  if (channelDifference > 0) return
+  if (channelDifference === 0 && to.sequence > from.sequence) return
+  throw new Error(`Release target ${target} does not advance ${current}.`)
+}
+
+function optionalArgument(name: string) {
+  const index = process.argv.indexOf(name)
+  return index >= 0 ? process.argv[index + ARG_VALUE_OFFSET] : undefined
+}
+
+function repeatedArgument(name: string) {
+  return process.argv.flatMap((value, index) =>
+    value === name ? (process.argv[index + ARG_VALUE_OFFSET] ?? []) : [],
+  )
 }
 
 function argument(name: string) {
-  const index = process.argv.indexOf(name)
-  const value = index >= 0 ? process.argv[index + ARG_VALUE_OFFSET] : undefined
+  const value = optionalArgument(name)
   if (!value) {
     throw new Error(`Missing required argument ${name}.`)
   }
@@ -110,22 +187,58 @@ async function runCli() {
     return
   }
 
-  if (command === 'expected-manifest') {
-    const basePath = argument('--base')
-    const outputPath = argument('--output')
-    const version = argument('--version')
-    const expected = expectedVersionOnlyManifest(fs.readFileSync(basePath, 'utf8'), version)
-    fs.writeFileSync(outputPath, expected)
+  if (command === 'release-commit') {
+    const parents = repeatedArgument('--parent')
+    if (parents.length === 0) throw new Error('Missing required argument --parent.')
+    const commit = createReleaseCommit({
+      baseRef: argument('--base'),
+      version: argument('--version'),
+      date: releaseDate(),
+      parents,
+      message: argument('--message'),
+    })
+    process.stdout.write(`${commit}\n`)
     return
   }
 
-  if (command === 'merge-action') {
-    process.stdout.write(
-      mergeRecoveryAction({
-        mergeStateStatus: argument('--merge-state'),
-        state: argument('--state'),
-      }),
-    )
+  if (command === 'restore-release-files') {
+    const commit = restoreReleaseFilesCommit({
+      fromRef: argument('--from'),
+      ontoRef: argument('--onto'),
+      message: argument('--message'),
+    })
+    process.stdout.write(`${commit}\n`)
+    return
+  }
+
+  if (command === 'verify-release-tree') {
+    const mainRef = optionalArgument('--release-files-only')
+    const problems = releaseTreeProblems({
+      baseRef: argument('--base'),
+      candidateRef: argument('--candidate'),
+      version: argument('--version'),
+      ...(mainRef === undefined ? {} : { releaseFilesOnly: mainRef }),
+    })
+    if (problems.length > 0) throw new Error(problems.join('\n'))
+    return
+  }
+
+  if (command === 'release-subject-version') {
+    const version = releaseSubjectVersion(argument('--subject'))
+    if (!version) {
+      throw new Error('Commit subject is not a release subject.')
+    }
+    process.stdout.write(version)
+    return
+  }
+
+  if (command === 'verify-promotion') {
+    verifyPromotion(argument('--target'), argument('--candidate'), optionalArgument('--releases'))
+    return
+  }
+
+  if (command === 'validate-transition') {
+    assertForwardAppVersionTransition(argument('--current'), argument('--target'))
     return
   }
 

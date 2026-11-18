@@ -1,18 +1,55 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import type { DesktopNativeRecoveryOutcome } from '@shared/types/openwaggle-desktop-api'
 import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const fixtureRoot = mkdtempSync(path.join(os.tmpdir(), 'ow-shell-handler-'))
+const existingFile = path.join(fixtureRoot, 'image.png')
+writeFileSync(existingFile, 'png')
+const missingFile = path.join(fixtureRoot, 'hive-sessions.png')
 
 const mockShellOpenPath = vi.fn()
+const mockShellShowItemInFolder = vi.fn()
 const mockAppGetPath = vi.fn((_name: string) => '/tmp/logs')
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
 const mockShellOpenExternal = vi.fn(async (_url: string) => {})
+const mockClipboardReadText = vi.fn(() => 'clipboard text')
+const mockNativeAdmissionIssue = vi.fn<() => string | null>(() => null)
+const mockRecoverNativeAdmission = vi.fn<() => Promise<DesktopNativeRecoveryOutcome>>(async () => ({
+  outcome: 'recovered',
+}))
+interface MockUsageEnv {
+  DO_NOT_TRACK?: string
+  PI_TELEMETRY?: string
+  CI?: string
+  OPENWAGGLE_AUTOMATION?: '1'
+}
+const mockEnv = vi.hoisted(() => {
+  const env: MockUsageEnv = {}
+  return env
+})
+vi.mock('../../env', () => ({ env: mockEnv }))
+vi.mock('@shared/build-identity-runtime', () => ({ BUILD_CHANNEL: 'beta' }))
+
+vi.mock('../../desktop-native-admission', () => ({
+  getDesktopNativeAdmissionIssue: () => mockNativeAdmissionIssue(),
+  recoverDesktopNativeAdmission: () => mockRecoverNativeAdmission(),
+}))
 
 vi.mock('electron', () => ({
   shell: {
     openPath: (p: string) => mockShellOpenPath(p),
     openExternal: (url: string) => mockShellOpenExternal(url),
+    showItemInFolder: (p: string) => mockShellShowItemInFolder(p),
   },
   app: { getPath: (name: string) => mockAppGetPath(name) },
+  clipboard: {
+    readText: () => mockClipboardReadText(),
+    writeText: vi.fn(),
+  },
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
@@ -22,9 +59,12 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
-  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
-    Effect.runPromiseExit(effect),
+  runAppEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
+}))
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffect: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect),
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown>) => Effect.runPromiseExit(effect),
 }))
 
 vi.mock('../../logger', () => ({
@@ -39,23 +79,62 @@ vi.mock('../../logger', () => ({
 import { registerShellHandlers } from '../shell-handler'
 
 describe('shell-handler', () => {
+  afterAll(() => rmSync(fixtureRoot, { recursive: true, force: true }))
+
   beforeEach(() => {
     handlers.clear()
     mockShellOpenPath.mockReset()
+    mockShellShowItemInFolder.mockReset()
     mockShellOpenExternal.mockReset()
     mockAppGetPath.mockReset()
+    mockClipboardReadText.mockReset()
+    mockNativeAdmissionIssue.mockReturnValue(null)
     mockShellOpenPath.mockResolvedValue('')
     mockAppGetPath.mockReturnValue('/tmp/logs')
+    mockClipboardReadText.mockReturnValue('clipboard text')
   })
 
-  it('registers exactly four handlers', () => {
+  it.each([null, 'Previous desktop ownership remains uncertain.'])(
+    'exposes the read-only GUI native admission state: %s',
+    async (issue) => {
+      mockNativeAdmissionIssue.mockReturnValue(issue)
+      registerShellHandlers()
+      expect(await handlers.get('app:get-native-admission-issue')?.({})).toBe(issue)
+      expect(mockShellOpenPath).not.toHaveBeenCalled()
+      expect(mockShellOpenExternal).not.toHaveBeenCalled()
+    },
+  )
+
+  it('runs the GUI-offered native admission recovery and returns its typed outcome', async () => {
+    registerShellHandlers()
+    expect(await handlers.get('app:recover-native-admission')?.({})).toEqual({
+      outcome: 'recovered',
+    })
+    const failure = { outcome: 'failed', message: 'Host refused', retryable: true } as const
+    mockRecoverNativeAdmission.mockResolvedValueOnce(failure)
+    expect(await handlers.get('app:recover-native-admission')?.({})).toEqual(failure)
+    expect(mockRecoverNativeAdmission).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    [{}, null],
+    [{ OPENWAGGLE_AUTOMATION: '1' as const }, 'automation'],
+    [{ DO_NOT_TRACK: '1' }, 'do-not-track'],
+    [{ CI: 'true' }, 'ci'],
+  ])('tells the Settings switch why this window never sends statistics: %o', async (env, block) => {
+    for (const key of ['DO_NOT_TRACK', 'PI_TELEMETRY', 'CI', 'OPENWAGGLE_AUTOMATION'] as const) {
+      delete mockEnv[key]
+    }
+    Object.assign(mockEnv, env)
+    registerShellHandlers()
+    expect(await handlers.get('app:get-usage-statistics-block')?.({})).toBe(block)
+  })
+
+  it('reads paste text through Electron clipboard isolation', async () => {
     registerShellHandlers()
 
-    expect(handlers.size).toBe(4)
-    expect(handlers.has('app:open-logs-dir')).toBe(true)
-    expect(handlers.has('app:get-logs-path')).toBe(true)
-    expect(handlers.has('shell:open-path')).toBe(true)
-    expect(handlers.has('shell:open-external')).toBe(true)
+    await expect(handlers.get('clipboard:read-text')?.({})).resolves.toBe('clipboard text')
+    expect(mockClipboardReadText).toHaveBeenCalledOnce()
   })
 
   describe('app:open-logs-dir', () => {
@@ -69,13 +148,12 @@ describe('shell-handler', () => {
       expect(mockAppGetPath).toHaveBeenCalledWith('logs')
     })
 
-    it('uses the path returned by app.getPath', async () => {
-      mockAppGetPath.mockReturnValue('/custom/log/dir')
+    it('propagates a blocked automation path instead of dropping the rejection', async () => {
+      mockShellOpenPath.mockRejectedValueOnce(new Error('Blocked native desktop UI'))
       registerShellHandlers()
 
       const handler = handlers.get('app:open-logs-dir')
-      await handler?.({})
-      expect(mockShellOpenPath).toHaveBeenCalledWith('/custom/log/dir')
+      await expect(handler?.({})).rejects.toThrow('Blocked native desktop UI')
     })
   })
 
@@ -89,43 +167,37 @@ describe('shell-handler', () => {
       expect(mockAppGetPath).toHaveBeenCalledWith('logs')
       expect(result).toBe('/tmp/logs')
     })
-
-    it('reflects the current logs path dynamically', async () => {
-      mockAppGetPath.mockReturnValue('/another/path')
-      registerShellHandlers()
-
-      const handler = handlers.get('app:get-logs-path')
-      const result = await handler?.()
-      expect(result).toBe('/another/path')
-    })
   })
 
   describe('shell:open-external', () => {
-    it('opens https URLs via shell.openExternal', async () => {
+    it.each(['https://github.com', 'http://localhost:3000'])(
+      'opens the web link %s via shell.openExternal',
+      async (url) => {
+        registerShellHandlers()
+
+        await handlers.get('shell:open-external')?.({}, url)
+        expect(mockShellOpenExternal).toHaveBeenCalledWith(url)
+      },
+    )
+
+    it.each([
+      ['file:///etc/passwd', /^OpenWaggle opens only http and https links in your browser\.$/u],
+      ['/screenshots/hive-sessions.png', /^This link is not a valid web address\.$/u],
+    ])('refuses %s in words the user can act on', async (url, message) => {
       registerShellHandlers()
-      const handler = handlers.get('shell:open-external')
-      expect(handler).toBeDefined()
 
-      await handler?.({}, 'https://github.com')
-      expect(mockShellOpenExternal).toHaveBeenCalledWith('https://github.com')
-    })
-
-    it('opens http URLs via shell.openExternal', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-external')
-
-      await handler?.({}, 'http://localhost:3000')
-      expect(mockShellOpenExternal).toHaveBeenCalledWith('http://localhost:3000')
-    })
-
-    it('rejects disallowed URL protocols', async () => {
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-external')
-
-      await expect(handler?.({}, 'file:///etc/passwd')).rejects.toThrow(
-        'Disallowed URL protocol: file:',
-      )
+      await expect(handlers.get('shell:open-external')?.({}, url)).rejects.toThrow(message)
       expect(mockShellOpenExternal).not.toHaveBeenCalled()
+    })
+
+    it('says the browser could not open the link when the system refuses it', async () => {
+      mockShellOpenExternal.mockRejectedValueOnce(new Error('LSOpenURLsWithRole() failed'))
+      registerShellHandlers()
+      const handler = handlers.get('shell:open-external')
+
+      await expect(handler?.({}, 'https://openwaggle.ai')).rejects.toThrow(
+        /^Couldn't open the link in your browser\.$/u,
+      )
     })
   })
 
@@ -135,26 +207,53 @@ describe('shell-handler', () => {
       const handler = handlers.get('shell:open-path')
       expect(handler).toBeDefined()
 
-      await handler?.({}, '/tmp/project')
-      expect(mockShellOpenPath).toHaveBeenCalledWith('/tmp/project')
+      await handler?.({}, fixtureRoot)
+      expect(mockShellOpenPath).toHaveBeenCalledWith(fixtureRoot)
     })
 
-    it('rejects empty paths', async () => {
+    it("maps shell.openPath's own failure to a message for the user", async () => {
+      mockShellOpenPath.mockResolvedValueOnce('Failed to open path')
       registerShellHandlers()
       const handler = handlers.get('shell:open-path')
 
-      await expect(handler?.({}, '  ')).rejects.toThrow('Path is required.')
-      expect(mockShellOpenPath).not.toHaveBeenCalled()
-    })
-
-    it('rejects shell.openPath failures', async () => {
-      mockShellOpenPath.mockResolvedValueOnce('No application can open the file')
-      registerShellHandlers()
-      const handler = handlers.get('shell:open-path')
-
-      await expect(handler?.({}, '/tmp/project')).rejects.toThrow(
-        'No application can open the file',
+      await expect(handler?.({}, existingFile)).rejects.toThrow(
+        /^Couldn't open image\.png\. No app on this computer opened it\.$/u,
       )
+    })
+  })
+
+  describe('shell:reveal-path', () => {
+    it('reveals a local path in its platform file browser', async () => {
+      registerShellHandlers()
+      const handler = handlers.get('shell:reveal-path')
+      expect(handler).toBeDefined()
+
+      await handler?.({}, `  ${existingFile}  `)
+
+      expect(mockShellShowItemInFolder).toHaveBeenCalledWith(existingFile)
+    })
+  })
+
+  describe('shell:open-path and shell:reveal-path', () => {
+    const missingMessage =
+      /^hive-sessions\.png isn't there anymore\. It may have been moved or deleted\.$/u
+
+    it.each([
+      ['shell:open-path', '  ', 'There is no file to open.'],
+      ['shell:open-path', missingFile, missingMessage],
+      [
+        'shell:open-path',
+        path.join(existingFile, 'inner.png'),
+        /^inner\.png isn't there anymore\./u,
+      ],
+      ['shell:reveal-path', '  ', 'There is no file to reveal.'],
+      ['shell:reveal-path', missingFile, missingMessage],
+    ])('%s refuses %j without calling the shell', async (channel, targetPath, message) => {
+      registerShellHandlers()
+
+      await expect(handlers.get(channel)?.({}, targetPath)).rejects.toThrow(message)
+      expect(mockShellOpenPath).not.toHaveBeenCalled()
+      expect(mockShellShowItemInFolder).not.toHaveBeenCalled()
     })
   })
 })

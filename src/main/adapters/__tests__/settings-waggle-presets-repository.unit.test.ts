@@ -33,7 +33,7 @@ function createPreset(input: {
   readonly id: string
   readonly name: string
   readonly updatedAt?: number
-}): WagglePreset {
+}) {
   return {
     id: WagglePresetId(input.id),
     name: input.name,
@@ -59,7 +59,7 @@ function createPreset(input: {
     isBuiltIn: false,
     createdAt: 100,
     updatedAt: input.updatedAt ?? 100,
-  }
+  } satisfies WagglePreset
 }
 
 function runWithRepository<A>(

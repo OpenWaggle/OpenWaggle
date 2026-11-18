@@ -1,31 +1,32 @@
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
-import type {
-  AgentTransportCustomEvent,
-  AgentTransportEvent,
-  AgentTransportInteractionRequestEvent,
-  AgentTransportInteractionResolvedEvent,
-} from '@shared/types/stream'
+import { Schema, type SchemaType } from '@shared/schema'
+import {
+  agentLoopSessionEventContentJsonSchema,
+  type durableAgentLoopEventNodeContentSchema,
+  type durableAgentLoopEventSchema,
+} from '@shared/schemas/agent-loop-session-event'
+import type { AgentTransportEvent } from '@shared/types/stream'
+import { Option } from 'effect'
+import {
+  notificationCreatesDurableRecord,
+  notificationResolutionCreatesDurableRecord,
+} from '@shared/utils/agent-notification-durability'
 import type { AgentKernelSessionSnapshot } from '../../ports/agent-kernel-service'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 
 const DECIMAL_RADIX = 10
 
-export type DurableAgentLoopEvent =
-  | AgentTransportCustomEvent
-  | AgentTransportInteractionRequestEvent
-  | AgentTransportInteractionResolvedEvent
+export type DurableAgentLoopEvent = SchemaType<typeof durableAgentLoopEventSchema>
 
-export interface DurableAgentLoopEventNodeContent {
-  readonly customType: typeof OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
-  readonly event: DurableAgentLoopEvent
-}
+export type DurableAgentLoopEventNodeContent = SchemaType<
+  typeof durableAgentLoopEventNodeContentSchema
+>
 
 interface DurableAgentLoopNodeSource {
   readonly id: string
   readonly parentId: string | null
   readonly piEntryType: string
   readonly kind: string
-  readonly role?: ProjectedSessionNodeInput['role']
   readonly timestampMs: number
   readonly contentJson: string
   readonly metadataJson: string
@@ -33,38 +34,35 @@ interface DurableAgentLoopNodeSource {
   readonly createdOrder: number
 }
 
-type UnknownObject = { readonly [key: string]: unknown }
-
 export function isDurableAgentLoopEvent(
   event: AgentTransportEvent,
 ): event is DurableAgentLoopEvent {
-  return (
-    event.type === 'custom' ||
-    event.type === 'agent_interaction_request' ||
-    event.type === 'agent_interaction_resolved'
-  )
-}
-
-function isObject(value: unknown): value is UnknownObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseJsonObject(raw: string): UnknownObject | null {
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return isObject(parsed) ? parsed : null
-  } catch {
-    return null
+  if (event.type === 'custom') {
+    return true
   }
+
+  if (event.type === 'agent_interaction_request') {
+    return (
+      event.interaction.kind !== 'notify' ||
+      notificationCreatesDurableRecord(event.interaction.level)
+    )
+  }
+
+  if (event.type === 'agent_interaction_resolved') {
+    return event.kind !== 'notify' || notificationResolutionCreatesDurableRecord()
+  }
+
+  return false
 }
+
+const decodeAgentLoopSessionEventContent = Schema.decodeUnknownOption(
+  agentLoopSessionEventContentJsonSchema,
+)
 
 function isDurableAgentLoopNode(node: DurableAgentLoopNodeSource) {
-  if (node.kind !== 'custom') {
-    return false
-  }
-
-  const content = parseJsonObject(node.contentJson)
-  return content?.customType === OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE
+  return (
+    node.kind === 'custom' && Option.isSome(decodeAgentLoopSessionEventContent(node.contentJson))
+  )
 }
 
 function nextCreatedOrder(nodes: readonly ProjectedSessionNodeInput[]) {
@@ -101,7 +99,7 @@ function agentLoopEventNode(input: {
   readonly parentId: string | null
   readonly pathDepth: number
   readonly createdOrder: number
-}): ProjectedSessionNodeInput {
+}) {
   const content: DurableAgentLoopEventNodeContent = {
     customType: OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE,
     event: input.event,
@@ -119,13 +117,13 @@ function agentLoopEventNode(input: {
     }),
     pathDepth: input.pathDepth,
     createdOrder: input.createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 function carriedDurableAgentLoopNode(input: {
   readonly node: DurableAgentLoopNodeSource
   readonly createdOrder: number
-}): ProjectedSessionNodeInput {
+}) {
   return {
     id: input.node.id,
     parentId: input.node.parentId,
@@ -137,7 +135,7 @@ function carriedDurableAgentLoopNode(input: {
     metadataJson: input.node.metadataJson,
     pathDepth: input.node.pathDepth,
     createdOrder: input.createdOrder,
-  }
+  } satisfies ProjectedSessionNodeInput
 }
 
 function appendExistingDurableAgentLoopNodes(input: {
@@ -165,7 +163,7 @@ export function appendDurableAgentLoopEvents(input: {
   readonly events: readonly DurableAgentLoopEvent[]
   readonly runId: string
   readonly existingNodes?: readonly DurableAgentLoopNodeSource[]
-}): AgentKernelSessionSnapshot {
+}) {
   const nodes = [...input.snapshot.nodes]
   let createdOrder = appendExistingDurableAgentLoopNodes({
     nodes,
@@ -175,10 +173,7 @@ export function appendDurableAgentLoopEvents(input: {
   if (input.events.length === 0) {
     return nodes.length === input.snapshot.nodes.length
       ? input.snapshot
-      : {
-          nodes,
-          activeNodeId: input.snapshot.activeNodeId,
-        }
+      : { ...input.snapshot, nodes }
   }
 
   const nodeIds = new Set(nodes.map((node) => node.id))
@@ -214,8 +209,5 @@ export function appendDurableAgentLoopEvents(input: {
     eventIndex += 1
   }
 
-  return {
-    nodes,
-    activeNodeId: input.snapshot.activeNodeId,
-  }
+  return { ...input.snapshot, nodes }
 }

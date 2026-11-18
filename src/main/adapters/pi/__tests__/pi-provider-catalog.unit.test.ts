@@ -1,20 +1,13 @@
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
-import { MCP_ADAPTER_PACKAGE_SOURCE } from '@shared/constants/mcp'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  createPiProviderCatalogSnapshot,
-  createPiRuntimeServices,
-  getPiModelAvailableThinkingLevels,
-} from '../pi-provider-catalog'
+import { createPiRuntimeServices, findPiToolCapableModel } from '../pi-provider-catalog'
 import {
   createTempProject,
-  existsSync,
   fs,
   loadedSkillPaths,
   path,
   writeJson,
   writeProviderExtension,
-  writeProviderPackage,
   writeSkill,
 } from './pi-provider-catalog.test-utils'
 
@@ -22,86 +15,49 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-describe('getPiModelAvailableThinkingLevels', () => {
-  it('returns off only for non-reasoning models', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-4.1-mini', reasoning: false })).toEqual([
-      'off',
-    ])
-  })
-
-  it('returns standard Pi thinking levels for reasoning models without xhigh support', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-5', reasoning: true })).toEqual([
-      'off',
-      'minimal',
-      'low',
-      'medium',
-      'high',
-    ])
-  })
-
-  it('returns xhigh for Pi-supported model families', () => {
-    expect(getPiModelAvailableThinkingLevels({ id: 'gpt-5.4', reasoning: true })).toEqual([
-      'off',
-      'minimal',
-      'low',
-      'medium',
-      'high',
-      'xhigh',
-    ])
-  })
-})
-
-describe('createPiProviderCatalogSnapshot', () => {
-  it('loads global provider catalog without loading configured OpenWaggle MCP packages', async () => {
-    const root = await createTempProject()
-    const agentDir = path.join(root, 'pi-agent')
-    const home = path.join(root, 'home')
-    const providerId = 'global-offline-provider'
-    const mcpProviderId = 'mcp-adapter-leak-provider'
-    vi.stubEnv('HOME', home)
-    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
-    await writeProviderPackage(agentDir, 'extensions/global-provider-package', providerId)
-    await writeProviderPackage(agentDir, MCP_ADAPTER_PACKAGE_SOURCE, mcpProviderId)
-    await writeJson(path.join(agentDir, 'settings.json'), {
-      packages: ['extensions/global-provider-package', MCP_ADAPTER_PACKAGE_SOURCE],
-    })
-
-    try {
-      const snapshot = await createPiProviderCatalogSnapshot(null)
-
-      expect(snapshot.providers.map((provider) => provider.provider)).toContain(providerId)
-      expect(snapshot.providers.map((provider) => provider.provider)).not.toContain(mcpProviderId)
-    } finally {
-      await fs.rm(root, { recursive: true, force: true })
-    }
-  })
-
-  it('loads project provider catalog without loading configured OpenWaggle MCP packages', async () => {
-    const projectPath = await createTempProject()
-    const providerId = 'offline-provider'
-    const mcpProviderId = 'project-mcp-adapter-leak-provider'
-    await writeProviderExtension(projectPath, providerId)
-    await writeProviderPackage(
-      path.join(projectPath, '.pi'),
-      MCP_ADAPTER_PACKAGE_SOURCE,
-      mcpProviderId,
-    )
-    await writeJson(path.join(projectPath, '.pi', 'settings.json'), {
-      packages: [MCP_ADAPTER_PACKAGE_SOURCE],
-    })
-
-    const snapshot = await createPiProviderCatalogSnapshot(projectPath)
-    const provider = snapshot.providers.find((candidate) => candidate.provider === providerId)
-
-    expect(provider?.models.map((model) => model.ref)).toContain(`${providerId}/offline-model`)
-    expect(snapshot.providers.map((candidate) => candidate.provider)).not.toContain(mcpProviderId)
-    expect(existsSync(path.join(projectPath, '.pi', 'npm', 'node_modules', 'pi-mcp-adapter'))).toBe(
-      false,
-    )
-  })
-})
-
 describe('createPiRuntimeServices', () => {
+  it('loads the built-in Visualize skill and binds the current session directory', async () => {
+    const projectPath = await createTempProject()
+    const visualizationDirectory = path.join(projectPath, '.session-visualizations')
+
+    const services = await createPiRuntimeServices(projectPath, { visualizationDirectory })
+    const visualizeSkill = services.resourceLoader
+      .getSkills()
+      .skills.find((skill) => skill.name === 'visualize')
+
+    expect(visualizeSkill?.filePath).toMatch(
+      /openwaggle-built-in-skills[/\\]visualize[/\\]SKILL\.md$/,
+    )
+    await expect(
+      fs.stat(path.join(path.dirname(visualizeSkill?.filePath ?? ''), 'scripts', 'render.py')),
+    ).resolves.toMatchObject({ mode: expect.any(Number) })
+    // The directory travels in a section after cwd (see pi-provider-resources.ts), not Pi's addendum.
+    expect(services.resourceLoader.getAppendSystemPrompt()).toEqual([])
+    const handlers = services.resourceLoader
+      .getExtensions()
+      .extensions.flatMap((extension) => extension.handlers.get('before_agent_start') ?? [])
+    const sections: Record<string, string> = {}
+    const event = { systemPromptOptions: { sections, skills: [], cwd: projectPath } }
+    for (const handler of handlers) await handler(event, {})
+    expect(sections).toHaveProperty(
+      'openwaggle_session_directories',
+      expect.stringContaining(JSON.stringify(visualizationDirectory)),
+    )
+  })
+
+  it('uses Pi ModelRuntime membership as the tool-capable model contract', async () => {
+    const projectPath = await createTempProject()
+    const providerId = 'contract-provider'
+    await writeProviderExtension(projectPath, providerId)
+    const services = await createPiRuntimeServices(projectPath)
+    const runtimeModel = services.modelRuntime.getModel(providerId, 'offline-model')
+
+    expect(
+      findPiToolCapableModel(services.modelRuntime, `${providerId}/offline-model`),
+    ).toStrictEqual(runtimeModel)
+    expect(findPiToolCapableModel(services.modelRuntime, `${providerId}/missing-model`)).toBeNull()
+  })
+
   it('prefers .openwaggle resources over Pi-native project resources on name collisions', async () => {
     const projectPath = await createTempProject()
     const openWaggleSkill = await writeSkill(projectPath, '.openwaggle', 'shared-skill')
@@ -156,6 +112,8 @@ describe('createPiRuntimeServices', () => {
       'extensions',
       path.join('..', '.agents', 'extensions'),
       'extensions/custom',
+      '!extensions/pi-mcp-adapter',
+      '!extensions/pi-mcp-adapter/**',
     ])
     expect(projectSettings.prompts).toEqual([
       path.join('..', '.openwaggle', 'prompts'),
@@ -203,6 +161,25 @@ describe('createPiRuntimeServices', () => {
     expect(skillPaths).toContain(piSkill)
   })
 
+  it('applies an explicit project toggle to a same-named global Pi skill', async () => {
+    const projectPath = await createTempProject()
+    const agentDir = path.join(projectPath, 'pi-agent')
+    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+    const globalSkill = await writeSkill(agentDir, '.', 'herdr-orchestration')
+
+    const enabledServices = await createPiRuntimeServices(projectPath)
+    expect(
+      enabledServices.resourceLoader.getSkills().skills.map((skill) => skill.filePath),
+    ).toContain(globalSkill)
+
+    const disabledServices = await createPiRuntimeServices(projectPath, {
+      skillToggles: { 'herdr-orchestration': false },
+    })
+    expect(
+      disabledServices.resourceLoader.getSkills().skills.map((skill) => skill.filePath),
+    ).not.toContain(globalSkill)
+  })
+
   it('loads Pi project settings from the nested pi object with .pi fallback', async () => {
     const projectPath = await createTempProject()
     await writeJson(path.join(projectPath, '.pi', 'settings.json'), {
@@ -223,13 +200,8 @@ describe('createPiRuntimeServices', () => {
     })
   })
 
-  it('loads extensions with the generated MCP adapter config path and isolated adapter cwd', async () => {
+  it('loads inline extensions without mutating the process cwd or argv', async () => {
     const projectPath = await createTempProject()
-    const adapterCwd = path.join(projectPath, 'generated-adapter-cwd')
-    const configPath = path.join(projectPath, 'generated-mcp.json')
-    await fs.mkdir(adapterCwd, { recursive: true })
-    await writeJson(configPath, { mcpServers: {} })
-
     const observed: {
       cwd?: string
       argv?: readonly string[]
@@ -237,55 +209,17 @@ describe('createPiRuntimeServices', () => {
     const factory: ExtensionFactory = (pi) => {
       observed.cwd = process.cwd()
       observed.argv = [...process.argv]
-      pi.registerFlag('mcp-config', {
-        description: 'Path to MCP config file',
-        type: 'string',
-      })
+      pi.registerCommand('inline-extension-test', { handler: async () => undefined })
     }
+    const expectedCwd = process.cwd()
+    const expectedArgv = [...process.argv]
 
-    const services = await createPiRuntimeServices(projectPath, {
+    await createPiRuntimeServices(projectPath, {
       extensionFactories: [factory],
-      mcpRuntimeContext: { configPath, adapterCwd },
     })
 
-    expect(observed.cwd).toBe(adapterCwd)
-    expect(observed.argv?.slice(-2)).toEqual(['--mcp-config', configPath])
-    expect(services.resourceLoader.getExtensions().runtime.flagValues.get('mcp-config')).toBe(
-      configPath,
-    )
-  })
-
-  it('can load provider metadata services without the MCP adapter runtime context', async () => {
-    const projectPath = await createTempProject()
-    const adapterCwd = path.join(projectPath, 'generated-adapter-cwd')
-    const configPath = path.join(projectPath, 'generated-mcp.json')
-    await fs.mkdir(adapterCwd, { recursive: true })
-    await writeJson(configPath, { mcpServers: {} })
-
-    const observed: {
-      cwd?: string
-      argv?: readonly string[]
-    } = {}
-    const factory: ExtensionFactory = (pi) => {
-      observed.cwd = process.cwd()
-      observed.argv = [...process.argv]
-      pi.registerFlag('mcp-config', {
-        description: 'Path to MCP config file',
-        type: 'string',
-      })
-    }
-
-    const services = await createPiRuntimeServices(projectPath, {
-      extensionFactories: [factory],
-      loadMcpAdapter: false,
-      mcpRuntimeContext: { configPath, adapterCwd },
-    })
-
-    expect(observed.cwd).not.toBe(adapterCwd)
-    expect(observed.argv?.slice(-2)).not.toEqual(['--mcp-config', configPath])
-    expect(services.resourceLoader.getExtensions().runtime.flagValues.get('mcp-config')).toBe(
-      undefined,
-    )
+    expect(observed.cwd).toBe(expectedCwd)
+    expect(observed.argv).toEqual(expectedArgv)
   })
 
   it('persists Pi project settings back under .openwaggle/settings.json pi object', async () => {

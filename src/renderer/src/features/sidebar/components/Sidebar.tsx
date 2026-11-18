@@ -1,55 +1,52 @@
+import type { SessionId } from '@shared/types/brand'
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
+import { useSessionGitIndicators } from '../hooks/useSessionGitIndicators'
 import { useSidebarController } from '../hooks/useSidebarController'
+import { queenWorkerAttention } from '../lib/worker-attention'
 import {
   SidebarBrandArea,
   SidebarPrimaryActions,
   SidebarProjectsHeader,
   SidebarSettingsButton,
 } from './SidebarNavigation'
+import { SidebarPinnedSection } from './SidebarPinnedSection'
 import { SidebarProjectList } from './SidebarProjectList'
+import { SidebarSearchBox } from './SidebarSearchBox'
+import { SidebarStatusChips } from './SidebarStatusIndicators'
+
+const SESSION_LOAD_MORE_THRESHOLD_PX = 240
 
 export function Sidebar() {
   const controller = useSidebarController()
+  // Each row shows its own working tree, so load status for every listed session's
+  // working path (de-duplicated: local-mode sessions in one project share a tree).
+  useSessionGitIndicators([
+    ...controller.sessionGroups.projects.flatMap((group) => group.sessions),
+    ...controller.pinnedRows.map((row) => row.session),
+  ])
   const markUnread = useSessionStatusStore((state) => state.markUnread)
   const sidebarHidden = !controller.sidebarOpen || controller.activeView === 'settings'
   const renderState = {
     activeBranchId: controller.activeBranchId,
     activeSessionId: controller.activeSessionId,
+    activeHiveRootId: controller.activeHiveRootId,
     activeSessionTree: controller.matchingActiveSessionTree,
-    collapsedProjectPaths: controller.collapsedProjectPaths,
+    isProjectCollapsed: controller.isProjectCollapsed,
     draftBranch: controller.draftBranch,
     draftSessionProjectPath: controller.draftSessionProjectPath,
     projectPath: controller.projectPath,
+    narrowed: controller.narrowed,
+    workerAttentionOf: (queenId: string) =>
+      queenWorkerAttention(controller.workerAttentionByQueen, queenId),
   }
-  const projectActions = {
-    newSession(nextProjectPath: string) {
-      void controller.handleSelectProjectPath(nextProjectPath)
-    },
-    openInFinder: controller.handleOpenProjectInFinder,
-    rename: controller.handleRenameProject,
-    archiveSessions: controller.handleArchiveProjectSessions,
-    remove: controller.handleRemoveProject,
-    toggleCollapsed: controller.handleToggleProjectCollapsed,
-  }
-  const sessionActions = {
-    select: controller.handleSelectSession,
-    delete: controller.handleDeleteSession,
-    archive: controller.handleArchiveSession,
-    clone: controller.handleCloneSession,
-    markUnread,
-  }
-  const branchActions = {
-    select: controller.handleSelectBranch,
-    rename: controller.handleRenameBranch,
-    archive: controller.handleArchiveBranch,
-    toggle: controller.handleToggleBranches,
-  }
+  const actions = buildSidebarActions(controller, markUnread)
 
   return (
+    // inert alone: aria-hidden too warned when the sidebar hid around a focused button (#356).
     <div
-      aria-hidden={sidebarHidden ? true : undefined}
       inert={sidebarHidden ? true : undefined}
       className={cn(
         'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
@@ -59,38 +56,140 @@ export function Sidebar() {
     >
       <nav
         aria-label="Sidebar"
-        className={`flex h-full ${SIDEBAR_LAYOUT.WIDTH_CLASS} shrink-0 flex-col justify-between border-r border-border bg-bg-secondary`}
+        /*
+         * Typography is set here, not inherited. #root runs at 16px with 0.006em tracking,
+         * which the prototype does not have, so every inherited size and every letter gap
+         * inside the sidebar was wrong before this.
+         */
+        className={`flex h-full ${SIDEBAR_LAYOUT.WIDTH_CLASS} shrink-0 flex-col justify-between border-r border-border bg-bg-secondary text-sm leading-normal tracking-normal`}
       >
         <div className="flex flex-1 flex-col overflow-hidden">
           <SidebarBrandArea isFullscreen={controller.isFullscreen} />
-          <SidebarPrimaryActions
-            activeView={controller.activeView}
-            onNewSession={controller.handleNewSession}
-            onOpenSkills={controller.handleOpenSkills}
+          <SidebarPrimaryActions onNewSession={controller.handleNewSession} />
+          <SidebarSearchBox value={controller.searchQuery} onChange={controller.setSearchQuery} />
+          <SidebarStatusChips
+            counts={controller.chipCounts}
+            activeState={controller.filterState}
+            onToggle={controller.toggleFilterState}
           />
-          <div className="h-20 shrink-0" />
-          <SidebarProjectsHeader
-            sortMenuOpen={controller.sortMenuOpen}
-            sortMode={controller.sortMode}
-            onOpenProject={() => {
-              void controller.handleOpenProject()
+          {/*
+           * Pinned and Projects share one scroll area. They were separate, with only the
+           * project list scrolling, so nine Pinned rows pushed the projects out of reach in
+           * a windowed sidebar: the list below could not be scrolled to.
+           */}
+          <div
+            data-qa="sidebar-scroll"
+            className="no-drag sidebar-scroll flex-1 pb-3"
+            onScroll={(event) => {
+              const element = event.currentTarget
+              const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
+              if (remaining < SESSION_LOAD_MORE_THRESHOLD_PX) {
+                controller.loadMoreVisibleSessions()
+              }
             }}
-            onSetSortMenuOpen={controller.setSortMenuOpen}
-            onSetSortMode={controller.setSortMode}
-          />
-          <div className="no-drag flex-1 overflow-y-auto pb-3">
+          >
+            <SidebarPinnedSection
+              rows={controller.pinnedRows}
+              activeSessionId={
+                controller.activeSessionId ? String(controller.activeSessionId) : null
+              }
+              activeHiveRootId={controller.activeHiveRootId}
+              sort={{
+                mode: controller.pinnedSortMode,
+                menuOpen: controller.pinnedSortMenuOpen,
+                onSetMenuOpen: controller.setPinnedSortMenuOpen,
+                onSetMode: controller.setPinnedSortMode,
+                // A narrowed list is not the list, so it cannot be reordered.
+                reorderable:
+                  controller.filterState === null && controller.searchQuery.trim() === '',
+              }}
+              displayProjectName={controller.displayProjectName}
+              sessionActions={actions.session}
+              workerAttentionOf={renderState.workerAttentionOf}
+              onReorder={controller.handleReorderPinnedSession}
+            />
+            <SidebarProjectsHeader
+              projectCount={controller.sessionGroups.projects.length}
+              sortMenuOpen={controller.sortMenuOpen}
+              sortMode={controller.sortMode}
+              onOpenProject={() => {
+                void controller.handleOpenProject()
+              }}
+              onSetSortMenuOpen={controller.setSortMenuOpen}
+              onSetSortMode={controller.setSortMode}
+            />
             <SidebarProjectList
               sessionGroups={controller.sessionGroups}
+              projectRollUp={controller.projectRollUp}
               renderState={renderState}
               displayProjectName={controller.displayProjectName}
-              projectActions={projectActions}
-              sessionActions={sessionActions}
-              branchActions={branchActions}
+              projectActions={actions.project}
+              sessionActions={actions.session}
+              branchActions={actions.branch}
             />
+            {controller.hasMoreVisibleSessions ? (
+              <SidebarLoadMoreButton loadMore={controller.loadMoreVisibleSessions} />
+            ) : null}
           </div>
         </div>
-        <SidebarSettingsButton onOpenSettings={controller.handleOpenSettings} />
+        <SidebarSettingsButton
+          onOpenSettings={controller.handleOpenSettings}
+          onOpenUsageCost={controller.handleOpenUsageCost}
+        />
       </nav>
     </div>
   )
+}
+
+function SidebarLoadMoreButton({ loadMore }: { readonly loadMore: () => void }) {
+  return (
+    <div className="px-2 pt-1">
+      <Button
+        type="button"
+        variant="unstyled"
+        onClick={() => loadMore()}
+        className="min-h-8 w-full rounded-md px-2 text-left text-xs font-medium text-accent hover:bg-bg-hover"
+      >
+        Load more sessions
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * Group the controller's handlers into the three action objects the tree consumes.
+ *
+ * Extracted from the component so it holds layout only. These are pure wiring: the controller
+ * owns behaviour, this only names it for the components that call it.
+ */
+function buildSidebarActions(
+  controller: ReturnType<typeof useSidebarController>,
+  markUnread: (id: SessionId) => void,
+) {
+  return {
+    project: {
+      newSession(nextProjectPath: string) {
+        void controller.handleSelectProjectPath(nextProjectPath)
+      },
+      openInFinder: controller.handleOpenProjectInFinder,
+      rename: controller.handleRenameProject,
+      archiveSessions: controller.handleArchiveProjectSessions,
+      remove: controller.handleRemoveProject,
+      toggleCollapsed: controller.handleToggleProjectCollapsed,
+    },
+    session: {
+      select: controller.handleSelectSession,
+      delete: controller.handleDeleteSession,
+      archive: controller.handleArchiveSession,
+      clone: controller.handleCloneSession,
+      markUnread,
+      togglePin: controller.handleTogglePinnedSession,
+    },
+    branch: {
+      select: controller.handleSelectBranch,
+      rename: controller.handleRenameBranch,
+      archive: controller.handleArchiveBranch,
+      toggle: controller.handleToggleBranches,
+    },
+  }
 }

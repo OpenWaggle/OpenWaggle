@@ -1,5 +1,6 @@
+import { Schema } from '@shared/schema'
+import { Option } from 'effect'
 import type { AgentTransportAgentEndEvent } from '@shared/types/stream'
-import { isRecord } from '@shared/utils/validation'
 
 function isAgentEndReason(
   value: unknown,
@@ -13,20 +14,22 @@ function isAgentEndReason(
   )
 }
 
-interface AgentEndAssistantMessage {
-  readonly role: 'assistant'
-  readonly stopReason?: unknown
-  readonly usage?: unknown
-  readonly errorMessage?: unknown
-}
+// explicit undefined: Pi sets stopReason, usage or errorMessage to undefined on its messages
+const agentEndAssistantMessageSchema = Schema.Struct({
+  role: Schema.Literal('assistant'),
+  stopReason: Schema.optional(Schema.Unknown),
+  usage: Schema.optional(Schema.Unknown),
+  errorMessage: Schema.optional(Schema.Unknown),
+})
 
-function isAgentEndAssistantMessage(message: unknown): message is AgentEndAssistantMessage {
-  return isRecord(message) && message.role === 'assistant'
-}
+const isAgentEndAssistantMessage = Schema.is(agentEndAssistantMessageSchema)
 
-function getAgentEndAssistantMessage(
-  messages: readonly unknown[],
-): AgentEndAssistantMessage | null {
+/** The token counts of an assistant message's `usage`, all three or none. */
+const decodeAgentEndUsage = Schema.decodeUnknownOption(
+  Schema.Struct({ input: Schema.Number, output: Schema.Number, totalTokens: Schema.Number }),
+)
+
+function getAgentEndAssistantMessage(messages: readonly unknown[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (isAgentEndAssistantMessage(message)) {
@@ -44,27 +47,20 @@ export function getAgentEndReason(messages: readonly unknown[]) {
   return isAgentEndReason(assistantMessage.stopReason) ? assistantMessage.stopReason : null
 }
 
-export function getAgentEndUsage(
-  messages: readonly unknown[],
-): AgentTransportAgentEndEvent['usage'] | undefined {
+export function getAgentEndUsage(messages: readonly unknown[]) {
   const assistantMessage = getAgentEndAssistantMessage(messages)
-  const usage = assistantMessage?.usage
-  if (!isRecord(usage)) {
+  const usage = Option.getOrUndefined(decodeAgentEndUsage(assistantMessage?.usage))
+  if (!usage) {
     return undefined
   }
+  const { input, output, totalTokens } = usage
 
-  const input = typeof usage.input === 'number' ? usage.input : null
-  const output = typeof usage.output === 'number' ? usage.output : null
-  const totalTokens = typeof usage.totalTokens === 'number' ? usage.totalTokens : null
-  if (input === null || output === null || totalTokens === null) {
-    return undefined
-  }
-
-  return {
+  const event: AgentTransportAgentEndEvent['usage'] | undefined = {
     promptTokens: input,
     completionTokens: output,
     totalTokens,
   }
+  return event
 }
 
 export function getAgentEndError(messages: readonly unknown[]) {

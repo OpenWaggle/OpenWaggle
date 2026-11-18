@@ -97,3 +97,31 @@ describe('resolveSelectedModelThinkingLevel', () => {
     expect(result.availableThinkingLevels).toEqual([])
   })
 })
+
+describe('a Session whose model is gone', () => {
+  it('uses the thinking levels of the model its Runs fall back to', () => {
+    const thinking = resolveSelectedModelThinkingLevel({
+      providerModels: PROVIDER_MODELS,
+      selectedModel: SupportedModelId('qa-router/auto'),
+      fallbackModel: SupportedModelId('openai/gpt-5'),
+      requestedThinkingLevel: 'xhigh',
+    })
+
+    expect(thinking).toMatchObject({
+      capabilitiesKnown: true,
+      availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
+      effectiveThinkingLevel: 'high',
+    })
+  })
+
+  it('keeps the levels unknown when the fallback model is gone too', () => {
+    const thinking = resolveSelectedModelThinkingLevel({
+      providerModels: PROVIDER_MODELS,
+      selectedModel: SupportedModelId('qa-router/auto'),
+      fallbackModel: SupportedModelId('gone/model'),
+      requestedThinkingLevel: 'high',
+    })
+
+    expect(thinking.capabilitiesKnown).toBe(false)
+  })
+})

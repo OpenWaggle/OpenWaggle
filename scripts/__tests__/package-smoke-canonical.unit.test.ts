@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  mergePackedPackageSources,
-  parsePackageSmokeArgs,
-} from '../package-smoke-canonical'
+import { mergePackedPackageSources, parsePackageSmokeArgs } from '../package-smoke-canonical'
 
 describe('canonical package smoke inputs', () => {
   it('uses canonical release tarballs by package name without changing their paths', () => {
@@ -11,9 +8,7 @@ describe('canonical package smoke inputs', () => {
       { name: '@openwaggle/extension-sdk', tarballPath: '/tmp/generated-sdk.tgz' },
       { name: '@openwaggle/waggle-core', tarballPath: '/tmp/generated-core.tgz' },
     ]
-    const canonical = [
-      { name: '@openwaggle/extension-sdk', tarballPath: '/tmp/attested-sdk.tgz' },
-    ]
+    const canonical = [{ name: '@openwaggle/extension-sdk', tarballPath: '/tmp/attested-sdk.tgz' }]
 
     expect(mergePackedPackageSources(generated, canonical)).toEqual([
       { name: '@openwaggle/extension-sdk', tarballPath: '/tmp/attested-sdk.tgz' },
@@ -29,7 +24,8 @@ describe('canonical package smoke inputs', () => {
       'Package smoke tarball directory must be absolute.',
     )
     expect(() => parsePackageSmokeArgs(['--unknown'])).toThrow(
-      'Usage: package-smoke.ts [--tarball-dir <absolute-directory>].',
+      'Usage: package-smoke.ts [--prebuilt | --tarball-dir <absolute-directory>].',
     )
+    expect(parsePackageSmokeArgs(['--prebuilt'])).toEqual({ prebuilt: true })
   })
 })

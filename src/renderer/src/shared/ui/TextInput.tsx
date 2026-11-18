@@ -20,7 +20,7 @@ const TEXT_INPUT_VARIANT_CLASS = {
 }
 
 const TEXT_INPUT_SIZE_CLASS = {
-  sm: 'h-8 px-2.5 text-[13px]',
+  sm: 'h-8 px-2.5 text-sm',
   md: 'px-3 py-2 text-sm',
 }
 

@@ -1,0 +1,279 @@
+import { SessionId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
+import { SessionProjectionRepositoryError } from '../errors'
+import { createLogger } from '../logger'
+import type {
+  SessionDeletionOptions,
+  SessionProjectionRepositoryShape,
+} from '../ports/session-projection-repository'
+import type { SessionTranscriptLocation } from '../ports/session-transcript-files'
+import type { pruneSessionWorktree } from '../services/git/session-worktree-prune'
+import type {
+  abandonSessionDeletion,
+  clearSessionWorktree,
+  commitSessionDeletion,
+  getBoundWorkspaceResource,
+  getSessionDeletion,
+  getSessionDetail,
+  listPendingSessionDeletions,
+  listSessionWorktreeRefs,
+  markSessionDeletionExternalCleanupComplete,
+  markSessionPiFileCleanupComplete,
+  prepareSessionCheckpointRefCleanup,
+  prepareSessionDeletion,
+  prepareSessionPiFileCleanup,
+} from '../store/session-details'
+import {
+  completeJournaledSessionFileDeletion,
+  removeSessionFiles,
+} from '../store/session-details/file-deletion'
+import type { SessionDeletionRecord } from '../store/session-details/session-deletion-journal'
+import type { CheckpointRefSnapshot } from './git/turn-checkpoint-refs'
+import type { removeGitWorktree } from './git/worktree'
+
+interface SessionDeletionStore {
+  readonly abandonSessionDeletion: typeof abandonSessionDeletion
+  readonly clearSessionWorktree: typeof clearSessionWorktree
+  readonly commitSessionDeletion: typeof commitSessionDeletion
+  readonly getBoundWorkspaceResource: typeof getBoundWorkspaceResource
+  readonly getSessionDeletion: typeof getSessionDeletion
+  readonly getSessionDetail: typeof getSessionDetail
+  readonly listPendingSessionDeletions: typeof listPendingSessionDeletions
+  readonly listSessionWorktreeRefs: typeof listSessionWorktreeRefs
+  readonly markSessionDeletionExternalCleanupComplete: typeof markSessionDeletionExternalCleanupComplete
+  readonly markSessionPiFileCleanupComplete: typeof markSessionPiFileCleanupComplete
+  readonly prepareSessionDeletion: typeof prepareSessionDeletion
+  readonly prepareSessionCheckpointRefCleanup: typeof prepareSessionCheckpointRefCleanup
+  readonly prepareSessionPiFileCleanup: typeof prepareSessionPiFileCleanup
+}
+
+const logger = createLogger('sqlite-session-projection/deletion')
+
+interface DeletionDependencies {
+  readonly removeWorktree?: (
+    projectPath: string,
+    payload: Parameters<typeof removeGitWorktree>[1],
+    recovering: boolean,
+  ) => ReturnType<typeof removeGitWorktree>
+  readonly store: SessionDeletionStore
+  readonly pruneSessionWorktree: typeof pruneSessionWorktree
+  readonly deleteCheckpointRefs: (
+    projectPath: string,
+    sessionId: string,
+    beforeDelete?: (refs: readonly CheckpointRefSnapshot[]) => Promise<void>,
+  ) => Promise<readonly CheckpointRefSnapshot[]>
+  readonly restoreCheckpointRefs: (
+    projectPath: string,
+    refs: readonly CheckpointRefSnapshot[],
+  ) => Promise<void>
+  readonly listTranscriptFiles: (location: SessionTranscriptLocation) => Promise<readonly string[]>
+}
+
+type DeletableSession = NonNullable<Awaited<ReturnType<SessionDeletionStore['getSessionDetail']>>>
+
+/**
+ * The transcript file the deletion journal records for a Session.
+ *
+ * A Session that never recorded a file can still have a transcript: its first run writes one
+ * that is recorded only once the run's snapshot is saved, and the runtime rediscovers it by the
+ * Session's transcript id. The journal outlives the Session row, so it records that file instead:
+ * its name carries the transcript id that Pi file cleanup needs to find every copy after the row
+ * is gone.
+ */
+async function journaledTranscriptFile(input: DeletionDependencies, session: DeletableSession) {
+  if (session.piSessionFile || !session.piSessionId) return session.piSessionFile ?? null
+  const files = await input.listTranscriptFiles({
+    transcriptId: session.piSessionId,
+    transcriptFile: null,
+    projectPath: session.projectPath,
+    worktreePath: session.worktreePath ?? null,
+  })
+  return files[0] ?? null
+}
+
+/**
+ * Removes every other file of the deleted Session's transcript. The runtime would reopen any of
+ * them as the Session's transcript, and listing them again from the journal makes the removal
+ * safe to repeat when recovery resumes an interrupted cleanup.
+ *
+ * A Pi file the cleanup keeps (no staged path: a discovered Pi session's, ADR 0051) is the user's
+ * history in the program that made it, and so is every file with its Pi session id, the kept file
+ * included, so none is removed.
+ */
+async function removeTranscriptCopies(input: DeletionDependencies, cleanup: SessionDeletionRecord) {
+  if (!cleanup.piSessionFile || cleanup.stagedPiSessionFile === null) return
+  const copies = await input.listTranscriptFiles({
+    transcriptFile: cleanup.piSessionFile,
+    projectPath: cleanup.projectPath,
+    worktreePath: cleanup.worktreePath,
+  })
+  await removeSessionFiles(copies)
+}
+
+async function pruneWorktreeForSession(
+  input: DeletionDependencies,
+  deletion: SessionDeletionRecord,
+  id: SessionId,
+  reason: 'delete' | 'archive',
+  allowMissingWorktree = false,
+  validateOnly = false,
+  recovering = false,
+) {
+  return input.pruneSessionWorktree(
+    {
+      sessionId: String(id),
+      projectPath: deletion.worktreeProjectPath ?? deletion.projectPath,
+      worktreePath: deletion.worktreePath,
+      reason,
+      allowMissingWorktree,
+      allowMissingWorkspaceReference: allowMissingWorktree,
+      validateOnly,
+    },
+    {
+      ...(input.removeWorktree
+        ? {
+            removeWorktree: (
+              projectPath: string,
+              payload: Parameters<typeof removeGitWorktree>[1],
+            ) =>
+              input.removeWorktree
+                ? input.removeWorktree(projectPath, payload, recovering)
+                : Promise.reject(new Error('Worktree removal service disappeared.')),
+          }
+        : {}),
+      listWorktreeRefs: () => input.store.listSessionWorktreeRefs(),
+      clearWorktree: (sessionId) => input.store.clearSessionWorktree(SessionId(sessionId)),
+    },
+  )
+}
+
+async function commitPreparedSessionDeletion(
+  input: DeletionDependencies,
+  deletion: SessionDeletionRecord,
+  id: SessionId,
+) {
+  try {
+    const pruning = await pruneWorktreeForSession(input, deletion, id, 'delete', false, true)
+    if (pruning.status === 'retained') {
+      throw new Error(`Session deletion was refused to preserve its Workspace (${pruning.reason}).`)
+    }
+    return await input.store.commitSessionDeletion(id)
+  } catch (error) {
+    await input.store.abandonSessionDeletion(id)
+    throw error
+  }
+}
+
+async function deleteSessionDurably(
+  input: DeletionDependencies,
+  id: SessionId,
+  recovering: boolean,
+  options: SessionDeletionOptions,
+) {
+  const session = await input.store.getSessionDetail(id)
+  let deletion = session
+    ? await input.store.prepareSessionDeletion(
+        id,
+        await journaledTranscriptFile(input, session),
+        options,
+      )
+    : await input.store.getSessionDeletion(id)
+  if (!deletion) return
+  if (deletion.phase === 'pi-file-cleanup-complete') {
+    await input.store.abandonSessionDeletion(id)
+    return
+  }
+  if (deletion.phase === 'prepared') {
+    deletion = await commitPreparedSessionDeletion(input, deletion, id)
+  }
+  if (deletion.phase === 'durable-delete-complete') {
+    const removedRefs = deletion.projectPath
+      ? await input.deleteCheckpointRefs(deletion.projectPath, String(id), (refs) =>
+          input.store.prepareSessionCheckpointRefCleanup(id, refs),
+        )
+      : []
+    deletion = { ...deletion, phase: 'checkpoint-ref-cleanup-pending', checkpointRefs: removedRefs }
+  }
+  if (deletion.phase === 'checkpoint-ref-cleanup-pending') {
+    let removed = false
+    try {
+      if (deletion.projectPath) {
+        await input.deleteCheckpointRefs(deletion.projectPath, String(id))
+        removed = true
+      }
+      const pruning = await pruneWorktreeForSession(
+        input,
+        deletion,
+        id,
+        'delete',
+        true,
+        false,
+        recovering,
+      )
+      if (pruning.status === 'retained') {
+        throw new Error(`Session cleanup could not remove its Workspace (${pruning.reason}).`)
+      }
+    } catch (error) {
+      if (deletion.projectPath && removed) {
+        await input.restoreCheckpointRefs(deletion.projectPath, deletion.checkpointRefs)
+      }
+      throw error
+    }
+    await input.store.markSessionDeletionExternalCleanupComplete(id)
+  }
+  const cleanup =
+    deletion.phase === 'pi-file-cleanup-pending'
+      ? deletion
+      : await input.store.prepareSessionPiFileCleanup(id, deletion.piSessionFile)
+  await completeJournaledSessionFileDeletion(cleanup.piSessionFile, cleanup.stagedPiSessionFile)
+  await removeTranscriptCopies(input, cleanup)
+  await input.store.markSessionPiFileCleanupComplete(id)
+  await input.store.abandonSessionDeletion(id)
+}
+
+function recoverPendingDeletions(input: DeletionDependencies) {
+  return Effect.promise(async () => {
+    for (const id of await input.store.listPendingSessionDeletions()) {
+      try {
+        await deleteSessionDurably(input, id, true, {})
+      } catch (error) {
+        logger.error('Pending Session deletion recovery failed; Session remains visible.', {
+          error: String(error),
+          sessionId: String(id),
+        })
+      }
+    }
+  })
+}
+
+export function createSessionProjectionDeletionMethods(input: DeletionDependencies) {
+  return {
+    delete: (id, options) =>
+      Effect.tryPromise({
+        try: () => deleteSessionDurably(input, id, false, options ?? {}),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
+      }),
+    recoverPendingDeletions: () => recoverPendingDeletions(input),
+  } satisfies Pick<SessionProjectionRepositoryShape, 'delete' | 'recoverPendingDeletions'>
+}
+
+export async function archiveSessionWorkspace(input: DeletionDependencies, id: SessionId) {
+  const session = await input.store.getSessionDetail(id)
+  if (!session) return { status: 'ready-for-deletion' } as const
+  const workspace = await input.store.getBoundWorkspaceResource(id)
+  return input.pruneSessionWorktree(
+    {
+      sessionId: String(id),
+      projectPath: workspace?.projectPath ?? session.projectPath,
+      worktreePath:
+        workspace?.kind === 'managed-worktree'
+          ? workspace.workingPath
+          : (session.worktreePath ?? null),
+      reason: 'archive',
+    },
+    {
+      listWorktreeRefs: () => input.store.listSessionWorktreeRefs(),
+      clearWorktree: (sessionId) => input.store.clearSessionWorktree(SessionId(sessionId)),
+    },
+  )
+}

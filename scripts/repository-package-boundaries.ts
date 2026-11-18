@@ -62,6 +62,11 @@ const packageBoundaryRules: readonly PackageBoundaryRule[] = [
     allowedExternalPrefixes: ['@openwaggle/extension-sdk/'],
     forbiddenExternalSpecifiers: ['electron'],
     forbiddenExternalPrefixes: [
+      // The SDK's schemas are internal, and its tooling entries bundle Effect (ADR 0066): a
+      // renderer library imports the runtime entries only.
+      '@openwaggle/extension-sdk/internal/',
+      '@openwaggle/extension-sdk/testing',
+      '@openwaggle/extension-sdk/validation',
       '@/',
       '@shared/',
       '@earendil-works/',
@@ -178,7 +183,7 @@ function externalBoundaryViolation(input: {
   readonly file: string
   readonly rule: PackageBoundaryRule
   readonly specifier: string
-}): RepositoryViolation | null {
+}) {
   if (builtinSpecifiers.has(input.specifier) && !input.rule.allowNodeBuiltins) {
     return {
       detail: input.specifier,
@@ -195,7 +200,10 @@ function externalBoundaryViolation(input: {
     }
   }
 
-  if (input.specifier.startsWith('@openwaggle/') && !isAllowedExternal(input.rule, input.specifier)) {
+  if (
+    input.specifier.startsWith('@openwaggle/') &&
+    !isAllowedExternal(input.rule, input.specifier)
+  ) {
     return {
       detail: input.specifier,
       file: input.file,

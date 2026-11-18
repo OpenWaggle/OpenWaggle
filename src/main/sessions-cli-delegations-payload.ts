@@ -1,0 +1,165 @@
+import { randomUUID } from 'node:crypto'
+import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import { DELEGATION_STATES, type DelegationState } from '@shared/types/session-collaboration'
+import {
+  DELEGATION_CONFLICT_KINDS,
+  DELEGATION_CONFLICT_STATUSES,
+  type DelegationConflictKind,
+  type DelegationConflictStatus,
+} from '@shared/types/session-delegation-query'
+import {
+  SESSION_QUERY_CONTRACT_VERSION,
+  SESSION_QUERY_DISCOVERY_LIMIT,
+} from '@shared/types/session-query'
+import { resolveCliProjectPath } from './cli-project-path'
+import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
+import { positiveInteger, required, requiredSessionId, optionEntry } from './sessions-cli-arguments'
+
+const DELEGATION_QUERY_COMMANDS = [
+  'delegations-list',
+  'delegations-read',
+  'delegations-conflicts',
+] as const
+
+export function isDelegationQueryCliCommand(
+  command: string,
+): command is (typeof DELEGATION_QUERY_COMMANDS)[number] {
+  return DELEGATION_QUERY_COMMANDS.some((candidate) => candidate === command)
+}
+
+/** `--parent` and `--worker` take a Session identity or a Session link (ADR 0056). */
+function sessionFilters(arguments_: ParsedArguments) {
+  const parent = option(arguments_, 'parent')
+  const worker = option(arguments_, 'worker')
+  return {
+    ...(parent ? { parentSessionId: requiredSessionId(parent, '--parent') } : {}),
+    ...(worker ? { workerSessionId: requiredSessionId(worker, '--worker') } : {}),
+  }
+}
+
+function selectedStates(arguments_: ParsedArguments) {
+  const values = arguments_.options.get('state')
+  if (!values?.length) return undefined
+  return [
+    ...new Set(
+      values.map((value) => {
+        const state = DELEGATION_STATES.find((candidate) => candidate === value)
+        if (!state) throw new Error(`Unsupported Delegation state: ${value}.`)
+        return state
+      }),
+    ),
+  ] satisfies readonly DelegationState[]
+}
+
+function listPayload(arguments_: ParsedArguments, workingDirectory: string) {
+  const states = selectedStates(arguments_)
+  const projectPath = option(arguments_, 'project')
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-query-v2',
+    request: {
+      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+      requestId: randomUUID(),
+      query: {
+        operation: 'delegations-list',
+        limit: option(arguments_, 'limit')
+          ? positiveInteger(option(arguments_, 'limit'), '--limit')
+          : SESSION_QUERY_DISCOVERY_LIMIT,
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
+        ...(hasFlag(arguments_, 'all')
+          ? {}
+          : projectPath
+            ? { projectPath: resolveCliProjectPath(projectPath, workingDirectory) }
+            : { workingPath: workingDirectory }),
+        ...sessionFilters(arguments_),
+        ...(states ? { states } : {}),
+      },
+    },
+  }
+  return payload
+}
+
+function readPayload(arguments_: ParsedArguments) {
+  return {
+    contract: 'session-query-v2',
+    request: {
+      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+      requestId: randomUUID(),
+      query: {
+        operation: 'delegations-read',
+        delegationId: required(arguments_.positionals[0], 'Delegation ID'),
+        ...(option(arguments_, 'limit')
+          ? { limit: positiveInteger(option(arguments_, 'limit'), '--limit') }
+          : {}),
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
+      },
+    },
+  } satisfies LocalSessionCommandPayload
+}
+
+function selectedConflictKinds(arguments_: ParsedArguments) {
+  const result: readonly DelegationConflictKind[] = [
+    ...new Set(
+      (arguments_.options.get('kind') ?? []).map((value) => {
+        const kind = DELEGATION_CONFLICT_KINDS.find((candidate) => candidate === value)
+        if (!kind) throw new Error(`Unsupported Delegation conflict kind: ${value}.`)
+        return kind
+      }),
+    ),
+  ]
+  return result
+}
+
+function selectedConflictStatuses(arguments_: ParsedArguments) {
+  const result: readonly DelegationConflictStatus[] = [
+    ...new Set(
+      (arguments_.options.get('status') ?? []).map((value) => {
+        const status = DELEGATION_CONFLICT_STATUSES.find((candidate) => candidate === value)
+        if (!status) throw new Error(`Unsupported Delegation conflict status: ${value}.`)
+        return status
+      }),
+    ),
+  ]
+  return result
+}
+
+function conflictsPayload(arguments_: ParsedArguments, workingDirectory: string) {
+  const kinds = selectedConflictKinds(arguments_)
+  const statuses = selectedConflictStatuses(arguments_)
+  const projectPath = option(arguments_, 'project')
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-query-v2',
+    request: {
+      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+      requestId: randomUUID(),
+      query: {
+        operation: 'delegations-conflicts',
+        limit: option(arguments_, 'limit')
+          ? positiveInteger(option(arguments_, 'limit'), '--limit')
+          : SESSION_QUERY_DISCOVERY_LIMIT,
+        ...optionEntry(arguments_, 'cursor', 'cursor'),
+        ...(hasFlag(arguments_, 'all')
+          ? {}
+          : projectPath
+            ? { projectPath: resolveCliProjectPath(projectPath, workingDirectory) }
+            : { workingPath: workingDirectory }),
+        ...sessionFilters(arguments_),
+        ...optionEntry(arguments_, 'delegation', 'delegationId'),
+        ...(kinds.length ? { kinds } : {}),
+        ...(statuses.length ? { statuses } : {}),
+      },
+    },
+  }
+  return payload
+}
+
+/** `hive delegations-list`, `delegations-read`, and `delegations-conflicts`. */
+export function buildDelegationQueryCliPayload(
+  command: (typeof DELEGATION_QUERY_COMMANDS)[number],
+  arguments_: ParsedArguments,
+  context: { readonly workingDirectory?: string } = {},
+) {
+  const workingDirectory = context.workingDirectory ?? process.cwd()
+  if (command === 'delegations-list') return listPayload(arguments_, workingDirectory)
+  if (command === 'delegations-read') return readPayload(arguments_)
+  return conflictsPayload(arguments_, workingDirectory)
+}

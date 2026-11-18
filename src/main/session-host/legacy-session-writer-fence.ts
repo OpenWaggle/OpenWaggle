@@ -1,0 +1,24 @@
+import { systemIntegration } from '../desktop-shell/system-integration'
+
+interface DesktopInstanceLock {
+  readonly hasSingleInstanceLock: () => boolean
+  readonly requestSingleInstanceLock: () => boolean
+  readonly releaseSingleInstanceLock: () => void
+}
+
+export async function withLegacySessionWriterFence<T>(
+  operation: () => Promise<T>,
+  lock: DesktopInstanceLock = systemIntegration,
+) {
+  const alreadyOwned = lock.hasSingleInstanceLock()
+  if (!alreadyOwned && !lock.requestSingleInstanceLock()) {
+    throw new Error(
+      'Session Host migration requires exclusive desktop ownership. Close the running OpenWaggle window and retry.',
+    )
+  }
+  try {
+    return await operation()
+  } finally {
+    if (!alreadyOwned) lock.releaseSingleInstanceLock()
+  }
+}

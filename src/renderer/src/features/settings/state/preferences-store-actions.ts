@@ -1,46 +1,72 @@
 import { SupportedModelId } from '@shared/types/brand'
-import { DEFAULT_SETTINGS, THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
-import { includes } from '@shared/utils/validation'
-import { useProviderStore } from '@/features/providers/state'
+import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import {
+  DEFAULT_SHORTCUT_RULES,
+  type ShortcutBinding,
+  type ShortcutBindings,
+  type ShortcutCommand,
+  type ShortcutRules,
+} from '@shared/types/shortcuts'
+import { firstRunnableModel, useProviderStore } from '@/features/providers/state'
+import { setRuntimeAppearancePreferences } from '@/shared/lib/appearance-preferences-runtime'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import type { PreferencesActions, PreferencesState } from './preferences-store-types'
+import { setRuntimeSyntaxThemeSelections } from '@/shared/lib/syntax/syntax-theme-runtime'
+import {
+  persistAppearanceMotion,
+  persistAppearanceTerminalPalette,
+  persistAppearanceTypography,
+} from './appearance-preferences-actions'
+import { createBrowserAndScalarPreferencesActions } from './browser-preferences-actions'
+import { createPiSessionContinuationPreferencesActions } from './pi-session-continuation-preferences-actions'
+import type { PreferencesActions, PreferencesGet, PreferencesSet } from './preferences-store-types'
+import { createProjectHivePreferencesActions } from './project-hive-preferences-actions'
+import {
+  persistProjectPreference,
+  removeModelAndReferences,
+  removeProjectModelTracked,
+} from './project-preference-writes'
 
+const MAX_FAVORITE_MODELS = 100
+const MAX_RECENT_PROJECTS = 10
 const logger = createRendererLogger('preferences')
-const SLICE_ARG_2 = 100
-const SLICE_ARG_2_VALUE_10 = 10
+let syntaxThemeWriteQueue = Promise.resolve()
 
-type PreferencesSet = (
-  partial: Partial<PreferencesState> | ((state: PreferencesState) => Partial<PreferencesState>),
-) => void
-type PreferencesGet = () => PreferencesState
-
-function persistProjectPreference(
-  projectPath: string | null,
-  prefs: { model?: string; thinkingLevel?: string },
-) {
-  if (projectPath) {
-    api.setProjectPreferences(projectPath, prefs).catch((err: unknown) => {
-      logger.warn('Failed to persist project preferences', { error: String(err) })
-    })
-  }
+function mergeSettings(set: PreferencesSet, patch: Partial<Settings>) {
+  set((state) => ({ settings: { ...state.settings, ...patch } }))
 }
 
 function appendRecentProject(paths: readonly string[], path: string) {
   const normalized = path.trim()
   if (!normalized || paths.includes(normalized)) return paths
-  return [...paths, normalized].slice(-SLICE_ARG_2_VALUE_10)
+  return [...paths, normalized].slice(-MAX_RECENT_PROJECTS)
 }
 
 async function refreshProviderModels(set: PreferencesSet, get: PreferencesGet) {
   const updatedSettings = await useProviderStore.getState().loadProviderModels(get().settings)
-  if (updatedSettings) set({ settings: updatedSettings })
+  if (updatedSettings) {
+    mergeSettings(set, {
+      enabledModels: updatedSettings.enabledModels,
+      selectedModel: updatedSettings.selectedModel,
+    })
+  }
 }
 
-async function loadSettings(set: PreferencesSet, get: PreferencesGet) {
+async function loadSettings(
+  set: PreferencesSet,
+  get: PreferencesGet,
+  prefetched?: Promise<Settings>,
+) {
   try {
-    const settings = await api.getSettings()
-    set({ settings, isLoaded: false, loadError: null })
+    const settings = await (prefetched ?? api.getSettings())
+    setRuntimeSyntaxThemeSelections(settings.syntaxThemeSelections)
+    setRuntimeAppearancePreferences(settings.appearancePreferences)
+    set({
+      settings,
+      persistedAppearancePreferences: settings.appearancePreferences,
+      isLoaded: false,
+      loadError: null,
+    })
     if (settings.projectPath) await get().loadProjectPreferences(settings.projectPath)
     set({ isLoaded: true, loadError: null })
   } catch (err) {
@@ -55,7 +81,7 @@ async function setProjectPath(path: string | null, set: PreferencesSet, get: Pre
     ? appendRecentProject(settings.recentProjects, path)
     : settings.recentProjects
   await api.updateSettings({ projectPath: path, recentProjects })
-  set({ settings: { ...settings, projectPath: path, recentProjects } })
+  mergeSettings(set, { projectPath: path, recentProjects })
   if (path) {
     await get().loadProjectPreferences(path)
     await refreshProviderModels(set, get)
@@ -65,57 +91,141 @@ async function setProjectPath(path: string | null, set: PreferencesSet, get: Pre
 async function setEnabledModels(models: string[], set: PreferencesSet, get: PreferencesGet) {
   const { settings } = get()
   const enabledModels = models.map(SupportedModelId)
+  // A new Session's model must be one this project can run, not merely the first enabled.
   const selectedModel = enabledModels.includes(settings.selectedModel)
     ? settings.selectedModel
-    : (enabledModels[0] ?? DEFAULT_SETTINGS.selectedModel)
+    : (firstRunnableModel(useProviderStore.getState().providerModels, enabledModels) ??
+      enabledModels[0] ??
+      DEFAULT_SETTINGS.selectedModel)
   await api.setEnabledModels(enabledModels)
   if (selectedModel !== settings.selectedModel) {
     await api.updateSettings({ selectedModel })
-    persistProjectPreference(settings.projectPath, { model: selectedModel })
+    persistProjectPreference(settings.projectPath, { model: selectedModel }, set, get).catch(
+      (err: unknown) => {
+        logger.warn('Failed to persist project preferences', { error: String(err) })
+      },
+    )
   }
-  set({ settings: { ...settings, enabledModels, selectedModel } })
+  mergeSettings(set, { enabledModels, selectedModel })
 }
 
-async function loadProjectPreferences(
-  projectPath: string,
+/**
+ * A project whose preferences cannot be read, as one whose `.openwaggle` is a link to nothing,
+ * keeps the current settings; opening it does not fail for that.
+ */
+async function readProjectPreferences(projectPath: string) {
+  try {
+    return await api.getProjectPreferences(projectPath)
+  } catch (error) {
+    logger.warn('Could not read the project preferences; keeping the current settings', {
+      projectPath,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
+
+async function loadProjectPreferences(projectPath: string, set: PreferencesSet) {
+  const prefs = await readProjectPreferences(projectPath)
+  if (!prefs) return
+
+  if (!prefs.model) return
+  const patch = { selectedModel: SupportedModelId(prefs.model) }
+  await api.updateSettings(patch)
+  mergeSettings(set, patch)
+}
+
+async function persistShortcutBindings(shortcutBindings: ShortcutBindings, set: PreferencesSet) {
+  const result = await api.updateSettings({ shortcutBindings })
+  if (!result.ok) throw new Error(result.error)
+
+  const persistedSettings = await api.getSettings()
+  mergeSettings(set, {
+    shortcutBindings: persistedSettings.shortcutBindings,
+    shortcutRules: persistedSettings.shortcutRules,
+  })
+}
+
+async function persistShortcutRules(shortcutRules: ShortcutRules, set: PreferencesSet) {
+  const result = await api.updateSettings({ shortcutRules })
+  if (!result.ok) throw new Error(result.error)
+
+  const persistedSettings = await api.getSettings()
+  mergeSettings(set, {
+    shortcutBindings: persistedSettings.shortcutBindings,
+    shortcutRules: persistedSettings.shortcutRules,
+  })
+}
+
+async function persistExtensionPanelShortcutBindings(
+  extensionPanelShortcutBindings: Settings['extensionPanelShortcutBindings'],
+  set: PreferencesSet,
+) {
+  const result = await api.updateSettings({ extensionPanelShortcutBindings })
+  if (!result.ok) throw new Error(result.error)
+
+  const persistedSettings = await api.getSettings()
+  mergeSettings(set, {
+    extensionPanelShortcutBindings: persistedSettings.extensionPanelShortcutBindings,
+  })
+}
+
+function assertSettingsUpdateSucceeded(result: Awaited<ReturnType<typeof api.updateSettings>>) {
+  if (!result.ok) throw new Error(result.error)
+}
+
+function persistSyntaxThemeSelection(
+  variant: Parameters<PreferencesActions['setSyntaxTheme']>[0],
+  themeId: Parameters<PreferencesActions['setSyntaxTheme']>[1],
   set: PreferencesSet,
   get: PreferencesGet,
 ) {
-  const prefs = await api.getProjectPreferences(projectPath)
-  if (!prefs) return
-
-  const { settings } = get()
-  const model = prefs.model ? SupportedModelId(prefs.model) : undefined
-  const thinkingLevel =
-    prefs.thinkingLevel && includes(THINKING_LEVELS, prefs.thinkingLevel)
-      ? prefs.thinkingLevel
-      : undefined
-  if (!model && !thinkingLevel) return
-
-  const patch = {
-    ...(model ? { selectedModel: model } : {}),
-    ...(thinkingLevel ? { thinkingLevel } : {}),
-  }
-  await api.updateSettings(patch)
-  set({ settings: { ...settings, ...patch } })
+  const write = syntaxThemeWriteQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const syntaxThemeSelections = {
+        ...get().settings.syntaxThemeSelections,
+        [variant]: themeId,
+      }
+      assertSettingsUpdateSucceeded(await api.updateSettings({ syntaxThemeSelections }))
+      setRuntimeSyntaxThemeSelections(syntaxThemeSelections)
+      mergeSettings(set, { syntaxThemeSelections })
+    })
+  syntaxThemeWriteQueue = write
+  return write
 }
 
-export function createPreferencesActions(
-  set: PreferencesSet,
-  get: PreferencesGet,
-): PreferencesActions {
+function createAppearancePreferencesActions(set: PreferencesSet, get: PreferencesGet) {
   return {
-    loadSettings: () => loadSettings(set, get),
-    retryLoad: async () => {
-      set({ loadError: null, isLoaded: false })
-      await get().loadSettings()
-      await refreshProviderModels(set, get)
-    },
+    setSyntaxTheme: (
+      variant: Parameters<PreferencesActions['setSyntaxTheme']>[0],
+      themeId: Parameters<PreferencesActions['setSyntaxTheme']>[1],
+    ) => persistSyntaxThemeSelection(variant, themeId, set, get),
+    setAppearanceTypography: (
+      typography: Parameters<PreferencesActions['setAppearanceTypography']>[0],
+    ) => persistAppearanceTypography(typography, set, get),
+    setAppearanceTerminalPalette: (
+      palette: Parameters<PreferencesActions['setAppearanceTerminalPalette']>[0],
+    ) => persistAppearanceTerminalPalette(palette, set, get),
+    setAppearanceMotion: (motion: Parameters<PreferencesActions['setAppearanceMotion']>[0]) =>
+      persistAppearanceMotion(motion, set, get),
+  }
+}
+
+export function createPreferencesActions(set: PreferencesSet, get: PreferencesGet) {
+  return {
+    ...createBrowserAndScalarPreferencesActions(set),
+    ...createProjectHivePreferencesActions(set, get),
+    ...createPiSessionContinuationPreferencesActions(set, get),
+    ...createAppearancePreferencesActions(set, get),
+    loadSettings: (prefetched) => loadSettings(set, get, prefetched),
     setSelectedModel: async (model) => {
       const { settings } = get()
       await api.updateSettings({ selectedModel: model })
-      set({ settings: { ...settings, selectedModel: model } })
-      persistProjectPreference(settings.projectPath, { model })
+      mergeSettings(set, { selectedModel: model })
+      persistProjectPreference(settings.projectPath, { model }, set, get).catch((err: unknown) => {
+        logger.warn('Failed to persist project preferences', { error: String(err) })
+      })
     },
     toggleFavoriteModel: async (model) => {
       const trimmed = model.trim()
@@ -128,9 +238,9 @@ export function createPreferencesActions(
         : [
             normalizedModel,
             ...settings.favoriteModels.filter((entry) => entry !== normalizedModel),
-          ].slice(0, SLICE_ARG_2)
+          ].slice(0, MAX_FAVORITE_MODELS)
       await api.updateSettings({ favoriteModels })
-      set({ settings: { ...settings, favoriteModels } })
+      mergeSettings(set, { favoriteModels })
     },
     setProjectPath: (path) => setProjectPath(path, set, get),
     pushRecentProject: async (path) => {
@@ -138,56 +248,55 @@ export function createPreferencesActions(
       if (!normalized) return
       const { settings } = get()
       const recentProjects = appendRecentProject(settings.recentProjects, normalized)
-      await api.updateSettings({ recentProjects })
-      set({ settings: { ...settings, recentProjects } })
+      assertSettingsUpdateSucceeded(await api.updateSettings({ recentProjects }))
+      mergeSettings(set, { recentProjects })
     },
     removeRecentProject: async (path) => {
       const { settings } = get()
       const recentProjects = settings.recentProjects.filter((project) => project !== path)
       await api.updateSettings({ recentProjects })
-      set({ settings: { ...settings, recentProjects } })
-    },
-    setThinkingLevel: async (preset: ThinkingLevel) => {
-      const { settings } = get()
-      await api.updateSettings({ thinkingLevel: preset })
-      set({ settings: { ...settings, thinkingLevel: preset } })
-      persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+      mergeSettings(set, { recentProjects })
     },
     setEnabledModels: (models) => setEnabledModels(models, set, get),
     setProjectDisplayName: async (path, name) => {
       const { settings } = get()
       const projectDisplayNames = { ...settings.projectDisplayNames, [path]: name }
       await api.updateSettings({ projectDisplayNames })
-      set({ settings: { ...settings, projectDisplayNames } })
+      mergeSettings(set, { projectDisplayNames })
     },
+    setShortcutBinding: async (command: ShortcutCommand, binding: ShortcutBinding | null) => {
+      const { settings } = get()
+      const shortcutBindings = { ...settings.shortcutBindings, [command]: binding }
+      await persistShortcutBindings(shortcutBindings, set)
+    },
+    setShortcutRules: (shortcutRules: ShortcutRules) => persistShortcutRules(shortcutRules, set),
+    setExtensionPanelShortcutBinding: async (surfaceId, binding) => {
+      const { [surfaceId]: _previous, ...others } = get().settings.extensionPanelShortcutBindings
+      await persistExtensionPanelShortcutBindings(
+        binding === null ? others : { ...others, [surfaceId]: binding },
+        set,
+      )
+    },
+    resetShortcutBindings: async () => {
+      await persistShortcutBindings(DEFAULT_SETTINGS.shortcutBindings, set)
+    },
+    resetShortcutRules: () => persistShortcutRules(DEFAULT_SHORTCUT_RULES, set),
     clearProjectDisplayName: async (path) => {
       const { settings } = get()
       const { [path]: _ignored, ...projectDisplayNames } = settings.projectDisplayNames
       await api.updateSettings({ projectDisplayNames })
-      set({ settings: { ...settings, projectDisplayNames } })
+      mergeSettings(set, { projectDisplayNames })
     },
     removeProjectReferences: async (path) => {
-      const { settings } = get()
-      const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
-      const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
-      const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
-      const projectPath = settings.projectPath === path ? null : settings.projectPath
-      await api.updateSettings({
-        projectPath,
-        recentProjects,
-        projectDisplayNames,
-        skillTogglesByProject,
-      })
-      set({
-        settings: {
-          ...settings,
-          projectPath,
-          recentProjects,
-          projectDisplayNames,
-          skillTogglesByProject,
-        },
-      })
+      // Any in-flight model write for this project is awaited first so the deletion cannot be
+      // overtaken by it and resurrected afterwards. The whole removal completes BEFORE the project
+      // disappears from the renderer state: if it fails, the entry stays visible and retryable
+      // instead of silently abandoning the stored model.
+      const { references } = await removeProjectModelTracked(path, () =>
+        removeModelAndReferences(path),
+      )
+      mergeSettings(set, references)
     },
-    loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set, get),
-  }
+    loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set),
+  } satisfies PreferencesActions
 }

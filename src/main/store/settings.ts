@@ -1,18 +1,32 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { parseJsonUnknown } from '@shared/schema'
 import type { Settings } from '@shared/types/settings'
+import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
+import { SettingsStoreReadError } from '../errors'
 import { createLogger } from '../logger'
-import { SETTINGS_KEY_DEFAULT_MODEL } from './settings/keys'
-import { collectSettingsPatchWrites, getInvalidThinkingLevel } from './settings/persistence-plan'
+import { publishSettingsStoreState, resetHostSnapshotForTests } from './authoritative-settings'
+import { collectInitialDefaultWrites } from './settings/initial-default-writes'
+import { CURRENT_SETTINGS_KEYS } from './settings/keys'
+import { validatePersistedSettings } from './settings/persisted-validation'
+import { collectSettingsPatchWrites } from './settings/persistence-plan'
 import {
   buildNextSettingsSnapshot,
   buildSettingsSnapshot,
   createDefaultSettingsSnapshot,
 } from './settings/snapshot'
+import {
+  chainWriteQueue,
+  describeError,
+  enqueueSettingsWrite,
+  flushWriteQueue,
+  queueStoredSettingWrite,
+  writeStoredSettingsToDb,
+} from './settings/write-queue'
 import { runStoreEffect } from './store-runtime'
 
 const logger = createLogger('settings')
+const currentSettingsKeys = new Set<string>(CURRENT_SETTINGS_KEYS)
 
 interface SettingsStoreRow {
   readonly key: string
@@ -21,10 +35,14 @@ interface SettingsStoreRow {
 
 let settingsCache = createDefaultSettingsSnapshot()
 let initializationPromise: Promise<void> | null = null
-let writeQueue: Promise<void> = Promise.resolve()
+let settingsReadError: SettingsStoreReadError | null = null
+let settingsReady = false
 
-function describeError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+/** Every snapshot or readiness change is published as this process's authoritative Settings. */
+function publishSettingsState(next: { cache?: Settings; ready?: boolean; fromHost?: true }) {
+  if (next.cache) settingsCache = next.cache
+  if (next.ready !== undefined) settingsReady = next.ready
+  publishSettingsStoreState(settingsReady, settingsCache, next.fromHost === true)
 }
 
 async function listStoredSettings() {
@@ -40,84 +58,254 @@ async function listStoredSettings() {
 
   const stored: Record<string, unknown> = {}
   for (const row of rows) {
+    if (!currentSettingsKeys.has(row.key)) continue
     try {
       stored[row.key] = parseJsonUnknown(row.value_json)
     } catch (error) {
-      logger.warn('Failed to parse stored setting JSON', {
+      throw new SettingsStoreReadError({
+        operation: 'decode',
         key: row.key,
-        error: describeError(error),
+        message: `Saved setting "${row.key}" is not valid JSON.`,
+        cause: error,
       })
     }
   }
   return stored
 }
 
-async function writeStoredSettingToDb(key: string, value: unknown) {
-  await runStoreEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      yield* sql`
-        INSERT INTO settings_store (key, value_json, updated_at)
-        VALUES (${key}, ${JSON.stringify(value)}, ${Date.now()})
-        ON CONFLICT(key) DO UPDATE SET
-          value_json = excluded.value_json,
-          updated_at = excluded.updated_at
-      `
-    }),
+function toSettingsReadError(error: unknown) {
+  return error instanceof SettingsStoreReadError
+    ? error
+    : new SettingsStoreReadError({
+        operation: 'read',
+        message: 'OpenWaggle could not read the saved settings database.',
+        cause: error,
+      })
+}
+
+export function assertSettingsReady() {
+  if (settingsReady) return
+  throw (
+    settingsReadError ??
+    new SettingsStoreReadError({
+      operation: 'read',
+      message: 'OpenWaggle settings have not finished loading.',
+    })
   )
 }
 
-function queueStoredSettingWrite(key: string, value: unknown) {
-  writeQueue = writeQueue
-    .then(() => writeStoredSettingToDb(key, value))
-    .catch((error) => {
-      logger.warn('Failed to write setting to SQLite', { key, error: describeError(error) })
-    })
-}
+export async function initializeSettingsStore() {
+  if (initializationPromise) return initializationPromise
+  if (settingsReady) return
 
-export async function initializeSettingsStore(): Promise<void> {
-  if (initializationPromise) {
-    return initializationPromise
-  }
-
-  initializationPromise = (async () => {
+  const attempt = (async () => {
     try {
       const storedSettings = await listStoredSettings()
+      validatePersistedSettings(storedSettings)
       const built = buildSettingsSnapshot(storedSettings)
       settingsCache = built.settings
+      settingsReadError = null
+      publishSettingsState({ ready: true })
 
-      if (built.settings.selectedModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
-        queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, built.settings.selectedModel)
+      for (const write of collectInitialDefaultWrites(storedSettings, built.settings)) {
+        void queueStoredSettingWrite(write.key, write.value).catch(() => undefined)
       }
     } catch (error) {
-      logger.warn('Failed to initialize settings cache from SQLite', {
-        error: describeError(error),
+      settingsReadError = toSettingsReadError(error)
+      publishSettingsState({ ready: false })
+      const { operation, key, message } = settingsReadError
+      logger.error('Failed to initialize settings cache from SQLite', {
+        operation,
+        key,
+        error: message,
+        cause: describeError(settingsReadError.cause),
       })
-      settingsCache = createDefaultSettingsSnapshot()
     }
   })()
+  initializationPromise = attempt
 
-  await initializationPromise
+  await attempt
+  if (!settingsReady && initializationPromise === attempt) initializationPromise = null
 }
 
-export async function flushSettingsStoreForTests(): Promise<void> {
-  await writeQueue
+/** Reload the durable snapshot so long-lived GUI and detached Host processes see each other's writes. */
+export function refreshSettingsStore() {
+  return chainWriteQueue(async () => {
+    try {
+      const storedSettings = await listStoredSettings()
+      validatePersistedSettings(storedSettings)
+      settingsCache = buildSettingsSnapshot(storedSettings).settings
+      settingsReadError = null
+      publishSettingsState({ ready: true })
+    } catch (error) {
+      settingsReadError = toSettingsReadError(error)
+      publishSettingsState({ ready: false })
+      initializationPromise = null
+      throw settingsReadError
+    }
+  }) satisfies Promise<void>
 }
 
-export function getSettings(): Settings {
+/** Install the authoritative Host snapshot without writing to the attached GUI's isolated DB. */
+export function hydrateSettingsStoreFromHost(snapshot: unknown) {
+  if (!isRecord(snapshot)) throw new Error('Session Host returned an invalid settings snapshot.')
+  for (const key of CURRENT_SETTINGS_KEYS) {
+    if (!Object.hasOwn(snapshot, key) || snapshot[key] === undefined) {
+      throw new SettingsStoreReadError({
+        operation: 'decode',
+        key,
+        message: `Session Host returned an incomplete settings snapshot: ${key}.`,
+      })
+    }
+  }
+  validatePersistedSettings(snapshot)
+  settingsCache = buildSettingsSnapshot(snapshot).settings
+  settingsReadError = null
+  publishSettingsState({ ready: true, fromHost: true })
+  initializationPromise ??= Promise.resolve()
+}
+
+export async function flushSettingsStoreForTests() {
+  await flushWriteQueue()
+}
+
+/**
+ * Clear the module-level cache and its idempotence guard so a test can re-read a
+ * fresh database through `initializeSettingsStore()`.
+ *
+ * Exists so tests do not need `vi.resetModules()` to get a clean cache. Resetting
+ * the module registry also replaced the app runtime module, which orphaned a live
+ * better-sqlite3 Database per test inside a worker vitest reuses across files, and
+ * that accumulation crashed the addon at teardown (#151).
+ */
+export async function resetSettingsStoreForTests() {
+  await flushWriteQueue()
+  initializationPromise = null
+  settingsReadError = null
+  settingsCache = createDefaultSettingsSnapshot()
+  resetHostSnapshotForTests()
+  publishSettingsState({ ready: false })
+}
+
+export function getSettings() {
+  assertSettingsReady()
   return settingsCache
 }
 
-export function updateSettings(partial: Partial<Settings>): void {
+export function updateSettings(partial: Partial<Settings>) {
+  assertSettingsReady()
   const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
-  settingsCache = nextSettings
+  publishSettingsState({ cache: nextSettings })
 
   for (const write of collectSettingsPatchWrites(partial, nextSettings)) {
-    queueStoredSettingWrite(write.key, write.value)
+    void queueStoredSettingWrite(write.key, write.value).catch(() => undefined)
   }
+}
 
-  const invalidThinkingLevel = getInvalidThinkingLevel(partial)
-  if (invalidThinkingLevel !== undefined) {
-    logger.warn('Skipping invalid thinkingLevel', { value: invalidThinkingLevel })
-  }
+function updateProjectToggleMapDurably(
+  label: string,
+  mapKey: 'skillTogglesByProject' | 'agentDefinitionTogglesByProject',
+  projectPath: string,
+  entryId: string,
+  enabled: boolean,
+) {
+  assertSettingsReady()
+  return enqueueSettingsWrite(() => {
+    const currentMap = settingsCache[mapKey]
+    const nextMap = {
+      ...currentMap,
+      [projectPath]: { ...currentMap[projectPath], [entryId]: enabled },
+    }
+    return mapKey === 'skillTogglesByProject'
+      ? persistSettingsPatch({ skillTogglesByProject: nextMap })
+      : persistSettingsPatch({ agentDefinitionTogglesByProject: nextMap })
+  }, label)
+}
+
+export function updateSkillToggleDurably(projectPath: string, skillId: string, enabled: boolean) {
+  return updateProjectToggleMapDurably(
+    'skill toggle',
+    'skillTogglesByProject',
+    projectPath,
+    skillId,
+    enabled,
+  )
+}
+
+export function updateAgentDefinitionToggleDurably(
+  projectPath: string,
+  agentName: string,
+  enabled: boolean,
+) {
+  return updateProjectToggleMapDurably(
+    'Agent definition toggle',
+    'agentDefinitionTogglesByProject',
+    projectPath,
+    agentName,
+    enabled,
+  )
+}
+
+/**
+ * Sets or clears one project's selected model inside the write queue. Clearing writes an
+ * empty-string tombstone so a later legacy migration can never resurrect a cleared value. The
+ * model lives only in the app DB, never in the repo-local settings file.
+ */
+export function updateSelectedModelDurably(projectPath: string, model: string | null) {
+  assertSettingsReady()
+  return enqueueSettingsWrite(
+    () =>
+      persistSettingsPatch({
+        selectedModelsByProject: {
+          ...settingsCache.selectedModelsByProject,
+          [projectPath]: model === null ? '' : model,
+        },
+      }),
+    'project model',
+  )
+}
+
+/** Deletes one project's selected model entry in the write queue, so re-adding starts fresh. */
+export function deleteSelectedModelDurably(projectPath: string) {
+  assertSettingsReady()
+  return enqueueSettingsWrite(() => {
+    const { [projectPath]: _removed, ...rest } = settingsCache.selectedModelsByProject
+    return persistSettingsPatch({ selectedModelsByProject: rest })
+  }, 'project model removal')
+}
+
+/**
+ * Inserts one project's legacy selected model into the DB only while no entry exists — including
+ * the tombstone a queued clear writes, so a stale legacy read cannot resurrect it. Returns whether
+ * it inserted.
+ */
+export function migrateSelectedModelDurably(projectPath: string, model: string) {
+  assertSettingsReady()
+  return enqueueSettingsWrite(async () => {
+    if (Object.hasOwn(settingsCache.selectedModelsByProject, projectPath)) return false
+    await persistSettingsPatch({
+      selectedModelsByProject: { ...settingsCache.selectedModelsByProject, [projectPath]: model },
+    })
+    return true
+  }, 'project model migration')
+}
+
+/**
+ * Persists one settings patch in queue order before publishing it to readers. Reserved for
+ * workflows whose rollback depends on knowing the new identity is durable.
+ */
+export function updateSettingsDurably(partial: Partial<Settings>) {
+  assertSettingsReady()
+  return enqueueSettingsWrite(() => persistSettingsPatch(partial), 'durable settings patch')
+}
+
+export async function persistSettingsPatch(partial: Partial<Settings>) {
+  assertSettingsReady()
+  const nextSettings = buildNextSettingsSnapshot(settingsCache, partial)
+  const writes = collectSettingsPatchWrites(partial, nextSettings)
+  await writeStoredSettingsToDb(writes)
+  // A normal settings update may have changed another field while SQLite was
+  // writing. Re-apply only this patch to the latest cache instead of
+  // publishing the older full snapshot.
+  publishSettingsState({ cache: buildNextSettingsSnapshot(settingsCache, partial) })
 }

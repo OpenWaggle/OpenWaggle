@@ -1,17 +1,20 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import {
-  packageDocumentationDefinitions,
-  packageDocumentationUrl,
-  resolvePackageDocumentationVersions,
-  versionPackageDocumentation,
-} from './package-documentation-model'
 import type {
+  PackageDocumentationDefinition,
   VersionedPackageDocumentationDefinition,
 } from './package-documentation-model'
 import {
+  packageDocumentationDefinitions,
+  packageDocumentationUrl,
+  packageLicenseUrl,
+  resolvePackageDocumentationVersions,
+  versionPackageDocumentation,
+} from './package-documentation-model'
+import {
   availablePackageDocumentationVersions,
+  hasPendingPackageDocumentation,
   pendingPackageDocumentationViolations,
   preparePackageDocumentationLine,
 } from './package-documentation-lines'
@@ -20,8 +23,14 @@ import {
   packageManifestDocumentationViolations,
   withPackageDocumentationMetadata,
 } from './package-documentation-manifest'
+import { substituteInstallPlaceholders } from '../website/src/lib/install-command'
 import { parseFrontmatter } from './installed-docs-generator-model'
 import { renderApiReference } from './package-api-reference-renderer'
+import {
+  apiReferencePath,
+  apiReferenceState,
+  readIfPresent,
+} from './package-documentation-api-page'
 import { renderPackageReadme } from './package-documentation-renderer'
 
 const ARGUMENT_START_INDEX = 2
@@ -30,15 +39,6 @@ const JSON_INDENT_SPACES = 2
 interface GeneratedFile {
   readonly contents: string
   readonly path: string
-}
-
-interface PackageDocumentationResult {
-  readonly changedFiles: readonly string[]
-  readonly violations: readonly string[]
-}
-
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function normalizeMarkdown(value: string) {
@@ -63,26 +63,7 @@ function canonicalGuidePath(projectRoot: string, slug: string, version: string) 
   )
 }
 
-function apiReferencePath(projectRoot: string, slug: string, version: string) {
-  return path.join(
-    projectRoot,
-    'website',
-    'src',
-    'content',
-    'docs',
-    'packages',
-    slug,
-    version,
-    'api-reference.md',
-  )
-}
-
-function auxiliaryPagePath(
-  projectRoot: string,
-  slug: string,
-  version: string,
-  page: string,
-) {
+function auxiliaryPagePath(projectRoot: string, slug: string, version: string, page: string) {
   return path.join(
     projectRoot,
     'website',
@@ -119,54 +100,52 @@ function apiSnapshotPath(projectRoot: string, slug: string) {
 async function generatedFilesForPackage(
   projectRoot: string,
   definition: VersionedPackageDocumentationDefinition,
+  includeApiReference: boolean,
 ) {
-  const guidePath = canonicalGuidePath(
-    projectRoot,
-    definition.slug,
-    definition.currentVersion,
-  )
+  const guidePath = canonicalGuidePath(projectRoot, definition.slug, definition.currentVersion)
   const manifestPath = path.join(packageRoot(projectRoot, definition.slug), 'package.json')
-  const [guide, snapshot, rawManifest] = await Promise.all([
+  const [guide, rawManifest] = await Promise.all([
     readFile(guidePath, 'utf8'),
-    readFile(apiSnapshotPath(projectRoot, definition.slug), 'utf8'),
     readFile(manifestPath, 'utf8'),
   ])
   const manifest = packageManifest(JSON.parse(rawManifest))
   if (manifest.exports === undefined) {
     throw new Error(`${definition.packageName} must declare package exports.`)
   }
+  if (manifest.version === undefined) {
+    throw new Error(`${definition.packageName} package manifest must declare a version.`)
+  }
   const guideBody = parseFrontmatter(guide).body
   const docsUrl = packageDocumentationUrl(definition.slug, definition.currentVersion)
-  return [
+  const generatedFiles: GeneratedFile[] = [
     {
       contents: renderPackageReadme({
-        canonicalBody: guideBody,
+        // As the website and the bundled docs do, so the npm README shows the real install command.
+        canonicalBody: substituteInstallPlaceholders(guideBody),
         description: definition.description,
         docsUrl,
+        // The npm README's License badge links the package's own MIT LICENSE, not the GPL-3.0 root file.
+        licenseUrl: packageLicenseUrl(definition.slug),
         packageName: definition.packageName,
       }),
       path: path.join(packageRoot(projectRoot, definition.slug), 'README.md'),
     },
-    {
+  ]
+  if (includeApiReference) {
+    const snapshot = await readFile(apiSnapshotPath(projectRoot, definition.slug), 'utf8')
+    generatedFiles.push({
       contents: renderApiReference({
         apiDescription: definition.apiDescription,
         exports: manifest.exports,
         packageName: definition.packageName,
+        packageVersion: manifest.version,
         snapshot,
         version: definition.currentVersion,
       }),
       path: apiReferencePath(projectRoot, definition.slug, definition.currentVersion),
-    },
-  ] satisfies readonly GeneratedFile[]
-}
-
-async function readIfPresent(filePath: string) {
-  try {
-    return await readFile(filePath, 'utf8')
-  } catch (error) {
-    if (isJsonObject(error) && error.code === 'ENOENT') return undefined
-    throw error
+    })
   }
+  return generatedFiles
 }
 
 function relativePath(projectRoot: string, filePath: string) {
@@ -176,11 +155,12 @@ function relativePath(projectRoot: string, filePath: string) {
 export async function checkPackageDocumentation(
   projectRoot: string,
   update: boolean,
-): Promise<PackageDocumentationResult> {
+  definitions: readonly PackageDocumentationDefinition[] = packageDocumentationDefinitions,
+) {
   const changedFiles: string[] = []
   const violations: string[] = []
 
-  for (const baseDefinition of packageDocumentationDefinitions) {
+  for (const baseDefinition of definitions) {
     const definitionRoot = packageRoot(projectRoot, baseDefinition.slug)
     const manifestPath = path.join(definitionRoot, 'package.json')
     const rawManifest: unknown = JSON.parse(await readFile(manifestPath, 'utf8'))
@@ -197,9 +177,10 @@ export async function checkPackageDocumentation(
       historicalVersions,
       manifest.version,
     )
-    violations.push(
-      ...(await pendingPackageDocumentationViolations(projectRoot, baseDefinition)),
-    )
+    const deferGeneratedDocumentation =
+      historicalVersions.includes(resolvedVersions.currentVersion) &&
+      (await hasPendingPackageDocumentation(projectRoot, baseDefinition))
+    violations.push(...(await pendingPackageDocumentationViolations(projectRoot, baseDefinition)))
     if (resolvedVersions.versions.at(-1) !== resolvedVersions.currentVersion) {
       throw new Error(
         `${baseDefinition.packageName} package version ${manifest.version} precedes its latest documentation line.`,
@@ -208,7 +189,7 @@ export async function checkPackageDocumentation(
     if (!historicalVersions.includes(resolvedVersions.currentVersion)) {
       if (!update) {
         violations.push(
-          `website/src/content/docs/packages/${baseDefinition.slug}/${resolvedVersions.currentVersion} is missing. Run pnpm package-docs:update.`,
+          `website/src/content/docs/packages/${baseDefinition.slug}/${resolvedVersions.currentVersion} is missing. Run bun run package-docs:update.`,
         )
         continue
       }
@@ -240,12 +221,28 @@ export async function checkPackageDocumentation(
     }
 
     for (const pagePath of requiredAuthoredPackageDocumentationFiles(projectRoot, definition)) {
-      if (await readIfPresent(pagePath) === undefined) {
+      if ((await readIfPresent(pagePath)) === undefined) {
         violations.push(`${relativePath(projectRoot, pagePath)} is missing.`)
       }
     }
 
-    for (const generatedFile of await generatedFilesForPackage(projectRoot, definition)) {
+    // A pending major/minor guide means Release Please owns the version bump and regenerated API
+    // page. The README still belongs to the published line and must remain byte-for-byte derived
+    // from that historical guide while unreleased declarations evolve. An API page generated for
+    // the package's current version documents a published release, so it stays as it is until a
+    // release changes the version; the API snapshot tracks the unreleased declarations.
+    const apiReference = await apiReferenceState({
+      projectRoot,
+      definition,
+      packageVersion: manifest.version,
+      deferred: deferGeneratedDocumentation,
+    })
+    violations.push(...apiReference.violations)
+    for (const generatedFile of await generatedFilesForPackage(
+      projectRoot,
+      definition,
+      apiReference.generates,
+    )) {
       const expected = normalizeMarkdown(generatedFile.contents)
       const actual = await readIfPresent(generatedFile.path)
       if (actual === expected) continue
@@ -253,7 +250,7 @@ export async function checkPackageDocumentation(
       const outputPath = relativePath(projectRoot, generatedFile.path)
       changedFiles.push(outputPath)
       if (!update) {
-        violations.push(`${outputPath} is stale. Run pnpm package-docs:update.`)
+        violations.push(`${outputPath} is stale. Run bun run package-docs:update.`)
         continue
       }
       await mkdir(path.dirname(generatedFile.path), { recursive: true })
@@ -273,7 +270,7 @@ async function runCli() {
   for (const violation of result.violations) console.error(violation)
   if (result.violations.length > 0) process.exitCode = FAILURE_EXIT_CODE
   if (result.changedFiles.length === 0) {
-    console.log('Package documentation is current.')
+    if (result.violations.length === 0) console.log('Package documentation is current.')
     return
   }
   if (argument !== '--update') return
@@ -284,4 +281,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   void runCli()
 }
 
-export { preparePackageDocumentationLine } from './package-documentation-lines'
+export {
+  hasPendingPackageDocumentation,
+  preparePackageDocumentationLine,
+} from './package-documentation-lines'

@@ -32,18 +32,32 @@ describe('registerGitHandlers branches', () => {
           .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
           .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
           .with(
-            'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track) refs/heads refs/remotes',
+            'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track)%09%(committerdate:unix) refs/heads refs/remotes',
             () =>
               cb(
                 null,
                 [
-                  'refs/heads/main\tmain\torigin/main\t*\t[ahead 2, behind 1]',
-                  'refs/heads/feature\tfeature\torigin/feature\t\t',
-                  'refs/remotes/origin/main\torigin/main\t\t\t',
-                  'refs/remotes/origin/HEAD\torigin/HEAD\t\t\t',
+                  'refs/heads/older\tolder\torigin/older\t\t\t200',
+                  'refs/heads/main\tmain\torigin/main\t*\t[ahead 2, behind 1]\t100',
+                  'refs/remotes/origin/main\torigin/main\t\t\t\t500',
+                  'refs/heads/newest\tnewest\torigin/newest\t\t\t300',
+                  'refs/remotes/origin/HEAD\torigin/HEAD\t\t\t\t600',
                 ].join('\n'),
                 '',
               ),
+          )
+          .with('reflog show --all --date=unix --format=%gD', () =>
+            cb(
+              null,
+              [
+                'refs/heads/newest@{300}',
+                'refs/heads/older@{250}',
+                'refs/heads/older@{100}',
+                'refs/heads/main@{50}',
+                'refs/remotes/origin/main@{400}',
+              ].join('\n'),
+              '',
+            ),
           )
           .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
@@ -58,10 +72,60 @@ describe('registerGitHandlers branches', () => {
     expect(result).toMatchObject({
       currentBranch: 'main',
       branches: [
-        { name: 'feature' },
         { name: 'main', isRemote: false, isCurrent: true, ahead: 2, behind: 1 },
+        { name: 'newest' },
+        { name: 'older' },
         { name: 'origin/main' },
       ],
+    })
+  })
+
+  it('keeps an older branch below a newer branch after the older branch receives a new commit', async () => {
+    execFileMock.mockImplementation(
+      (
+        _cmd: string,
+        args: string[],
+        _opts: unknown,
+        cb: (err: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        const key = args.join(' ')
+        match(key)
+          .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
+          .with(
+            'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track)%09%(committerdate:unix) refs/heads refs/remotes',
+            () =>
+              cb(
+                null,
+                [
+                  'refs/heads/main\tmain\t\t*\t\t100',
+                  'refs/heads/older\tolder\t\t\t\t999',
+                  'refs/heads/newer\tnewer\t\t\t\t300',
+                ].join('\n'),
+                '',
+              ),
+          )
+          .with('reflog show --all --date=unix --format=%gD', () =>
+            cb(
+              null,
+              [
+                'refs/heads/older@{999}',
+                'refs/heads/newer@{300}',
+                'refs/heads/older@{100}',
+                'refs/heads/main@{50}',
+              ].join('\n'),
+              '',
+            ),
+          )
+          .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
+      },
+    )
+
+    registerGitHandlers()
+    const result = await registeredHandler('git:branches:list')?.({}, '/tmp/repo')
+
+    expect(result).toMatchObject({
+      branches: [{ name: 'main' }, { name: 'newer' }, { name: 'older' }],
     })
   })
 
@@ -90,11 +154,20 @@ describe('registerGitHandlers branches', () => {
           cb(null, '', '')
           return
         }
+        if (key === 'remote') {
+          cb(null, 'origin\n', '')
+          return
+        }
         if (key === 'show-ref --verify --quiet refs/heads/feature') {
           cb({ name: 'GitError', message: 'missing', code: 1, stdout: '', stderr: '' }, '', '')
           return
         }
-        if (key === 'checkout --track origin/feature') {
+        if (
+          key === 'branch --no-track feature origin/feature' ||
+          key === 'config branch.feature.remote origin' ||
+          key === 'config branch.feature.merge refs/heads/feature' ||
+          key === 'checkout feature'
+        ) {
           cb(null, "branch 'feature' set up to track 'origin/feature'\n", '')
           return
         }
@@ -115,8 +188,12 @@ describe('registerGitHandlers branches', () => {
     expect(gitCommands).toEqual([
       'rev-parse --is-inside-work-tree',
       'show-ref --verify --quiet refs/remotes/origin/feature',
+      'remote',
       'show-ref --verify --quiet refs/heads/feature',
-      'checkout --track origin/feature',
+      'branch --no-track feature origin/feature',
+      'config branch.feature.remote origin',
+      'config branch.feature.merge refs/heads/feature',
+      'checkout feature',
     ])
   })
 
@@ -140,6 +217,10 @@ describe('registerGitHandlers branches', () => {
         }
         if (key === 'show-ref --verify --quiet refs/remotes/upstream/main') {
           cb(null, '', '')
+          return
+        }
+        if (key === 'remote') {
+          cb(null, 'upstream\n', '')
           return
         }
         if (key === 'show-ref --verify --quiet refs/heads/main') {
@@ -167,54 +248,35 @@ describe('registerGitHandlers branches', () => {
     })
   })
 
-  it('maps upstream branch failures to typed branch errors', async () => {
+  it('rejects ancestor and descendant ref collisions during read-only branch validation', async () => {
     execFileMock.mockImplementation(
       (
         _cmd: string,
         args: string[],
         _opts: unknown,
-        cb: (
-          err: (Error & { code?: number; stdout?: string; stderr?: string }) | null,
-          stdout: string,
-          stderr: string,
-        ) => void,
+        cb: (err: Error | null, stdout: string, stderr: string) => void,
       ) => {
         const key = args.join(' ')
-        if (key === 'rev-parse --is-inside-work-tree') {
-          cb(null, 'true\n', '')
-          return
+        if (key === 'rev-parse --is-inside-work-tree') return cb(null, 'true\n', '')
+        if (key === 'check-ref-format --branch feature/current/child') return cb(null, '', '')
+        if (key === 'for-each-ref --format=%(refname) refs/heads refs/remotes') {
+          return cb(null, 'refs/heads/feature/current\nrefs/remotes/origin/release/v1\n', '')
         }
-        if (key === 'branch --set-upstream-to origin/missing main') {
-          cb(
-            {
-              name: 'GitError',
-              message: 'failed',
-              code: 1,
-              stdout: '',
-              stderr: "fatal: upstream branch 'origin/missing' does not exist",
-            },
-            '',
-            '',
-          )
-          return
-        }
-        cb(new Error(`Unexpected git command: ${key}`), '', '')
+        return cb(new Error(`Unexpected git command: ${key}`), '', '')
       },
     )
 
     registerGitHandlers()
-    const handler = registeredHandler('git:branches:set-upstream')
-    expect(handler).toBeDefined()
-
-    const result = await handler?.({}, '/tmp/repo', {
-      name: 'main',
-      upstream: 'origin/missing',
-    })
+    const result = await registeredHandler('git:branches:validate-name')?.(
+      {},
+      '/tmp/repo',
+      'feature/current/child',
+    )
 
     expect(result).toEqual({
       ok: false,
-      code: 'upstream-not-found',
-      message: 'The selected upstream branch does not exist.',
+      code: 'branch-exists',
+      message: 'Branch "feature/current/child" conflicts with existing ref "feature/current".',
     })
   })
 })

@@ -1,12 +1,170 @@
 import * as SqlClient from '@effect/sql/SqlClient'
+import { normalizeSessionReportReference } from '@shared/session-report-reference'
+import { assertSessionTitle } from '@shared/session-title'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
 import * as Effect from 'effect/Effect'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX } from './constants'
-import { stageSessionFileDeletion } from './file-deletion'
+import { deleteSessionRow } from './session-row-deletion'
 import type { UpdateSessionRuntimeInput } from './types'
 
-export async function updateSessionRuntime(input: UpdateSessionRuntimeInput): Promise<void> {
+export interface SessionWorktreeRefRow {
+  readonly sessionId: string
+  readonly worktreePath: string | null
+}
+
+export interface BoundWorkspaceResource {
+  readonly id: string
+  readonly projectPath: string
+  readonly kind: 'local' | 'managed-worktree'
+  readonly workingPath: string
+  readonly lifecycleState:
+    | 'pending'
+    | 'materializing'
+    | 'ready'
+    | 'missing'
+    | 'releasing'
+    | 'failed'
+  readonly worktreeBranch: string | null
+  readonly worktreeBaseRef: string | null
+  readonly worktreeStartFromOrigin: boolean
+  readonly handoffSeedRef: string | null
+  readonly handoffSeedBaseRef: string | null
+  readonly handoffSeedState: 'none' | 'pending' | 'applied' | 'failed'
+}
+
+export async function getBoundWorkspaceResource(id: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{
+        readonly id: string
+        readonly project_path: string
+        readonly kind: 'local' | 'managed-worktree'
+        readonly working_path: string
+        readonly lifecycle_state: BoundWorkspaceResource['lifecycleState']
+        readonly worktree_branch: string | null
+        readonly worktree_base_ref: string | null
+        readonly worktree_start_from_origin: number
+        readonly handoff_seed_ref: string | null
+        readonly handoff_seed_base_ref: string | null
+        readonly handoff_seed_state: BoundWorkspaceResource['handoffSeedState']
+      }>`
+        SELECT
+          workspace_resources.id,
+          workspace_resources.project_path,
+          workspace_resources.kind,
+          workspace_resources.working_path,
+          workspace_resources.lifecycle_state,
+          workspace_resources.worktree_branch,
+          workspace_resources.worktree_base_ref,
+          workspace_resources.worktree_start_from_origin,
+          workspace_resources.handoff_seed_ref,
+          workspace_resources.handoff_seed_base_ref,
+          workspace_resources.handoff_seed_state
+        FROM session_workspace_bindings
+        JOIN workspace_resources
+          ON workspace_resources.id = session_workspace_bindings.workspace_id
+        WHERE session_workspace_bindings.session_id = ${id}
+        LIMIT 1
+      `
+      const row = rows[0]
+      return row
+        ? {
+            id: row.id,
+            projectPath: row.project_path,
+            kind: row.kind,
+            workingPath: row.working_path,
+            lifecycleState: row.lifecycle_state,
+            worktreeBranch: row.worktree_branch,
+            worktreeBaseRef: row.worktree_base_ref,
+            worktreeStartFromOrigin: row.worktree_start_from_origin === 1,
+            handoffSeedRef: row.handoff_seed_ref,
+            handoffSeedBaseRef: row.handoff_seed_base_ref,
+            handoffSeedState: row.handoff_seed_state,
+          }
+        : null
+    }),
+  )
+}
+
+/** Persist the per-session env mode + Worktree base ref plan (before birth). */
+export async function setSessionWorktreePlan(
+  id: SessionId,
+  environmentMode: SessionEnvironmentMode,
+  baseRef: string | null,
+  startFromOrigin: boolean,
+) {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE sessions
+        SET environment_mode = ${environmentMode},
+            worktree_base_ref = ${baseRef},
+            worktree_start_from_origin = ${startFromOrigin ? 1 : 0},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
+/** Stores a session override, or clears it with `null` so the session inherits again. */
+export async function setSessionAuthorizationMode(
+  id: SessionId,
+  authorizationMode: AgentAuthorizationMode | null,
+) {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE sessions
+        SET authorization_mode_override = ${authorizationMode},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
+/** Clear a session's Session worktree binding (death). */
+export async function clearSessionWorktree(id: SessionId) {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`UPDATE sessions SET worktree_path = NULL, updated_at = ${Date.now()} WHERE id = ${id}`
+    }),
+  )
+}
+
+/** All sessions' worktree paths, for orphan detection before removal. */
+export async function listSessionWorktreeRefs() {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{
+        readonly session_id: string
+        readonly working_path: string
+      }>`
+        SELECT bindings.session_id, resources.working_path
+        FROM session_workspace_bindings AS bindings
+        JOIN workspace_resources AS resources ON resources.id = bindings.workspace_id
+        WHERE resources.kind = ${'managed-worktree'}
+        ORDER BY bindings.session_id
+      `
+      const refs: SessionWorktreeRefRow[] = rows.map((row) => ({
+        sessionId: row.session_id,
+        worktreePath: row.working_path,
+      }))
+      return refs
+    }),
+  )
+}
+
+export async function updateSessionRuntime(input: UpdateSessionRuntimeInput) {
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -21,30 +179,34 @@ export async function updateSessionRuntime(input: UpdateSessionRuntimeInput): Pr
   )
 }
 
-export async function deleteSession(id: SessionId): Promise<void> {
-  const piSessionFile = await runStoreEffect(
+export async function deleteSession(id: SessionId) {
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<{ readonly pi_session_file: string | null }>`
-        SELECT pi_session_file FROM sessions WHERE id = ${id} LIMIT 1
-      `
-      return rows[EMPTY_INDEX]?.pi_session_file ?? null
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const bindings = yield* sql<{ readonly workspace_id: string }>`
+            SELECT workspace_id
+            FROM session_workspace_bindings
+            WHERE session_id = ${id}
+            LIMIT 1
+          `
+          yield* deleteSessionRow(sql, id)
+          const workspaceId = bindings[EMPTY_INDEX]?.workspace_id
+          if (workspaceId) {
+            yield* sql`
+              DELETE FROM workspace_resources
+              WHERE id = ${workspaceId}
+                AND NOT EXISTS (
+                  SELECT 1 FROM session_workspace_bindings
+                  WHERE workspace_id = ${workspaceId}
+                )
+            `
+          }
+        }),
+      )
     }),
   )
-  const stagedFile = await stageSessionFileDeletion(piSessionFile)
-
-  try {
-    await runStoreEffect(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient
-        yield* sql`DELETE FROM sessions WHERE id = ${id}`
-      }),
-    )
-    await stagedFile.cleanup()
-  } catch (error) {
-    await stagedFile.restore()
-    throw error
-  }
 }
 
 async function updateArchivedState(id: SessionId, archived: boolean) {
@@ -60,23 +222,69 @@ async function updateArchivedState(id: SessionId, archived: boolean) {
   )
 }
 
-export async function archiveSession(id: SessionId): Promise<void> {
+export async function archiveSession(id: SessionId) {
   await updateArchivedState(id, true)
 }
 
-export async function unarchiveSession(id: SessionId): Promise<void> {
+export async function unarchiveSession(id: SessionId) {
   await updateArchivedState(id, false)
 }
 
-export async function updateSessionTitle(id: SessionId, title: string): Promise<void> {
+/** Write the Provisional title of a still-untitled Session; false once it has any other title. */
+export async function assignProvisionalSessionTitle(id: SessionId, title: string) {
+  const boundedTitle = assertSessionTitle(title)
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      return yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const rows = yield* sql<{ readonly id: string }>`
+            UPDATE sessions
+            SET title = ${boundedTitle}, title_source = ${'provisional'}, title_needs_refinement = ${0}
+            WHERE id = ${id} AND title_source = ${'default'}
+            RETURNING id
+          `
+          if (rows.length === 0) return false
+          yield* upsertSessionTitleReference(sql, id, boundedTitle)
+          return true
+        }),
+      )
+    }),
+  )
+}
+
+function upsertSessionTitleReference(sql: SqlClient.SqlClient, id: SessionId, title: string) {
+  const normalizedTitle = normalizeSessionReportReference(title)
+  if (normalizedTitle.length === 0) {
+    return sql`
+      DELETE FROM session_report_references
+      WHERE session_id = ${id} AND kind = ${'title'}
+    `
+  }
+  return sql`
+    INSERT INTO session_report_references (session_id, kind, normalized_reference)
+    SELECT id, ${'title'}, ${normalizedTitle} FROM sessions WHERE id = ${id}
+    ON CONFLICT (session_id, kind) DO UPDATE SET
+      normalized_reference = excluded.normalized_reference
+  `
+}
+
+export async function updateSessionTitle(id: SessionId, title: string) {
+  const boundedTitle = assertSessionTitle(title)
   await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      yield* sql`
-        UPDATE sessions
-        SET title = ${title}, updated_at = ${Date.now()}
-        WHERE id = ${id}
-      `
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          // A direct title write is a manual rename and leaves recency alone (ADR 0043).
+          yield* sql`
+            UPDATE sessions
+            SET title = ${boundedTitle}, title_source = ${'manual'}, title_needs_refinement = ${0}
+            WHERE id = ${id}
+          `
+          yield* upsertSessionTitleReference(sql, id, boundedTitle)
+        }),
+      )
     }),
   )
 }

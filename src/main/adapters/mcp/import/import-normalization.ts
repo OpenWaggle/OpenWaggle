@@ -1,0 +1,313 @@
+/**
+ * Conversion of another tool's server entry to Pi's `mcpServers` format, as
+ * Pi's "Migrate configuration from another client" describes, plus
+ * `type: "sse"` for SSE endpoints (OpenWaggle keeps a legacy SSE transport).
+ */
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
+import { isRecord } from '@shared/utils/validation'
+import { Option } from 'effect'
+import { urlWithoutCredentials } from './import-credentials'
+import { piServerName } from './import-identity'
+import type { ExternalMcpImportSource, PiMcpEntry } from './import-types'
+import {
+  credentialMap,
+  type ImportValueContext,
+  literalString,
+  nonEmptyString,
+  piValueFrom,
+  portableArgs,
+  stringArray,
+} from './import-values'
+
+const unknownField = Schema.optionalWith(Schema.Unknown, { exact: true })
+
+/**
+ * The fields of a source entry the importer converts. Their values stay unknown here: each
+ * converter checks its own field and warns about a value of the wrong shape.
+ */
+const rawEntrySchema = Schema.Struct({
+  command: unknownField,
+  args: unknownField,
+  cwd: unknownField,
+  env: unknownField,
+  url: unknownField,
+  headers: unknownField,
+  type: unknownField,
+  enabled: unknownField,
+  disabled: unknownField,
+  description: unknownField,
+  oauth: unknownField,
+  http_headers: unknownField,
+  env_http_headers: unknownField,
+  bearer_token_env_var: unknownField,
+  tool_timeout_sec: unknownField,
+  startup_timeout_sec: unknownField,
+  startup_timeout_ms: unknownField,
+  enabled_tools: unknownField,
+  disabled_tools: unknownField,
+  environment: unknownField,
+  serverUrl: unknownField,
+})
+
+type Raw = SchemaType<typeof rawEntrySchema>
+
+/** Zed's `command: { path, args, env }`. */
+const zedCommandSchema = Schema.Struct({
+  path: unknownField,
+  args: unknownField,
+  env: unknownField,
+})
+const decodeZedCommand = Schema.decodeUnknownOption(zedCommandSchema)
+
+const GENERIC_FIELDS = [
+  'command',
+  'args',
+  'cwd',
+  'env',
+  'url',
+  'headers',
+  'type',
+  'enabled',
+  'disabled',
+  'description',
+  'oauth',
+]
+
+/** Source fields that are converted or deliberately dropped, so they are not reported as unknown. */
+const SOURCE_FIELDS: Readonly<Record<ExternalMcpImportSource, readonly string[]>> = {
+  codex: [
+    'http_headers',
+    'env_http_headers',
+    'bearer_token_env_var',
+    'tool_timeout_sec',
+    'startup_timeout_sec',
+    'startup_timeout_ms',
+    'enabled_tools',
+    'disabled_tools',
+  ],
+  'claude-code': [],
+  'claude-desktop': [],
+  cursor: [],
+  vscode: [],
+  opencode: ['environment'],
+  zed: ['source'],
+  windsurf: ['serverUrl'],
+}
+
+const IMPLICIT_TYPES = new Set([
+  'stdio',
+  'local',
+  'http',
+  'streamable-http',
+  'streamableHttp',
+  'remote',
+])
+const PI_OAUTH_STRING_FIELDS = ['clientId', 'clientSecret', 'callbackUrl', 'clientName']
+const CODEX_FALLBACK_TOOL_PATTERN = '*'
+
+/** Reshape source-specific layouts into the generic `mcpServers` layout. */
+function reshape(source: ExternalMcpImportSource, value: Raw) {
+  const zedCommand = source === 'zed' ? decodeZedCommand(value.command) : Option.none()
+  if (Option.isSome(zedCommand)) {
+    const { path: command, args, env } = zedCommand.value
+    const raw: Raw = { ...value, command, args, env }
+    return raw
+  }
+  if (source === 'opencode' && value.environment !== undefined && value.env === undefined) {
+    const raw: Raw = { ...value, env: value.environment }
+    return raw
+  }
+  if (source === 'windsurf' && value.url === undefined) {
+    const raw: Raw = { ...value, url: value.serverUrl }
+    return raw
+  }
+  return value
+}
+
+function endpointFields(value: Raw, context: ImportValueContext) {
+  const commandArray = stringArray(value.command)
+  const rawCommand = commandArray?.[0] ?? nonEmptyString(value.command)
+  // Pi takes these as written, like arguments: a variable in them is kept, with a warning.
+  const command = rawCommand && literalString(rawCommand, 'command', context)
+  const args = portableArgs(
+    commandArray?.slice(1) ?? stringArray(value.args) ?? [],
+    rawCommand,
+    context,
+  )
+  const rawCwd = nonEmptyString(value.cwd)
+  const cwd = rawCwd && literalString(rawCwd, 'cwd', context)
+  const rawUrl = nonEmptyString(value.url)
+  const url = rawUrl && urlWithoutCredentials(literalString(rawUrl, 'url', context), 'url', context)
+  const entry: PiMcpEntry = {
+    ...(command ? { command } : {}),
+    ...(args.length > 0 ? { args } : {}),
+    ...(cwd ? { cwd } : {}),
+    ...(url ? { url } : {}),
+  }
+  return entry
+}
+
+function typeField(value: Raw, context: ImportValueContext) {
+  const type = value.type
+  if (type === undefined || (typeof type === 'string' && IMPLICIT_TYPES.has(type))) {
+    const entry: PiMcpEntry = {}
+    return entry
+  }
+  if (type === 'sse') {
+    const entry: PiMcpEntry = { type: 'sse' }
+    return entry
+  }
+  context.warnings.push(
+    `type ${typeof type === 'string' ? type : JSON.stringify(type)} is not supported and was not imported.`,
+  )
+  const entry: PiMcpEntry = {}
+  return entry
+}
+
+function codexHeaders(value: Raw, context: ImportValueContext) {
+  const bearer = nonEmptyString(value.bearer_token_env_var)
+  const headers: Record<string, string> = bearer ? { Authorization: `Bearer \${${bearer}}` } : {}
+  if (isRecord(value.env_http_headers)) {
+    for (const [header, variable] of Object.entries(value.env_http_headers)) {
+      if (typeof variable === 'string') headers[header] = `\${${variable}}`
+      else {
+        context.warnings.push(`env_http_headers.${header} was ignored because it is not a string.`)
+      }
+    }
+  }
+  return headers
+}
+
+function credentialFields(
+  source: ExternalMcpImportSource,
+  value: Raw,
+  context: ImportValueContext,
+) {
+  const mapped = credentialMap(value.env, 'env', context)
+  const env =
+    Object.keys(context.argumentEnv).length > 0 ? { ...context.argumentEnv, ...mapped } : mapped
+  const headerSource = source === 'codex' ? (value.http_headers ?? value.headers) : value.headers
+  const headers = {
+    ...credentialMap(headerSource, 'headers', context),
+    ...(source === 'codex' ? codexHeaders(value, context) : {}),
+  }
+  const entry: PiMcpEntry = {
+    ...(env ? { env } : {}),
+    ...(Object.keys(headers).length > 0 ? { headers } : {}),
+  }
+  return entry
+}
+
+function oauthValue(key: string, entry: unknown, context: ImportValueContext) {
+  if (PI_OAUTH_STRING_FIELDS.includes(key) && typeof entry === 'string') {
+    // Pi resolves `${NAME}` and `!command` only in the client secret; the rest is taken as written.
+    return key === 'clientSecret'
+      ? piValueFrom(entry, `oauth.${key}`, context).value
+      : literalString(entry, `oauth.${key}`, context)
+  }
+  if (key === 'scope' && typeof entry === 'string') return entry
+  if (key === 'scope' && Array.isArray(entry)) return (stringArray(entry) ?? []).join(' ')
+  if (key === 'callbackPort' && typeof entry === 'number') return entry
+  return undefined
+}
+
+function oauthField(value: Raw, context: ImportValueContext) {
+  if (!isRecord(value.oauth)) {
+    const result: PiMcpEntry = {}
+    return result
+  }
+  const oauth: Record<string, string | number> = {}
+  for (const [key, entry] of Object.entries(value.oauth)) {
+    const converted = oauthValue(key, entry, context)
+    if (converted === undefined) {
+      context.warnings.push(`oauth.${key} has no Pi equivalent and was not imported.`)
+      continue
+    }
+    oauth[key] = converted
+  }
+  const result: PiMcpEntry = Object.keys(oauth).length > 0 ? { oauth } : {}
+  return result
+}
+
+function codexToolExposure(value: Raw) {
+  const enabled = stringArray(value.enabled_tools)
+  const disabled = stringArray(value.disabled_tools) ?? []
+  const exposure: Record<string, string> = {}
+  if (enabled) {
+    for (const name of enabled) exposure[name] = 'codemode'
+    exposure[CODEX_FALLBACK_TOOL_PATTERN] = 'hidden'
+  }
+  for (const name of disabled) exposure[name] = 'hidden'
+  const entry: PiMcpEntry = Object.keys(exposure).length > 0 ? { toolExposure: exposure } : {}
+  return entry
+}
+
+function codexFields(value: Raw, context: ImportValueContext) {
+  if (value.startup_timeout_sec !== undefined || value.startup_timeout_ms !== undefined) {
+    context.warnings.push('The startup timeout has no Pi equivalent and was not imported.')
+  }
+  const timeout =
+    typeof value.tool_timeout_sec === 'number' && value.tool_timeout_sec > 0
+      ? { timeout: value.tool_timeout_sec }
+      : {}
+  const entry: PiMcpEntry = { ...timeout, ...codexToolExposure(value) }
+  return entry
+}
+
+function stateFields(value: Raw) {
+  const description = nonEmptyString(value.description)
+  const entry: PiMcpEntry = {
+    ...(value.enabled === false || value.disabled === true ? { enabled: false } : {}),
+    ...(description ? { description } : {}),
+  }
+  return entry
+}
+
+function warnUnknownFields(
+  source: ExternalMcpImportSource,
+  value: Raw,
+  context: ImportValueContext,
+) {
+  const known = new Set([...GENERIC_FIELDS, ...SOURCE_FIELDS[source]])
+  for (const field of Object.keys(value)) {
+    if (!known.has(field)) {
+      context.warnings.push(`${source} field ${field} has no Pi equivalent and was not imported.`)
+    }
+  }
+}
+
+export interface NormalizedImport {
+  readonly entry: PiMcpEntry
+  readonly warnings: readonly string[]
+}
+
+export function normalizeImportedEntry(
+  source: ExternalMcpImportSource,
+  name: string,
+  value: unknown,
+) {
+  if (!isRecord(value)) return undefined
+  const context: ImportValueContext = {
+    source,
+    serverName: name,
+    targetName: piServerName(name),
+    warnings: [],
+    argumentEnv: {},
+    credentialEnvNames: new Set(),
+  }
+  const shaped = reshape(source, decodeUnknownOrThrow(rawEntrySchema, value))
+  const entry: PiMcpEntry = {
+    ...endpointFields(shaped, context),
+    ...typeField(shaped, context),
+    ...credentialFields(source, shaped, context),
+    ...oauthField(shaped, context),
+    ...(source === 'codex' ? codexFields(shaped, context) : {}),
+    ...stateFields(shaped),
+  }
+  warnUnknownFields(source, value, context)
+  if (entry.command === undefined && entry.url === undefined) {
+    context.warnings.push('No portable command or URL was found; this server cannot be imported.')
+  }
+  const normalized: NormalizedImport = { entry, warnings: context.warnings }
+  return normalized
+}

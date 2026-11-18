@@ -1,9 +1,13 @@
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, sessionEntryToContextMessages } from '@earendil-works/pi-coding-agent'
 import type { Message } from '@shared/types/agent'
+import { classifyAgentError } from '../../../agent/error-classifier'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
+import { userFacingErrorDetail } from '../../../utils/describe-error'
 import { getPiAssistantStopReason } from '../pi-run-result'
+import { piEntryNodeIds } from './pi-entry-node-ids'
 import { waitForPostRunSettlement } from './post-run-settlement'
 import { projectPiSessionSnapshot } from './session-projection'
+import { piSessionFileField } from './pi-session-file-field'
 
 export type PiOperationOutcome =
   | {
@@ -18,36 +22,65 @@ export function describePiRunError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export async function runPiOperation(operation: () => Promise<void>): Promise<PiOperationOutcome> {
+export async function runPiOperation(operation: () => Promise<void>) {
   try {
     await operation()
-    return { status: 'completed' }
+    return { status: 'completed' } satisfies PiOperationOutcome
   } catch (error) {
-    return { status: 'failed', error }
+    return { status: 'failed', error } satisfies PiOperationOutcome
   }
 }
 
-export async function collectSettledPiMessages(
-  session: AgentSession,
-  previousMessageCount: number,
-) {
+export interface PiMessageBoundary {
+  readonly entryIds: ReadonlySet<string>
+  readonly messageCount: number
+}
+
+export function capturePiMessageBoundary(session: AgentSession) {
+  return {
+    entryIds: new Set(session.sessionManager.getBranch().map((entry) => entry.id)),
+    messageCount: session.agent.state.messages.length,
+  }
+}
+
+export function collectPiMessagesAfterBoundary(session: AgentSession, boundary: PiMessageBoundary) {
+  const branch = session.sessionManager.getBranch()
+  if (branch.length === 0 && boundary.entryIds.size === 0) {
+    return session.agent.state.messages.slice(boundary.messageCount)
+  }
+  return branch
+    .filter((entry) => !boundary.entryIds.has(entry.id))
+    .flatMap(sessionEntryToContextMessages)
+}
+
+export async function collectSettledPiMessages(session: AgentSession, boundary: PiMessageBoundary) {
   await waitForPostRunSettlement(session)
-  return session.agent.state.messages.slice(previousMessageCount)
+  return collectPiMessagesAfterBoundary(session, boundary)
 }
 
 function buildFailedRunResult(input: {
   readonly session: AgentSession
+  readonly runInput: AgentKernelRunInput
   readonly newMessages: readonly Message[]
   readonly aborted: boolean
   readonly message: string
-}): AgentKernelRunResult {
+}) {
   return {
     newMessages: input.newMessages,
     piSessionId: input.session.sessionId,
-    piSessionFile: input.session.sessionFile,
-    sessionSnapshot: projectPiSessionSnapshot(input.session),
+    ...piSessionFileField(input.session.sessionFile),
+    sessionSnapshot: projectPiSessionSnapshot(
+      input.session,
+      piEntryNodeIds(input.runInput.session),
+    ),
     ...(input.aborted ? { aborted: true } : { terminalError: input.message }),
-  }
+  } satisfies AgentKernelRunResult
+}
+
+/** Classified as the Host classifies the run's terminal error, since this is its only report. */
+function classifiedRunError(message: string) {
+  const classified = classifyAgentError(new Error(message))
+  return { message: userFacingErrorDetail(classified.message), code: classified.code }
 }
 
 function emitFailedRunEnd(input: {
@@ -59,7 +92,7 @@ function emitFailedRunEnd(input: {
     type: 'agent_end',
     runId: input.runInput.runId,
     reason: input.aborted ? 'aborted' : 'error',
-    ...(input.aborted ? {} : { error: { message: input.message } }),
+    ...(input.aborted ? {} : { error: classifiedRunError(input.message) }),
     timestamp: Date.now(),
     model: input.runInput.model,
   })
@@ -85,6 +118,7 @@ export function buildFailedSubscribedRunResult(input: {
 
   return buildFailedRunResult({
     session: input.session,
+    runInput: input.runInput,
     newMessages: input.buildErrorMessages(input.appended),
     aborted,
     message,
@@ -94,7 +128,7 @@ export function buildFailedSubscribedRunResult(input: {
 export async function buildFailedRunAfterSettlement(input: {
   readonly session: AgentSession
   readonly runInput: AgentKernelRunInput
-  readonly previousMessageCount: number
+  readonly messageBoundary: PiMessageBoundary
   readonly operationAborted: boolean
   readonly settlementAttempted: boolean
   readonly error: unknown
@@ -104,7 +138,7 @@ export async function buildFailedRunAfterSettlement(input: {
     await waitForPostRunSettlement(input.session)
   }
 
-  const appended = input.session.agent.state.messages.slice(input.previousMessageCount)
+  const appended = collectPiMessagesAfterBoundary(input.session, input.messageBoundary)
   return buildFailedSubscribedRunResult({
     session: input.session,
     runInput: input.runInput,

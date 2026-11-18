@@ -1,71 +1,73 @@
+import type { CredentialInfo } from '@earendil-works/pi-ai'
 import {
   type AgentSessionServices,
-  type AuthCredential,
-  AuthStorage,
   createAgentSessionServices,
   type ExtensionFactory,
   getAgentDir,
-  ModelRegistry,
+  type InlineExtension,
+  type ModelRuntime,
 } from '@earendil-works/pi-coding-agent'
-import { MCP_ADAPTER_PACKAGE_SOURCES } from '@shared/constants/mcp'
 import { createModelRef } from '@shared/types/llm'
 import { withNpmCompatibleProcessEnv } from '../../env'
+import { createLogger } from '../../logger'
+import { LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES } from '../../migrations/legacy-pi-mcp-adapter'
+import { currentOpenWagglePiAppSettings } from './openwaggle-pi-app-settings'
+import { OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES } from './openwaggle-pi-package-policy'
 import {
   createOpenWaggleGlobalPiSettingsManager,
   createOpenWagglePiSettingsManager,
 } from './openwaggle-pi-settings-storage'
+import { registerPiBundledBedrockProvider } from './pi-bundled-bedrock'
+import { findPiToolCapableModel } from './pi-model-reference'
+import { createPiModelRuntime } from './pi-model-runtime'
 import {
-  prepareOpenWaggleMcpRuntimeContext,
-  rememberOpenWaggleMcpRuntimeContext,
-  withOpenWaggleMcpAdapterProcessContext,
-} from './pi-mcp-config-service'
-import {
+  createOpenWaggleGlobalPiResourceLoaderOptions,
   createOpenWagglePiResourceLoaderOptions,
   type PiRuntimeServicesOptions,
 } from './pi-provider-resources'
 import { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
+import { isPiVirtualModel } from './pi-virtual-models'
+import { ensurePiVisualizeSkill } from './pi-visualize-skill'
+import { installOpenWaggleProviderAttribution } from './provider-attribution'
 
+export { findPiToolCapableModel } from './pi-model-reference'
 export { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 
+const logger = createLogger('pi-provider-catalog')
+
 import type {
-  PiModel,
   PiProjectModelRuntime,
   ProviderCatalogSnapshot,
   ProviderModelRecord,
 } from './pi-provider-catalog-types'
 
-export type {
-  PiModel,
-  PiProjectModelRuntime,
-  ProviderCatalogRecord,
-  ProviderCatalogSnapshot,
-  ProviderModelRecord,
-} from './pi-provider-catalog-types'
-
-let builtInModelProviders: ReadonlySet<string> | null = null
-
-export function getPiAgentDir(): string {
+export type { PiModel, PiProjectModelRuntime } from './pi-provider-catalog-types'
+export function getPiAgentDir() {
   return getAgentDir()
 }
 
-export function getBuiltInPiModelProviderIds(): ReadonlySet<string> {
-  if (builtInModelProviders) {
-    return builtInModelProviders
+export async function resolvePiVisualizeSkillPaths(
+  agentDir: string,
+  install = ensurePiVisualizeSkill,
+) {
+  try {
+    return [await install(agentDir)]
+  } catch (error) {
+    logger.warn('Visualize skill installation failed; continuing without built-in authoring', {
+      agentDir,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return []
   }
-
-  const authStorage = AuthStorage.inMemory()
-  const modelRegistry = ModelRegistry.inMemory(authStorage)
-  builtInModelProviders = new Set(modelRegistry.getAll().map((model) => model.provider))
-  return builtInModelProviders
 }
 
-function listPiProviderModelsFromRegistry(modelRegistry: ModelRegistry) {
+function listPiProviderModelsFromRuntime(modelRuntime: ModelRuntime) {
   const availableRefs = new Set(
-    modelRegistry.getAvailable().map((model) => createModelRef(model.provider, model.id)),
+    modelRuntime.getAvailableSnapshot().map((model) => createModelRef(model.provider, model.id)),
   )
 
-  return modelRegistry.getAll().map((model) => ({
+  return modelRuntime.getModels().map((model) => ({
     ref: createModelRef(model.provider, model.id),
     provider: model.provider,
     id: model.id,
@@ -77,6 +79,7 @@ function listPiProviderModelsFromRegistry(modelRegistry: ModelRegistry) {
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
     api: model.api,
+    virtual: isPiVirtualModel(model),
   }))
 }
 
@@ -100,105 +103,118 @@ function listPiProvidersFromModels(models: readonly ProviderModelRecord[]) {
     }))
 }
 
-function buildAuthCredentialMap(authStorage: AuthStorage) {
-  const credentials = new Map<string, AuthCredential>()
-  for (const provider of authStorage.list()) {
-    const credential = authStorage.get(provider)
-    if (credential) {
-      credentials.set(provider, credential)
-    }
+async function buildAuthCredentialMap(modelRuntime: ModelRuntime) {
+  const credentials = new Map<string, CredentialInfo>()
+  for (const credential of await modelRuntime.listCredentials()) {
+    credentials.set(credential.providerId, credential)
   }
   return credentials
 }
 
-function buildConfiguredAuthProviderSet(modelRegistry: ModelRegistry) {
-  return new Set(modelRegistry.getAvailable().map((model) => model.provider))
+function buildConfiguredAuthProviderSet(modelRuntime: ModelRuntime) {
+  const providers = new Set<string>()
+  for (const provider of modelRuntime.getProviders()) {
+    if (modelRuntime.getProviderAuthStatus(provider.id).configured) {
+      providers.add(provider.id)
+    }
+  }
+  return providers
 }
 
-function buildOAuthProviderSet(authStorage: AuthStorage) {
-  return new Set(authStorage.getOAuthProviders().map((provider) => provider.id))
+function buildOAuthProviderSet(modelRuntime: ModelRuntime) {
+  const providers = new Set<string>()
+  for (const provider of modelRuntime.getProviders()) {
+    if (provider.auth.oauth !== undefined) {
+      providers.add(provider.id)
+    }
+  }
+  return providers
 }
 
-function buildOAuthProviderNameMap(authStorage: AuthStorage) {
-  return new Map(authStorage.getOAuthProviders().map((provider) => [provider.id, provider.name]))
+function buildApiKeyProviderSet(modelRuntime: ModelRuntime) {
+  const providers = new Set<string>()
+  for (const provider of modelRuntime.getProviders()) {
+    if (provider.auth.apiKey !== undefined) {
+      providers.add(provider.id)
+    }
+  }
+  return providers
 }
 
-function createPiProviderCatalogSnapshotFromRuntime(
-  services: Pick<AgentSessionServices, 'modelRegistry' | 'authStorage' | 'resourceLoader'>,
-) {
-  return {
-    providers: listPiProvidersFromModels(listPiProviderModelsFromRegistry(services.modelRegistry)),
-    oauthProviders: buildOAuthProviderSet(services.authStorage),
-    oauthProviderNames: buildOAuthProviderNameMap(services.authStorage),
-    credentials: buildAuthCredentialMap(services.authStorage),
-    configuredAuthProviders: buildConfiguredAuthProviderSet(services.modelRegistry),
-    builtInModelProviders: getBuiltInPiModelProviderIds(),
+function buildProviderNameMap(modelRuntime: ModelRuntime) {
+  return new Map(modelRuntime.getProviders().map((provider) => [provider.id, provider.name]))
+}
+
+export async function createPiProviderCatalogSnapshotFromServices(services: AgentSessionServices) {
+  const { modelRuntime } = services
+  const snapshot: ProviderCatalogSnapshot = {
+    providers: listPiProvidersFromModels(listPiProviderModelsFromRuntime(modelRuntime)),
+    providerNames: buildProviderNameMap(modelRuntime),
+    apiKeyProviders: buildApiKeyProviderSet(modelRuntime),
+    oauthProviders: buildOAuthProviderSet(modelRuntime),
+    credentials: await buildAuthCredentialMap(modelRuntime),
+    configuredAuthProviders: buildConfiguredAuthProviderSet(modelRuntime),
     extensionLoadErrors: getPiRuntimeExtensionLoadErrors(services),
   }
+  return snapshot
 }
 
 export async function createPiRuntimeServices(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
-): Promise<AgentSessionServices> {
-  const authStorage = createPiRuntimeAuthStorage()
-  const loadMcpAdapter = options.loadMcpAdapter ?? true
+) {
+  const agentDir = getPiAgentDir()
+  const visualizeSkillPaths = await resolvePiVisualizeSkillPaths(agentDir)
+  // Enforce the bundled-Bedrock override at the ModelRuntime construction
+  // chokepoint, not only at runtime module load, so a future main entrypoint
+  // that builds a runtime without importing runtime.ts cannot silently
+  // reintroduce the packaged-only "Cannot find module bedrock-converse-stream"
+  // failure. Idempotent, so this is free.
+  registerPiBundledBedrockProvider()
+  installOpenWaggleProviderAttribution()
   const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
+    ...(options.compactionThresholdPercent !== undefined
+      ? { compactionThresholdPercent: options.compactionThresholdPercent }
+      : {}),
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
     enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
-    ...(loadMcpAdapter
-      ? {}
-      : {
-          excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
-          excludedProjectPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
-        }),
+    excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
+    excludedProjectPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
+    runtimeExcludedNpmPackageNames: OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES,
+    appSettings: options.appSettings ?? currentOpenWagglePiAppSettings(),
   })
-  const mcpRuntimeContext = loadMcpAdapter
-    ? options.mcpRuntimeContext === undefined
-      ? await prepareOpenWaggleMcpRuntimeContext(projectPath)
-      : options.mcpRuntimeContext
-    : null
   const services = await withNpmCompatibleProcessEnv(() =>
-    withOpenWaggleMcpAdapterProcessContext(mcpRuntimeContext, () =>
-      createAgentSessionServices({
-        cwd: projectPath,
-        agentDir: getPiAgentDir(),
-        authStorage,
+    createAgentSessionServices({
+      cwd: projectPath,
+      agentDir,
+      settingsManager,
+      resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
+        projectPath,
+        options,
         settingsManager,
-        ...(mcpRuntimeContext
-          ? {
-              extensionFlagValues: new Map<string, boolean | string>([
-                ['mcp-config', mcpRuntimeContext.configPath],
-              ]),
-            }
-          : {}),
-        resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
-          projectPath,
-          options,
-          settingsManager,
-        ),
-      }),
-    ),
+        visualizeSkillPaths,
+      ),
+    }),
   )
-  rememberOpenWaggleMcpRuntimeContext(services, mcpRuntimeContext)
   return services
 }
 
 async function createPiGlobalProviderCatalogServices() {
   const agentDir = getPiAgentDir()
-  const authStorage = createPiRuntimeAuthStorage()
+  registerPiBundledBedrockProvider()
+  installOpenWaggleProviderAttribution()
   const settingsManager = createOpenWaggleGlobalPiSettingsManager({
-    excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
+    excludedGlobalPackageSources: LEGACY_PI_MCP_ADAPTER_PACKAGE_SOURCES,
+    runtimeExcludedNpmPackageNames: OPENWAGGLE_EXCLUDED_PI_NPM_PACKAGE_NAMES,
   })
   const services = await withNpmCompatibleProcessEnv(() =>
     createAgentSessionServices({
       cwd: agentDir,
       agentDir,
-      authStorage,
       settingsManager,
+      resourceLoaderOptions: createOpenWaggleGlobalPiResourceLoaderOptions(),
     }),
   )
-  rememberOpenWaggleMcpRuntimeContext(services, null)
   return services
 }
 
@@ -208,70 +224,73 @@ export async function createPiProviderCatalogSnapshot(
     PiRuntimeServicesOptions,
     'enabledOpenWaggleExtensionPackagePaths' | 'enabledOpenWaggleExtensionResourceRoots'
   > = {},
-): Promise<ProviderCatalogSnapshot> {
+) {
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
     const services = await createPiGlobalProviderCatalogServices()
-    return createPiProviderCatalogSnapshotFromRuntime(services)
+    return await createPiProviderCatalogSnapshotFromServices(services)
   }
 
   const services = await createPiRuntimeServices(normalizedProjectPath, {
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
     enabledOpenWaggleExtensionResourceRoots: options.enabledOpenWaggleExtensionResourceRoots ?? [],
-    loadMcpAdapter: false,
   })
-  return createPiProviderCatalogSnapshotFromRuntime(services)
+  return await createPiProviderCatalogSnapshotFromServices(services)
 }
 
-export function setPiProviderApiKey(providerId: string, apiKey: string): void {
+export async function setPiProviderApiKey(providerId: string, apiKey: string) {
   const provider = providerId.trim()
   if (!provider) {
     throw new Error('Provider is required')
   }
 
-  const authStorage = AuthStorage.create()
+  const modelRuntime = await createPiModelRuntime()
   const trimmedKey = apiKey.trim()
   if (trimmedKey) {
-    authStorage.set(provider, { type: 'api_key', key: trimmedKey })
-  } else {
-    authStorage.remove(provider)
-  }
-}
-
-export function createPiRuntimeAuthStorage(): AuthStorage {
-  return AuthStorage.create()
-}
-
-function findExplicitProviderModelReference(modelRegistry: ModelRegistry, modelReference: string) {
-  const separatorIndex = modelReference.indexOf('/')
-  if (separatorIndex <= 0 || separatorIndex === modelReference.length - 1) {
-    return null
+    await modelRuntime.login(provider, 'api_key', {
+      notify() {},
+      prompt: async () => trimmedKey,
+    })
+    return
   }
 
-  const provider = modelReference.slice(0, separatorIndex)
-  const modelId = modelReference.slice(separatorIndex + 1)
-  return modelRegistry.find(provider, modelId) ?? null
+  await modelRuntime.logout(provider)
 }
 
-export function findPiModel(modelRegistry: ModelRegistry, modelReference: string): PiModel | null {
-  const trimmedReference = modelReference.trim()
-  if (!trimmedReference) {
-    return null
-  }
-
-  return findExplicitProviderModelReference(modelRegistry, trimmedReference)
+function fallbackModel(
+  modelRuntime: PiProjectModelRuntime['services']['modelRuntime'],
+  input: { readonly modelReference: string; readonly fallbackModelReference?: string },
+) {
+  if (!input.fallbackModelReference) return undefined
+  const model = findPiToolCapableModel(modelRuntime, input.fallbackModelReference)
+  if (!model) return undefined
+  // Pi's own wording when it resumes a session whose model is gone.
+  const modelFallbackMessage = `Could not restore model ${input.modelReference} (model no longer exists). Using ${model.provider}/${model.id}.`
+  logger.warn(modelFallbackMessage)
+  return { model, modelFallbackMessage }
 }
 
 export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
+  /** Used when `modelReference` no longer resolves, such as a removed virtual model. */
+  readonly fallbackModelReference?: string
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly skillAllowlist?: readonly string[]
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly enabledOpenWaggleExtensionResourceRoots?: PiRuntimeServicesOptions['enabledOpenWaggleExtensionResourceRoots']
-  readonly extensionFactories?: readonly ExtensionFactory[]
-}): Promise<PiProjectModelRuntime> {
+  readonly extensionFactories?: readonly InlineExtension[]
+  readonly trustedExtensionFactories?: readonly ExtensionFactory[]
+  readonly systemPromptAppendices?: readonly string[]
+  readonly visualizationDirectory?: string
+}) {
   const services = await createPiRuntimeServices(input.projectPath, {
+    ...(input.compactionThresholdPercent !== undefined
+      ? { compactionThresholdPercent: input.compactionThresholdPercent }
+      : {}),
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
     ...(input.enabledOpenWaggleExtensionPackagePaths
       ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
       : {}),
@@ -279,16 +298,21 @@ export async function createPiProjectModelRuntime(input: {
       ? { enabledOpenWaggleExtensionResourceRoots: input.enabledOpenWaggleExtensionResourceRoots }
       : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
+    ...(input.trustedExtensionFactories
+      ? { trustedExtensionFactories: input.trustedExtensionFactories }
+      : {}),
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: input.systemPromptAppendices }
+      : {}),
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
   })
-  const model = findPiModel(services.modelRegistry, input.modelReference)
-  if (!model) {
+  const selected = findPiToolCapableModel(services.modelRuntime, input.modelReference)
+  if (selected) return { model: selected, services }
+  const fallback = fallbackModel(services.modelRuntime, input)
+  if (!fallback) {
     throw new Error(`Pi model registry could not resolve model ${input.modelReference}`)
   }
-
-  return {
-    model,
-    authStorage: services.authStorage,
-    modelRegistry: services.modelRegistry,
-    services,
-  }
+  return { model: fallback.model, services, modelFallbackMessage: fallback.modelFallbackMessage }
 }

@@ -1,0 +1,35 @@
+import { randomUUID } from 'node:crypto'
+import { assertSessionExportBranchSelection } from '@shared/session-export-selection'
+import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import {
+  SESSION_QUERY_CONTRACT_VERSION,
+  SESSION_QUERY_TRANSCRIPT_LIMIT,
+} from '@shared/types/session-query'
+import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
+import { positiveInteger, requiredSessionId } from './sessions-cli-arguments'
+
+export function buildSessionsCliExportPayload(arguments_: ParsedArguments) {
+  const branchScope = option(arguments_, 'scope') ?? 'active-branch'
+  if (branchScope !== 'active-branch' && branchScope !== 'tree') {
+    throw new Error('Unsupported export scope. Expected active-branch or tree.')
+  }
+  const branchId = option(arguments_, 'branch')
+  assertSessionExportBranchSelection({ branchScope, ...(branchId ? { branchId } : {}) })
+  return {
+    contract: 'session-query-v2',
+    request: {
+      contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+      requestId: randomUUID(),
+      query: {
+        operation: 'export',
+        sessionId: requiredSessionId(arguments_.positionals[0]),
+        limit: option(arguments_, 'limit')
+          ? positiveInteger(option(arguments_, 'limit'), '--limit')
+          : SESSION_QUERY_TRANSCRIPT_LIMIT,
+        branchScope,
+        ...(branchId ? { branchId } : {}),
+        ...(hasFlag(arguments_, 'include-queue-bodies') ? { includeQueueBodies: true } : {}),
+      },
+    },
+  } satisfies LocalSessionCommandPayload
+}

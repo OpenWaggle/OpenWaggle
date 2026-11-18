@@ -1,11 +1,12 @@
 import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import { MessageId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
-import type { SessionNode, SessionTree } from '@shared/types/session'
+import type { SessionContentTree, SessionNode } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { type AgentKernelRunInput, AgentKernelService } from '../../ports/agent-kernel-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
@@ -19,6 +20,7 @@ import {
   runServiceSessionTree,
 } from './agent-run-service.test-utils'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const runMock = vi.fn()
 const persistSnapshotMock = vi.fn<(input: PersistSessionSnapshotInput) => void>()
@@ -26,7 +28,7 @@ const sessionId = runServiceSessionId
 const branchId = runServiceBranchId
 const model = SupportedModelId('openai/gpt-5.4')
 const persistedSnapshots: PersistSessionSnapshotInput[] = []
-let projectionTree: SessionTree = runServiceSessionTree
+let projectionTree: SessionContentTree = runServiceSessionTree
 
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(runServiceSession),
@@ -39,12 +41,25 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   unarchive: () => Effect.void,
   listArchived: () => Effect.succeed([]),
   updateTitle: () => Effect.void,
+  assignProvisionalTitle: () => Effect.succeed(true),
+  setWorktreePlan: () => Effect.void,
+  setAuthorizationMode: () => Effect.void,
+  listTurnCheckpoints: () => Effect.succeed([]),
+  getTurnDiff: () => Effect.succeed(null),
+  getTurnDiffFiles: () => Effect.succeed([]),
+  listTurnDiffFiles: () => Effect.succeed({}),
+  setTurnCheckpointAnchor: () => Effect.void,
+  ...PINNED_SESSION_REPOSITORY_STUB,
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(projectionTree),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input: PersistSessionSnapshotInput) =>
     Effect.sync(() => {
@@ -100,6 +115,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
       }
     }),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
+  listExtensionCommands: () => Effect.succeed([]),
   compact: () => Effect.fail(new Error('compact is not used')),
   navigateTree: () => Effect.fail(new Error('navigateTree is not used')),
   forkSession: () => Effect.fail(new Error('forkSession is not used')),
@@ -136,7 +152,7 @@ function agentLoopNode(input: {
   readonly parentId: string | null
   readonly event: AgentTransportCustomEvent
   readonly createdOrder: number
-}): SessionNode {
+}) {
   return {
     id: SessionNodeId(input.id),
     sessionId,
@@ -154,7 +170,7 @@ function agentLoopNode(input: {
     metadataJson: JSON.stringify({
       customType: OPENWAGGLE_AGENT_LOOP.SESSION_EVENT_CUSTOM_TYPE,
     }),
-  }
+  } satisfies SessionNode
 }
 
 describe('executeAgentRun agent-loop event durability', () => {
@@ -185,6 +201,7 @@ describe('executeAgentRun agent-loop event durability', () => {
           createdAt: 10,
           title: 'Approve?',
           message: 'Allow the extension action?',
+          purpose: 'user-input',
         },
       })
       input.onEvent({
@@ -202,7 +219,7 @@ describe('executeAgentRun agent-loop event durability', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-agent-loop-1',
-        payload: { text: 'Run extension tool', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Run extension tool', attachments: [] },
         model,
         signal: new AbortController().signal,
         onEvent: () => undefined,
@@ -218,6 +235,44 @@ describe('executeAgentRun agent-loop event durability', () => {
       { id: 'run-agent-loop-1:agent-loop:2', parentId: 'run-agent-loop-1:agent-loop:1' },
     ])
     expect(persisted.nodes.at(-1)?.contentJson).toContain('agent_interaction_resolved')
+  })
+
+  it('persists the app-owned worktree-created trace after a delivered first turn', async () => {
+    runMock.mockImplementationOnce((input: AgentKernelRunInput) => {
+      input.onWorktreeLaunch?.({
+        stage: 'preparing-workspace',
+        details: ['Preparing the session worktree'],
+      })
+      input.onWorktreeLaunch?.({
+        stage: 'worktree-created',
+        details: ['Created ow/session-a from main'],
+        branch: 'ow/session-a',
+        baseRef: 'main',
+        worktreePath: '/tmp/session-a',
+      })
+      input.onWorktreeLaunch?.({
+        stage: 'starting-task',
+        details: ['Starting the task in the new worktree'],
+        worktreePath: '/tmp/session-a',
+      })
+    })
+
+    await Effect.runPromise(
+      executeAgentRun({
+        sessionId,
+        runId: 'run-worktree-launch',
+        payload: { text: 'Start in a worktree', attachments: [] },
+        model,
+        signal: new AbortController().signal,
+        onEvent: () => undefined,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    const trace = firstPersistedSnapshot().nodes.find((node) =>
+      node.contentJson.includes('openwaggle.worktree-created'),
+    )
+    expect(trace?.contentJson).toContain('Created ow/session-a from main')
+    expect(trace?.contentJson).toContain('/tmp/session-a')
   })
 
   it('carries existing durable agent-loop nodes across replacement snapshots', async () => {
@@ -242,7 +297,7 @@ describe('executeAgentRun agent-loop event durability', () => {
       executeAgentRun({
         sessionId,
         runId: 'run-without-agent-loop-events',
-        payload: { text: 'Continue without extensions', thinkingLevel: 'medium', attachments: [] },
+        payload: { text: 'Continue without extensions', attachments: [] },
         model,
         signal: new AbortController().signal,
         onEvent: () => undefined,

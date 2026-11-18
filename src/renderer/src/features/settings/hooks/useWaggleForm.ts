@@ -13,10 +13,10 @@ import {
   configMatchesPreset,
   INITIAL_WAGGLE_FORM_STATE,
   INITIAL_WAGGLE_PRESET_STATE,
-  type WaggleFormAction,
-  type WaggleFormState,
   waggleFormReducer,
   wagglePresetReducer,
+  type WaggleFormState,
+  type WaggleFormAction,
 } from './waggle-form-state'
 
 export type { WaggleFormAction } from './waggle-form-state'
@@ -40,7 +40,9 @@ export interface WaggleFormHook {
   readonly handleDeletePreset: (id: string) => Promise<void>
 }
 
-export function useWaggleForm(): WaggleFormHook {
+const EMPTY_PRESETS: readonly WagglePreset[] = []
+
+export function useWaggleForm() {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const wagglePresetsQuery = useQuery(wagglePresetsQueryOptions(projectPath))
   const saveWagglePresetMutation = useSaveWagglePresetMutation(projectPath)
@@ -48,7 +50,9 @@ export function useWaggleForm(): WaggleFormHook {
   const [formState, dispatchForm] = useReducer(waggleFormReducer, INITIAL_WAGGLE_FORM_STATE)
   const [presetState, dispatchPreset] = useReducer(wagglePresetReducer, INITIAL_WAGGLE_PRESET_STATE)
   const { activePresetId, error } = presetState
-  const presets = wagglePresetsQuery.data ?? []
+  // Stable fallback: `?? []` would allocate a new array each render, re-running
+  // the effect below every time (react-doctor/exhaustive-deps).
+  const presets = wagglePresetsQuery.data ?? EMPTY_PRESETS
 
   useEffect(() => {
     if (!activePresetId) return
@@ -135,7 +139,7 @@ export function useWaggleForm(): WaggleFormHook {
     }
   }
 
-  return {
+  const hook: WaggleFormHook = {
     formState,
     dispatchForm,
     presets,
@@ -147,4 +151,5 @@ export function useWaggleForm(): WaggleFormHook {
     handleNewCustom,
     handleDeletePreset,
   }
+  return hook
 }

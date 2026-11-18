@@ -1,0 +1,82 @@
+import {
+  HEARTBEAT_IDLE_PAUSE_DEFAULT,
+  type HeartbeatSettings,
+  type ScheduledTask,
+  type ScheduledTaskRun,
+} from '@shared/types/scheduled-task'
+
+const WEEKDAYS = [1, 2, 3, 4, 5] as const
+const HEARTBEAT_EVERY_MINUTES = 30
+
+export function scheduledTaskRun(patch: Partial<ScheduledTaskRun> = {}) {
+  return {
+    id: 'run-1',
+    taskId: 'task-1',
+    trigger: 'schedule',
+    nominalAt: Date.parse('2026-03-02T09:00:00Z'),
+    firedAt: Date.parse('2026-03-02T09:01:30Z'),
+    missedCount: 0,
+    status: 'started',
+    ...patch,
+  } satisfies ScheduledTaskRun
+}
+
+export function scheduledTask(patch: Partial<ScheduledTask> = {}) {
+  const task: ScheduledTask = {
+    id: 'task-1',
+    name: 'Morning triage',
+    prompt: 'Triage new issues.',
+    kind: 'launch',
+    enabled: true,
+    schedule: { kind: 'daily', at: '09:00', weekdays: [...WEEKDAYS] },
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    endsAt: null,
+    maxRuns: null,
+    target: {
+      kind: 'launch',
+      projectPath: '/projects/alpha',
+      workspace: 'new-worktree',
+      archiveFinishedSessions: false,
+    },
+    notificationPolicy: 'every-run',
+    projectPath: '/projects/alpha',
+    creator: { kind: 'local-user', label: 'You' },
+    attention: null,
+    nextRunAt: Date.parse('2026-03-03T09:00:00Z'),
+    nextNominalAt: Date.parse('2026-03-03T09:00:00Z'),
+    waitingSince: null,
+    runCount: 1,
+    lastRun: null,
+    heartbeat: null,
+    recentSessionIds: [],
+    createdAt: Date.parse('2026-03-01T09:00:00Z'),
+    updatedAt: Date.parse('2026-03-01T09:00:00Z'),
+    ...patch,
+  }
+  return task
+}
+
+export function heartbeatSettings(patch: Partial<HeartbeatSettings> = {}) {
+  return {
+    stopWhen: 'CI is green on main',
+    indefinite: false,
+    idlePauseAfter: HEARTBEAT_IDLE_PAUSE_DEFAULT,
+    wakeCheck: null,
+    consecutiveIdleRuns: 0,
+    autoPause: null,
+    ...patch,
+  } satisfies HeartbeatSettings
+}
+
+export function heartbeatTask(patch: Partial<ScheduledTask> = {}) {
+  return scheduledTask({
+    heartbeat: heartbeatSettings(),
+    id: 'heartbeat-1',
+    name: 'CI watch',
+    kind: 'heartbeat',
+    schedule: { kind: 'interval', everyMinutes: HEARTBEAT_EVERY_MINUTES },
+    target: { kind: 'heartbeat', sessionId: 'session-1' },
+    notificationPolicy: 'failures-only',
+    ...patch,
+  })
+}

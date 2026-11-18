@@ -2,10 +2,12 @@ import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
 import {
+  attributeCopiedVisualizationSources,
   cloneAgentSessionToNewSession,
   forkAgentSessionToNewSession,
 } from '../agent-session-service'
@@ -16,6 +18,7 @@ import {
   sessionServiceSettingsLayer,
 } from './agent-session-service.test-utils'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 const persistSnapshotMock = vi.fn()
 const forkSessionMock = vi.fn()
@@ -44,12 +47,32 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   unarchive: () => Effect.void,
   listArchived: () => Effect.succeed([]),
   updateTitle: () => Effect.void,
+  assignProvisionalTitle: () => Effect.succeed(true),
+  setWorktreePlan: () => Effect.void,
+  setAuthorizationMode: () => Effect.void,
+  listTurnCheckpoints: () => Effect.succeed([]),
+  getTurnDiff: () => Effect.succeed(null),
+  getTurnDiffFiles: () => Effect.succeed([]),
+  listTurnDiffFiles: () => Effect.succeed({}),
+  setTurnCheckpointAnchor: () => Effect.void,
+  ...PINNED_SESSION_REPOSITORY_STUB,
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(null),
+  getTree: () =>
+    Effect.succeed({
+      session,
+      nodes: [],
+      branches: [],
+      branchStates: [],
+      uiState: null,
+    }),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
     Effect.sync(() => {
@@ -71,6 +94,7 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   createSession: () => Effect.fail(new Error('createSession is not used')),
   run: () => Effect.fail(new Error('run is not used')),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
+  listExtensionCommands: () => Effect.succeed([]),
   compact: () => Effect.fail(new Error('compact is not used')),
   navigateTree: () => Effect.fail(new Error('navigateTree is not used')),
   forkSession: (input) =>
@@ -91,6 +115,81 @@ const TestLayer = Layer.mergeAll(
 )
 
 describe('agent session copy commands', () => {
+  it('preserves explicit visualization ownership across repeated copies', () => {
+    const sourcePath = '/app-data/visualizations/original-session/map.html'
+    const snapshot = {
+      activeNodeId: 'assistant-map',
+      nodes: [
+        {
+          id: 'assistant-map',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'assistant_message' as const,
+          role: 'assistant' as const,
+          timestampMs: 1,
+          contentJson: JSON.stringify({
+            parts: [
+              {
+                type: 'text',
+                text: `visualize${JSON.stringify({ path: sourcePath })}`,
+              },
+            ],
+          }),
+          metadataJson: JSON.stringify({ provider: 'openai' }),
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+      ],
+    }
+    const copied = attributeCopiedVisualizationSources(snapshot, {
+      id: session.id,
+      nodes: [
+        {
+          id: SessionNodeId('assistant-map'),
+          metadataJson: JSON.stringify({ visualizationSessionId: 'original-session' }),
+        },
+      ],
+    })
+
+    expect(JSON.parse(copied.nodes[0]?.metadataJson ?? '{}')).toEqual({
+      provider: 'openai',
+      visualizationSessionId: 'original-session',
+    })
+  })
+
+  it('attributes delimiter-free visualization references when copying', () => {
+    const sourcePath = '/app-data/visualizations/original-session/map.html'
+    const snapshot = {
+      activeNodeId: 'assistant-map',
+      nodes: [
+        {
+          id: 'assistant-map',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'assistant_message' as const,
+          role: 'assistant' as const,
+          timestampMs: 1,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: `visualize{"path":"${sourcePath}"}` }],
+          }),
+          metadataJson: JSON.stringify({ provider: 'openai' }),
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+      ],
+    }
+
+    const copied = attributeCopiedVisualizationSources(snapshot, {
+      id: session.id,
+      nodes: [],
+    })
+
+    expect(JSON.parse(copied.nodes[0]?.metadataJson ?? '{}')).toEqual({
+      provider: 'openai',
+      visualizationSessionId: session.id,
+    })
+  })
+
   beforeEach(() => {
     persistSnapshotMock.mockReset()
     forkSessionMock.mockReset()
@@ -135,6 +234,10 @@ describe('agent session copy commands', () => {
       projectPath: '/tmp/project',
       piSessionId: 'pi-session-forked',
       piSessionFile: '/tmp/pi-session-forked.jsonl',
+      // Inherited from the source session, so the fork keeps its isolation.
+      environmentMode: 'worktree',
+      // And its MCP switch: a fork of a Session with MCP off starts with MCP off.
+      copyMcpSwitchFrom: 'session-1',
     })
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId: SessionId('pi-session-forked'),

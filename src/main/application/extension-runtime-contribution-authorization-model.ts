@@ -12,6 +12,7 @@ import {
   familyDiagnostics,
 } from './extension-contribution-authorization-model'
 import { getManifestFamilyContributions } from './extension-contribution-family-model'
+import { runtimeSidePanelIconDiagnostics } from './extension-runtime-side-panel-icon-model'
 
 function findStaticManifestContribution(input: {
   readonly manifest: OpenWaggleExtensionManifest | null
@@ -34,14 +35,14 @@ function staticContributionReplacementDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contributionId: string
-}): readonly ExtensionDiagnostic[] {
+}) {
   const staticContribution = findStaticManifestContribution({
     manifest: input.extensionPackage.manifest,
     family: input.family,
     contributionId: input.contributionId,
   })
   if (staticContribution === null) {
-    return []
+    return [] satisfies readonly ExtensionDiagnostic[]
   }
 
   return [
@@ -52,21 +53,21 @@ function staticContributionReplacementDiagnostics(input: {
       message:
         'Dynamic registration cannot replace a contribution that is statically declared in the extension manifest.',
     }),
-  ]
+  ] satisfies readonly ExtensionDiagnostic[]
 }
 
 function staticContributionUnregistrationDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contributionId: string
-}): readonly ExtensionDiagnostic[] {
+}) {
   const staticContribution = findStaticManifestContribution({
     manifest: input.extensionPackage.manifest,
     family: input.family,
     contributionId: input.contributionId,
   })
   if (staticContribution === null) {
-    return []
+    return [] satisfies readonly ExtensionDiagnostic[]
   }
 
   return [
@@ -77,13 +78,13 @@ function staticContributionUnregistrationDiagnostics(input: {
       message:
         'Dynamic unregistration cannot remove a contribution that is statically declared in the extension manifest.',
     }),
-  ]
+  ] satisfies readonly ExtensionDiagnostic[]
 }
 
 export function authorizeRuntimeContributionRegistration(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly registration: ExtensionContributionRegistration
-}): ContributionRegistrationAuthorization {
+}) {
   const authorization = authorizeContributionRegistration({
     extensionPackage: input.extensionPackage,
     family: input.registration.family,
@@ -96,15 +97,18 @@ export function authorizeRuntimeContributionRegistration(input: {
       family: input.registration.family,
       contributionId: input.registration.contribution.id,
     }),
+    ...runtimeSidePanelIconDiagnostics(input),
   ]
 
-  return diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }
+  return (
+    diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }
+  ) satisfies ContributionRegistrationAuthorization
 }
 
 export function authorizeRuntimeContributionUnregistration(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly unregistration: ExtensionContributionUnregistration
-}): ContributionRegistrationAuthorization {
+}) {
   const diagnostics = [
     ...familyDiagnostics({
       extensionPackage: input.extensionPackage,
@@ -118,5 +122,7 @@ export function authorizeRuntimeContributionUnregistration(input: {
     }),
   ]
 
-  return diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }
+  const authorization: ContributionRegistrationAuthorization =
+    diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }
+  return authorization
 }

@@ -1,0 +1,233 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AgentDefinitionPiProjectServices } from '../adapters/pi/agent-definition-semantic-catalog-services'
+import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../extensions/types'
+
+const catalogMocks = vi.hoisted(() => ({
+  createPiRuntimeServices: vi.fn(),
+  migrateOpenWaggleMcpFilesOnce: vi.fn(async () => undefined),
+}))
+
+vi.mock('../adapters/pi/mcp/openwaggle-mcp-migration', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../adapters/pi/mcp/openwaggle-mcp-migration')>()),
+  migrateOpenWaggleMcpFilesOnce: catalogMocks.migrateOpenWaggleMcpFilesOnce,
+}))
+
+vi.mock('../adapters/pi/pi-provider-catalog', () => ({
+  createPiRuntimeServices: catalogMocks.createPiRuntimeServices,
+}))
+
+import { loadAgentDefinitionSemanticCatalog } from '../agent-definition-semantic-catalog-loader'
+import { validateAgentDefinitionSemantics } from '../agents/agent-definition-semantic-validation'
+
+function managedExtension(projectPath: string) {
+  const packagePath = `${projectPath}/.openwaggle/extensions/team-tools`
+  const result: DiscoveredExtensionPackage = {
+    id: 'team-tools',
+    scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
+    packagePath,
+    manifestPath: `${packagePath}/${OPENWAGGLE_EXTENSION.MANIFEST_FILE}`,
+    manifest: {
+      manifestVersion: 1,
+      id: 'team-tools',
+      name: 'Team tools',
+      version: '1.0.0',
+      sdk: { openwaggle: '>=0.1.0 <0.2.0' },
+      sourceFiles: ['src/index.ts'],
+      builtArtifacts: ['extensions/index.js'],
+      pi: { resourceRoots: ['pi'] },
+    },
+    buildPlan: null,
+    contentHash: 'trusted-content',
+    sdkCompatibility: {
+      hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
+      requiredRange: '>=0.1.0 <0.2.0',
+      compatible: true,
+    },
+    diagnostics: [],
+  }
+  return result
+}
+
+function enabledLifecycle(projectPath: string) {
+  const state: ExtensionLifecycleState = {
+    extensionId: 'team-tools',
+    scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
+    enabled: true,
+    trusted: true,
+    grantedCapabilities: [],
+    contentHash: 'trusted-content',
+    packageVersion: '1.0.0',
+    approvedBuildPlanHash: null,
+    buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
+    buildLog: null,
+    reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+    lastReloadedAt: 1,
+    sdkRange: '>=0.1.0 <0.2.0',
+    sdkCompatible: true,
+    diagnostics: [],
+    installedAt: 1,
+    updatedAt: 1,
+  }
+  return state
+}
+
+function extensionSelectionServices(
+  extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState,
+) {
+  return {
+    manager: { listPackages: () => Effect.succeed([extensionPackage]) },
+    lifecycleRepository: {
+      get: () => Effect.succeed(lifecycle),
+      list: () => Effect.succeed([lifecycle]),
+      upsert: () => Effect.void,
+    },
+    projectOverridesRepository: {
+      get: () => Effect.succeed(null),
+      upsert: () => Effect.void,
+    },
+  }
+}
+
+describe('loadAgentDefinitionSemanticCatalog', () => {
+  beforeEach(() => catalogMocks.createPiRuntimeServices.mockReset())
+
+  it('includes tools and skills from enabled OpenWaggle-managed extensions', async () => {
+    const projectPath = '/tmp/openwaggle-agent-definition-catalog'
+    const extensionPackage = managedExtension(projectPath)
+
+    catalogMocks.createPiRuntimeServices.mockResolvedValue(
+      fromPartial<AgentDefinitionPiProjectServices>({
+        modelRuntime: {
+          getModels: () => [{ provider: 'test-provider', id: 'test-model' }],
+        },
+        resourceLoader: {
+          getSkills: () => ({ skills: [{ name: 'managed-skill' }] }),
+          getExtensions: () => ({
+            extensions: [{ tools: new Map([['managed_tool', {}]]) }],
+            errors: [],
+            runtime: { mcpServers: { list: () => [] } },
+          }),
+        },
+      }),
+    )
+
+    const catalog = await loadAgentDefinitionSemanticCatalog({
+      projectPath,
+      userHome: '/tmp/openwaggle-agent-definition-home',
+      extensionSelectionServices: extensionSelectionServices(
+        extensionPackage,
+        enabledLifecycle(projectPath),
+      ),
+    })
+
+    expect(catalog).toMatchObject({
+      models: ['test-provider/test-model'],
+      tools: expect.arrayContaining(['managed_tool', 'hive']),
+      skills: ['managed-skill'],
+    })
+    // ADR 0053: the former `sessions` tool name is not accepted in a definition's `tools`.
+    expect(catalog.tools).not.toContain('sessions')
+    expect(
+      validateAgentDefinitionSemantics(
+        {
+          schemaVersion: 1,
+          name: 'coordinator',
+          description: 'Coordinates Workers.',
+          tools: ['read', 'sessions'],
+          instructions: 'Coordinate.',
+        },
+        catalog,
+      ).diagnostics,
+    ).toMatchObject([{ code: 'unknown-reference', resource: 'tool', value: 'sessions' }])
+    expect(catalogMocks.createPiRuntimeServices).toHaveBeenCalledWith(projectPath, {
+      enabledOpenWaggleExtensionPackagePaths: [extensionPackage.packagePath],
+      enabledOpenWaggleExtensionResourceRoots: [
+        { packagePath: extensionPackage.packagePath, resourceRoot: 'pi' },
+      ],
+    })
+  })
+
+  it('accepts the old instance ID of a configured MCP server, as the migration recorded it', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'ow-catalog-home-'))
+    await mkdir(path.join(home, '.openwaggle', 'mcp'), { recursive: true })
+    await writeFile(
+      path.join(home, '.openwaggle', 'mcp.json'),
+      JSON.stringify({ mcpServers: { github: { command: 'github-mcp' } } }),
+    )
+    await writeFile(
+      path.join(home, '.openwaggle', 'mcp', 'migration.json'),
+      JSON.stringify({
+        version: 1,
+        files: {},
+        legacyServerNames: { 'gh-1': 'github', 'gone-1': 'removed' },
+      }),
+    )
+    catalogMocks.createPiRuntimeServices.mockResolvedValue(
+      fromPartial<AgentDefinitionPiProjectServices>({
+        modelRuntime: { getModels: () => [] },
+        resourceLoader: {
+          getSkills: () => ({ skills: [] }),
+          getExtensions: () => ({
+            extensions: [],
+            errors: [],
+            runtime: { mcpServers: { list: () => [] } },
+          }),
+        },
+      }),
+    )
+
+    const catalog = await loadAgentDefinitionSemanticCatalog({
+      projectPath: path.join(home, 'project'),
+      userHome: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+      extensionSelectionServices: extensionSelectionServices(
+        managedExtension('/tmp/unused'),
+        enabledLifecycle('/tmp/unused'),
+      ),
+    })
+
+    expect(catalog.mcpServers).toEqual(['github', 'gh-1'])
+    await rm(home, { recursive: true, force: true })
+  })
+
+  it('accepts MCP servers a Pi extension registers, as Runs do', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'ow-catalog-home-'))
+    await writeFile(path.join(home, 'empty'), '')
+    catalogMocks.createPiRuntimeServices.mockResolvedValue(
+      fromPartial<AgentDefinitionPiProjectServices>({
+        modelRuntime: { getModels: () => [] },
+        resourceLoader: {
+          getSkills: () => ({ skills: [] }),
+          getExtensions: () => ({
+            extensions: [],
+            errors: [],
+            // pi.registerMcpServer('jira', …) in a project extension.
+            runtime: { mcpServers: { list: () => [{ name: 'jira' }] } },
+          }),
+        },
+      }),
+    )
+
+    const catalog = await loadAgentDefinitionSemanticCatalog({
+      projectPath: path.join(home, 'project'),
+      userHome: home,
+      piAgentDir: path.join(home, '.pi', 'agent'),
+      extensionSelectionServices: extensionSelectionServices(
+        managedExtension('/tmp/unused'),
+        enabledLifecycle('/tmp/unused'),
+      ),
+    })
+
+    expect(catalog.mcpServers).toContain('jira')
+    // Validation reads the MCP files as they are; it never migrates (writes) them.
+    expect(catalogMocks.migrateOpenWaggleMcpFilesOnce).not.toHaveBeenCalled()
+    await rm(home, { recursive: true, force: true })
+  })
+})

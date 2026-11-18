@@ -2,16 +2,30 @@ import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('composer')
 
-function isPromiseResult(value: Promise<void> | void): value is Promise<void> {
-  return value !== undefined
+function isPromiseResult(value: unknown): value is Promise<unknown> {
+  return value instanceof Promise
 }
 
-export function consumeSendResult(result: Promise<void> | void): void {
+/** A send refused for a reason the user is already shown: worth a warning, not an error. */
+export function logExpectedSendRefusal(cause: unknown) {
+  logger.warn('Composer send was refused', {
+    message: cause instanceof Error ? cause.message : String(cause),
+  })
+}
+
+/** A send that failed unexpectedly, though a toast already told the user. */
+export function logShownSendFailure(cause: unknown) {
+  logger.error('Composer send failed', {
+    message: cause instanceof Error ? cause.message : String(cause),
+  })
+}
+
+export function consumeSendResult(result: unknown) {
   if (!isPromiseResult(result)) {
     return
   }
 
-  result.catch((error) => {
+  result.catch((error: unknown) => {
     logger.error('Composer send failed', {
       message: error instanceof Error ? error.message : String(error),
     })

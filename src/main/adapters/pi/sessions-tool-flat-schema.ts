@@ -1,0 +1,229 @@
+import { isMatching, P } from '@diegogbrisa/ts-match'
+import { type TProperties, type TSchema, Type } from 'typebox'
+import { Check, Errors, Value } from 'typebox/value'
+import { keywordsOf } from './json-schema-object'
+import { type SessionsToolParameters, sessionsToolParameters } from './sessions-tool-parameters'
+
+/** Loose structural view of a union member for run-time schema surgery. */
+export interface SessionsToolRuntimeVariant {
+  readonly properties: TProperties & { readonly action?: TSchema }
+  readonly required?: readonly string[]
+}
+
+/** Enumerate the concrete `action` literal schemas a variant declares. */
+export function actionChoices(action: unknown) {
+  if (isMatching({ const: P.string }, action)) {
+    const result: { const: string }[] = [action]
+    return result
+  }
+  if (isMatching({ anyOf: P.array({ const: P.string }) }, action)) {
+    const result: { const: string }[] = [...action.anyOf]
+    return result
+  }
+  const result: { const: string }[] = []
+  return result
+}
+
+export function variantActionName(variant: SessionsToolRuntimeVariant) {
+  return actionChoices(variant.properties.action)[0]?.const
+}
+
+/**
+ * Some parameter groups share one variant across several actions via an action literal
+ * union. Expand them so every runtime variant declares exactly one `action` const, which
+ * keeps capability filtering and per-action runtime validation uniform.
+ */
+function singleActionVariants(variants: readonly SessionsToolRuntimeVariant[]) {
+  const result: SessionsToolRuntimeVariant[] = variants.flatMap((variant) => {
+    const choices = actionChoices(variant.properties.action)
+    if (choices.length <= 1) return [variant]
+    const { action: _sharedAction, ...shared } = variant.properties
+    // Copy with descriptors, not a spread: TypeBox keeps `~kind` non-enumerable, and
+    // `Value.Convert` only descends into a schema it recognizes as an object.
+    return choices.map((choice) =>
+      Object.defineProperties(
+        { properties: {} },
+        {
+          ...Object.getOwnPropertyDescriptors(variant),
+          properties: { value: { action: choice, ...shared }, enumerable: true },
+        },
+      ),
+    )
+  })
+  return result
+}
+
+export const sessionsToolParameterVariants: readonly SessionsToolRuntimeVariant[] =
+  singleActionVariants(sessionsToolParameters.anyOf)
+
+function requiredActionsByProperty(
+  variants: readonly SessionsToolRuntimeVariant[],
+  noteActions: ReadonlySet<string> | undefined,
+) {
+  const requiredBy = new Map<string, string[]>()
+  for (const variant of variants) {
+    const action = variantActionName(variant)
+    if (action === undefined || (noteActions && !noteActions.has(action))) continue
+    for (const key of variant.required ?? []) {
+      if (key === 'action') continue
+      requiredBy.set(key, [...(requiredBy.get(key) ?? []), action])
+    }
+  }
+  return requiredBy
+}
+
+/** Name the actions that need a property, since the flat schema cannot mark it required. */
+function describeRequiredActions(schema: TSchema, actions: readonly string[] | undefined) {
+  if (!actions?.length) return schema
+  const note = `Required for ${actions.join(', ')}.`
+  const existing = keywordsOf(schema).description
+  // Copy with descriptors, not a spread: TypeBox keeps `~kind` and `~optional` non-enumerable,
+  // and a spread drops them so `Type.Optional` re-adds `~optional` as a visible key that would
+  // reach provider payloads.
+  const described: TSchema = Object.defineProperties({}, Object.getOwnPropertyDescriptors(schema))
+  Object.assign(described, {
+    description: typeof existing === 'string' && existing ? `${existing} ${note}` : note,
+  })
+  return described
+}
+
+export interface SessionsToolFlatSchemaOptions {
+  /** The properties to declare; the others are still accepted, and `help` describes them. */
+  readonly declaredProperties?: ReadonlySet<string>
+  /** The actions whose required properties are named in property descriptions. */
+  readonly requiredNoteActions?: ReadonlySet<string>
+}
+
+/**
+ * The provider-facing hive tool schema: a single object with `action` as a literal
+ * union and every other property optional. Root-level anyOf unions break tool-call
+ * argument emission on some providers (GLM via OpenRouter returns `{}`), so variants must
+ * never be exposed as alternatives at the schema root. The static type stays the
+ * per-action union via Type.Unsafe; exact variant contracts are enforced at run time by
+ * assertSessionsToolActionArguments.
+ */
+export function flattenSessionsToolParameters(
+  variants: readonly SessionsToolRuntimeVariant[],
+  options: SessionsToolFlatSchemaOptions = {},
+) {
+  const actions: TSchema[] = []
+  const propertiesByKey = new Map<string, TSchema[]>()
+  const requiredBy = requiredActionsByProperty(variants, options.requiredNoteActions)
+  for (const variant of variants) {
+    const { action } = variant.properties
+    if (action) actions.push(action)
+    for (const [key, schema] of Object.entries(variant.properties)) {
+      if (key === 'action') continue
+      if (options.declaredProperties && !options.declaredProperties.has(key)) continue
+      const existing = propertiesByKey.get(key) ?? []
+      if (!existing.some((candidate) => JSON.stringify(candidate) === JSON.stringify(schema))) {
+        existing.push(schema)
+      }
+      propertiesByKey.set(key, existing)
+    }
+  }
+  const properties: Record<string, TSchema> = {}
+  for (const [key, occurrences] of propertiesByKey) {
+    const [first, ...others] = occurrences
+    if (!first) continue
+    const merged = others.length === 0 ? first : Type.Union(occurrences)
+    // Every non-action property is optional in the flat schema because required-ness is
+    // per-action and cannot be expressed here. The description names the actions that need
+    // it, and assertSessionsToolActionArguments enforces each variant's contract at run time.
+    properties[key] = Type.Optional(describeRequiredActions(merged, requiredBy.get(key)))
+  }
+  return Type.Unsafe<SessionsToolParameters>({
+    type: 'object',
+    properties: {
+      action: Type.Union(actions.length > 0 ? actions : [Type.Literal('__no_permitted_actions__')]),
+      ...properties,
+    },
+    required: ['action'],
+  })
+}
+
+function variantForAction(params: unknown) {
+  const action = isMatching({ action: P.string }, params) ? params.action : undefined
+  const variant = sessionsToolParameterVariants.find(
+    (candidate) => variantActionName(candidate) === action,
+  )
+  if (variant === undefined) {
+    throw new Error(`Unknown hive action "${String(action)}".`)
+  }
+  return { action, variant }
+}
+
+function checkVariant(
+  action: string | undefined,
+  variant: SessionsToolRuntimeVariant,
+  params: unknown,
+) {
+  const matchesVariant: boolean = Check(variant, params)
+  if (!matchesVariant) {
+    const details = [...Errors(variant, params)]
+      .map((error) => `${error.instancePath || 'arguments'}: ${error.message}`)
+      .join('; ')
+    throw new Error(`Invalid arguments for hive action "${String(action)}": ${details}`)
+  }
+  if (!Check(sessionsToolParameters, params)) {
+    throw new Error(`Invalid arguments for hive action "${String(action)}".`)
+  }
+}
+
+/**
+ * Drop a `null` the schema does not accept from an optional property, at any depth, as Pi's
+ * `validateToolArguments` does for the properties a tool declares (`normalizeOptionalNulls`).
+ */
+function dropOptionalNulls(value: unknown, schema: unknown): void {
+  if (Array.isArray(value)) {
+    const items: unknown = isMatching({ items: P._ }, schema) ? schema.items : undefined
+    if (items !== undefined && !Array.isArray(items)) {
+      for (const item of value) dropOptionalNulls(item, items)
+    }
+    return
+  }
+  if (!isMatching({ properties: P.record(P.string, P._) }, schema)) return
+  if (!isMatching(P.record(P.string, P._), value)) return
+  const { required } = keywordsOf(schema)
+  const requiredKeys = new Set(Array.isArray(required) ? required : [])
+  for (const [key, propertySchema] of Object.entries(schema.properties)) {
+    if (!Object.hasOwn(value, key)) continue
+    if (value[key] === null && !requiredKeys.has(key) && refusesNull(propertySchema)) {
+      Reflect.deleteProperty(value, key)
+    } else {
+      dropOptionalNulls(value[key], propertySchema)
+    }
+  }
+}
+
+function refusesNull(schema: unknown) {
+  return isMatching(P.record(P.string, P._), schema) && !Check(schema, null)
+}
+
+/**
+ * The flattened provider schema cannot express per-action required fields, so enforce the
+ * selected variant's contract here with an error the model can act on.
+ */
+export function assertSessionsToolActionArguments(
+  params: unknown,
+): asserts params is SessionsToolParameters {
+  const { action, variant } = variantForAction(params)
+  checkVariant(action, variant, params)
+}
+
+/**
+ * The arguments of a model's hive call, checked against the action's full contract. The
+ * provider schema declares only the hot actions' properties, and Pi coerces only declared
+ * properties ("20" to 20, an optional `null` dropped), so the same normalization runs here
+ * against the action's own variant before the check; a rarer action's arguments would
+ * otherwise fail where the full schema used to accept them.
+ */
+export function parseSessionsToolActionArguments(params: unknown) {
+  const { action, variant } = variantForAction(params)
+  const normalized: unknown = structuredClone(params)
+  dropOptionalNulls(normalized, variant)
+  const converted: unknown = Value.Convert(variant, normalized)
+  checkVariant(action, variant, converted)
+  assertSessionsToolActionArguments(converted)
+  return converted
+}

@@ -1,0 +1,116 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import path from 'node:path'
+import { promisify } from 'node:util'
+import { runWhenInvokedDirectly } from './support/direct-invocation'
+
+const execFileAsync = promisify(execFile)
+
+const GIT_REV_PARSE_MAX_BUFFER_BYTES = 4_000
+const OUT_DIRECTORY = 'out'
+const BUILD_META_FILENAME = 'build-meta.json'
+
+export interface BuildMeta {
+  readonly commit: string | null
+  readonly builtAt: string
+}
+
+function isObjectRecord(value: unknown): value is object {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Resolves the commit the working tree was built from, or null outside a git repository. */
+export async function resolveHeadCommit() {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+      maxBuffer: GIT_REV_PARSE_MAX_BUFFER_BYTES,
+    })
+    return stdout.trim() || null
+  } catch {
+    return null
+  }
+}
+
+export function parseBuildMeta(raw: string) {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!isObjectRecord(parsed)) return null
+  // Narrowed with `in`: the build config loads this file before the `@shared` alias exists.
+  const commit = 'commit' in parsed ? parsed.commit : undefined
+  const builtAt = 'builtAt' in parsed ? parsed.builtAt : undefined
+  return {
+    commit: typeof commit === 'string' && commit.length > 0 ? commit : null,
+    builtAt: typeof builtAt === 'string' ? builtAt : '',
+  } satisfies BuildMeta
+}
+
+export async function readBuildMeta(outDirectory = OUT_DIRECTORY) {
+  try {
+    return parseBuildMeta(await readFile(path.join(outDirectory, BUILD_META_FILENAME), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+export async function writeBuildMeta(outDirectory = OUT_DIRECTORY) {
+  const meta: BuildMeta = {
+    commit: await resolveHeadCommit(),
+    builtAt: new Date().toISOString(),
+  }
+  await mkdir(outDirectory, { recursive: true })
+  await writeFile(
+    path.join(outDirectory, BUILD_META_FILENAME),
+    `${JSON.stringify(meta, null, JSON_INDENT_SPACES)}\n`,
+    'utf8',
+  )
+}
+
+const CLI_USAGE_MESSAGE =
+  'Usage: bun scripts/record-build-meta.ts [--verify]\n\n' +
+  '  (default)  Record the current HEAD into out/build-meta.json after a build.\n' +
+  '  --verify   Fail when out/ was not built from the current HEAD; run `bun run build` to rebuild.'
+
+const VERIFY_FLAG_ARGUMENT_INDEX = 2
+const VERIFY_FLAG = '--verify'
+const JSON_INDENT_SPACES = 2
+const SHORT_SHA_LENGTH = 12
+
+async function main() {
+  const flag = process.argv[VERIFY_FLAG_ARGUMENT_INDEX]
+  if (flag !== undefined && flag !== VERIFY_FLAG) {
+    console.error(CLI_USAGE_MESSAGE)
+    process.exitCode = 1
+    return
+  }
+  if (flag === VERIFY_FLAG) {
+    const [meta, headCommit] = [await readBuildMeta(), await resolveHeadCommit()]
+    if (meta === null) {
+      console.error(
+        'out/ has no build metadata, so a packaged run would test an app of unknown provenance. Run `bun run build` to rebuild first.',
+      )
+      process.exitCode = 1
+      return
+    }
+    if (meta.commit === null || meta.commit !== headCommit) {
+      const builtAt =
+        meta.commit === null ? 'an unknown commit' : meta.commit.slice(0, SHORT_SHA_LENGTH)
+      const headAt =
+        headCommit === null ? 'an unknown commit' : headCommit.slice(0, SHORT_SHA_LENGTH)
+      console.error(
+        `out/ was built at ${builtAt} but HEAD is ${headAt}. A packaged run would test a stale build; run \`bun run build\` to rebuild first.`,
+      )
+      process.exitCode = 1
+      return
+    }
+    console.log('out/ build metadata is current.')
+    return
+  }
+
+  await writeBuildMeta()
+}
+
+runWhenInvokedDirectly(import.meta.url, main)

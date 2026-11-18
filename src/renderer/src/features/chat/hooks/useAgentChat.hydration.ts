@@ -1,23 +1,22 @@
 import type { SessionId } from '@shared/types/brand'
-import type { UIMessage } from '@shared/types/chat-ui'
-import type { SessionDetail } from '@shared/types/session'
-import { api } from '@/shared/lib/ipc'
+import { acknowledgeCompactionStatus } from '../lib/compaction-lifecycle'
 import {
   appendMissingOptimisticUserMessages,
   appendUnpersistedAssistantTail,
-  buildPartialAssistantMessage,
-  mergeBackgroundReconnectMessages,
   reconcileSnapshotUserMessages,
   sessionToUIMessages,
 } from '../lib/useAgentChat.utils'
+import type { RunRenderSnapshot } from '../state/background-run-render-state'
+import { useOptimisticSteerStore } from '../state/optimistic-steer-store'
+import { activeRunHydrationMessages } from './useAgentChat.active-run-messages'
+import { isSendToOtherSession, settleDisplacedSends } from './useAgentChat.foreground-run'
 import {
   buildOptimisticMessagesKey,
   buildSessionSnapshotKey,
   getMessagesForSession,
-  mergeSessionAndOptimisticMessages,
   setMessagesForSession,
-  updateMessagesForSession,
 } from './useAgentChat.message-cache'
+import { reconnectActiveRun } from './useAgentChat.reconnect'
 import type {
   SessionHydrationContext,
   SessionHydrationInput,
@@ -28,6 +27,7 @@ function resolvePendingForegroundRun(context: SessionHydrationContext) {
   const pending = context.pendingRunWaiterRef.current
   context.pendingRunWaiterRef.current = null
   pending?.resolve()
+  settleDisplacedSends(pending)
 }
 
 function clearForegroundRunState(context: SessionHydrationContext) {
@@ -36,11 +36,24 @@ function clearForegroundRunState(context: SessionHydrationContext) {
   context.terminalRunErrorRef.current = undefined
 }
 
-export function resetMissingSessionHydration(context: SessionHydrationContext) {
-  if (context.foregroundStreamActiveRef.current) {
+export function resetMissingSessionHydration(
+  context: SessionHydrationContext,
+  sessionId: SessionId | null,
+) {
+  const pending = context.pendingRunWaiterRef.current
+  // A send to the Session left behind settles, even when a completion it held cleared the flag.
+  // With no Session at all (New conversation), any followed send is elsewhere: first sends are
+  // never followed here.
+  const sentElsewhere =
+    pending !== null && (sessionId === null || isSendToOtherSession(pending, sessionId))
+  if (context.foregroundStreamActiveRef.current || sentElsewhere) {
     resolvePendingForegroundRun(context)
   }
   clearForegroundRunState(context)
+  // No Session renders, so none streams in the background here either; the next one hydrates anew.
+  context.setBackgroundStreaming(false)
+  context.backgroundStreamingRef.current = false
+  context.backgroundReconnectSessionIdRef.current = null
   context.streamSignalVersionRef.current = 0
   context.lastHydratedSessionIdRef.current = null
   context.lastHydratedSnapshotKeyRef.current = null
@@ -50,14 +63,19 @@ export function resetMissingSessionHydration(context: SessionHydrationContext) {
   context.setError(undefined)
 }
 
-function getSessionHydrationKeys(input: SessionHydrationInput, context: SessionHydrationContext) {
+function getSessionHydrationKeys(
+  input: SessionHydrationInput,
+  context: SessionHydrationContext,
+  resynced: boolean,
+) {
   const snapshotKey = buildSessionSnapshotKey(input.session)
   const optimisticKey = buildOptimisticMessagesKey(input.optimisticUserMessages)
   return {
     snapshotKey,
     optimisticKey,
     sessionChanged: context.lastHydratedSessionIdRef.current !== input.sessionId,
-    snapshotChanged: context.lastHydratedSnapshotKeyRef.current !== snapshotKey,
+    // After a resync the transcript may lack events, so it is rebuilt even from the same detail.
+    snapshotChanged: resynced || context.lastHydratedSnapshotKeyRef.current !== snapshotKey,
     optimisticChanged: context.lastHydratedOptimisticKeyRef.current !== optimisticKey,
   }
 }
@@ -79,6 +97,7 @@ function resetSessionChangedState(keys: SessionHydrationKeys, context: SessionHy
   context.setBackgroundStreaming(false)
   context.backgroundStreamingRef.current = false
   context.backgroundReconnectSessionIdRef.current = null
+  context.compactionSummaryCountAtStartRef.current = 0
   context.setCompactionStatus(null)
 }
 
@@ -87,7 +106,12 @@ function shouldKeepForegroundHydration(
   keys: SessionHydrationKeys,
   context: SessionHydrationContext,
 ) {
+  const pending = context.pendingRunWaiterRef.current
   if (!context.foregroundStreamActiveRef.current) {
+    // A send still in flight to the Session left behind settles, with every send it displaced.
+    if (pending && isSendToOtherSession(pending, input.sessionId)) {
+      resolvePendingForegroundRun(context)
+    }
     return false
   }
   if (context.foregroundSessionIdRef.current !== input.sessionId) {
@@ -112,44 +136,6 @@ function shouldSkipActiveRunHydration(
   )
 }
 
-function handleActiveRunReconnectResult(
-  capturedSessionId: SessionId,
-  nextMessages: UIMessage[] | null,
-  context: SessionHydrationContext,
-) {
-  if (
-    !nextMessages ||
-    context.currentSessionIdRef.current !== capturedSessionId ||
-    context.backgroundReconnectSessionIdRef.current !== capturedSessionId
-  ) {
-    return
-  }
-  updateMessagesForSession(
-    context.messagesBySessionIdRef,
-    context.setMessagesBySessionId,
-    context.setRunRenderMessages,
-    capturedSessionId,
-    (currentMessages) => mergeBackgroundReconnectMessages(nextMessages, currentMessages),
-    { cacheRunSnapshot: true },
-  )
-}
-
-function handleActiveRunReconnectError(
-  capturedSessionId: SessionId,
-  reconnectError: unknown,
-  context: SessionHydrationContext,
-) {
-  if (context.currentSessionIdRef.current !== capturedSessionId) {
-    return
-  }
-  context.setError(
-    reconnectError instanceof Error ? reconnectError : new Error(String(reconnectError)),
-  )
-  context.setStatus('error')
-  context.setBackgroundStreaming(false)
-  context.backgroundStreamingRef.current = false
-}
-
 function hydrateActiveRunSession(
   input: SessionHydrationInput,
   keys: SessionHydrationKeys,
@@ -159,16 +145,7 @@ function hydrateActiveRunSession(
     return
   }
 
-  const persistedMessages = mergeSessionAndOptimisticMessages(
-    input.session,
-    input.optimisticUserMessages,
-  )
-  const nextMessages = input.cachedRenderMessages
-    ? mergeBackgroundReconnectMessages([...persistedMessages], [...input.cachedRenderMessages])
-    : reconcileSnapshotUserMessages(
-        persistedMessages,
-        getMessagesForSession(context.messagesBySessionIdRef, input.sessionId),
-      )
+  const { messages: nextMessages, compactionStatus } = activeRunHydrationMessages(input, context)
   setMessagesForSession(
     context.messagesBySessionIdRef,
     context.setMessagesBySessionId,
@@ -182,13 +159,16 @@ function hydrateActiveRunSession(
   context.backgroundReconnectSessionIdRef.current = input.sessionId
   context.setBackgroundStreaming(true)
   context.setStatus('streaming')
-  void reconnectToBackgroundRun(input.sessionId, input.session, input.optimisticUserMessages)
-    .then((nextReconnectMessages) =>
-      handleActiveRunReconnectResult(input.sessionId, nextReconnectMessages, context),
-    )
-    .catch((reconnectError: unknown) =>
-      handleActiveRunReconnectError(input.sessionId, reconnectError, context),
-    )
+  const durableSummaryIds = nextMessages.flatMap((message) =>
+    message.metadata?.compactionSummary === undefined ? [] : [message.id],
+  )
+  const acknowledgedStatus = acknowledgeCompactionStatus(compactionStatus, durableSummaryIds)
+  if (acknowledgedStatus && acknowledgedStatus.type !== 'retrying') {
+    context.compactionSummaryCountAtStartRef.current = acknowledgedStatus.summaryCountAtStart
+  }
+  context.setCompactionStatus(acknowledgedStatus)
+  context.setRunCompactionStatus(input.sessionId, acknowledgedStatus)
+  reconnectActiveRun(input, context, 'background')
 }
 
 function hydrateIdleSession(
@@ -210,14 +190,25 @@ function hydrateIdleSession(
   )
   const existingMessages = getMessagesForSession(context.messagesBySessionIdRef, input.sessionId)
   const reconciledMessages = reconcileSnapshotUserMessages(snapshotMessages, existingMessages)
+  const nextMessages = appendUnpersistedAssistantTail(reconciledMessages, existingMessages)
   setMessagesForSession(
     context.messagesBySessionIdRef,
     context.setMessagesBySessionId,
     context.setRunRenderMessages,
     input.sessionId,
-    appendUnpersistedAssistantTail(reconciledMessages, existingMessages),
+    nextMessages,
   )
   updateHydrationKeys(input.sessionId, keys, context)
+
+  const durableSummaryIds = nextMessages.flatMap((message) =>
+    message.metadata?.compactionSummary === undefined ? [] : [message.id],
+  )
+  const acknowledgedStatus = acknowledgeCompactionStatus(
+    input.cachedCompactionStatus,
+    durableSummaryIds,
+  )
+  context.setCompactionStatus(acknowledgedStatus)
+  context.setRunCompactionStatus(input.sessionId, acknowledgedStatus)
 
   if (keys.sessionChanged) {
     context.setStatus('ready')
@@ -229,8 +220,25 @@ export function hydrateSessionMessages(
   input: SessionHydrationInput,
   context: SessionHydrationContext,
 ) {
-  const keys = getSessionHydrationKeys(input, context)
+  const resynced = context.lastHydratedResyncRevisionRef.current !== input.resyncRevision
+  context.lastHydratedResyncRevisionRef.current = input.resyncRevision
+  // With no Run active after a resync, a Run the subscription missed (it started and settled
+  // unseen) returned the promoted steers it never took to the queue: their previews go.
+  if (resynced && !input.hasActiveRun) {
+    useOptimisticSteerStore.getState().clearSession(input.sessionId)
+  }
+  // Only a Run can have lost events to recover: an idle Session rebuilt from a detail that may
+  // not hold its just-finished Run yet would drop that Run's rows until the refetch landed.
+  const keys = getSessionHydrationKeys(input, context, resynced && input.hasActiveRun)
   if (shouldKeepForegroundHydration(input, keys, context)) {
+    // The Run this renderer follows keeps streaming into its transcript; only what it missed is
+    // merged in from the reconnect buffer. Once the send's own Run settled (the Session went on to
+    // the next Run, perhaps in a stall the resync relayed), the transcript may lack what Runs saved
+    // meanwhile: it is read again too.
+    if (resynced) {
+      const sendSettled = context.pendingRunWaiterRef.current === null
+      reconnectActiveRun(input, context, 'foreground', sendSettled)
+    }
     return
   }
   resetSessionChangedState(keys, context)
@@ -241,21 +249,15 @@ export function hydrateSessionMessages(
   hydrateIdleSession(input, keys, context)
 }
 
-async function reconnectToBackgroundRun(
-  sessionId: SessionId,
-  session: SessionDetail,
-  optimisticUserMessages: readonly UIMessage[],
-) {
-  const latestSession = await api.getSessionDetail(sessionId)
-  const snapshot = await api.getBackgroundRun(sessionId)
-  const historicalMessages = mergeSessionAndOptimisticMessages(
-    latestSession ?? session,
-    optimisticUserMessages,
-  )
-  if (!snapshot) {
-    return historicalMessages
+/** The hydration input a Session's cached render snapshot gives; its rows only while it runs. */
+export function cachedRunSnapshotInput(activeRun: boolean, snapshot: RunRenderSnapshot | null) {
+  return {
+    cachedRenderMessages: activeRun ? (snapshot?.messages ?? null) : null,
+    cachedRenderSeeded: activeRun && snapshot?.seededByRunId !== undefined,
+    ...(snapshot?.settledMessageIds === undefined
+      ? {}
+      : { cachedSettledMessageIds: snapshot.settledMessageIds }),
+    cachedNoticedMessageIds: snapshot?.noticedMessageIds,
+    cachedCompactionStatus: snapshot?.compactionStatus ?? null,
   }
-
-  const partialAssistant = buildPartialAssistantMessage(snapshot.parts, snapshot.messageId)
-  return partialAssistant ? [...historicalMessages, partialAssistant] : historicalMessages
 }

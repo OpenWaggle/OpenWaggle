@@ -16,7 +16,7 @@ export function TurnDivider({ turnNumber, agentLabel, agentColor, agentModel }: 
       <div className="flex-1 border-t border-border" />
       <span
         className={cn(
-          'inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-secondary px-2 py-1 text-[11px] font-medium shadow-sm',
+          'inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-secondary px-2 py-1 text-xs font-medium shadow-sm',
           AGENT_TEXT[agentColor],
         )}
       >

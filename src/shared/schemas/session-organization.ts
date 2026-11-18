@@ -1,0 +1,90 @@
+import { Schema } from '@shared/schema'
+import { sessionInputIdSchema, sessionInputItemTextSchema } from './session-input'
+import { sessionTitleSchema } from './session-title'
+
+export const sessionRenameCommandSchema = Schema.Struct({
+  operation: Schema.Literal('rename'),
+  sessionId: sessionInputIdSchema,
+  title: sessionTitleSchema,
+})
+
+export const sessionArchiveCommandSchema = Schema.Struct({
+  operation: Schema.Literal('archive'),
+  sessionId: sessionInputIdSchema,
+})
+
+export const sessionUnarchiveCommandSchema = Schema.Struct({
+  operation: Schema.Literal('unarchive'),
+  sessionId: sessionInputIdSchema,
+})
+
+export const sessionHandoffWorkspaceSchema = Schema.Union(
+  Schema.Struct({ mode: Schema.Literal('local') }),
+  Schema.Struct({ mode: Schema.Literal('existing'), workspaceId: sessionInputIdSchema }),
+  Schema.Struct({
+    mode: Schema.Literal('new-worktree'),
+    baseRef: Schema.optionalWith(sessionInputItemTextSchema, { exact: true }),
+    startFromOrigin: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  }),
+)
+
+export const sessionHandoffCommandSchema = Schema.Struct({
+  operation: Schema.Literal('handoff'),
+  sessionId: sessionInputIdSchema,
+  workspace: sessionHandoffWorkspaceSchema,
+})
+
+export const sessionRenamedOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('rename'),
+  effect: Schema.Literal('session-renamed'),
+  sessionId: Schema.String,
+  title: sessionTitleSchema,
+})
+
+export const sessionArchivedOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('archive'),
+  effect: Schema.Literal('session-archived'),
+  sessionId: Schema.String,
+})
+
+/**
+ * A Session agent asked, from Run `runId`, to archive its own Session. Archiving stops the
+ * Session's Runs, so the Host archives it after that Run completes instead, unless the Session
+ * changed since.
+ */
+export const sessionArchiveDeferredOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('archive'),
+  effect: Schema.Literal('session-archive-deferred'),
+  sessionId: Schema.String,
+  runId: Schema.String,
+})
+
+export const sessionUnarchivedOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('unarchive'),
+  effect: Schema.Literal('session-unarchived'),
+  sessionId: Schema.String,
+})
+
+export const sessionHandedOffOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('handoff'),
+  effect: Schema.Literal('session-handed-off'),
+  sessionId: Schema.String,
+  previousWorkspaceId: Schema.String,
+  workspaceId: Schema.String,
+  workspaceState: Schema.Literal('ready', 'pending'),
+})
+
+export const sessionOrganizationCommandSchemas = [
+  sessionRenameCommandSchema,
+  sessionArchiveCommandSchema,
+  sessionUnarchiveCommandSchema,
+  sessionHandoffCommandSchema,
+] as const
+
+export const sessionOrganizationOutcomeSchemas = [
+  sessionRenamedOutcomeSchema,
+  sessionArchivedOutcomeSchema,
+  sessionArchiveDeferredOutcomeSchema,
+  sessionUnarchivedOutcomeSchema,
+  sessionHandedOffOutcomeSchema,
+] as const

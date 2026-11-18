@@ -1,2 +1,8 @@
 export { useAuthStore } from './auth-store'
-export { useProviderStore } from './provider-store'
+export {
+  firstRunnableModel,
+  isModelActionable,
+  latestAnsweringModel,
+  modelActionError,
+  useProviderStore,
+} from './provider-store'

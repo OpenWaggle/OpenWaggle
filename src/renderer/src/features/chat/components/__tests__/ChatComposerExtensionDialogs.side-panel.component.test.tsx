@@ -7,8 +7,9 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CUSTOM_INTERACTION_RESPONSE_ACTION_ID } from '@/features/extensions'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { ChatComposerExtensionDialogs } from '../ChatComposerExtensionDialogs'
 
 const PROJECT_PATH = '/test/project'
@@ -23,8 +24,8 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-function sidePanelEntry(kind: string): ExtensionContributionRegistryEntry {
-  return {
+function sidePanelEntry(kind: string) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
     extensionVersion: '1.0.0',
@@ -56,13 +57,17 @@ function sidePanelEntry(kind: string): ExtensionContributionRegistryEntry {
     },
     diagnostics: [],
   }
+  return entry
 }
 
-function sidePanelRegistry(kind: string): ExtensionContributionRegistryView {
-  return { projectPaths: [PROJECT_PATH], entries: [sidePanelEntry(kind)] }
+function sidePanelRegistry(kind: string) {
+  return {
+    projectPaths: [PROJECT_PATH],
+    entries: [sidePanelEntry(kind)],
+  } satisfies ExtensionContributionRegistryView
 }
 
-function pendingInteraction(): AgentLoopInteraction {
+function pendingInteraction() {
   return {
     interactionId: 'interaction-1',
     sessionId: SessionId('session-1'),
@@ -72,7 +77,8 @@ function pendingInteraction(): AgentLoopInteraction {
     createdAt: 1,
     title: 'Approve action?',
     message: 'The extension wants to proceed.',
-  }
+    purpose: 'user-input',
+  } satisfies AgentLoopInteraction
 }
 
 function extensionFrame() {
@@ -96,7 +102,7 @@ function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
 }
 
 function extensionFrameId(frame: HTMLIFrameElement) {
-  const frameId = frame.dataset.extensionFrameId
+  const frameId = frame.getAttribute('data-extension-frame-id')
   if (!frameId) {
     throw new Error('Expected extension side panel iframe id.')
   }
@@ -119,6 +125,11 @@ function dispatchSurfaceAction(frame: HTMLIFrameElement) {
 }
 
 describe('ChatComposerExtensionDialogs side-panel launchers', () => {
+  // Extension side panels are a lazy chunk; load it once so the opened panel renders on first await.
+  beforeAll(async () => {
+    await import('@/features/extensions/components')
+  }, COLD_IMPORT_TIMEOUT_MS)
+
   beforeEach(() => {
     apiMock.registerExtensionFrame.mockReset()
     apiMock.unregisterExtensionFrame.mockReset()
@@ -147,7 +158,7 @@ describe('ChatComposerExtensionDialogs side-panel launchers', () => {
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
     fireEvent.click(screen.getByRole('button', { name: /github approval side panel/i }))
 
-    expect(screen.getByLabelText('Extension side panel')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Extension side panel')).toBeInTheDocument()
     const frame = extensionFrame()
     await waitFor(() => {
       expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))

@@ -32,7 +32,7 @@ features/<feature>/
   lib/         # pure helpers and domain logic for the feature
   state/       # focused Zustand stores and selectors
   model/       # feature-owned types and view models
-  commands/    # command palette or user-action commands owned by the feature
+  commands/    # slash command menu or user-action commands owned by the feature
   constants/   # object-based feature constants
   __tests__/   # tests colocated under the folder they validate
   index.ts     # explicit public API for cross-feature imports
@@ -72,6 +72,18 @@ shared/
 ```
 
 Move code to `shared/` only when at least two features need it or when it is clearly a primitive. If a helper speaks in product terms such as session, provider, Waggle, composer, branch, or transcript, it probably belongs in a feature.
+
+### Syntax Highlighting Infrastructure
+
+Syntax highlighting is the exceptional shared renderer infrastructure described by ADR 0026. One lazy worker-backed service owns language aliases, normalized Syntax themes, lazy loading, scheduling, cancellation, bounded caches, and fallback policy for syntax-eligible surfaces.
+
+Feature components use focused adapters over that service. They must not create Shiki highlighters or workers directly, hardcode Syntax themes, or add local language fallback tables. Pierre consumes resolved language, theme, and worker data through an adapter for diffs, source views, and focused editing under ADR 0028.
+
+Extension contributions use a public host-backed syntax capability, with framework-specific packages free to wrap it in components. The contract accepts source and an explicit canonical language or media type; it does not accept pre-highlighted HTML or expose renderer services. Arbitrary extension-owned markup remains outside host rewriting.
+
+Highlight scheduling is visibility-aware: active and visible work outranks nearby work, which outranks offscreen precomputation. Large cache misses never run synchronously on the renderer thread.
+
+`docs/specs/syntax-rendering-surface-inventory.md` is the coverage contract. Repository standards flag feature-owned direct Shiki construction and new raw `<pre>` renderers; intentional non-syntax blocks go through the plain-text or ANSI adapter with an explicit reason. This keeps future features from recreating the inconsistency the shared service removes.
 
 ## Shell Code
 
@@ -162,7 +174,6 @@ Rules:
 - Hook tests live under the owning hook folder's `__tests__/`.
 - Pure logic tests live under the owning `lib/__tests__/` or `state/__tests__/`.
 - Route-only tests may live in `routes/__tests__/` because TanStack Router files are route-owned.
-- E2E tests stay under `e2e/`.
 
 Test behavior through public interfaces where practical. Extract important logic from React components into hooks, stores, or pure modules before testing it.
 
@@ -173,7 +184,7 @@ Renderer architecture is enforced through linting and verification:
 - `openwaggle/renderer-import-boundaries` protects feature boundaries.
 - `openwaggle/no-raw-renderer-buttons` pushes UI toward shared primitives.
 - `openwaggle/jsx-max-props` discourages prop-drilled components.
-- Type-aware ESLint and Biome enforce TypeScript and style constraints.
+- Type-aware `bun lint` (oxlint.config.mts) and oxfmt enforce TypeScript and style constraints.
 - React Doctor checks React Compiler compatibility and renderer anti-patterns.
 
-Run `pnpm lint`, `pnpm test:component`, and React Doctor for renderer changes according to `.agents/verification.md`.
+Run `bun run lint`, `bun run test:component`, and React Doctor for renderer changes according to `.agents/verification.md`.

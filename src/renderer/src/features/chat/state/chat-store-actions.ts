@@ -1,8 +1,15 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
-import { useComposerStore } from '@/features/composer/state'
+import type { SupportedModelId } from '@shared/types/llm'
+import type { SessionDetail, SessionWorktreePlan } from '@shared/types/session'
+import type { ThinkingLevel } from '@shared/types/settings'
+import { carryRemovedSessionDraft, useComposerStore } from '@/features/composer/state'
+import { useDiffScopeStore } from '@/features/diff-panel'
+import { prepareDraftWorktreePlan } from '@/features/git/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { api } from '@/shared/lib/ipc'
+import { useBackgroundRunStore } from './background-run-store'
+import { customBranchSummaryDraft } from './branch-summary-store'
 import {
   handleStoreError,
   isSameSessionId,
@@ -13,58 +20,95 @@ import {
   toSessionId,
   toSummary,
 } from './chat-store-helpers'
+import { createSessionModelActions, withPendingSessionModel } from './chat-store-session-model'
+import { beginSessionRead, markSessionMutation } from './chat-store-session-reads'
+import { revalidateCachedSession } from './chat-store-session-revalidation'
+import { applySessionTitle } from './chat-store-title-actions'
 import type { ChatActions, ChatState } from './chat-store-types'
+import {
+  draftMaterializationGeneration,
+  invalidateDraftMaterialization,
+  recordDraftMaterialization,
+} from './draft-session-materialization'
 
 type ChatSet = (partial: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => void
 type ChatGet = () => ChatState
 
-function setError(set: ChatSet) {
-  return (error: string) => set({ error })
-}
+let latestSessionLoad = 0
+
+const setError = (set: ChatSet) => (error: string) => set({ error })
 
 async function loadSessions(set: ChatSet, get: ChatGet) {
+  latestSessionLoad += 1
+  const loadRequestId = latestSessionLoad
   try {
-    const all = await api.listSessionDetails()
-    const sessionById = new Map<SessionId, SessionDetail>()
-    const sessions: SessionSummary[] = []
-
-    for (const session of all) {
-      sessionById.set(session.id, session)
-      const summary = toSummary(session)
-      if (summary.title !== 'New session' || (summary.messageCount ?? 0) > 0) {
-        sessions.push(summary)
-      }
-    }
-
-    const activeSessionId = get().activeSessionId
-    const activeSession = activeSessionId ? (sessionById.get(activeSessionId) ?? null) : null
-    const missingSessionIds = new Set(get().missingSessionIds)
-    for (const session of all) {
-      missingSessionIds.delete(session.id)
-    }
-    if (activeSessionId && !activeSession) {
-      missingSessionIds.add(activeSessionId)
-    }
+    const sessionStore = useSessionStore.getState()
+    await sessionStore.loadSessions()
+    if (loadRequestId !== latestSessionLoad) return
+    const current = get()
+    const sessions = useSessionStore.getState().sessions
+    const activeSessionId = current.activeSessionId
+    const activeSession = activeSessionId
+      ? (current.sessionById.get(activeSessionId) ?? current.activeSession)
+      : null
 
     set({
-      sessions,
-      sessionById,
-      missingSessionIds,
-      draftSession: activeSession ? null : get().draftSession,
-      activeSessionId: activeSession ? activeSessionId : null,
+      sessions: [...sessions],
+      draftSession: activeSessionId ? null : current.draftSession,
       activeSession,
       error: null,
     })
-    void useSessionStore.getState().loadSessions()
+    if (activeSessionId && !activeSession && !current.missingSessionIds.has(activeSessionId)) {
+      void get().refreshSession(activeSessionId)
+    }
   } catch (err) {
+    if (loadRequestId !== latestSessionLoad) return
     handleStoreError(err, 'load sessions', setError(set))
   }
 }
 
-async function createSession(projectPath: string, set: ChatSet, get: ChatGet) {
+/** Sends only the trailing arguments that are set: the Host refuses an extra `undefined`. */
+function requestSession(
+  projectPath: string,
+  worktreePlan: SessionWorktreePlan | undefined,
+  model: SupportedModelId | undefined,
+  thinkingLevel: ThinkingLevel | undefined,
+) {
+  if (thinkingLevel) return api.createSession(projectPath, worktreePlan, model, thinkingLevel)
+  if (model) return api.createSession(projectPath, worktreePlan, model)
+  if (worktreePlan) return api.createSession(projectPath, worktreePlan)
+  return api.createSession(projectPath)
+}
+
+async function createSession(
+  projectPath: string,
+  set: ChatSet,
+  get: ChatGet,
+  worktreePlan?: SessionWorktreePlan,
+  thinkingLevel?: ThinkingLevel,
+) {
+  const initial = get()
+  const generation = draftMaterializationGeneration()
+  const createsCurrentDraft =
+    initial.activeSessionId === null &&
+    (initial.draftSession === null || initial.draftSession.projectPath === projectPath)
+  const selectedModel = createsCurrentDraft ? initial.draftSession?.selectedModel : undefined
+  if (createsCurrentDraft && initial.draftSession) {
+    set({ draftSession: { ...initial.draftSession, isMaterializing: true } })
+  }
   try {
-    const session = await api.createSession(projectPath)
+    const session = await requestSession(projectPath, worktreePlan, selectedModel, thinkingLevel)
+    const shouldActivate =
+      generation === draftMaterializationGeneration() &&
+      get().activeSessionId === initial.activeSessionId
+    if (createsCurrentDraft && shouldActivate) {
+      recordDraftMaterialization(projectPath, session.id, generation)
+    }
     get().upsertSession(session)
+    if (!shouldActivate) {
+      void useSessionStore.getState().loadSessions()
+      return session.id
+    }
     set({
       activeSessionId: session.id,
       activeSession: session,
@@ -77,12 +121,20 @@ async function createSession(projectPath: string, set: ChatSet, get: ChatGet) {
     void useSessionStore.getState().refreshSessionsAndTree(toSessionId(session.id))
     return session.id
   } catch (err) {
+    if (generation === draftMaterializationGeneration()) {
+      set((state) => {
+        if (state.draftSession?.projectPath !== projectPath) return {}
+        const { isMaterializing: _materializing, ...draftSession } = state.draftSession
+        return { draftSession }
+      })
+    }
     handleStoreError(err, 'create session', setError(set))
     throw err
   }
 }
 
 function setActiveSession(id: SessionId | null, set: ChatSet, get: ChatGet) {
+  if (id !== get().activeSessionId) invalidateDraftMaterialization()
   if (!id || get().missingSessionIds.has(id)) {
     set({ activeSessionId: null, activeSession: null, draftSession: null })
     return
@@ -90,29 +142,73 @@ function setActiveSession(id: SessionId | null, set: ChatSet, get: ChatGet) {
 
   const cached = get().sessionById.get(id) ?? null
   set({ activeSessionId: id, activeSession: cached, draftSession: null })
-
   if (!cached) {
-    void get().refreshSession(id)
+    // The view that shows the Session reads its workspace, tree included; reading the tree again
+    // once this detail lands moved a long Session's tree and transcript window a second time.
+    void refreshSession(id, set, get, { opening: true })
+    return
   }
+  void revalidateCachedSession(cached, get, beginSessionRead(id).isCurrent)
 }
 
-async function refreshSession(id: SessionId, set: ChatSet, get: ChatGet) {
+async function refreshSession(
+  id: SessionId,
+  set: ChatSet,
+  get: ChatGet,
+  options: { readonly opening?: boolean } = {},
+) {
+  const read = beginSessionRead(id)
   try {
     const session = await api.getSessionDetail(id)
+    if (!read.isLatest()) return
     const wasActiveSession = isSameSessionId(get().activeSessionId, id)
     if (!session) {
+      // Before the view leaves it, so the text written in it goes to New session.
+      if (wasActiveSession) carryRemovedSessionDraft(id, customBranchSummaryDraft(id))
       removeMissingSession(id, set)
       refreshMissingSessionTree(wasActiveSession)
       return
     }
     get().upsertSession(session)
-    refreshSessionStoreForSession(id, get().activeSessionId)
+    if (options.opening) void useSessionStore.getState().loadSessions()
+    else refreshSessionStoreForSession(id, get().activeSessionId)
   } catch (err) {
+    if (!read.isLatest()) return
     handleStoreError(err, 'refresh session', setError(set))
   }
 }
 
+async function setSessionAuthorizationMode(
+  id: SessionId,
+  authorizationMode: AgentAuthorizationMode | null,
+  set: ChatSet,
+  get: ChatGet,
+) {
+  const previous = get().sessionById.get(id) ?? null
+  if (previous) {
+    // `null` clears the override, so the optimistic copy must drop the field rather than store a
+    // mode. Keeping one here would show an override the session no longer has.
+    const { authorizationMode: _cleared, ...withoutOverride } = previous
+    upsertSession(
+      authorizationMode === null ? withoutOverride : { ...previous, authorizationMode },
+      set,
+    )
+  }
+
+  try {
+    await api.setSessionAuthorizationMode(id, authorizationMode)
+    refreshSessionStoreForSession(id, get().activeSessionId)
+  } catch (err) {
+    if (previous) {
+      upsertSession(previous, set)
+    }
+    handleStoreError(err, 'set session authorization mode', setError(set))
+    throw err
+  }
+}
+
 function removeMissingSession(id: SessionId, set: ChatSet) {
+  markSessionMutation(id)
   set((state) => {
     const sessionById = new Map(state.sessionById)
     const missingSessionIds = new Set(state.missingSessionIds)
@@ -138,6 +234,7 @@ function refreshMissingSessionTree(wasActiveSession: boolean) {
 }
 
 function upsertSession(session: SessionDetail, set: ChatSet) {
+  markSessionMutation(session.id)
   set((state) => {
     const sessionById = new Map(state.sessionById)
     const missingSessionIds = new Set(state.missingSessionIds)
@@ -146,7 +243,9 @@ function upsertSession(session: SessionDetail, set: ChatSet) {
     return {
       sessionById,
       missingSessionIds,
-      sessions: mergeSummary(state.sessions, toSummary(session)),
+      sessions: session.archived
+        ? removeSummary(state.sessions, session.id)
+        : mergeSummary(state.sessions, toSummary(session)),
       draftSession: state.activeSessionId === session.id ? null : state.draftSession,
       activeSession: state.activeSessionId === session.id ? session : state.activeSession,
       error: null,
@@ -160,7 +259,9 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 
   try {
     await api.deleteSession(id)
+    useBackgroundRunStore.getState().clearRunRenderSnapshot(id)
     useComposerStore.getState().clearScopedDraftsForSession(String(id))
+    useDiffScopeStore.getState().removeThread(String(id))
     void useSessionStore.getState().refreshSessionsAndTree(optionalSessionId(get().activeSessionId))
   } catch (err) {
     set({
@@ -177,46 +278,39 @@ async function deleteSession(id: SessionId, set: ChatSet, get: ChatGet) {
 }
 
 function updateSessionTitle(id: SessionId, title: string, set: ChatSet, get: ChatGet) {
-  set((state) => {
-    const existing = state.sessionById.get(id)
-    if (!existing) {
-      const now = Date.now()
-      return {
-        sessions: mergeSummary(state.sessions, {
-          id,
-          title,
-          projectPath: null,
-          messageCount: 1,
-          createdAt: now,
-          updatedAt: now,
-        }),
-      }
-    }
-
-    const session = { ...existing, title }
-    const sessionById = new Map(state.sessionById)
-    sessionById.set(id, session)
-    return {
-      sessionById,
-      sessions: mergeSummary(state.sessions, toSummary(session)),
-      activeSession: state.activeSessionId === id ? session : state.activeSession,
-    }
-  })
+  applySessionTitle(id, title, set)
   refreshSessionStoreForSession(id, get().activeSessionId)
 }
 
-export function createChatActions(set: ChatSet, get: ChatGet): ChatActions {
+export function createChatActions(set: ChatSet, get: ChatGet) {
   return {
     loadSessions: () => loadSessions(set, get),
-    createSession: (projectPath) => createSession(projectPath, set, get),
-    startDraftSession: (projectPath = null) =>
-      set({ activeSessionId: null, activeSession: null, draftSession: { projectPath } }),
+    createSession: (projectPath, worktreePlan, thinkingLevel) =>
+      createSession(projectPath, set, get, worktreePlan, thinkingLevel),
+    startDraftSession: (projectPath = null) => {
+      invalidateDraftMaterialization()
+      const state = get()
+      const previousProjectPath =
+        state.draftSession?.projectPath ?? state.activeSession?.projectPath ?? null
+      prepareDraftWorktreePlan(previousProjectPath, projectPath)
+      set({ activeSessionId: null, activeSession: null, draftSession: { projectPath } })
+    },
+    setDraftSelectedModel: (model) =>
+      set((state) =>
+        state.draftSession && !state.draftSession.isMaterializing
+          ? { draftSession: { ...state.draftSession, selectedModel: model } }
+          : {},
+      ),
     setActiveSessionId: (id) => get().setActiveSession(id),
     setActiveSession: (id) => setActiveSession(id, set, get),
     refreshSession: (id) => refreshSession(id, set, get),
-    upsertSession: (session) => upsertSession(session, set),
+    setSessionAuthorizationMode: (id, authorizationMode) =>
+      setSessionAuthorizationMode(id, authorizationMode, set, get),
+    ...createSessionModelActions(set, get),
+    upsertSession: (session) => upsertSession(withPendingSessionModel(session), set),
     deleteSession: (id) => deleteSession(id, set, get),
+    applySessionTitle: (id, title) => applySessionTitle(id, title, set),
     updateSessionTitle: (id, title) => updateSessionTitle(id, title, set, get),
     clearError: () => set({ error: null }),
-  }
+  } satisfies ChatActions
 }

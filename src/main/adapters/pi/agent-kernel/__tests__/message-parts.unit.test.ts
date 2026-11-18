@@ -1,13 +1,79 @@
+import type { AttachmentRecord } from '@shared/types/agent'
+import { buildAgentPromptText } from '@shared/utils/agent-prompt-text'
 import { describe, expect, it } from 'vitest'
+import { buildAtomicVisualizationPrompt } from '../../pi-runtime-input'
 import {
   buildMessageNodeContentJson,
   buildRawNodeContentJson,
   piAssistantContentToParts,
   piTextAndImageContentToParts,
   piToolResultContentToPart,
+  piUserContentToDisplayParts,
 } from '../message-parts'
 
+function attachment(name: string, extractedText: string) {
+  return {
+    id: name,
+    kind: 'text',
+    name,
+    path: `/tmp/${name}`,
+    mimeType: 'text/plain',
+    sizeBytes: 1,
+    extractedText,
+  } satisfies AttachmentRecord
+}
+
 describe('Pi message part projection helpers', () => {
+  it('hides atomic visualization context from the durable user transcript', () => {
+    const context = [
+      '[OpenWaggle inline visualization context]',
+      'current selection',
+      '[/OpenWaggle inline visualization context]',
+    ].join('\n')
+
+    expect(
+      piTextAndImageContentToParts([
+        { type: 'text', text: buildAtomicVisualizationPrompt(context, 'inspect the selection') },
+        { type: 'image', mimeType: 'image/png', data: 'base64-image' },
+      ]),
+    ).toEqual([{ type: 'text', text: 'inspect the selection' }])
+  })
+
+  it('keeps delimiter-like ordinary user text intact', () => {
+    const ordinaryPrompt = [
+      '[OpenWaggle inline visualization context]',
+      'This is ordinary user-authored text.',
+      '[/OpenWaggle inline visualization context]',
+      '',
+      'Do not strip any of it.',
+    ].join('\n')
+
+    expect(piTextAndImageContentToParts([{ type: 'text', text: ordinaryPrompt }])).toEqual([
+      { type: 'text', text: ordinaryPrompt },
+    ])
+  })
+
+  it('strips only genuine synthesized attachment blocks from a user message without a projection', () => {
+    const synthesized = buildAgentPromptText({
+      text: 'Compare these',
+      attachments: [
+        attachment('notes [v2].txt', 'First\n\n[Attachment: inside]\nbody'),
+        attachment('image.png', ''),
+      ],
+    })
+    expect(piUserContentToDisplayParts(synthesized)).toEqual([
+      { type: 'text', text: 'Compare these' },
+    ])
+    // Typed text that only mentions the marker, mid-line or without closing the line, is kept.
+    for (const typed of [
+      'Keep this\n\n[Attachment: notes.txt] is where I put it',
+      'Keep this\n\n[Attachment: unfinished',
+      'Inline [Attachment: notes.txt]\nstays',
+    ]) {
+      expect(piUserContentToDisplayParts(typed)).toEqual([{ type: 'text', text: typed }])
+    }
+  })
+
   it('projects Pi user text and image content into renderer-safe text parts', () => {
     expect(piTextAndImageContentToParts('hello')).toEqual([{ type: 'text', text: 'hello' }])
     expect(
@@ -16,10 +82,7 @@ describe('Pi message part projection helpers', () => {
         { type: 'image', mimeType: 'image/png' },
         { type: 'unknown' },
       ]),
-    ).toEqual([
-      { type: 'text', text: 'caption' },
-      { type: 'text', text: '[Image input: image/png]' },
-    ])
+    ).toEqual([{ type: 'text', text: 'caption' }])
     expect(piTextAndImageContentToParts({ invalid: true })).toEqual([{ type: 'text', text: '' }])
   })
 
@@ -74,6 +137,61 @@ describe('Pi message part projection helpers', () => {
         details: { args: { command: 'pwd' }, duration: 42 },
       },
     })
+  })
+
+  it('keeps the nested calls Pi recorded on a tool result', () => {
+    const part = piToolResultContentToPart({
+      toolCallId: 'code-1',
+      toolName: 'codemode',
+      content: [{ type: 'text', text: 'done' }],
+      isError: false,
+      nestedCalls: {
+        complete: false,
+        calls: [
+          {
+            id: 'code-1/1',
+            name: 'read',
+            arguments: { path: 'a.ts' },
+            status: 'ok',
+            durationMs: 3,
+          },
+          {
+            id: 'code-1/2',
+            name: 'write',
+            argumentsBytes: 90_000,
+            status: 'error',
+            error: 'denied',
+          },
+          { id: 'code-1/3', name: 'bash', arguments: {}, status: 'unfinished' },
+        ],
+      },
+    })
+
+    expect(part).toMatchObject({
+      type: 'tool-result',
+      toolResult: {
+        id: 'code-1',
+        nestedCalls: {
+          complete: false,
+          calls: [
+            { id: 'code-1/1', name: 'read', args: { path: 'a.ts' }, status: 'ok', durationMs: 3 },
+            { id: 'code-1/2', name: 'write', argsBytes: 90_000, status: 'error', error: 'denied' },
+            { id: 'code-1/3', name: 'bash', args: {}, status: 'unfinished' },
+          ],
+        },
+      },
+    })
+  })
+
+  it('records no nested calls on a tool result that made none', () => {
+    const part = piToolResultContentToPart({
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      content: [],
+      isError: false,
+    })
+
+    expect(part.type === 'tool-result' && part.toolResult).not.toHaveProperty('nestedCalls')
   })
 
   it('serializes message node content and raw metadata as JSON strings', () => {

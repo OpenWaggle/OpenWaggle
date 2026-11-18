@@ -1,3 +1,4 @@
+import { parseSessionLink, SESSION_LINK_SCHEME } from '@shared/utils/session-link'
 import type { Options as ReactMarkdownOptions, UrlTransform } from 'react-markdown'
 import rehypeSanitize, { defaultSchema, type Options as SanitizeSchema } from 'rehype-sanitize'
 
@@ -16,7 +17,11 @@ const shikiClassDefinition: AttributeDefinition = [
 ]
 const anchorTargetDefinition: AttributeDefinition = ['target', '_blank']
 const anchorRelDefinition: AttributeDefinition = ['rel', 'noopener', 'noreferrer', 'nofollow']
-const ALLOWED_HREF_PROTOCOLS = ['http', 'https', 'mailto', 'tel']
+/**
+ * The sanitizer only sees the scheme, so it keeps every `openwaggle:` href; the URL check below
+ * then keeps only Session links (ADR 0056), never the renderer's own `openwaggle://app` origin.
+ */
+const ALLOWED_HREF_PROTOCOLS = ['http', 'https', 'mailto', 'tel', SESSION_LINK_SCHEME]
 
 /** Shiki uses inline `style` attributes for syntax token colors. */
 const styleAttributeDefinition: AttributeDefinition = 'style'
@@ -36,10 +41,11 @@ function extractProtocol(rawUrl: string) {
   return match[0].toLowerCase()
 }
 
-export function isAllowedMarkdownUrl(rawUrl: string): boolean {
+export function isAllowedMarkdownUrl(rawUrl: string) {
   const protocol = extractProtocol(rawUrl)
   if (!protocol) return false
-  return ALLOWED_LINK_PROTOCOLS.has(protocol)
+  // A Session link opens its Session in this app; the main process handles the click.
+  return ALLOWED_LINK_PROTOCOLS.has(protocol) || parseSessionLink(rawUrl) !== null
 }
 
 export const safeMarkdownUrlTransform: UrlTransform = (url) => {
@@ -51,11 +57,11 @@ export const safeMarkdownUrlTransform: UrlTransform = (url) => {
 export const safeMarkdownSanitizeSchema: SanitizeSchema = {
   ...defaultSchema,
   protocols: {
-    ...(defaultSchema.protocols ?? {}),
+    ...defaultSchema.protocols,
     href: ALLOWED_HREF_PROTOCOLS,
   },
   attributes: {
-    ...(defaultSchema.attributes ?? {}),
+    ...defaultSchema.attributes,
     a: [...schemaAttributesForTag('a'), anchorTargetDefinition, anchorRelDefinition],
     code: [...schemaAttributesForTag('code'), shikiClassDefinition, styleAttributeDefinition],
     pre: [...schemaAttributesForTag('pre'), shikiClassDefinition, styleAttributeDefinition],

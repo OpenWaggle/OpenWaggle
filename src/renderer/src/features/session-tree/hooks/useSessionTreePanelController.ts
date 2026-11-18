@@ -1,15 +1,16 @@
-import type { SessionNode } from '@shared/types/session'
+import type { SessionTreeNode } from '@shared/types/session'
 import { useDeferredValue, useReducer, useRef, useState } from 'react'
+import { useChatStore } from '@/features/chat/state'
 import { useSessionStore } from '@/features/sessions/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { useUIStore } from '@/shell/ui-store'
 import { isSessionTreeFilterMode } from '../constants'
 import type {
-  SessionTreePanelController,
   SessionTreePanelProps,
   SessionTreeRow,
   SessionTreeRowActions,
+  SessionTreePanelController,
 } from '../model'
 import { buildSessionTreePanelRows } from './session-tree-panel-rows'
 import {
@@ -21,14 +22,13 @@ import { useSessionTreeFocusSync } from './useSessionTreeFocusSync'
 import { useSessionTreeKeyboardControls } from './useSessionTreeKeyboardControls'
 import { useSessionTreeNodeSelection } from './useSessionTreeNodeSelection'
 import { useSessionTreeScrollControls } from './useSessionTreeScrollControls'
+import { useSessionTreeTextSearch } from './useSessionTreeTextSearch'
 
-function isExpandedNode(node: SessionNode, expandedNodeIds: readonly SessionNode['id'][]) {
+function isExpandedNode(node: SessionTreeNode, expandedNodeIds: readonly SessionTreeNode['id'][]) {
   return expandedNodeIds.some((expandedNodeId) => String(expandedNodeId) === String(node.id))
 }
 
-export function useSessionTreePanelController(
-  onClose: SessionTreePanelProps['onClose'],
-): SessionTreePanelController {
+export function useSessionTreePanelController(onClose: SessionTreePanelProps['onClose']) {
   const [searchQuery, setSearchQuery] = useState('')
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const [panelState, dispatchPanelState] = useReducer(
@@ -39,13 +39,20 @@ export function useSessionTreePanelController(
   const treeRowsRef = useRef<HTMLDivElement>(null)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
-  const selectedModel = usePreferencesStore((state) => state.settings.selectedModel)
+  const activeSession = useChatStore((state) => state.activeSession)
+  const fallbackModel = usePreferencesStore((s) => s.settings.selectedModel)
   const showToast = useUIStore((state) => state.showToast)
   const tree = activeWorkspace?.tree ?? null
+  const treeSessionModel =
+    tree && activeSession?.id === tree.session.id
+      ? (activeSession.executionModel ?? fallbackModel)
+      : undefined
   const filter = useSessionTreeFilterMode(tree?.session.projectPath ?? null, showToast)
+  const textMatchNodeIds = useSessionTreeTextSearch(tree, deferredSearchQuery)
   const rows = buildSessionTreePanelRows({
     tree,
-    transcriptPath: activeWorkspace?.transcriptPath ?? [],
+    activeNodeId: activeWorkspace?.activeNodeId,
+    ...(textMatchNodeIds === undefined ? {} : { textMatchNodeIds }),
     filterMode: filter.filterMode,
     searchQuery: deferredSearchQuery,
     focusIndex: panelState.focusIndex,
@@ -54,14 +61,14 @@ export function useSessionTreePanelController(
   const scroll = useSessionTreeScrollControls()
   const selection = useSessionTreeNodeSelection({
     activeWorkspace,
-    selectedModel,
+    selectedModel: treeSessionModel,
     showToast,
     tree,
   })
 
   function persistExpandedNodeIds(
-    sessionId: SessionNode['sessionId'],
-    nextExpandedNodeIds: readonly SessionNode['id'][],
+    sessionId: SessionTreeNode['sessionId'],
+    nextExpandedNodeIds: readonly SessionTreeNode['id'][],
   ) {
     void api
       .updateSessionTreeUiState(sessionId, { expandedNodeIds: nextExpandedNodeIds })
@@ -116,7 +123,7 @@ export function useSessionTreePanelController(
     onToggleNodeExpanded: toggleNodeExpanded,
   })
 
-  return {
+  const controller: SessionTreePanelController = {
     content: {
       rowActions,
       rowRefs,
@@ -151,4 +158,5 @@ export function useSessionTreePanelController(
     },
     header: { onClose },
   }
+  return controller
 }

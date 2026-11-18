@@ -65,7 +65,7 @@ export const OllamaIcon = createSvgIcon(OllamaSvg)
 export const CodexIcon = createSvgIcon(CodexSvg)
 const PROVIDER_ICON_COMPONENTS: Partial<Record<Provider, ProviderIconComponent>> = {
   anthropic: AnthropicIcon,
-  'azure-openai-responses': createSvgIcon(AzureAiSvg),
+  azure: createSvgIcon(AzureAiSvg),
   'amazon-bedrock': createSvgIcon(BedrockSvg),
   cerebras: createSvgIcon(CerebrasSvg),
   deepseek: createSvgIcon(DeepSeekSvg),
@@ -92,6 +92,6 @@ const PROVIDER_ICON_COMPONENTS: Partial<Record<Provider, ProviderIconComponent>>
   zai: createSvgIcon(ZaiSvg),
 }
 
-export function getProviderIcon(provider: Provider): ProviderIconComponent {
+export function getProviderIcon(provider: Provider) {
   return PROVIDER_ICON_COMPONENTS[provider] ?? FallbackProviderIcon
 }

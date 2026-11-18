@@ -1,102 +1,72 @@
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { lazy, Suspense } from 'react'
+import type { ComponentProps } from 'react'
+import type { SessionResourceBrowserTarget } from '@/features/session-summary'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
+import { ChatRouteSurface } from './-chat-route-surface'
 import {
   type ChatExtensionSidePanelTarget,
   type ChatRouteSearch,
+  changeRequestUrlFromSearch,
   extensionSidePanelTargetFromSearch,
+  resourceBrowserTargetFromSearch,
 } from './-route-search'
 
-const LazyChatRouteSurface = lazy(() =>
-  import('./-chat-route-surface').then((module) => ({
-    default: module.ChatRouteSurface,
-  })),
-)
+// The route component is already its own lazy chunk (TanStack `autoCodeSplitting`), so the
+// chat surface is imported statically here. A nested `lazy()` added a third chunk round trip
+// after the shell had rendered, and a committed Suspense fallback that React then held for its
+// 300 ms fallback throttle before revealing the chat (renderer-load B1).
+type ChatRouteSurfaceInput = ComponentProps<typeof ChatRouteSurface>
 
-function ChatRouteSurfaceFallback() {
-  return (
-    <output
-      aria-live="polite"
-      className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-[13px] text-text-tertiary"
-    >
-      Loading chat…
-    </output>
-  )
-}
-
-export function ChatIndexRouteView() {
+function useSessionWorkspaceFileOpen(sessionId: string) {
   const navigate = useNavigate()
-  const search = useSearch({ from: '/_chat/' })
-  const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
-  const sessionTreeOpen = search.panel === 'session-tree'
-  const extensionSidePanel = extensionSidePanelTargetFromSearch(search)
-
-  function setDiffOpen(open: boolean) {
-    const panel: ChatRouteSearch['panel'] = open ? 'diff' : undefined
+  return (open: boolean, target?: { path: string; line?: number | null }) => {
+    const panel: ChatRouteSearch['panel'] = open ? 'file' : undefined
     void navigate({
-      to: '/',
-      search: {
+      to: '/sessions/$sessionId',
+      params: { sessionId },
+      search: (previous: ChatRouteSearch) => ({
+        ...previous,
         diff: undefined,
         panel,
+        filePath: open ? target?.path : undefined,
+        fileLine: open ? (target?.line ?? undefined) : undefined,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
         sidePanelContentHash: undefined,
-      },
+      }),
     })
   }
+}
 
-  function setSessionTreeOpen(open: boolean) {
-    const panel: ChatRouteSearch['panel'] = open ? 'session-tree' : undefined
+function useChatSessionSidebarActions(sessionId: string) {
+  const navigate = useNavigate()
+  const setWorkspaceFileOpen = useSessionWorkspaceFileOpen(sessionId)
+
+  function setChangeRequestOpen(open: boolean, url?: string) {
+    const panel: ChatRouteSearch['panel'] = open && url ? 'change-request' : undefined
     void navigate({
-      to: '/',
-      search: {
+      to: '/sessions/$sessionId',
+      params: { sessionId },
+      search: (previous: ChatRouteSearch) => ({
+        ...previous,
         diff: undefined,
         panel,
+        changeRequestUrl: panel ? url : undefined,
+        changeRequestSessionId: panel ? sessionId : undefined,
+        filePath: undefined,
+        fileLine: undefined,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
         sidePanelContentHash: undefined,
-      },
+      }),
     })
   }
-
-  function setExtensionSidePanelOpen(open: boolean, target: ChatExtensionSidePanelTarget) {
-    void navigate({
-      to: '/',
-      search: {
-        diff: undefined,
-        panel: open ? EXTENSION_SIDE_PANEL_ROUTE_PANEL : undefined,
-        sidePanelExtensionId: open ? target.extensionId : undefined,
-        sidePanelId: open ? target.sidePanelId : undefined,
-        sidePanelPackagePath: open ? target.packagePath : undefined,
-        sidePanelContentHash: open ? target.contentHash : undefined,
-      },
-    })
-  }
-
-  return (
-    <Suspense fallback={<ChatRouteSurfaceFallback />}>
-      <LazyChatRouteSurface
-        workspace={{ branchId: null, nodeId: null, sessionId: null }}
-        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen }}
-        rightSidebarActions={{
-          onDiffOpenChange: setDiffOpen,
-          onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
-          onSessionTreeOpenChange: setSessionTreeOpen,
-        }}
-      />
-    </Suspense>
-  )
-}
-
-export function ChatSessionRouteView() {
-  const navigate = useNavigate()
-  const { sessionId } = useParams({ from: '/sessions/$sessionId' })
-  const search = useSearch({ from: '/sessions/$sessionId' })
-  const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
-  const sessionTreeOpen = search.panel === 'session-tree'
-  const extensionSidePanel = extensionSidePanelTargetFromSearch(search)
 
   function setDiffOpen(open: boolean) {
     const panel: ChatRouteSearch['panel'] = open ? 'diff' : undefined
@@ -107,6 +77,8 @@ export function ChatSessionRouteView() {
         ...previous,
         diff: undefined,
         panel,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -116,7 +88,15 @@ export function ChatSessionRouteView() {
   }
 
   function setSessionTreeOpen(open: boolean) {
-    const panel: ChatRouteSearch['panel'] = open ? 'session-tree' : undefined
+    setExclusivePanel(open ? 'session-tree' : undefined)
+  }
+
+  function setHiveOpen(open: boolean) {
+    setExclusivePanel(open ? 'hive' : undefined)
+  }
+
+  /** Swaps the route's panel, clearing every other panel's route state with it. */
+  function setExclusivePanel(panel: ChatRouteSearch['panel']) {
     void navigate({
       to: '/sessions/$sessionId',
       params: { sessionId },
@@ -124,6 +104,27 @@ export function ChatSessionRouteView() {
         ...previous,
         diff: undefined,
         panel,
+        resourceId: undefined,
+        resourceView: undefined,
+        sidePanelExtensionId: undefined,
+        sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
+      }),
+    })
+  }
+
+  function setResourcesTarget(target: SessionResourceBrowserTarget | null) {
+    const panel: ChatRouteSearch['panel'] = target ? 'resources' : undefined
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId },
+      search: (previous: ChatRouteSearch) => ({
+        ...previous,
+        diff: undefined,
+        panel,
+        resourceId: target?.resourceId,
+        resourceView: target?.view,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
         sidePanelPackagePath: undefined,
@@ -142,6 +143,8 @@ export function ChatSessionRouteView() {
         ...previous,
         diff: undefined,
         panel,
+        resourceId: undefined,
+        resourceView: undefined,
         sidePanelExtensionId: open ? target.extensionId : undefined,
         sidePanelId: open ? target.sidePanelId : undefined,
         sidePanelPackagePath: open ? target.packagePath : undefined,
@@ -150,17 +153,41 @@ export function ChatSessionRouteView() {
     })
   }
 
+  return {
+    onChangeRequestOpenChange: setChangeRequestOpen,
+    onDiffOpenChange: setDiffOpen,
+    onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
+    onResourcesTargetChange: setResourcesTarget,
+    onSessionTreeOpenChange: setSessionTreeOpen,
+    onHiveOpenChange: setHiveOpen,
+    onWorkspaceFileOpenChange: setWorkspaceFileOpen,
+  } satisfies ChatRouteSurfaceInput['rightSidebarActions']
+}
+
+export function ChatSessionRouteView() {
+  const { sessionId } = useParams({ from: '/sessions/$sessionId' })
+  const search = useSearch({ from: '/sessions/$sessionId' })
+  const rightSidebarActions = useChatSessionSidebarActions(sessionId)
+
+  const rightSidebar = {
+    changeRequestUrl: changeRequestUrlFromSearch(search, sessionId),
+    diffOpen: search.panel === 'diff' || (search.diff === 1 && search.panel === undefined),
+    extensionSidePanel: extensionSidePanelTargetFromSearch(search),
+    resourcesTarget: resourceBrowserTargetFromSearch(search),
+    sessionTreeOpen: search.panel === 'session-tree',
+    hiveOpen: search.panel === 'hive',
+    // Files without a path is the navigator on its own (ADR 0043).
+    workspaceFile:
+      search.panel === 'file'
+        ? { path: search.filePath ?? '', line: search.fileLine ?? null }
+        : null,
+  } satisfies ChatRouteSurfaceInput['rightSidebar']
+
   return (
-    <Suspense fallback={<ChatRouteSurfaceFallback />}>
-      <LazyChatRouteSurface
-        workspace={{ branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId }}
-        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen }}
-        rightSidebarActions={{
-          onDiffOpenChange: setDiffOpen,
-          onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
-          onSessionTreeOpenChange: setSessionTreeOpen,
-        }}
-      />
-    </Suspense>
+    <ChatRouteSurface
+      workspace={{ branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId }}
+      rightSidebar={rightSidebar}
+      rightSidebarActions={rightSidebarActions}
+    />
   )
 }

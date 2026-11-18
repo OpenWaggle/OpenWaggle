@@ -1,7 +1,7 @@
 import { useChatStore } from '@/features/chat/state'
 import { useProviderStore } from '@/features/providers/state'
-import { usePreferencesStore } from '@/features/settings/state'
 import { formatContextWindow } from '@/shared/lib/format-tokens'
+import { useComposerModel } from '../hooks/useComposerModel'
 import { useContextUsageSnapshot } from '../hooks/useContextUsageSnapshot'
 import {
   buildContextMeterValue,
@@ -13,7 +13,10 @@ import { ContextMeterRing } from './ContextMeterRing'
 export function ContextMeter() {
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const activeSession = useChatStore((s) => s.activeSession)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const composerModel = useComposerModel()
+  // A streaming turn keeps reporting usage for the model it started with; the meter follows that
+  // model until the turn ends so a mid-turn switch never mixes one model's usage with another's window.
+  const selectedModel = composerModel.runningModel ?? composerModel.model
   const providerModels = useProviderStore((s) => s.providerModels)
   const fallbackContextWindow = findContextWindow(providerModels, selectedModel)
   const requestKey = buildContextUsageRequestKey(
@@ -23,7 +26,11 @@ export function ContextMeter() {
       ? `${String(activeSession.updatedAt)}:${String(activeSession.messages.length)}`
       : '',
   )
-  const usage = useContextUsageSnapshot({ activeSessionId, selectedModel, requestKey })
+  const usage = useContextUsageSnapshot({
+    activeSessionId,
+    selectedModel,
+    requestKey,
+  })
   const meter = buildContextMeterValue({
     snapshot: usage.snapshot,
     fallbackContextWindow,
@@ -32,7 +39,7 @@ export function ContextMeter() {
   })
 
   return (
-    <div className="flex items-center gap-1.5" title={meter.title}>
+    <div className="flex items-center gap-1.5 @max-xl/composer-toolbar:hidden" title={meter.title}>
       <ContextMeterRing
         displayValue={meter.displayValue}
         strokeColor={meter.strokeColor}
@@ -40,7 +47,7 @@ export function ContextMeter() {
         failed={usage.failed}
       />
       {meter.contextWindow ? (
-        <span className="hidden font-mono text-[11px] text-text-tertiary sm:inline">
+        <span className="hidden font-mono text-xs text-text-tertiary sm:inline">
           / {formatContextWindow(meter.contextWindow)}
         </span>
       ) : null}

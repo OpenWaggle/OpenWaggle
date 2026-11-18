@@ -1,0 +1,271 @@
+import { match } from '@diegogbrisa/ts-match'
+import { toHostUiJsonValue } from '@shared/host-ui-json'
+import type { HostBackedGuiChannel, HostUiV1Request } from '@shared/types/host-ui-protocol'
+import type { LocalSessionCallerIdentity } from '@shared/types/local-session-profile'
+import type { LocalSessionCommandResult } from '@shared/types/local-session-protocol'
+import { LOCAL_SESSION_NATIVE_ACTIONS_REVISION } from '@shared/types/local-session-protocol-revisions'
+import * as Effect from 'effect/Effect'
+import { manageProjectActions } from './action-management'
+import { listOutstandingDesktopNotifications } from './desktop-notifications/desktop-notification-registry'
+import {
+  dispatchHostUiAgentDefinitionOperation,
+  isHostUiAgentDefinitionChannel,
+} from './host-ui-agent-definition-dispatcher'
+import {
+  getHostUiAgentContextUsage,
+  listHostUiActiveActivities,
+  listHostUiAgentExtensionCommands,
+} from './host-ui-agent-operation'
+import { discoverHostUiDocs } from './host-ui-docs-operation'
+import { dispatchHostUiExtensionOperation } from './host-ui-extension-dispatcher'
+import * as McpHostUi from './host-ui-mcp-operation-dispatcher'
+import {
+  hostUiStringValue,
+  invalidHostUiInput,
+  oneInput,
+  oneOrTwoInputs,
+  optionalHostUiProjectPath,
+  optionalHostUiProviderCatalogScope,
+  requiredHostUiString,
+  requireHostUiArgCount,
+  TWO_ARGUMENTS,
+  twoInputs,
+} from './host-ui-operation-validation'
+import { getHostUiProviderModels } from './host-ui-provider-operation'
+import { raceHostUiRequestWithSignal } from './host-ui-request-cancellation'
+import {
+  dispatchHostBackedSessionGuiOperation,
+  isHostBackedSessionGuiChannel,
+} from './host-ui-session-operation-dispatcher'
+import { dispatchHostUiSkillsOperation } from './host-ui-skill-operation-dispatcher'
+import {
+  dispatchHostUiSourceControlOperation,
+  isHostUiSourceControlChannel,
+} from './host-ui-source-control-operation'
+import { createHostUiWorktree, removeHostUiWorktree } from './host-ui-worktree-operation'
+import {
+  dispatchHostUiWorktreesOperation,
+  isHostUiWorktreesChannel,
+} from './host-ui-worktrees-dispatcher'
+import { prepareInlineVisualizationSourceOwner } from './inline-visualization-source-owner'
+import {
+  grantProjectAuthorizationOperation,
+  revokeProjectAuthorizationOperation,
+} from './project-authorization-grant-operation'
+import { removeProjectModelOperation } from './project-model-removal-operation'
+import {
+  getProjectPreferencesOperation,
+  setProjectPreferencesOperation,
+} from './project-preferences-operation'
+import {
+  getSettingsOperation,
+  setEnabledModelsOperation,
+  testApiKeyOperation,
+  updateSettingsOperation,
+} from './settings-operations'
+import { authorizeHostUiWorkspaceProject } from './workspace-project-authorization'
+
+const THREE_ARGUMENTS = 3
+const HOST_UI_REVISION_11 = 11
+
+function isSettingsChannel(
+  channel: HostBackedGuiChannel,
+): channel is Extract<HostBackedGuiChannel, `settings:${string}`> {
+  return channel.startsWith('settings:')
+}
+
+function isSkillsChannel(
+  channel: HostBackedGuiChannel,
+): channel is Extract<HostBackedGuiChannel, `skills:${string}`> {
+  return channel.startsWith('skills:')
+}
+
+function dispatchSettingsOperation(
+  channel: Extract<HostBackedGuiChannel, `settings:${string}`>,
+  args: readonly unknown[],
+) {
+  return match(channel)
+    .with('settings:get', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, 0)
+        return yield* getSettingsOperation()
+      }),
+    )
+    .with('settings:update', () => oneInput(args, updateSettingsOperation))
+    .with('settings:set-enabled-models', () => oneInput(args, setEnabledModelsOperation))
+    .with('settings:test-api-key', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS, THREE_ARGUMENTS)
+        const provider = yield* requiredHostUiString(args[0], 'Provider')
+        const apiKey = yield* hostUiStringValue(args[1], 'API key')
+        const projectPath = yield* optionalHostUiProjectPath(args[TWO_ARGUMENTS])
+        return yield* testApiKeyOperation(provider, apiKey, projectPath)
+      }),
+    )
+    .exhaustive()
+}
+
+function isExtensionChannel(
+  channel: HostBackedGuiChannel,
+): channel is Extract<HostBackedGuiChannel, `extensions:${string}`> {
+  return channel.startsWith('extensions:')
+}
+
+function dispatchHostUiChannel(
+  channel: HostBackedGuiChannel,
+  args: readonly unknown[],
+  negotiatedRevision?: number,
+) {
+  if (channel === 'project-actions:manage') {
+    if (
+      negotiatedRevision !== undefined &&
+      negotiatedRevision < LOCAL_SESSION_NATIVE_ACTIONS_REVISION
+    ) {
+      return invalidHostUiInput(
+        `Native Project Actions require Local Session protocol revision ${LOCAL_SESSION_NATIVE_ACTIONS_REVISION}.`,
+      )
+    }
+    return oneInput(args, manageProjectActions)
+  }
+  if (isHostBackedSessionGuiChannel(channel)) {
+    return dispatchHostBackedSessionGuiOperation(channel, args)
+  }
+  if (isHostUiSourceControlChannel(channel)) {
+    return dispatchHostUiSourceControlOperation(channel, args, negotiatedRevision)
+  }
+  if (McpHostUi.isMcpHostUiChannel(channel)) {
+    return McpHostUi.dispatchMcpHostUiOperation(channel, args)
+  }
+  if (isSettingsChannel(channel)) {
+    return dispatchSettingsOperation(channel, args)
+  }
+  if (isExtensionChannel(channel)) {
+    return dispatchHostUiExtensionOperation(channel, args)
+  }
+  if (isSkillsChannel(channel)) {
+    return dispatchHostUiSkillsOperation(channel, args)
+  }
+  if (isHostUiWorktreesChannel(channel)) return dispatchHostUiWorktreesOperation(channel, args)
+  if (channel === 'desktop-notifications:list') {
+    return requireHostUiArgCount(args, 0).pipe(
+      Effect.zipRight(Effect.sync(() => listOutstandingDesktopNotifications())),
+    )
+  }
+  if (isHostUiAgentDefinitionChannel(channel)) {
+    if (negotiatedRevision !== undefined && negotiatedRevision < HOST_UI_REVISION_11) {
+      return invalidHostUiInput('Agent definitions require Local Session protocol revision 11.')
+    }
+    return dispatchHostUiAgentDefinitionOperation(channel, args)
+  }
+  return match(channel)
+    .with('workspace-files:authorize-project', () =>
+      oneInput(args, authorizeHostUiWorkspaceProject),
+    )
+    .with('inline-visualization:prepare-source', () =>
+      oneInput(args, prepareInlineVisualizationSourceOwner),
+    )
+    .with('agent:list-active-runs', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, 0)
+        return yield* listHostUiActiveActivities()
+      }),
+    )
+    .with('agent:get-context-usage', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        return yield* getHostUiAgentContextUsage(args[0], args[1])
+      }),
+    )
+    .with('agent:list-extension-commands', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS, THREE_ARGUMENTS)
+        const [sessionId, model, projectPath] = args
+        return yield* listHostUiAgentExtensionCommands(sessionId, model, projectPath)
+      }),
+    )
+    .with('providers:get-models', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, 0, TWO_ARGUMENTS)
+        return yield* getHostUiProviderModels(
+          yield* optionalHostUiProjectPath(args[0]),
+          yield* optionalHostUiProviderCatalogScope(args[1]),
+        )
+      }),
+    )
+    .with('project-config:set-preferences', () => twoInputs(args, setProjectPreferencesOperation))
+    .with('project-config:remove-project-model', () =>
+      oneOrTwoInputs(args, removeProjectModelOperation),
+    )
+    .with('project-config:get-preferences', () => oneInput(args, getProjectPreferencesOperation))
+    .with('authorization-grants:grant', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        return yield* grantProjectAuthorizationOperation(args[0], args[1])
+      }),
+    )
+    .with('authorization-grants:revoke', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        return yield* revokeProjectAuthorizationOperation(args[0], args[1])
+      }),
+    )
+    .with('docs:discover', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, 0, 1)
+        return yield* discoverHostUiDocs(args[0])
+      }),
+    )
+    .with('git:worktrees:create', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        return yield* createHostUiWorktree(args[0], args[1])
+      }),
+    )
+    .with('git:worktrees:remove', () =>
+      Effect.gen(function* () {
+        yield* requireHostUiArgCount(args, TWO_ARGUMENTS)
+        return yield* removeHostUiWorktree(args[0], args[1])
+      }),
+    )
+    .exhaustive()
+}
+
+export function dispatchHostUiRequest(input: {
+  readonly caller: LocalSessionCallerIdentity
+  readonly request: HostUiV1Request
+  readonly negotiatedRevision?: number
+  readonly signal?: AbortSignal
+}) {
+  const operation = Effect.gen(function* () {
+    const localMachineMcpCaller =
+      McpHostUi.isMcpHostUiChannel(input.request.channel) &&
+      input.caller.profileAuthority === undefined &&
+      input.caller.callerId.startsWith('local-user:')
+    if (input.caller.callerId !== 'gui:local-user' && !localMachineMcpCaller) {
+      return yield* invalidHostUiInput(
+        'Host UI operations are only available to the local OpenWaggle GUI or an authenticated local-machine MCP client.',
+      )
+    }
+    const args = input.request.args.map((argument) =>
+      argument.kind === 'undefined' ? undefined : argument.value,
+    )
+    const result = yield* dispatchHostUiChannel(
+      input.request.channel,
+      args,
+      input.negotiatedRevision,
+    )
+    return {
+      contract: 'host-ui-v1',
+      response: {
+        contractVersion: input.request.contractVersion,
+        requestId: input.request.requestId,
+        channel: input.request.channel,
+        result:
+          result === undefined
+            ? { kind: 'undefined' as const }
+            : { kind: 'value' as const, value: toHostUiJsonValue(result) },
+      },
+    } satisfies Extract<LocalSessionCommandResult, { readonly contract: 'host-ui-v1' }>
+  })
+  return raceHostUiRequestWithSignal(operation, input.signal)
+}

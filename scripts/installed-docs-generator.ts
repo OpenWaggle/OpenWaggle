@@ -16,9 +16,9 @@ import {
   markdownOutputPath,
   OPENWAGGLE_GROUP,
   OUTPUT_ROOT,
-  parseFrontmatter,
   PI_DOCS_ROOT,
   PI_GROUP,
+  parseFrontmatter,
   posixPath,
   ROOT_README_TOPIC_LIMIT,
   titleFromSlug,
@@ -26,6 +26,7 @@ import {
   WEBSITE_DOCS_ROOT,
   withoutMarkdownExtension,
 } from './installed-docs-generator-model'
+import { substituteInstallPlaceholders } from '../website/src/lib/install-command'
 import { renderPackageInstallElements } from './package-documentation-renderer'
 
 interface GenerateInstalledDocsOptions {
@@ -44,6 +45,10 @@ const PACKAGE_SLUG_GROUP = 1
 const PACKAGE_VERSION_GROUP = 2
 const WEBSITE_DOC_LINK_PATTERN = /(\]\()((?:\/docs(?:\/[^)\s]*|[?#][^)\s]*)?|\.\.?\/[^)\s]+))(\))/gu
 
+/** The `aliases` frontmatter as an `aliasesFor` input field, left out when the page has none. */
+function extraAliasesField(extraAliases: string | undefined) {
+  return extraAliases === undefined ? {} : { extraAliases }
+}
 function websiteDocumentationRoute(slug: string) {
   const routeSlug = slug.endsWith('/index') ? slug.slice(0, -'/index'.length) : slug
   return `/docs/${routeSlug}`
@@ -51,7 +56,10 @@ function websiteDocumentationRoute(slug: string) {
 
 function installedDocumentationRoutes(files: readonly OpenWaggleSourceFile[]) {
   const routes = new Map<string, string>([['/docs', 'README.md']])
-  const packageGuides = new Map<string, { readonly bundlePath: string; readonly version: string }[]>()
+  const packageGuides = new Map<
+    string,
+    { readonly bundlePath: string; readonly version: string }[]
+  >()
 
   for (const file of files) {
     routes.set(websiteDocumentationRoute(file.slug), file.bundlePath)
@@ -65,9 +73,9 @@ function installedDocumentationRoutes(files: readonly OpenWaggleSourceFile[]) {
   }
 
   for (const [packageSlug, guides] of packageGuides) {
-    const latest = guides.toSorted((left, right) =>
-      left.version.localeCompare(right.version, 'en', { numeric: true }),
-    ).at(-1)
+    const latest = guides
+      .toSorted((left, right) => left.version.localeCompare(right.version, 'en', { numeric: true }))
+      .at(-1)
     if (latest) routes.set(`/docs/packages/${packageSlug}`, latest.bundlePath)
   }
   return routes
@@ -97,9 +105,7 @@ export function rewriteInstalledDocumentationLinks(
         path.posix.dirname(sourceBundlePath),
         targetBundlePath,
       )
-      const relativeDestination = relativePath.startsWith('.')
-        ? relativePath
-        : `./${relativePath}`
+      const relativeDestination = relativePath.startsWith('.') ? relativePath : `./${relativePath}`
       return `${prefix}${relativeDestination}${parsed.search}${parsed.hash}${suffix}`
     },
   )
@@ -156,7 +162,8 @@ async function buildOpenWaggleTopics(outputRoot: string) {
   for (const file of files) {
     const rawContent = await readFile(file.filePath, 'utf8')
     const installedContent = rewriteInstalledDocumentationLinks(
-      renderPackageInstallElements(rawContent),
+      // As the website's remark plugin does, so the bundled docs show the real install command.
+      substituteInstallPlaceholders(renderPackageInstallElements(rawContent)),
       websiteDocumentationRoute(file.slug),
       file.bundlePath,
       routes,
@@ -177,7 +184,13 @@ async function buildOpenWaggleTopics(outputRoot: string) {
       order,
       sourcePath: posixPath(path.relative(process.cwd(), file.filePath)),
       bundlePath: file.bundlePath,
-      aliases: aliasesFor({ slug: file.slug, title, section, source: OPENWAGGLE_GROUP.id }),
+      aliases: aliasesFor({
+        slug: file.slug,
+        title,
+        section,
+        source: OPENWAGGLE_GROUP.id,
+        ...extraAliasesField(parsed.fields.get('aliases')),
+      }),
       keywords: keywordsFor({ slug: file.slug, title, description, section }),
       contentHash: hashContent(installedContent),
     })
@@ -243,7 +256,7 @@ function rootReadme(manifest: InstalledDocsManifest) {
     '# OpenWaggle Installed Docs',
     '',
     'This bundle is generated from `website/src/content/docs/**` and installed Pi package docs.',
-    'Agents should discover paths and metadata through the typed OpenWaggle docs API instead of assuming source-tree paths.',
+    'Agents in OpenWaggle Sessions should find topics with the `openwaggle_docs` tool (list, search, read), and extensions through the typed OpenWaggle docs API, instead of assuming source-tree paths.',
     '',
   ]
 
@@ -279,7 +292,10 @@ export async function generateInstalledDocs(options: GenerateInstalledDocsOption
     topics,
   }
 
-  await writeFile(path.join(outputRoot, INDEX_FILE), `${JSON.stringify(manifest, null, JSON_INDENT)}\n`)
+  await writeFile(
+    path.join(outputRoot, INDEX_FILE),
+    `${JSON.stringify(manifest, null, JSON_INDENT)}\n`,
+  )
   await writeFile(path.join(outputRoot, 'README.md'), rootReadme(manifest), 'utf8')
   await mkdir(path.join(outputRoot, 'topics', OPENWAGGLE_GROUP.id), { recursive: true })
   await mkdir(path.join(outputRoot, 'topics', PI_GROUP.id), { recursive: true })

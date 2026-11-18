@@ -2,25 +2,17 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { setProjectPreferences } from '../../config/project-config'
 import {
-  archiveSessionMock,
-  cancelSessionRunsMock,
-  cleanupSessionRunMock,
-  clearAgentPhaseMock,
-  clearStreamBufferMock,
-  createRuntimeSessionMock,
-  createSessionMock,
-  deleteSessionMock,
-  emitRunCompletedMock,
-  forkRuntimeSessionMock,
-  getInvokeHandler,
+  dispatchLocalSessionCommandMock,
   getSessionDetailMock,
-  listSessionDetailsMock,
   loadSessionDetailsHandlers,
   resetSessionDetailsHandlerMocks,
   typedHandleMock,
 } from './session-details-handler.test-harness'
+import { getInvokeHandler } from './session-details-handler.test-layers'
 
 describe('registerSessionDetailsHandlers', () => {
   let registerSessionDetailsHandlers: Awaited<
@@ -32,35 +24,28 @@ describe('registerSessionDetailsHandlers', () => {
     ;({ registerSessionDetailsHandlers } = await loadSessionDetailsHandlers())
   })
 
-  it('registers only session detail IPC channels', () => {
+  it('registers the session detail channels no other case invokes', () => {
     registerSessionDetailsHandlers()
 
     const channels = typedHandleMock.mock.calls.map((args: unknown[]) => args[0])
-    expect(channels).toEqual([
-      'sessions:list-details',
-      'sessions:get-detail',
-      'sessions:create',
-      'sessions:fork-to-new',
-      'sessions:clone-to-new',
-      'sessions:dismiss-interrupted-run',
-      'sessions:delete',
-      'sessions:archive',
-      'sessions:unarchive',
-      'sessions:list-archived',
-      'sessions:update-title',
-    ])
-  })
-
-  it('lists session details through the projection repository', async () => {
-    const sessionDetails = [{ id: SessionId('session-1'), title: 'Session', messages: [] }]
-    listSessionDetailsMock.mockResolvedValue(sessionDetails)
-
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:list-details')
-
-    const result = await handler?.({}, 10)
-    expect(result).toEqual(sessionDetails)
-    expect(listSessionDetailsMock).toHaveBeenCalledWith(10)
+    expect(channels).toEqual(
+      expect.arrayContaining([
+        'sessions:get-detail',
+        'sessions:turn-checkpoints:list',
+        'sessions:turn-diff:get',
+        'sessions:turn-diff-files:get',
+        'sessions:turn-diff-files:list',
+        'sessions:dismiss-interrupted-run',
+        'sessions:begin-project-removal',
+        'sessions:unarchive',
+        'sessions:update-title',
+        'sessions:regenerate-title',
+        'sessions:set-model',
+        'sessions:set-thinking-level',
+        'sessions:get-default-thinking-level',
+        'sessions:set-default-thinking-level',
+      ]),
+    )
   })
 
   it('creates a session with the requested project path', async () => {
@@ -72,25 +57,118 @@ describe('registerSessionDetailsHandlers', () => {
         title: 'New session',
         messages: [],
       }
-      createSessionMock.mockResolvedValue(createdSession)
+      getSessionDetailMock.mockResolvedValue(createdSession)
 
       registerSessionDetailsHandlers()
       const handler = getInvokeHandler('sessions:create')
 
       const result = await handler?.({}, projectPath)
       expect(result).toEqual(createdSession)
-      expect(createRuntimeSessionMock).toHaveBeenCalledWith({ projectPath: validatedProjectPath })
-      expect(createSessionMock).toHaveBeenCalledWith({
-        projectPath: validatedProjectPath,
-        piSessionId: 'pi-session-created',
-        piSessionFile: '/tmp/pi-session-created.jsonl',
+      expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith({
+        caller: { callerId: 'gui:local-user', workingDirectory: validatedProjectPath },
+        payload: {
+          contract: 'session-lifecycle-v2',
+          request: expect.objectContaining({
+            contractVersion: 2,
+            command: {
+              operation: 'create',
+              projectPath: validatedProjectPath,
+              workspace: { mode: 'local' },
+            },
+          }),
+        },
+      })
+      expect(getSessionDetailMock).toHaveBeenCalledWith(SessionId('session-created'))
+    } finally {
+      await rm(projectPath, { recursive: true, force: true })
+    }
+  })
+
+  it('passes a draft model and worktree plan into the immutable execution profile', async () => {
+    const projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-session-test-'))
+    const validatedProjectPath = await realpath(projectPath)
+    try {
+      getSessionDetailMock.mockResolvedValue({
+        id: SessionId('session-created'),
+        title: 'New session',
+        messages: [],
+      })
+      registerSessionDetailsHandlers()
+
+      await getInvokeHandler('sessions:create')?.(
+        {},
+        projectPath,
+        { environmentMode: 'worktree', baseRef: 'main', startFromOrigin: true },
+        SupportedModelId('openai/gpt-5.4'),
+      )
+
+      expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith({
+        caller: { callerId: 'gui:local-user', workingDirectory: validatedProjectPath },
+        payload: {
+          contract: 'session-lifecycle-v2',
+          request: expect.objectContaining({
+            command: {
+              operation: 'create',
+              projectPath: validatedProjectPath,
+              workspace: { mode: 'new-worktree', baseRef: 'main', startFromOrigin: true },
+              specialization: { modelId: 'openai/gpt-5.4' },
+            },
+          }),
+        },
       })
     } finally {
       await rm(projectPath, { recursive: true, force: true })
     }
   })
 
-  it('forks a session from a user message through the Pi kernel and projection repository', async () => {
+  it('rejects a non-canonical draft model', async () => {
+    const projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-session-test-'))
+    try {
+      registerSessionDetailsHandlers()
+      await expect(
+        getInvokeHandler('sessions:create')?.({}, projectPath, undefined, 'not-a-model'),
+      ).rejects.toThrow('Session model must be a canonical provider/model reference.')
+      expect(dispatchLocalSessionCommandMock).not.toHaveBeenCalled()
+    } finally {
+      await rm(projectPath, { recursive: true, force: true })
+    }
+  })
+
+  it('stores no authorization override when creating a session, even with a project default', async () => {
+    // Creation deliberately records nothing. The mode is a live chain resolved when a request is
+    // raised, so snapshotting a project default here would freeze the session against later
+    // changes to that default. A stored override must only ever come from an explicit user choice.
+    const projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-session-test-'))
+    const validatedProjectPath = await realpath(projectPath)
+    try {
+      const createdSession = {
+        id: SessionId('session-created'),
+        title: 'New session',
+        messages: [],
+      }
+      await setProjectPreferences(validatedProjectPath, { authorizationMode: 'ask-for-approval' })
+      getSessionDetailMock.mockResolvedValue(createdSession)
+
+      registerSessionDetailsHandlers()
+      const handler = getInvokeHandler('sessions:create')
+
+      const result = await handler?.({}, projectPath)
+      expect(result).toEqual(createdSession)
+      expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            request: expect.objectContaining({
+              command: expect.not.objectContaining({ runAuthorizationOverride: expect.anything() }),
+            }),
+          }),
+        }),
+      )
+    } finally {
+      await rm(projectPath, { recursive: true, force: true })
+    }
+  })
+
+  it('forks a session from a user message through the Session Host', async () => {
     const sourceSession = {
       id: SessionId('session-source'),
       title: 'Source',
@@ -110,14 +188,25 @@ describe('registerSessionDetailsHandlers', () => {
     getSessionDetailMock.mockImplementation(async (id: SessionId) =>
       id === SessionId('pi-session-forked') ? forkedSession : sourceSession,
     )
-    createSessionMock.mockResolvedValue(forkedSession)
-    forkRuntimeSessionMock.mockResolvedValue({
-      cancelled: false,
-      editorText: 'retry text',
-      piSessionId: 'pi-session-forked',
-      piSessionFile: '/tmp/pi-session-forked.jsonl',
-      sessionSnapshot: { activeNodeId: 'parent-node', nodes: [] },
-    })
+    dispatchLocalSessionCommandMock.mockReturnValue(
+      Effect.succeed({
+        contract: 'session-lifecycle-v2',
+        response: {
+          contractVersion: 2,
+          requestId: 'fork-request',
+          idempotencyKey: 'fork-once',
+          replayed: false,
+          outcome: {
+            operation: 'fork',
+            effect: 'forked-session',
+            sessionId: 'pi-session-forked',
+            sourceSessionId: 'session-source',
+            workspaceId: 'workspace-forked',
+            editorText: 'retry text',
+          },
+        },
+      }),
+    )
 
     registerSessionDetailsHandlers()
     const handler = getInvokeHandler('sessions:fork-to-new')
@@ -130,8 +219,18 @@ describe('registerSessionDetailsHandlers', () => {
     )
 
     expect(result).toEqual({ cancelled: false, editorText: 'retry text', session: forkedSession })
-    expect(forkRuntimeSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ targetNodeId: 'user-node', position: 'before' }),
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          request: expect.objectContaining({
+            command: expect.objectContaining({
+              operation: 'fork',
+              targetNodeId: 'user-node',
+              position: 'before',
+            }),
+          }),
+        }),
+      }),
     )
   })
 
@@ -155,13 +254,24 @@ describe('registerSessionDetailsHandlers', () => {
     getSessionDetailMock.mockImplementation(async (id: SessionId) =>
       id === SessionId('pi-session-cloned') ? clonedSession : sourceSession,
     )
-    createSessionMock.mockResolvedValue(clonedSession)
-    forkRuntimeSessionMock.mockResolvedValue({
-      cancelled: false,
-      piSessionId: 'pi-session-cloned',
-      piSessionFile: '/tmp/pi-session-cloned.jsonl',
-      sessionSnapshot: { activeNodeId: 'current-node', nodes: [] },
-    })
+    dispatchLocalSessionCommandMock.mockReturnValue(
+      Effect.succeed({
+        contract: 'session-lifecycle-v2',
+        response: {
+          contractVersion: 2,
+          requestId: 'clone-request',
+          idempotencyKey: 'clone-once',
+          replayed: false,
+          outcome: {
+            operation: 'fork',
+            effect: 'forked-session',
+            sessionId: 'pi-session-cloned',
+            sourceSessionId: 'session-source',
+            workspaceId: 'workspace-cloned',
+          },
+        },
+      }),
+    )
 
     registerSessionDetailsHandlers()
     const handler = getInvokeHandler('sessions:clone-to-new')
@@ -174,41 +284,18 @@ describe('registerSessionDetailsHandlers', () => {
     )
 
     expect(result).toEqual({ cancelled: false, session: clonedSession })
-    expect(forkRuntimeSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ targetNodeId: 'current-node', position: 'at' }),
+    expect(dispatchLocalSessionCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          request: expect.objectContaining({
+            command: expect.objectContaining({
+              operation: 'fork',
+              targetNodeId: 'current-node',
+              position: 'at',
+            }),
+          }),
+        }),
+      }),
     )
-  })
-
-  it('cleans up the active run before deleting a session', async () => {
-    deleteSessionMock.mockResolvedValue(undefined)
-    cancelSessionRunsMock.mockReturnValue(true)
-
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:delete')
-
-    await handler?.({}, SessionId('session-delete'))
-
-    expect(cancelSessionRunsMock).toHaveBeenCalledWith(SessionId('session-delete'))
-    expect(clearAgentPhaseMock).toHaveBeenCalledWith(SessionId('session-delete'))
-    expect(clearStreamBufferMock).toHaveBeenCalledWith(SessionId('session-delete'))
-    expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-delete'))
-    expect(emitRunCompletedMock).toHaveBeenCalledWith(SessionId('session-delete'))
-    expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
-  })
-
-  it('cleans up the active run before archiving a session', async () => {
-    archiveSessionMock.mockResolvedValue(undefined)
-
-    registerSessionDetailsHandlers()
-    const handler = getInvokeHandler('sessions:archive')
-
-    await handler?.({}, SessionId('session-archive'))
-
-    expect(cancelSessionRunsMock).toHaveBeenCalledWith(SessionId('session-archive'))
-    expect(clearAgentPhaseMock).toHaveBeenCalledWith(SessionId('session-archive'))
-    expect(clearStreamBufferMock).toHaveBeenCalledWith(SessionId('session-archive'))
-    expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-archive'))
-    expect(emitRunCompletedMock).not.toHaveBeenCalled()
-    expect(archiveSessionMock).toHaveBeenCalledWith(SessionId('session-archive'))
   })
 })

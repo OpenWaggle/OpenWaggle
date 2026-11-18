@@ -1,43 +1,96 @@
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import {
+  shortcutBindingsFromRules,
+  shortcutRulesFromBindings,
+  shortcutRulesWithDefaults,
+} from '@shared/types/shortcuts'
+import { resolveAppearancePreferences } from './appearance-preferences-sanitizer'
+import {
+  resolveNextBrowserSettings,
+  resolveStoredBrowserSettings,
+} from './browser-settings-snapshot'
+import { resolveNextDiffAndAppearanceSettings } from './diff-appearance-settings-snapshot'
+import { sanitizeExtensionPanelShortcutBindings } from './extension-panel-shortcut-sanitizer'
+import {
+  SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT,
+  SETTINGS_KEY_APPEARANCE_PREFERENCES,
+  SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT,
+  SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE,
   SETTINGS_KEY_DEFAULT_MODEL,
+  SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE,
+  SETTINGS_KEY_DIFF_SYNTAX_THEME,
+  SETTINGS_KEY_DIFF_VIEW,
+  SETTINGS_KEY_DIFF_WRAP_LINES,
   SETTINGS_KEY_ENABLED_MODELS,
+  SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS,
   SETTINGS_KEY_FAVORITE_MODELS,
   SETTINGS_KEY_PROJECT_DISPLAY_NAMES,
   SETTINGS_KEY_PROJECT_PATH,
   SETTINGS_KEY_RECENT_PROJECTS,
+  SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED,
+  SETTINGS_KEY_SHORTCUT_BINDINGS,
+  SETTINGS_KEY_SHORTCUT_RULES,
   SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
-  SETTINGS_KEY_THINKING_LEVEL,
+  SETTINGS_KEY_SYNTAX_THEME_SELECTIONS,
+  SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
+import { resolveNextPiRuntimeSettings, resolveStoredPiRuntimeSettings } from './pi-runtime-settings'
+import { resolveRightPanelRailVisibleWhenClosed } from './right-panel-settings-sanitizer'
 import {
-  isValidThinkingLevel,
+  isValidSessionEnvironmentMode,
+  resolveCompactionThresholdPercent,
+  resolveDefaultAuthorizationMode,
+  resolveDefaultSessionEnvironmentMode,
+  resolveDiffSyntaxTheme,
+  resolveDiffView,
+  resolveDiffWrapLines,
   resolveEnabledModels,
   resolveFavoriteModels,
   resolveProjectPath,
   resolveRecentProjects,
   resolveSelectedModel,
   resolveSkillTogglesByProject,
-  resolveThinkingLevel,
+  resolveSyntaxThemeSelections,
   sanitizeEnabledModels,
   sanitizeFavoriteModels,
   sanitizeProjectDisplayNames,
   sanitizeRecentProjects,
+  sanitizeShortcutBindings,
+  sanitizeShortcutRules,
   sanitizeSkillTogglesByProject,
 } from './sanitizers'
+import {
+  resolveNextProjectPathAliases,
+  resolveNextSelectedModels,
+  resolveStoredProjectPathAliases,
+  resolveStoredSelectedModels,
+} from './selected-models-snapshot'
+import {
+  resolveNextSessionHostSettings,
+  resolveStoredSessionHostSettings,
+} from './session-host-settings-snapshot'
+import {
+  resolveNextSessionTitleSettings,
+  resolveStoredSessionTitleSettings,
+} from './session-title-settings'
+import { resolveUpdatedSetting, resolveValidatedSetting } from './setting-resolution'
+import { resolveNextShortcutRules } from './shortcut-settings-snapshot'
+import {
+  resolveNextSourceControlSettings,
+  resolveStoredSourceControlSettings,
+} from './source-control-settings'
+import { resolveUpdateChannel } from './update-channel-settings'
+import * as usageStatisticsSettings from './usage-statistics-settings'
 
-export function createDefaultSettingsSnapshot() {
-  return {
-    ...DEFAULT_SETTINGS,
-  }
-}
+export const createDefaultSettingsSnapshot = () => ({ ...DEFAULT_SETTINGS }) satisfies Settings
 
 function getStoredValue(storedSettings: Readonly<Record<string, unknown>>, key: string) {
   return Object.hasOwn(storedSettings, key) ? storedSettings[key] : undefined
 }
 
 export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>) {
-  const thinkingLevel = resolveThinkingLevel(
-    getStoredValue(storedSettings, SETTINGS_KEY_THINKING_LEVEL),
+  const updateChannel = resolveUpdateChannel(
+    getStoredValue(storedSettings, SETTINGS_KEY_UPDATE_CHANNEL),
   )
   const favoriteModels = resolveFavoriteModels(
     getStoredValue(storedSettings, SETTINGS_KEY_FAVORITE_MODELS),
@@ -47,6 +100,9 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
   )
   const skillTogglesByProject = resolveSkillTogglesByProject(
     getStoredValue(storedSettings, SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT),
+  )
+  const agentDefinitionTogglesByProject = resolveSkillTogglesByProject(
+    getStoredValue(storedSettings, SETTINGS_KEY_AGENT_DEFINITION_TOGGLES_BY_PROJECT),
   )
   const enabledModels = resolveEnabledModels(
     getStoredValue(storedSettings, SETTINGS_KEY_ENABLED_MODELS),
@@ -59,6 +115,52 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
       DEFAULT_SETTINGS.projectDisplayNames,
   )
+  const storedLegacyShortcutBindings = getStoredValue(
+    storedSettings,
+    SETTINGS_KEY_SHORTCUT_BINDINGS,
+  )
+  const legacyShortcutBindings = sanitizeShortcutBindings(
+    storedLegacyShortcutBindings ?? DEFAULT_SETTINGS.shortcutBindings,
+  )
+  const storedShortcutRules = getStoredValue(storedSettings, SETTINGS_KEY_SHORTCUT_RULES)
+  const sanitizedShortcutRules = sanitizeShortcutRules(storedShortcutRules)
+  const shortcutRules = shortcutRulesWithDefaults(
+    sanitizedShortcutRules ??
+      (storedLegacyShortcutBindings === undefined
+        ? DEFAULT_SETTINGS.shortcutRules
+        : shortcutRulesFromBindings(legacyShortcutBindings)),
+  )
+  const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
+  const extensionPanelShortcutBindings = sanitizeExtensionPanelShortcutBindings(
+    getStoredValue(storedSettings, SETTINGS_KEY_EXTENSION_PANEL_SHORTCUT_BINDINGS),
+  )
+  const defaultSessionEnvironmentMode = resolveDefaultSessionEnvironmentMode(
+    getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_SESSION_ENVIRONMENT_MODE),
+  )
+  const defaultAuthorizationMode = resolveDefaultAuthorizationMode(
+    getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_AUTHORIZATION_MODE),
+  )
+  const diffSyntaxTheme = resolveDiffSyntaxTheme(
+    getStoredValue(storedSettings, SETTINGS_KEY_DIFF_SYNTAX_THEME),
+  )
+  const syntaxThemeSelections = resolveSyntaxThemeSelections(
+    getStoredValue(storedSettings, SETTINGS_KEY_SYNTAX_THEME_SELECTIONS),
+  )
+  const diffView = resolveDiffView(getStoredValue(storedSettings, SETTINGS_KEY_DIFF_VIEW))
+  const diffWrapLines = resolveDiffWrapLines(
+    getStoredValue(storedSettings, SETTINGS_KEY_DIFF_WRAP_LINES),
+  )
+  const rightPanelRailVisibleWhenClosed = resolveRightPanelRailVisibleWhenClosed(
+    getStoredValue(storedSettings, SETTINGS_KEY_RIGHT_PANEL_RAIL_VISIBLE_WHEN_CLOSED),
+  )
+  const hostSettings = resolveStoredSessionHostSettings(storedSettings)
+  const compactionThresholdPercent = resolveCompactionThresholdPercent(
+    getStoredValue(storedSettings, SETTINGS_KEY_COMPACTION_THRESHOLD_PERCENT),
+  )
+  const appearancePreferences = resolveAppearancePreferences(
+    getStoredValue(storedSettings, SETTINGS_KEY_APPEARANCE_PREFERENCES),
+  )
+  const browserSettings = resolveStoredBrowserSettings(storedSettings)
 
   return {
     settings: {
@@ -66,54 +168,134 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       favoriteModels,
       enabledModels,
       projectPath: resolveProjectPath(getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_PATH)),
-      thinkingLevel,
+      updateChannel,
+      ...usageStatisticsSettings.resolveStoredUsageStatisticsSettings(storedSettings),
       recentProjects,
       skillTogglesByProject,
+      agentDefinitionTogglesByProject,
       projectDisplayNames,
+      ...resolveStoredSelectedModels(storedSettings),
+      ...resolveStoredProjectPathAliases(storedSettings),
+      shortcutRules,
+      shortcutBindings,
+      extensionPanelShortcutBindings,
+      defaultSessionEnvironmentMode,
+      defaultAuthorizationMode,
+      diffSyntaxTheme,
+      syntaxThemeSelections,
+      diffView,
+      diffWrapLines,
+      rightPanelRailVisibleWhenClosed,
+      ...hostSettings,
+      compactionThresholdPercent,
+      ...resolveStoredPiRuntimeSettings(storedSettings),
+      ...resolveStoredSessionTitleSettings(storedSettings),
+      appearancePreferences,
+      ...browserSettings,
+      ...resolveStoredSourceControlSettings(storedSettings),
     } satisfies Settings,
   }
 }
 
 export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Settings>) {
-  const enabledModels =
-    partial.enabledModels !== undefined
-      ? sanitizeEnabledModels(partial.enabledModels)
-      : current.enabledModels
-  const selectedModel =
-    partial.selectedModel !== undefined
-      ? resolveSelectedModel(partial.selectedModel, enabledModels)
-      : current.selectedModel
-  const favoriteModels =
-    partial.favoriteModels !== undefined
-      ? sanitizeFavoriteModels(partial.favoriteModels)
-      : current.favoriteModels
-  const projectPath = partial.projectPath !== undefined ? partial.projectPath : current.projectPath
-  const thinkingLevel =
-    partial.thinkingLevel !== undefined && isValidThinkingLevel(partial.thinkingLevel)
-      ? partial.thinkingLevel
-      : current.thinkingLevel
-  const recentProjects =
-    partial.recentProjects !== undefined
-      ? sanitizeRecentProjects(partial.recentProjects)
-      : current.recentProjects
-  const skillTogglesByProject =
-    partial.skillTogglesByProject !== undefined
-      ? sanitizeSkillTogglesByProject(partial.skillTogglesByProject)
-      : current.skillTogglesByProject
-  const projectDisplayNames =
-    partial.projectDisplayNames !== undefined
-      ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
-      : current.projectDisplayNames
-
+  const coreSettings = resolveNextCoreSettings(current, partial)
+  const hostSettings = resolveNextSessionHostSettings(current, partial)
   return {
     ...current,
+    ...coreSettings,
+    ...hostSettings,
+    compactionThresholdPercent:
+      partial.compactionThresholdPercent !== undefined
+        ? resolveCompactionThresholdPercent(partial.compactionThresholdPercent)
+        : current.compactionThresholdPercent,
+    ...resolveNextPiRuntimeSettings(current, partial),
+    ...resolveNextSessionTitleSettings(current, partial),
+    ...resolveNextDiffAndAppearanceSettings(current, partial),
+    ...resolveNextSelectedModels(current, partial),
+    ...resolveNextProjectPathAliases(current, partial),
+    ...resolveNextBrowserSettings(current, partial),
+    ...usageStatisticsSettings.resolveNextUsageStatisticsSettings(current, partial),
+    ...resolveNextSourceControlSettings(current, partial),
+  } satisfies Settings
+}
+
+function resolveNextCoreSettings(current: Settings, partial: Partial<Settings>) {
+  const enabledModels = resolveUpdatedSetting(
+    partial.enabledModels,
+    current.enabledModels,
+    sanitizeEnabledModels,
+  )
+  const selectedModel = resolveUpdatedSetting(
+    partial.selectedModel,
+    current.selectedModel,
+    (value) => resolveSelectedModel(value, enabledModels),
+  )
+  const favoriteModels = resolveUpdatedSetting(
+    partial.favoriteModels,
+    current.favoriteModels,
+    sanitizeFavoriteModels,
+  )
+  const projectPath = resolveUpdatedSetting(
+    partial.projectPath,
+    current.projectPath,
+    (value) => value,
+  )
+  const updateChannel = resolveUpdatedSetting(
+    partial.updateChannel,
+    current.updateChannel,
+    resolveUpdateChannel,
+  )
+  const recentProjects = resolveUpdatedSetting(
+    partial.recentProjects,
+    current.recentProjects,
+    sanitizeRecentProjects,
+  )
+  const skillTogglesByProject = resolveUpdatedSetting(
+    partial.skillTogglesByProject,
+    current.skillTogglesByProject,
+    sanitizeSkillTogglesByProject,
+  )
+  const agentDefinitionTogglesByProject = resolveUpdatedSetting(
+    partial.agentDefinitionTogglesByProject,
+    current.agentDefinitionTogglesByProject,
+    sanitizeSkillTogglesByProject,
+  )
+  const projectDisplayNames = resolveUpdatedSetting(
+    partial.projectDisplayNames,
+    current.projectDisplayNames,
+    sanitizeProjectDisplayNames,
+  )
+  const shortcutRules = shortcutRulesWithDefaults(resolveNextShortcutRules(current, partial))
+  const shortcutBindings = shortcutBindingsFromRules(shortcutRules)
+  const extensionPanelShortcutBindings = resolveUpdatedSetting(
+    partial.extensionPanelShortcutBindings,
+    current.extensionPanelShortcutBindings,
+    sanitizeExtensionPanelShortcutBindings,
+  )
+  const defaultSessionEnvironmentMode = resolveValidatedSetting(
+    partial.defaultSessionEnvironmentMode,
+    current.defaultSessionEnvironmentMode,
+    isValidSessionEnvironmentMode,
+  )
+  const defaultAuthorizationMode = resolveUpdatedSetting(
+    partial.defaultAuthorizationMode,
+    current.defaultAuthorizationMode,
+    resolveDefaultAuthorizationMode,
+  )
+  return {
     selectedModel,
     favoriteModels,
     enabledModels,
     projectPath,
-    thinkingLevel,
+    updateChannel,
     recentProjects,
     skillTogglesByProject,
+    agentDefinitionTogglesByProject,
     projectDisplayNames,
-  } satisfies Settings
+    shortcutRules,
+    shortcutBindings,
+    extensionPanelShortcutBindings,
+    defaultSessionEnvironmentMode,
+    defaultAuthorizationMode,
+  }
 }

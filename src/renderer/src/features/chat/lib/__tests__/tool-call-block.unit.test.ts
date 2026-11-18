@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   buildFencedCodeMarkdown,
   buildTailPreview,
-  getEditUnifiedDiff,
   getResultError,
   getStringArg,
   getToolResultText,
   inferLanguageFromPath,
   shouldHighlightCode,
 } from '../tool-call-block'
+import { stringifyToolInput } from '../chat-stream-state-helpers'
 
 const LONG_HIGHLIGHT_TEXT = `${'x'.repeat(80_000)}x`
 const MANY_LINE_TEXT = Array.from({ length: 1_201 }, () => 'line').join('\n')
@@ -26,6 +26,21 @@ describe('tool call block view helpers', () => {
         ],
       }),
     ).toBe('first\nsecond')
+    expect(getToolResultText({ content: [], details: 'undefined' })).toBe('')
+    expect(getToolResultText({ content: [], message: 'done' })).toBe('done')
+    expect(getToolResultText({ content: [], error: 'failed' })).toBe('failed')
+    expect(
+      getToolResultText({ content: [{ type: 'image', mimeType: 'image/png', data: 'abc' }] }),
+    ).toContain('"type": "image"')
+  })
+
+  // A bigint or a cycle survives structured clone but makes JSON.stringify throw; the fallback
+  // printed `[object Object]` (fix(renderer): show tool data JSON cannot encode).
+  it('shows a result JSON cannot encode as JSON text, not [object Object]', () => {
+    const result: { count: bigint; self?: unknown } = { count: 2n }
+    result.self = result
+    expect(getToolResultText(result)).toBe('{\n  "count": "2",\n  "self": "[Circular]"\n}')
+    expect(stringifyToolInput({ id: 7n })).toBe('{"id":"7"}')
   })
 
   it('extracts explicit and structured error messages', () => {
@@ -61,24 +76,6 @@ describe('tool call block view helpers', () => {
     expect(buildFencedCodeMarkdown('const s = ```', 'typescript')).toBe(
       '````typescript\nconst s = ```\n````',
     )
-  })
-
-  it('parses edit diffs from normalized tool result details', () => {
-    const diff = getEditUnifiedDiff(
-      {
-        kind: 'json',
-        data: {
-          details: {
-            diff: '@@ -1 +1 @@\n-old\n+new',
-          },
-        },
-      },
-      'edit',
-    )
-
-    expect(diff?.additions).toBe(1)
-    expect(diff?.deletions).toBe(1)
-    expect(diff?.lines.map((line) => line.type)).toEqual(['meta', 'remove', 'add'])
   })
 
   it('returns the last visible output lines for long command output', () => {

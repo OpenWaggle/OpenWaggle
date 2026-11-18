@@ -1,11 +1,28 @@
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import {
+  mkdtemp as createTemporaryDirectory,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
-import {
-  checkPackageApiSnapshots,
-  createPackageApiSnapshot,
-} from '../package-api-snapshots.js'
+import { afterEach, describe, expect, it } from 'vitest'
+import { checkPackageApiSnapshots, createPackageApiSnapshot } from '../package-api-snapshots.js'
+
+const projectRoots: string[] = []
+
+async function mkdtemp(prefix: string) {
+  const projectRoot = await createTemporaryDirectory(prefix)
+  projectRoots.push(projectRoot)
+  return projectRoot
+}
+
+afterEach(async () => {
+  await Promise.all(
+    projectRoots.splice(0).map((projectRoot) => rm(projectRoot, { recursive: true, force: true })),
+  )
+})
 
 describe('createPackageApiSnapshot', () => {
   it('renders the typed public exports for one package', async () => {
@@ -88,7 +105,9 @@ describe('checkPackageApiSnapshots', () => {
       }),
     ).resolves.toEqual({
       changedSnapshots: ['scripts/api-snapshots/example.api.md'],
-      violations: ['scripts/api-snapshots/example.api.md is stale. Run pnpm api:snapshot:update.'],
+      violations: [
+        'scripts/api-snapshots/example.api.md is stale. Run bun run api:snapshot:update.',
+      ],
       writtenSnapshots: [],
     })
   })

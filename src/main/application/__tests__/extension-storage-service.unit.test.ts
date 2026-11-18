@@ -23,13 +23,13 @@ const STORAGE_KEY: ExtensionStorageKey = {
   key: 'settings',
 }
 
-function storageItem(value: JsonValue): ExtensionStorageItem {
+function storageItem(value: JsonValue) {
   return {
     ...STORAGE_KEY,
     value,
     createdAt: 1000,
     updatedAt: 1000,
-  }
+  } satisfies ExtensionStorageItem
 }
 
 function makeLayer(initialItem: ExtensionStorageItem | null = null) {

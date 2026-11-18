@@ -11,7 +11,7 @@ import { ExtensionBuildRunner } from '../ports/extension-build-runner'
 const BUILD_MAX_BUFFER = BASE_TEN * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
 const SUCCESS_EXIT_CODE = 0
 
-function childEnv(): Record<string, string> {
+function childEnv() {
   const result: Record<string, string> = {}
   for (const [key, value] of Object.entries(getSafeChildEnv())) {
     if (value !== undefined) {
@@ -37,15 +37,12 @@ function failedStderr(error: { readonly message: string }, stderr: string) {
   return stderr.trim().length > 0 ? stderr : error.message
 }
 
-function runBuildCommand(input: {
-  readonly packagePath: string
-  readonly command: string
-}): Promise<{
-  readonly exitCode: number | null
-  readonly stdout: string
-  readonly stderr: string
-}> {
-  return new Promise((resolve) => {
+function runBuildCommand(input: { readonly packagePath: string; readonly command: string }) {
+  return new Promise<{
+    readonly exitCode: number | null
+    readonly stdout: string
+    readonly stderr: string
+  }>((resolve) => {
     execFile(
       shellCommand(),
       shellArgs(input.command),

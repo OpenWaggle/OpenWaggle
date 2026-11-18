@@ -4,7 +4,7 @@ import { isInheritedWaggleModelBinding, type WaggleConfig } from '@shared/types/
 function resolveWaggleRuntimeModel(input: {
   readonly model: WaggleConfig['agents'][number]['model']
   readonly inheritedModel: SupportedModelId
-}): SupportedModelId {
+}) {
   return isInheritedWaggleModelBinding(input.model)
     ? input.inheritedModel
     : SupportedModelId(input.model)
@@ -13,7 +13,7 @@ function resolveWaggleRuntimeModel(input: {
 export function resolveWaggleRuntimeConfig(input: {
   readonly config: WaggleConfig
   readonly inheritedModel: SupportedModelId
-}): WaggleConfig {
+}) {
   const [firstAgent, secondAgent] = input.config.agents
   return {
     ...input.config,
@@ -33,5 +33,5 @@ export function resolveWaggleRuntimeConfig(input: {
         }),
       },
     ],
-  }
+  } satisfies WaggleConfig
 }

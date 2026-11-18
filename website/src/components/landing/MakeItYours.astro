@@ -1,0 +1,40 @@
+---
+const points = [
+  {
+    title: 'Extensions add screens',
+    description: 'An extension can add a side panel, a settings page, a dialog, a status widget, or its own card in the transcript. It can also give the agent new tools.',
+  },
+  {
+    title: 'Use any UI stack',
+    description: 'Each screen an extension adds is a module that exports one mount function. Write it in React, Vue, Svelte, or plain DOM, and OpenWaggle loads it into the app.',
+  },
+  {
+    title: 'Nothing installs without you',
+    description: 'The agent proposes a package. OpenWaggle writes it only after you approve that exact set of files, and asks a second time before installing anything globally.',
+  },
+  {
+    title: 'Commit it with the project',
+    description: 'Project extensions live in .openwaggle/extensions, so they travel with the repo. Each person still reviews and enables them on their own machine.',
+  },
+];
+---
+
+<section class="mx-auto max-w-6xl px-6 md:px-12" aria-labelledby="make-it-yours-heading">
+  <div class="border-t border-border-light py-12">
+    <p class="text-xs font-medium uppercase tracking-widest text-accent">Make it yours</p>
+    <h2 id="make-it-yours-heading" class="mt-3 font-display text-3xl font-semibold tracking-tight">The agent can extend the app it runs in.</h2>
+    <p class="mt-3 max-w-2xl leading-relaxed text-text-tertiary">OpenWaggle can extend itself. Describe the panel, command, or tool you want and the agent writes an extension for it. You see every file and permission before anything is installed.</p>
+    <div class="mt-8 grid gap-x-16 gap-y-10 md:grid-cols-2">
+      {points.map(({ title, description }) => (
+        <div>
+          <h3 class="font-display text-xl font-semibold">{title}</h3>
+          <p class="mt-3 leading-relaxed text-text-tertiary">{description}</p>
+        </div>
+      ))}
+    </div>
+    <div class="mt-8 flex flex-wrap gap-x-8 gap-y-2">
+      <a href="/docs/extending/plugins/" class="inline-block text-sm text-accent underline-offset-4 hover:underline">Install extensions <span aria-hidden="true">→</span></a>
+      <a href="/docs/extending/openwaggle-extensions/" class="inline-block text-sm text-accent underline-offset-4 hover:underline">Develop extensions <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</section>

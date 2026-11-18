@@ -25,9 +25,7 @@ function grantIsCurrent(input: {
   )
 }
 
-function runtimeRequirementsToView(
-  manifest: ExtensionManifest,
-): readonly ExtensionRuntimeRequirementView[] {
+function runtimeRequirementsToView(manifest: ExtensionManifest) {
   const requirements: ExtensionRuntimeRequirementView[] = []
 
   for (const requirement of manifest.runtimeRequirements ?? []) {
@@ -60,7 +58,7 @@ function capabilityRequirementToView(
   extensionPackage: DiscoveredExtensionPackage,
   lifecycle: ExtensionLifecycleState | null,
   capability: ExtensionCapabilityManifestDeclaration,
-): ExtensionCapabilityRequirementView {
+) {
   return {
     kind: OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.PRIVILEGED_CAPABILITY,
     id: capability.id,
@@ -71,7 +69,7 @@ function capabilityRequirementToView(
     capabilityId: capability.id,
     ...(capability.methods !== undefined ? { methods: capability.methods } : {}),
     ...(capability.scopes !== undefined ? { scopes: capability.scopes } : {}),
-  }
+  } satisfies ExtensionCapabilityRequirementView
 }
 
 function hasEntries(entries: readonly unknown[] | undefined) {
@@ -97,9 +95,7 @@ function hasVisualContributions(manifest: ExtensionManifest) {
   )
 }
 
-function uniqueNetworkAccessModes(
-  modes: readonly ExtensionNetworkAccessMode[],
-): readonly ExtensionNetworkAccessMode[] {
+function uniqueNetworkAccessModes(modes: readonly ExtensionNetworkAccessMode[]) {
   const uniqueModes: ExtensionNetworkAccessMode[] = []
   const seenModes = new Set<ExtensionNetworkAccessMode>()
   for (const mode of modes) {
@@ -111,7 +107,7 @@ function uniqueNetworkAccessModes(
   return uniqueModes
 }
 
-function networkAccessModes(manifest: ExtensionManifest): readonly ExtensionNetworkAccessMode[] {
+function networkAccessModes(manifest: ExtensionManifest) {
   const modes: ExtensionNetworkAccessMode[] = []
 
   if (manifest.trusted?.main !== undefined || manifest.trusted?.renderer !== undefined) {
@@ -132,7 +128,7 @@ function networkRequirementToView(
   lifecycle: ExtensionLifecycleState | null,
   manifest: ExtensionManifest,
   origins: readonly string[],
-): ExtensionNetworkRequirementView | null {
+) {
   if (origins.length === 0) {
     return null
   }
@@ -150,13 +146,13 @@ function networkRequirementToView(
     }),
     origins,
     accessModes: networkAccessModes(manifest),
-  }
+  } satisfies ExtensionNetworkRequirementView
 }
 
 function localBuildRequirementToView(
   extensionPackage: DiscoveredExtensionPackage,
   lifecycle: ExtensionLifecycleState | null,
-): ExtensionPrivilegeRequirementView | null {
+) {
   const manifest = extensionPackage.manifest
   const requiresLocalBuild =
     extensionPackage.buildPlan?.approvalRequired === true ||
@@ -180,14 +176,14 @@ function localBuildRequirementToView(
     command: extensionPackage.buildPlan?.command ?? manifest?.build?.command ?? null,
     outputCount:
       extensionPackage.buildPlan?.outputPaths.length ?? manifest?.builtArtifacts.length ?? 0,
-  }
+  } satisfies ExtensionPrivilegeRequirementView
 }
 
 function trustedRuntimeRequirementsToView(
   extensionPackage: DiscoveredExtensionPackage,
   lifecycle: ExtensionLifecycleState | null,
   manifest: ExtensionManifest,
-): readonly ExtensionPrivilegeRequirementView[] {
+) {
   const requirements: ExtensionPrivilegeRequirementView[] = []
 
   if (manifest.trusted?.main !== undefined) {
@@ -227,10 +223,10 @@ function trustedRuntimeRequirementsToView(
 function privilegeRequirementsToView(
   extensionPackage: DiscoveredExtensionPackage,
   lifecycle: ExtensionLifecycleState | null,
-): readonly ExtensionPrivilegeRequirementView[] {
+) {
   const manifest = extensionPackage.manifest
   if (!manifest) {
-    return []
+    return [] satisfies readonly ExtensionPrivilegeRequirementView[]
   }
 
   const requirements: ExtensionPrivilegeRequirementView[] = []
@@ -260,14 +256,15 @@ function privilegeRequirementsToView(
 export function requirementsToView(
   extensionPackage: DiscoveredExtensionPackage,
   lifecycle: ExtensionLifecycleState | null = null,
-): ExtensionPackageRequirementsView {
+) {
   if (!extensionPackage.manifest) {
-    return {
+    const view: ExtensionPackageRequirementsView = {
       runtime: [],
       privileges: [],
       consentRequired: false,
       missingGrantIds: [],
     }
+    return view
   }
 
   const privileges = privilegeRequirementsToView(extensionPackage, lifecycle)
@@ -278,10 +275,11 @@ export function requirementsToView(
     }
   }
 
-  return {
+  const view: ExtensionPackageRequirementsView = {
     runtime: runtimeRequirementsToView(extensionPackage.manifest),
     privileges,
     consentRequired: privileges.length > 0,
     missingGrantIds,
   }
+  return view
 }

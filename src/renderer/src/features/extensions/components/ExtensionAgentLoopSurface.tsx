@@ -1,6 +1,6 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import type { JsonObject } from '@shared/types/json'
+import type { JsonObject, JsonValue } from '@shared/types/json'
 import { Bot } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
@@ -11,11 +11,7 @@ import {
 } from '../lib/extension-agent-loop-resolution'
 import type {
   ExtensionAgentLoopSurfaceInput,
-  ExtensionCustomMessageView,
-  ExtensionInteractionActionView,
   ExtensionInteractionView,
-  ExtensionStatusView,
-  ExtensionToolResultView,
 } from '../lib/extension-agent-loop-surface-model'
 import {
   CUSTOM_INTERACTION_RESPONSE_ACTION_ID,
@@ -28,14 +24,7 @@ import {
 import { ExtensionAgentLoopFallback } from './ExtensionAgentLoopFallback'
 import { ExtensionContributionRuntimeHost } from './ExtensionContributionRuntimeHost'
 
-export type {
-  ExtensionAgentLoopSurfaceInput,
-  ExtensionCustomMessageView,
-  ExtensionInteractionActionView,
-  ExtensionInteractionView,
-  ExtensionStatusView,
-  ExtensionToolResultView,
-}
+export type { ExtensionAgentLoopSurfaceInput, ExtensionInteractionView }
 export { CUSTOM_INTERACTION_RESPONSE_ACTION_ID, CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID }
 
 const TRANSCRIPT_RENDERER_MAX_HEIGHT = 360
@@ -53,10 +42,10 @@ function ExtensionAgentLoopChrome({
   readonly children: ReactNode
 }) {
   return (
-    <section className="rounded-xl border border-border bg-[#111418] p-3 text-text-secondary">
+    <section className="rounded-xl border border-border bg-bg-secondary p-3 text-text-secondary">
       <div className="mb-3 flex min-w-0 items-center gap-2">
         <Bot className="size-4 shrink-0 text-accent" />
-        <h3 className="truncate text-[12px] font-semibold text-text-primary">{title}</h3>
+        <h3 className="truncate text-xs font-semibold text-text-primary">{title}</h3>
       </div>
       {children}
     </section>
@@ -91,11 +80,12 @@ function ExtensionRenderer({
         entry={entry}
         maxAutoHeight={agentLoopRendererMaxHeight(input)}
         minAutoHeight={AGENT_LOOP_RENDERER_MIN_HEIGHT}
-        onSurfaceAction={
-          input.surface === 'interaction' && input.onAction
-            ? (actionId, payload) => input.onAction?.(input.interaction.id, actionId, payload)
-            : undefined
-        }
+        {...(input.surface === 'interaction' && input.onAction
+          ? {
+              onSurfaceAction: (actionId: string, payload?: JsonValue) =>
+                input.onAction?.(input.interaction.id, actionId, payload),
+            }
+          : {})}
         surfacePayload={payload}
       />
     </PanelErrorBoundary>
@@ -117,7 +107,7 @@ function TranscriptRenderers({
   readonly payload: JsonObject
 }) {
   return (
-    <section aria-label="Transcript extension renderers" className="grid gap-3">
+    <section aria-label="Transcript extension renderers" className="grid min-w-0 grid-cols-1 gap-3">
       {contributions.map((contribution) => (
         <ExtensionAgentLoopChrome
           key={extensionContributionKey(contribution)}

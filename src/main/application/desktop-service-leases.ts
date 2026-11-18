@@ -1,0 +1,298 @@
+import { randomUUID } from 'node:crypto'
+import type { DesktopOwnerRecord } from '@shared/types/desktop-owner'
+import {
+  DESKTOP_SERVICE_LIMITS,
+  type DesktopServiceRequest,
+  type DesktopServiceResponse,
+} from '@shared/types/desktop-service'
+import * as Effect from 'effect/Effect'
+import type { DesktopFenceRepositoryShape } from '../ports/desktop-fence-repository'
+import type { DesktopOwnerRepositoryShape } from '../ports/desktop-owner-repository'
+import type { DesktopServiceCommandQueue } from './desktop-service-command-queue'
+import { desktopUnavailableError } from './desktop-service-errors'
+
+const DRAINING_POLL_TIMEOUT_MS = 100
+
+interface DesktopLease {
+  readonly id: string
+  readonly guiInstanceId: string
+  lastSeen: number
+  ready: boolean
+  polling: boolean
+  draining: boolean
+}
+
+interface DesktopServiceLeasesInput {
+  readonly getHostInstanceId: () => string
+  readonly fences: DesktopFenceRepositoryShape
+  readonly owners: DesktopOwnerRepositoryShape
+  readonly queue: DesktopServiceCommandQueue
+}
+
+export class DesktopServiceLeases {
+  private lease: DesktopLease | undefined
+  private closed = false
+  private admissionTail = Promise.resolve()
+  private boundHostInstanceId: string | undefined
+  private readonly input: DesktopServiceLeasesInput
+
+  constructor(input: DesktopServiceLeasesInput) {
+    this.input = input
+  }
+
+  admit<A>(operation: () => Promise<A>) {
+    const current = this.admissionTail.then(operation)
+    // A rejected admission must not poison later independent admissions.
+    this.admissionTail = current.then(
+      () => undefined,
+      () => undefined,
+    )
+    return current
+  }
+
+  hostInstanceId() {
+    const current = this.input.getHostInstanceId()
+    if (
+      !current ||
+      (this.boundHostInstanceId !== undefined && this.boundHostInstanceId !== current)
+    ) {
+      throw new Error('Desktop services are not bound to the current Session Host instance.')
+    }
+    this.boundHostInstanceId = current
+    return current
+  }
+
+  readFences() {
+    return Effect.runPromise(this.input.fences.getAll())
+  }
+
+  current() {
+    if (this.closed) throw desktopUnavailableError()
+    if (this.lease && Date.now() - this.lease.lastSeen > DESKTOP_SERVICE_LIMITS.leaseTimeoutMs) {
+      this.revoke()
+    }
+    return this.lease
+  }
+
+  require(id?: string, ready = false) {
+    const lease = this.current()
+    if (!lease) throw desktopUnavailableError()
+    if (id !== undefined && lease.id !== id) throw new Error('The desktop lease is stale.')
+    if (ready && !lease.ready) throw desktopUnavailableError()
+    return lease
+  }
+
+  private revoke() {
+    if (this.lease) this.input.queue.revoke(this.lease.id)
+    this.lease = undefined
+  }
+
+  private async register(guiInstanceId: string, recover = false) {
+    return this.admit<DesktopServiceResponse>(async () => {
+      const current = this.current()
+      const durable = await Effect.runPromise(this.input.owners.get())
+      if (durable?.state === 'active' && durable.guiInstanceId !== guiInstanceId) {
+        if (!recover) return { operation: 'quarantined', reason: 'previous-owner-unclean' }
+        await this.recoverStaleOwner(current, durable, guiInstanceId)
+      }
+      if (current && current.guiInstanceId !== guiInstanceId) {
+        throw new Error('Another OpenWaggle desktop owns the current lease.')
+      }
+      await Effect.runPromise(
+        this.input.owners.activate({ guiInstanceId, hostInstanceId: this.hostInstanceId() }),
+      )
+      const owner = current ?? {
+        id: randomUUID(),
+        guiInstanceId,
+        lastSeen: Date.now(),
+        ready: false,
+        polling: false,
+        draining: false,
+      }
+      this.lease = owner
+      owner.ready = false
+      owner.lastSeen = Date.now()
+      const fences = await this.readFences()
+      this.require(owner.id)
+      return {
+        operation: 'register',
+        leaseId: owner.id,
+        hostInstanceId: this.hostInstanceId(),
+        fences,
+      }
+    })
+  }
+
+  /**
+   * ADR 0049: no process can prove an unclean desktop's children settled, so the user attests to
+   * it. That attestation also covers mutations of earlier Hosts, which no live Host can release.
+   * It runs inside the registration admission and swaps owners in one transaction.
+   */
+  private async recoverStaleOwner(
+    current: DesktopLease | undefined,
+    stale: DesktopOwnerRecord,
+    guiInstanceId: string,
+  ) {
+    if (current) {
+      throw new Error(
+        'Another OpenWaggle window is still connected, or the previous one has not timed out yet. Try again in a few seconds.',
+      )
+    }
+    const hostInstanceId = this.hostInstanceId()
+    // Released before the owner swap, outside its transaction. If the swap then fails the user's
+    // retry finds no orphans left and completes it; release is part of the same attestation.
+    const orphans = (await this.readFences()).filter(
+      (fence) => fence.state === 'active' && fence.hostInstanceId !== hostInstanceId,
+    )
+    await Effect.runPromise(
+      Effect.forEach(
+        orphans,
+        (fence) => this.input.fences.markReleased(fence.token, fence.hostInstanceId),
+        { discard: true },
+      ),
+    )
+    await Effect.runPromise(
+      this.input.owners.replaceStale(
+        { guiInstanceId: stale.guiInstanceId, hostInstanceId: stale.hostInstanceId },
+        { guiInstanceId, hostInstanceId },
+      ),
+    )
+  }
+
+  private async markClosed(request: Extract<DesktopServiceRequest, { operation: 'markClosed' }>) {
+    return this.admit<DesktopServiceResponse>(async () => {
+      const current = this.current()
+      const durable = await Effect.runPromise(this.input.owners.get())
+      if (
+        current ||
+        !this.input.queue.isIdle() ||
+        !durable ||
+        durable.guiInstanceId !== request.guiInstanceId ||
+        durable.hostInstanceId !== request.hostInstanceId
+      ) {
+        throw new Error('The clean desktop receipt does not match the disconnected native owner.')
+      }
+      const fences = await this.readFences()
+      if (fences.some((fence) => fence.state === 'active')) {
+        throw new Error(
+          'Outstanding desktop mutations must be reconciled before recording clean shutdown.',
+        )
+      }
+      // The exact durable old Host identity remains valid after a Host restart. GUI proof is
+      // submitted only after actual native disposal; a transport disconnect is never this proof.
+      await Effect.runPromise(
+        this.input.owners.markClosed(request.guiInstanceId, request.hostInstanceId),
+      )
+      return { operation: 'markClosed', accepted: true }
+    })
+  }
+
+  private async poll(leaseId: string, signal: AbortSignal) {
+    const owner = this.require(leaseId, true)
+    if (owner.polling) throw new Error('This desktop already has a pending poll.')
+    owner.polling = true
+    owner.lastSeen = Date.now()
+    try {
+      const revision = this.input.queue.revision()
+      let commands = this.input.queue.take(leaseId)
+      if (commands.length === 0 && this.input.queue.cancelledFor(leaseId).length === 0) {
+        // Shutdown still requires a fresh snapshot after admission closes. Keep these
+        // polls paced but prompt: two normal long polls consume the entire quit budget.
+        await this.input.queue.wait(
+          signal,
+          revision,
+          owner.draining ? DRAINING_POLL_TIMEOUT_MS : DESKTOP_SERVICE_LIMITS.pollTimeoutMs,
+        )
+        signal.throwIfAborted()
+        this.require(leaseId, true)
+        commands = this.input.queue.take(leaseId)
+      }
+      const fences = await this.readFences()
+      this.require(leaseId, true)
+      owner.lastSeen = Date.now()
+      const response: DesktopServiceResponse = {
+        operation: 'poll',
+        commands,
+        cancelledCommandIds: this.input.queue.cancelledFor(leaseId),
+        fences,
+      }
+      return response
+    } finally {
+      owner.polling = false
+    }
+  }
+
+  async handle(request: DesktopServiceRequest, signal: AbortSignal) {
+    if (request.operation === 'register' || request.operation === 'recoverOwner') {
+      return this.register(request.guiInstanceId, request.operation === 'recoverOwner')
+    }
+    if (request.operation === 'markClosed') return this.markClosed(request)
+    if (request.operation === 'disconnect' && !this.current()) {
+      const response: DesktopServiceResponse = { operation: 'disconnect', accepted: true }
+      return response
+    }
+    const owner = this.require(request.leaseId)
+    owner.lastSeen = Date.now()
+    if (request.operation === 'poll') return this.poll(request.leaseId, signal)
+    if (request.operation === 'ready') {
+      return this.admit<DesktopServiceResponse>(async () => {
+        const records = await this.readFences()
+        this.require(owner.id)
+        const active = records
+          .filter((record) => record.state === 'active')
+          .map((record) => record.token)
+        const tokens = new Set(request.fenceTokens)
+        if (
+          tokens.size !== request.fenceTokens.length ||
+          tokens.size !== active.length ||
+          active.some((token) => !tokens.has(token))
+        ) {
+          throw new Error(
+            'Desktop fences changed during attachment. Reconcile before accepting commands.',
+          )
+        }
+        owner.ready = true
+        return { operation: 'ready', accepted: true }
+      })
+    }
+    if (request.operation === 'complete') {
+      const response: DesktopServiceResponse = {
+        operation: 'complete',
+        accepted: this.input.queue.complete(owner.id, request.completion),
+      }
+      return response
+    }
+    if (request.operation === 'acknowledgeReleased') {
+      await Effect.runPromise(
+        this.input.fences.removeReleased(request.token, request.hostInstanceId),
+      )
+      this.require(owner.id)
+      this.input.queue.wake()
+      const response: DesktopServiceResponse = { operation: 'acknowledgeReleased', accepted: true }
+      return response
+    }
+    if (request.operation === 'heartbeat') {
+      const response: DesktopServiceResponse = { operation: 'heartbeat', accepted: true }
+      return response
+    }
+    if (request.operation === 'prepareDisconnect' || request.operation === 'resumeDesktop') {
+      return this.admit<DesktopServiceResponse>(async () => {
+        this.require(owner.id)
+        owner.draining = request.operation === 'prepareDisconnect'
+        this.input.queue.wake()
+        if (request.operation === 'prepareDisconnect') {
+          return { operation: 'prepareDisconnect', accepted: true, fences: await this.readFences() }
+        }
+        return { operation: request.operation, accepted: true }
+      })
+    }
+    this.revoke()
+    const response: DesktopServiceResponse = { operation: 'disconnect', accepted: true }
+    return response
+  }
+
+  close() {
+    this.closed = true
+    this.revoke()
+  }
+}

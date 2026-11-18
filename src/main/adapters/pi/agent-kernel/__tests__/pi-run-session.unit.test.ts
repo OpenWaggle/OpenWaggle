@@ -1,0 +1,273 @@
+import { fromPartial } from '@total-typescript/shoehorn'
+import { beforeEach, expect, it, vi } from 'vitest'
+import {
+  HOST_TEMPORARY_DIRECTORY_ENV,
+  hostTemporaryDirectory,
+} from '../../../../utils/session-scratch-directory'
+
+interface SpawnContext {
+  command: string
+  cwd: string
+  env: NodeJS.ProcessEnv
+}
+type SpawnHook = (context: SpawnContext) => SpawnContext
+const mocks = vi.hoisted(() => ({
+  hooks: new Map<string, SpawnHook>(),
+  createSession: vi.fn(),
+  preparedEvidence: vi.fn(),
+  offersPowerShell: vi.fn(),
+}))
+
+vi.mock('@earendil-works/pi-coding-agent', () => ({
+  createBashToolDefinition: (_cwd: string, options: { spawnHook: SpawnHook }) => {
+    mocks.hooks.set('bash', options.spawnHook)
+    return { name: 'bash' }
+  },
+  createPowerShellToolDefinition: (_cwd: string, options: { spawnHook: SpawnHook }) => {
+    mocks.hooks.set('powershell', options.spawnHook)
+    return { name: 'powershell' }
+  },
+  defineTool: (definition: unknown) => definition,
+}))
+vi.mock('../../../../utils/session-evidence-directory', () => ({
+  SESSION_EVIDENCE_DIRECTORY_ENV: 'OPENWAGGLE_EVIDENCE_DIR',
+  preparedSessionEvidenceDirectory: mocks.preparedEvidence,
+}))
+vi.mock('../powershell-availability', () => ({
+  offersPowerShellTool: mocks.offersPowerShell,
+}))
+vi.mock('../../pi-session-lifecycle', () => ({
+  createOpenWaggleAgentSessionFromServices: mocks.createSession,
+}))
+
+import { createPiSessionForRun } from '../pi-run-session'
+
+beforeEach(() => {
+  mocks.hooks.clear()
+  mocks.createSession.mockResolvedValue({ session: { setThinkingLevel: vi.fn() } })
+  mocks.preparedEvidence.mockReset().mockReturnValue('/private/evidence/session-a')
+  mocks.offersPowerShell.mockReset().mockReturnValue(true)
+})
+
+it('leaves PowerShell out where Pi cannot run it', async () => {
+  mocks.offersPowerShell.mockReturnValue(false)
+  await createPiSessionForRun(
+    fromPartial({
+      preparedEnvironment: { PATH: '/prepared/bin' },
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+    }),
+  )
+
+  expect(mocks.offersPowerShell).toHaveBeenCalledWith(process.platform)
+  expect(mocks.createSession).toHaveBeenCalledWith(
+    expect.objectContaining({ customTools: [{ name: 'bash' }] }),
+  )
+})
+
+it('applies persisted removals to both Pi shell tools without mutating their ambient environment', async () => {
+  await createPiSessionForRun(
+    fromPartial({
+      preparedEnvironment: { HTTPS_PROXY: null, READY: 'yes', EMPTY: '' },
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  for (const name of ['bash', 'powershell']) {
+    const hook = mocks.hooks.get(name)
+    if (!hook) throw new Error(`Missing ${name} spawn hook`)
+    const context = {
+      command: 'user command',
+      cwd: '/workspace',
+      env: { HTTPS_PROXY: 'inherited', KEEP: 'value' },
+    }
+    expect(hook(context)).toEqual({
+      ...context,
+      env: {
+        KEEP: 'value',
+        READY: 'yes',
+        EMPTY: '',
+        OPENWAGGLE_PROJECT_ROOT: '/project',
+        OPENWAGGLE_WORKTREE_PATH: '/workspace',
+        OPENWAGGLE_AGENT_RUN: '1',
+      },
+    })
+    expect(context.env.HTTPS_PROXY).toBe('inherited')
+  }
+})
+
+it('keeps current workspace paths authoritative for both Pi shell tools', async () => {
+  await createPiSessionForRun(
+    fromPartial({
+      preparedEnvironment: {
+        OPENWAGGLE_PROJECT_ROOT: '/stale/project',
+        OPENWAGGLE_WORKTREE_PATH: null,
+        READY: 'yes',
+      },
+      projectRoot: '/current/project',
+      workspacePath: '/current/tree',
+      services: { cwd: '/current/tree' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  for (const name of ['bash', 'powershell']) {
+    const hook = mocks.hooks.get(name)
+    if (!hook) throw new Error(`Missing ${name} spawn hook`)
+    expect(
+      hook({
+        command: 'pwd',
+        cwd: '/current/tree',
+        env: {
+          OPENWAGGLE_PROJECT_ROOT: '/stale/inherited/project',
+          openwaggle_worktree_path: '/stale/inherited/tree',
+        },
+      }).env,
+    ).toEqual({
+      OPENWAGGLE_PROJECT_ROOT: '/current/project',
+      OPENWAGGLE_WORKTREE_PATH: '/current/tree',
+      READY: 'yes',
+      OPENWAGGLE_AGENT_RUN: '1',
+    })
+  }
+})
+
+it('points both Pi shell tools at the Session scratch directory for temp files', async () => {
+  await createPiSessionForRun(
+    fromPartial({
+      preparedEnvironment: { TMPDIR: '/tmp', READY: 'yes' },
+      scratchDirectory: '/private/scratch/session-a',
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  for (const name of ['bash', 'powershell']) {
+    const hook = mocks.hooks.get(name)
+    if (!hook) throw new Error(`Missing ${name} spawn hook`)
+    expect(
+      hook({
+        command: 'git push > "$TMPDIR/push.log" 2>&1',
+        cwd: '/workspace',
+        env: { TMPDIR: '/tmp', TMP: '/tmp', TEMP: '/tmp', KEEP: 'value' },
+      }).env,
+    ).toEqual({
+      KEEP: 'value',
+      READY: 'yes',
+      TMPDIR: '/private/scratch/session-a',
+      TMP: '/private/scratch/session-a',
+      TEMP: '/private/scratch/session-a',
+      // Keeps an agent-run `openwaggle` CLI pointed at the Host's socket fallback directory.
+      [HOST_TEMPORARY_DIRECTORY_ENV]: hostTemporaryDirectory(),
+      // Kept after archiving, so a Queen can render this Session's screenshots.
+      OPENWAGGLE_EVIDENCE_DIR: '/private/evidence/session-a',
+      OPENWAGGLE_PROJECT_ROOT: '/project',
+      OPENWAGGLE_WORKTREE_PATH: '/workspace',
+      OPENWAGGLE_AGENT_RUN: '1',
+    })
+  }
+})
+
+it('does not name an evidence directory the Run could not prepare', async () => {
+  mocks.preparedEvidence.mockReturnValue(undefined)
+  await createPiSessionForRun(
+    fromPartial({
+      scratchDirectory: '/private/scratch/session-a',
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  const hook = mocks.hooks.get('bash')
+  if (!hook) throw new Error('Missing bash spawn hook')
+
+  // Inherited from an outer Session when this Host was started from an agent shell.
+  const inherited = { OPENWAGGLE_EVIDENCE_DIR: '/private/evidence/outer-session' }
+  expect(hook({ command: 'true', cwd: '/workspace', env: inherited }).env).not.toHaveProperty(
+    'OPENWAGGLE_EVIDENCE_DIR',
+  )
+})
+
+it.each([
+  {
+    label: 'a new Pi session starts with the Session thinking level',
+    messages: [],
+    thinkingLevel: 'high' as const,
+    created: { thinkingLevel: 'high' },
+    applied: undefined,
+  },
+  {
+    label: 'an existing Pi session records the Session thinking level with setThinkingLevel',
+    messages: [{ role: 'user' }],
+    thinkingLevel: 'low' as const,
+    created: {},
+    applied: 'low',
+  },
+  {
+    label: 'without a Session thinking level Pi keeps what its entries restore',
+    messages: [{ role: 'user' }],
+    thinkingLevel: undefined,
+    created: {},
+    applied: undefined,
+  },
+])('$label', async ({ messages, thinkingLevel, created, applied }) => {
+  const setThinkingLevel = vi.fn()
+  mocks.createSession.mockResolvedValue({ session: { setThinkingLevel } })
+
+  await createPiSessionForRun(
+    fromPartial({
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages }) },
+      ...(thinkingLevel ? { thinkingLevel } : {}),
+    }),
+  )
+
+  const options: unknown = mocks.createSession.mock.calls.at(-1)?.[0]
+  if ('thinkingLevel' in created) {
+    expect(options).toMatchObject(created)
+  } else {
+    expect(options).not.toHaveProperty('thinkingLevel')
+  }
+  if (applied) {
+    expect(setThinkingLevel).toHaveBeenCalledWith(applied)
+  } else {
+    expect(setThinkingLevel).not.toHaveBeenCalled()
+  }
+})
+
+it("gives both Pi shell tools the user's PI_PACKAGE_DIR, not OpenWaggle's own", async () => {
+  const { applyPiPackageDirectoryTo } = await import('../../../../pi-package-directory-environment')
+  const bundledPi = '/app.asar/node_modules/@earendil-works/pi-coding-agent'
+  const hostEnvironment: NodeJS.ProcessEnv = { PI_PACKAGE_DIR: '/nix/store/pi' }
+  applyPiPackageDirectoryTo(bundledPi, hostEnvironment)
+  await createPiSessionForRun(
+    fromPartial({
+      projectRoot: '/project',
+      workspacePath: '/workspace',
+      services: { cwd: '/workspace' },
+      sessionManager: { buildSessionContext: () => ({ messages: [] }) },
+      thinkingLevel: 'off',
+    }),
+  )
+  for (const name of ['bash', 'powershell']) {
+    const hook = mocks.hooks.get(name)
+    if (!hook) throw new Error(`Missing ${name} spawn hook`)
+    const spawned = hook({
+      command: 'pi --version',
+      cwd: '/workspace',
+      env: { ...hostEnvironment, KEEP: 'value' },
+    })
+    expect(spawned.env).toMatchObject({ PI_PACKAGE_DIR: '/nix/store/pi', KEEP: 'value' })
+  }
+})

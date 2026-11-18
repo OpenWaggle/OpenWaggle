@@ -15,6 +15,7 @@ interface PendingInteraction {
   readonly onEvent: (event: AgentTransportEvent) => void
   readonly fallback: AgentLoopInteractionResponse
   readonly resolve: (response: AgentLoopInteractionResponse) => void
+  readonly reject: (error: Error) => void
   readonly cleanup: () => void
 }
 
@@ -26,6 +27,10 @@ export interface AgentLoopInteractionRequestInput {
 }
 
 const pendingInteractions = new Map<string, PendingInteraction>()
+const runInteractionDeadlines = new Map<
+  string,
+  { readonly timeoutMs: number; readonly onTimeout: () => void }
+>()
 const notifyAckResponse: AgentLoopInteractionResponse = { kind: 'notify', acknowledged: true }
 
 function pendingKey(input: {
@@ -36,7 +41,7 @@ function pendingKey(input: {
   return `${String(input.sessionId)}:${input.runId}:${input.interactionId}`
 }
 
-function fallbackForKind(kind: AgentLoopInteractionKind): AgentLoopInteractionResponse {
+function fallbackForKind(kind: AgentLoopInteractionKind) {
   if (kind === 'confirm') return { kind, accepted: false }
   if (kind === 'select') return { kind, selected: null }
   if (kind === 'input') return { kind, value: null }
@@ -45,11 +50,11 @@ function fallbackForKind(kind: AgentLoopInteractionKind): AgentLoopInteractionRe
   return notifyAckResponse
 }
 
-function interactionStatus(response: AgentLoopInteractionResponse): AgentLoopInteractionStatus {
-  if (response.kind === 'select' && response.selected === null) return 'cancelled'
-  if (response.kind === 'input' && response.value === null) return 'cancelled'
-  if (response.kind === 'editor' && response.value === null) return 'cancelled'
-  return 'resolved'
+function interactionStatus(response: AgentLoopInteractionResponse) {
+  if (response.kind === 'select' && response.selected === null) return 'cancelled' as const
+  if (response.kind === 'input' && response.value === null) return 'cancelled' as const
+  if (response.kind === 'editor' && response.value === null) return 'cancelled' as const
+  return 'resolved' as const
 }
 
 function emitResolved(input: {
@@ -85,10 +90,41 @@ function settlePending(input: {
   emitResolved({
     interaction: input.pending.interaction,
     response: input.response,
-    status: input.status,
+    ...(input.status === undefined ? {} : { status: input.status }),
     onEvent: input.pending.onEvent,
   })
   input.pending.resolve(input.response)
+}
+
+function expirePendingInteraction(key: string, pending: PendingInteraction) {
+  pendingInteractions.delete(key)
+  pending.cleanup()
+  const error = new Error('The Run interaction deadline expired.')
+  emitResolved({
+    interaction: pending.interaction,
+    status: 'errored',
+    error: { code: 'interaction-timeout', message: error.message },
+    onEvent: pending.onEvent,
+  })
+  runInteractionDeadlines.get(pending.interaction.runId)?.onTimeout()
+  pending.reject(error)
+}
+
+export function registerAgentLoopInteractionDeadline(input: {
+  readonly runId: string
+  readonly timeoutMs: number
+  readonly onTimeout: () => void
+}) {
+  if (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 0) {
+    throw new Error('Run interaction timeout must be a non-negative safe integer.')
+  }
+  const deadline = { timeoutMs: input.timeoutMs, onTimeout: input.onTimeout }
+  runInteractionDeadlines.set(input.runId, deadline)
+  return () => {
+    if (runInteractionDeadlines.get(input.runId) === deadline) {
+      runInteractionDeadlines.delete(input.runId)
+    }
+  }
 }
 
 function responseMatchesKind(input: {
@@ -108,12 +144,12 @@ function selectedChoiceIsValid(input: {
   )
 }
 
-function invalidResponse(message: string): AgentLoopInteractionSubmitResult {
-  return { ok: false, error: { code: 'invalid-response-payload', message } }
+function invalidResponse(message: string) {
+  return { ok: false, error: { code: 'invalid-response-payload', message } } as const
 }
 
-function mismatch(message: string): AgentLoopInteractionSubmitResult {
-  return { ok: false, error: { code: 'interaction-mismatch', message } }
+function mismatch(message: string) {
+  return { ok: false, error: { code: 'interaction-mismatch', message } } as const
 }
 
 function isPendingInteraction(
@@ -141,7 +177,7 @@ export function requestAgentLoopInteraction(input: AgentLoopInteractionRequestIn
 
   const interaction = input.interaction
 
-  return new Promise<AgentLoopInteractionResponse>((resolve) => {
+  return new Promise<AgentLoopInteractionResponse>((resolve, reject) => {
     const key = pendingKey(interaction)
     const fallback = input.fallback ?? fallbackForKind(interaction.kind)
     let timeout: ReturnType<typeof setTimeout> | null = null
@@ -165,6 +201,7 @@ export function requestAgentLoopInteraction(input: AgentLoopInteractionRequestIn
       onEvent: input.onEvent,
       fallback,
       resolve,
+      reject,
       cleanup,
     })
 
@@ -175,6 +212,17 @@ export function requestAgentLoopInteraction(input: AgentLoopInteractionRequestIn
 
     input.signal?.addEventListener('abort', abort, { once: true })
 
+    const runDeadline = runInteractionDeadlines.get(interaction.runId)
+    if (
+      runDeadline &&
+      (interaction.timeoutMs === undefined || runDeadline.timeoutMs <= interaction.timeoutMs)
+    ) {
+      timeout = setTimeout(() => {
+        const pending = pendingInteractions.get(key)
+        if (pending) expirePendingInteraction(key, pending)
+      }, runDeadline.timeoutMs)
+      return
+    }
     if (input.interaction.timeoutMs !== undefined) {
       timeout = setTimeout(abort, input.interaction.timeoutMs)
     }
@@ -204,7 +252,8 @@ export function failAgentLoopInteraction(input: {
 
 export function submitAgentLoopInteractionResponse(
   input: AgentLoopInteractionResponseInput,
-): AgentLoopInteractionSubmitResult {
+  channel?: 'approval' | 'response',
+) {
   const key = pendingKey(input)
   const pending = pendingInteractions.get(key)
   if (!pending) {
@@ -214,11 +263,21 @@ export function submitAgentLoopInteractionResponse(
         code: 'interaction-not-found',
         message: 'No pending agent-loop interaction matches this response.',
       },
-    }
+    } satisfies AgentLoopInteractionSubmitResult
   }
 
   if (pending.interaction.kind !== input.kind) {
     return mismatch('Interaction response kind does not match the pending request.')
+  }
+
+  const isAuthorization =
+    pending.interaction.kind === 'confirm' && pending.interaction.purpose === 'authorization'
+  if ((channel === 'approval' && !isAuthorization) || (channel === 'response' && isAuthorization)) {
+    return mismatch(
+      isAuthorization
+        ? 'Authorization requests require sessions:approve authority.'
+        : 'This interaction requires sessions:respond authority.',
+    )
   }
 
   if (!responseMatchesKind({ kind: input.kind, response: input.response })) {
@@ -226,11 +285,28 @@ export function submitAgentLoopInteractionResponse(
   }
 
   if (!selectedChoiceIsValid({ interaction: pending.interaction, response: input.response })) {
-    return invalidResponse('Selected value is not one of the pending Pi select choices.')
+    return invalidResponse('Selected value is not one of the pending select choices.')
   }
 
   settlePending({ key, pending, response: input.response })
-  return { ok: true, interactionId: input.interactionId, status: interactionStatus(input.response) }
+  return {
+    ok: true,
+    interactionId: input.interactionId,
+    status: interactionStatus(input.response),
+  } satisfies AgentLoopInteractionSubmitResult
+}
+
+export function listPendingAgentLoopInteractions(sessionId?: SessionId) {
+  const interactions: AgentLoopInteraction[] = []
+  for (const pending of pendingInteractions.values()) {
+    if (sessionId === undefined || pending.interaction.sessionId === sessionId) {
+      interactions.push(pending.interaction)
+    }
+  }
+  return interactions.sort(
+    (left, right) =>
+      left.createdAt - right.createdAt || left.interactionId.localeCompare(right.interactionId),
+  )
 }
 
 export function cancelAgentLoopInteractionsForRun(input: {
@@ -251,4 +327,5 @@ export function clearAgentLoopInteractionBrokerForTests() {
   for (const [key, pending] of pendingInteractions) {
     settlePending({ key, pending, response: pending.fallback, status: 'cancelled' })
   }
+  runInteractionDeadlines.clear()
 }

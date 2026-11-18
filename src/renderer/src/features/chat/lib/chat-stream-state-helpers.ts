@@ -1,20 +1,31 @@
 import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
+import { lenientJsonStringify } from '@/shared/lib/lenient-json'
 
-function createAssistantMessage(messageId: string): UIMessage {
-  return {
+function createAssistantMessage(messageId: string, startedAt?: number) {
+  const message: UIMessage = {
     id: messageId,
     role: 'assistant',
     parts: [],
-    createdAt: new Date(),
+    createdAt: new Date(startedAt ?? Date.now()),
   }
+  return message
 }
 
-export function ensureAssistantMessage(messages: readonly UIMessage[], messageId: string) {
+/**
+ * The messages with the assistant message `messageId`, created if missing. `startedAt` is the Host
+ * timestamp of the event that started it: a reconnect orders a steer it alone holds against this
+ * renderer's answers by Host time, which a late delivery does not move.
+ */
+export function ensureAssistantMessage(
+  messages: readonly UIMessage[],
+  messageId: string,
+  startedAt?: number,
+) {
   const existing = messages.find((message) => message.id === messageId)
   if (existing) {
     return [...messages]
   }
-  return [...messages, createAssistantMessage(messageId)]
+  return [...messages, createAssistantMessage(messageId, startedAt)]
 }
 
 function replaceMessage(
@@ -94,7 +105,7 @@ export function appendTextDelta(messages: readonly UIMessage[], messageId: strin
   })
 }
 
-function makeThinkingStepId(messageId: string, contentIndex: number) {
+export function makeThinkingStepId(messageId: string, contentIndex: number) {
   return `${messageId}:thinking:${String(contentIndex)}`
 }
 
@@ -153,8 +164,17 @@ export function stringifyToolInput(input: unknown) {
   try {
     return JSON.stringify(input)
   } catch {
-    return String(input)
+    return lenientJsonStringify(input)
   }
+}
+
+function isEmptyToolInput(input: unknown) {
+  return (
+    input !== null &&
+    typeof input === 'object' &&
+    !Array.isArray(input) &&
+    Object.keys(input).length === 0
+  )
 }
 
 export function ensureToolCall(
@@ -163,6 +183,8 @@ export function ensureToolCall(
   toolCallId: string,
   toolName: string,
   input?: unknown,
+  /** The call has only started: an empty first input is Pi's placeholder, still streaming. */
+  started = false,
 ) {
   const ensuredMessages = ensureAssistantMessage(messages, messageId)
   return updateAssistantParts(ensuredMessages, messageId, (parts) => {
@@ -177,7 +199,10 @@ export function ensureToolCall(
         id: toolCallId,
         name: toolName,
         arguments: stringifyToolInput(input),
-        state: input === undefined ? 'input-streaming' : 'input-complete',
+        state:
+          input === undefined || (started && isEmptyToolInput(input))
+            ? 'input-streaming'
+            : 'input-complete',
       },
     ]
   })

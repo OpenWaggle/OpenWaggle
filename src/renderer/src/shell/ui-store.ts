@@ -1,11 +1,10 @@
 import type { AgentErrorInfo } from '@shared/types/errors'
-import { create } from 'zustand'
+import { create, type StoreApi } from 'zustand'
 
 const DELAY_MS = 3500
+/** Long enough to reach a toast's button, such as Run now after saving an action. */
+const ACTION_TOAST_DELAY_MS = 8_000
 const FEEDBACK_COOLDOWN_MS = 60_000
-
-export const DIFF_PANEL_MIN = 360
-export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
 export const EXTENSION_SIDE_PANEL_ROUTE_PANEL = 'extension-side-panel'
 
@@ -17,7 +16,21 @@ export interface ExtensionRightSidebarPanel {
   readonly contentHash?: string
 }
 
-export type RightSidebarPanel = 'diff' | 'session-tree' | ExtensionRightSidebarPanel
+export type RightSidebarPanel =
+  | 'diff'
+  | 'change-request'
+  | 'file'
+  | 'resources'
+  | 'session-tree'
+  | 'hive'
+  | ExtensionRightSidebarPanel
+export type CommandSurface = 'commands' | 'files' | 'content' | null
+export type ChatCommand = 'clone-session' | 'fork-session'
+
+export interface ChatCommandRequest {
+  readonly id: number
+  readonly command: ChatCommand
+}
 
 export interface ToastData {
   message: string
@@ -31,9 +44,19 @@ export interface ToastData {
 
 export const SETTINGS_TABS = [
   'general',
+  'notifications',
+  'browser',
+  'actions',
+  'shortcuts',
+  'appearance',
   'waggle',
   'extensions',
+  'skills',
+  'agents',
+  'scheduled',
+  'permissions',
   'mcp',
+  'worktrees',
   'archived',
   'connections',
 ] as const
@@ -43,37 +66,72 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number]
 interface UIState {
   sidebarOpen: boolean
   terminalOpen: boolean
-  activeView: 'chat' | 'skills' | 'settings'
+  activeView: 'chat' | 'settings'
   activeSettingsTab: SettingsTab
   diffRefreshKey: number
   toastMessage: string | null
   toastData: ToastData | null
-  commandPaletteOpen: boolean
+  slashCommandMenuOpen: boolean
+  commandSurface: CommandSurface
+  chatCommandRequest: ChatCommandRequest | null
   feedbackModalOpen: boolean
   feedbackErrorContext: AgentErrorInfo | null
   feedbackCooldownActive: boolean
   lastRightSidebarPanel: RightSidebarPanel
+  resourceViewer: {
+    readonly sessionId: string
+    readonly resourceId: string
+    readonly galleryResourceIds?: readonly string[]
+    /** Position is needed when one message uses the same deduplicated image more than once. */
+    readonly galleryIndex?: number
+    readonly galleryTitles?: readonly string[]
+  } | null
+  workspaceTreeOpen: boolean
 
   toggleSidebar: () => void
   toggleTerminal: () => void
-  setActiveView: (view: 'chat' | 'skills' | 'settings') => void
+  setActiveView: (view: 'chat' | 'settings') => void
   setActiveSettingsTab: (tab: SettingsTab) => void
   bumpDiffRefreshKey: () => void
   closeTerminal: () => void
   showToast: (message: string, variant?: ToastData['variant']) => void
   showPersistentToast: (data: ToastData) => void
+  /** A toast with one button that still dismisses itself. */
+  showActionToast: (data: ToastData) => void
   clearToast: () => void
-  openCommandPalette: () => void
-  closeCommandPalette: () => void
-  toggleCommandPalette: () => void
+  openSlashCommandMenu: () => void
+  closeSlashCommandMenu: () => void
+  openCommandSurface: (surface: Exclude<CommandSurface, null>) => void
+  closeCommandSurface: () => void
+  requestChatCommand: (command: ChatCommand) => void
+  clearChatCommandRequest: (id: number) => void
   openFeedbackModal: (errorContext?: AgentErrorInfo) => void
   closeFeedbackModal: () => void
   startFeedbackCooldown: () => void
   setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
+  openResourceViewer: (
+    sessionId: string,
+    resourceId: string,
+    galleryResourceIds?: readonly string[],
+    galleryIndex?: number,
+    galleryTitles?: readonly string[],
+  ) => void
+  closeResourceViewer: () => void
+  toggleWorkspaceTree: () => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 let feedbackCooldownTimer: ReturnType<typeof setTimeout> | null = null
+let nextChatCommandRequestId = 1
+
+function showTimedToast(set: StoreApi<UIState>['setState'], data: ToastData, delayMs: number) {
+  if (toastTimer) clearTimeout(toastTimer)
+  set({ toastMessage: data.message, toastData: data })
+  toastTimer = setTimeout(() => {
+    toastTimer = null
+    set({ toastMessage: null, toastData: null })
+  }, delayMs)
+}
 
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarOpen: true,
@@ -83,11 +141,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   diffRefreshKey: 0,
   toastMessage: null,
   toastData: null,
-  commandPaletteOpen: false,
+  slashCommandMenuOpen: false,
+  commandSurface: null,
+  chatCommandRequest: null,
   feedbackModalOpen: false,
   feedbackErrorContext: null,
   feedbackCooldownActive: false,
   lastRightSidebarPanel: 'diff',
+  resourceViewer: null,
+  workspaceTreeOpen: true,
 
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen })
@@ -114,12 +176,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   showToast(message, variant = 'neutral') {
-    if (toastTimer) clearTimeout(toastTimer)
-    set({ toastMessage: message, toastData: { message, variant } })
-    toastTimer = setTimeout(() => {
-      toastTimer = null
-      set({ toastMessage: null, toastData: null })
-    }, DELAY_MS)
+    showTimedToast(set, { message, variant }, DELAY_MS)
+  },
+
+  showActionToast(data) {
+    showTimedToast(set, data, ACTION_TOAST_DELAY_MS)
   },
 
   showPersistentToast(data) {
@@ -138,16 +199,29 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ toastMessage: null, toastData: null })
   },
 
-  openCommandPalette() {
-    set({ commandPaletteOpen: true })
+  openSlashCommandMenu() {
+    if (!get().slashCommandMenuOpen) set({ slashCommandMenuOpen: true })
   },
 
-  closeCommandPalette() {
-    set({ commandPaletteOpen: false })
+  closeSlashCommandMenu() {
+    if (get().slashCommandMenuOpen) set({ slashCommandMenuOpen: false })
   },
 
-  toggleCommandPalette() {
-    set({ commandPaletteOpen: !get().commandPaletteOpen })
+  openCommandSurface(surface) {
+    set({ commandSurface: surface })
+  },
+
+  closeCommandSurface() {
+    if (get().commandSurface !== null) set({ commandSurface: null })
+  },
+
+  requestChatCommand(command) {
+    set({ chatCommandRequest: { id: nextChatCommandRequestId, command } })
+    nextChatCommandRequestId += 1
+  },
+
+  clearChatCommandRequest(id) {
+    if (get().chatCommandRequest?.id === id) set({ chatCommandRequest: null })
   },
 
   openFeedbackModal(errorContext) {
@@ -169,6 +243,28 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setLastRightSidebarPanel(panel) {
     set({ lastRightSidebarPanel: panel })
+  },
+
+  openResourceViewer(sessionId, resourceId, galleryResourceIds, galleryIndex, galleryTitles) {
+    set({
+      resourceViewer: galleryResourceIds
+        ? {
+            sessionId,
+            resourceId,
+            galleryResourceIds,
+            ...(galleryIndex === undefined ? {} : { galleryIndex }),
+            ...(galleryTitles === undefined ? {} : { galleryTitles }),
+          }
+        : { sessionId, resourceId },
+    })
+  },
+
+  closeResourceViewer() {
+    set({ resourceViewer: null })
+  },
+
+  toggleWorkspaceTree() {
+    set({ workspaceTreeOpen: !get().workspaceTreeOpen })
   },
 }))
 

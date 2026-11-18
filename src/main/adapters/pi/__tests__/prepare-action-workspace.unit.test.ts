@@ -1,0 +1,284 @@
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { SessionId } from '@shared/types/brand'
+import type { WorkspacePreparation } from '@shared/types/workspace-preparation'
+import { fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ActionRunWorkspace } from '../../../ports/action-run-service'
+import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
+import type { WorkspacePreparationServiceShape } from '../../../ports/workspace-preparation-service'
+import type { SessionWorktreeSetupDispatchOptions } from '../agent-kernel/session-worktree-setup-dispatch'
+
+const mocks = vi.hoisted(() => ({ birth: vi.fn() }))
+vi.mock('../agent-kernel/session-worktree-birth', () => ({
+  ensureSessionWorktreeProjectPath: mocks.birth,
+}))
+
+import { prepareActionWorkspace } from '../prepare-action-workspace'
+
+describe('preparation around worktree birth', () => {
+  let projectPath = ''
+  afterEach(async () => {
+    await rm(projectPath, { recursive: true, force: true })
+  })
+
+  it('captures before a future path exists and gates execution on setup in the created checkout', async () => {
+    projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-birth-')))
+    const workspacePath = join(projectPath, 'future-worktree')
+    const order: string[] = []
+    let pending = true
+    mocks.birth.mockImplementation(
+      async (_session, options: SessionWorktreeSetupDispatchOptions) => {
+        await options.onBeforeWorktreeCreate?.()
+        await mkdir(workspacePath)
+        pending = false
+        order.push('created')
+        await options.onSetupPending?.({
+          session: fromPartial({ id: SessionId('session'), projectPath }),
+          primaryPath: projectPath,
+          worktreePath: workspacePath,
+          setupGeneration: 'birth',
+          resumingClaim: false,
+        })
+        return workspacePath
+      },
+    )
+    const result = await Effect.runPromise(
+      prepareActionWorkspace(
+        fromPartial<AgentKernelRunInput>({
+          session: { id: SessionId('session'), projectPath, environmentMode: 'worktree' },
+          signal: new AbortController().signal,
+        }),
+        {
+          workspaces: {
+            getBound: () =>
+              Effect.succeed({
+                id: 'workspace',
+                projectPath,
+                workingPath: workspacePath,
+                pending,
+                kind: 'managed-worktree',
+                worktreeBranch: 'feature',
+              }),
+          },
+          preparation: fromPartial<WorkspacePreparationServiceShape>({
+            prepareBirth: (workspace: ActionRunWorkspace) =>
+              Effect.promise(async () => {
+                expect(await realpath(workspace.workspacePath)).toBe(projectPath)
+                order.push('captured-before-birth')
+                return fromPartial({})
+              }),
+            capture: (workspace: ActionRunWorkspace) =>
+              Effect.promise(async () => {
+                // The real catalog also canonicalizes its input before reading definitions.
+                const canonical = await realpath(workspace.workspacePath)
+                expect(canonical).toBe(pending ? projectPath : workspacePath)
+                order.push(pending ? 'captured-before-birth' : 'captured-existing')
+                return fromPartial({})
+              }),
+            read: () => Effect.succeed(null),
+            requireSetup: (workspace: ActionRunWorkspace) =>
+              Effect.sync(() => {
+                expect(workspace.workspacePath).toBe(workspacePath)
+                expect(pending).toBe(false)
+                order.push('setup-gate')
+                return fromPartial({})
+              }),
+            environment: () =>
+              Effect.sync(() => {
+                expect(order).toContain('setup-gate')
+                return { PREPARED: 'yes' }
+              }),
+          }),
+        },
+      ),
+    )
+    expect(order).toEqual(['captured-before-birth', 'created', 'captured-existing', 'setup-gate'])
+    expect(result).toEqual({
+      projectPath,
+      executionPath: workspacePath,
+      preparedEnvironment: { PREPARED: 'yes' },
+    })
+  })
+
+  it('does not start idle Setup after a worktree already exists', async () => {
+    projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-existing-')))
+    const workspacePath = join(projectPath, 'existing-worktree')
+    await mkdir(workspacePath)
+    mocks.birth.mockResolvedValue(workspacePath)
+    const requireSetup = vi.fn(() => Effect.succeed(fromPartial({})))
+
+    const result = await Effect.runPromise(
+      prepareActionWorkspace(
+        fromPartial<AgentKernelRunInput>({
+          session: { id: SessionId('session'), projectPath, environmentMode: 'worktree' },
+          signal: new AbortController().signal,
+        }),
+        {
+          workspaces: {
+            getBound: () =>
+              Effect.succeed({
+                id: 'workspace',
+                projectPath,
+                workingPath: workspacePath,
+                pending: false,
+                kind: 'managed-worktree',
+                worktreeBranch: 'feature',
+              }),
+          },
+          preparation: fromPartial<WorkspacePreparationServiceShape>({
+            requireSetup,
+            read: () => Effect.succeed(fromPartial<WorkspacePreparation>({ revision: 1 })),
+            inspectWorkspaceGeneration: () => Effect.succeed({ status: 'current' as const }),
+            owesSetupAfterRunBirth: () => Effect.succeed(false),
+            environment: () => Effect.succeed({ PREPARED: 'retained' }),
+          }),
+        },
+      ),
+    )
+
+    expect(requireSetup).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      projectPath,
+      executionPath: workspacePath,
+      preparedEnvironment: { PREPARED: 'retained' },
+    })
+  })
+
+  it('rejects Pi shell exports from a replaced worktree generation', async () => {
+    projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-replaced-')))
+    const workspacePath = join(projectPath, 'existing-worktree')
+    await mkdir(workspacePath)
+    mocks.birth.mockResolvedValue(workspacePath)
+    const environment = vi.fn(() => Effect.succeed({ STALE_TOOLCHAIN: '/old/bin' }))
+
+    await expect(
+      Effect.runPromise(
+        prepareActionWorkspace(
+          fromPartial<AgentKernelRunInput>({
+            session: { id: SessionId('session'), projectPath, environmentMode: 'worktree' },
+            signal: new AbortController().signal,
+          }),
+          {
+            workspaces: {
+              getBound: () =>
+                Effect.succeed({
+                  id: 'workspace',
+                  projectPath,
+                  workingPath: workspacePath,
+                  pending: false,
+                  kind: 'managed-worktree',
+                  worktreeBranch: 'feature',
+                }),
+            },
+            preparation: fromPartial<WorkspacePreparationServiceShape>({
+              read: () => Effect.succeed(fromPartial<WorkspacePreparation>({ revision: 1 })),
+              inspectWorkspaceGeneration: () =>
+                Effect.succeed({
+                  status: 'replaced' as const,
+                  workspacePath: '/stale',
+                  recorded: { device: '1', inode: '2', birthtime: '3' },
+                  observed: { device: '1', inode: '4', birthtime: '5' },
+                }),
+              environment,
+            }),
+          },
+        ),
+      ),
+    ).rejects.toThrow('no longer matches its saved preparation')
+    expect(environment).not.toHaveBeenCalled()
+  })
+})
+
+describe('Setup launch step', () => {
+  const projectPaths: string[] = []
+  afterEach(async () => {
+    await Promise.all(
+      projectPaths
+        .splice(0)
+        .map((projectPath) => rm(projectPath, { recursive: true, force: true })),
+    )
+  })
+
+  async function launchWith(preparation: WorkspacePreparation | null) {
+    const projectPath = await realpath(await mkdtemp(join(tmpdir(), 'action-setup-step-')))
+    projectPaths.push(projectPath)
+    const workspacePath = join(projectPath, 'worktree')
+    await mkdir(workspacePath)
+    const order: string[] = []
+    mocks.birth.mockImplementation(
+      async (_session, options: SessionWorktreeSetupDispatchOptions) => {
+        await options.onSetupPending?.({
+          session: fromPartial({ id: SessionId('session'), projectPath }),
+          primaryPath: projectPath,
+          worktreePath: workspacePath,
+          setupGeneration: 'birth',
+        })
+        return workspacePath
+      },
+    )
+    const onWorktreeLaunch = vi.fn((progress: { readonly stage: string }) => {
+      order.push(`progress:${progress.stage}`)
+    })
+    await Effect.runPromise(
+      prepareActionWorkspace(
+        fromPartial<AgentKernelRunInput>({
+          session: { id: SessionId('session'), projectPath, environmentMode: 'worktree' },
+          signal: new AbortController().signal,
+          onWorktreeLaunch,
+        }),
+        {
+          workspaces: {
+            getBound: () =>
+              Effect.succeed({
+                id: 'workspace',
+                projectPath,
+                workingPath: workspacePath,
+                pending: false,
+                kind: 'managed-worktree',
+                worktreeBranch: 'feature',
+              }),
+          },
+          preparation: fromPartial<WorkspacePreparationServiceShape>({
+            capture: () => Effect.succeed(fromPartial({})),
+            read: () => Effect.succeed(preparation),
+            requireSetup: () => Effect.sync(() => void order.push('setup')),
+            inspectWorkspaceGeneration: () => Effect.succeed({ status: 'current' as const }),
+            owesSetupAfterRunBirth: () => Effect.succeed(false),
+            environment: () => Effect.succeed({}),
+          }),
+        },
+      ),
+    )
+    return order
+  }
+
+  function preparationWith(setupDefinitions: number) {
+    return fromPartial<WorkspacePreparation>({
+      revision: 1,
+      setup: { status: 'idle' },
+      snapshot: {
+        profile: { id: 'default' },
+        definitions: Array.from({ length: setupDefinitions }, (_, index) => ({
+          definition: { id: `setup-${String(index)}`, profileId: 'default', phase: 'setup' },
+          review: 'enabled',
+        })),
+      },
+    })
+  }
+
+  it('reports a Setup action that will run as a step around it', async () => {
+    expect(await launchWith(preparationWith(1))).toEqual([
+      'progress:running-setup',
+      'setup',
+      'progress:running-setup',
+    ])
+  })
+
+  it('reports nothing when the profile has no Setup action to run', async () => {
+    expect(await launchWith(preparationWith(0))).toEqual(['setup'])
+    expect(await launchWith(null)).toEqual(['setup'])
+  })
+})

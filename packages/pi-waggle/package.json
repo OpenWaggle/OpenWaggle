@@ -1,7 +1,7 @@
 {
   "name": "@openwaggle/pi-waggle",
-  "version": "0.1.0",
-  "description": "Pi-native Waggle package built on top of @openwaggle/waggle-core.",
+  "version": "0.2.2",
+  "description": "Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -12,7 +12,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/pi-waggle"
   },
-  "homepage": "https://openwaggle.ai/docs/packages/pi-waggle/0.1/",
+  "homepage": "https://openwaggle.ai/docs/packages/pi-waggle/0.2/",
   "bugs": {
     "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
   },
@@ -93,20 +93,24 @@
   },
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "pnpm --filter @openwaggle/waggle-core build && tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && tsx ../../scripts/write-cjs-package-json.ts",
+    "build": "bun run --filter @openwaggle/waggle-core build && tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && bun ../../scripts/write-cjs-package-json.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
+    "pack:check": "bun run build && bun pm pack --destination .pack"
   },
   "dependencies": {
     "@openwaggle/waggle-core": "workspace:^"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.80.6",
-    "@earendil-works/pi-tui": "0.80.6",
-    "@total-typescript/shoehorn": "0.1.2"
+    "@earendil-works/pi-ai": "catalog:pi-runtime",
+    "@earendil-works/pi-coding-agent": "catalog:pi-runtime",
+    "@earendil-works/pi-tui": "catalog:pi-runtime",
+    "@total-typescript/shoehorn": "0.1.2",
+    "typebox": "catalog:pi-extension-host"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.6",
-    "@earendil-works/pi-tui": "^0.80.6"
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   }
 }

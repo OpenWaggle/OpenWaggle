@@ -10,6 +10,7 @@ export interface BranchSummaryRestoreSelection {
 
 export interface BranchSummaryPromptState {
   readonly sessionId: SessionId
+  readonly projectPath: string | null
   readonly sourceNodeId: SessionNodeId
   readonly restoreSelection: BranchSummaryRestoreSelection
   readonly previousComposerText: string
@@ -19,6 +20,7 @@ export interface BranchSummaryPromptState {
 
 interface OpenBranchSummaryPromptInput {
   readonly sessionId: SessionId
+  readonly projectPath: string | null
   readonly sourceNodeId: SessionNodeId
   readonly restoreSelection: BranchSummaryRestoreSelection
   readonly previousComposerText: string
@@ -84,3 +86,15 @@ export const useBranchSummaryStore = create<BranchSummaryStoreState>((set) => ({
     set({ prompt: null })
   },
 }))
+
+/**
+ * The message being written while a branch summary is made, which the composer does not hold: it
+ * holds the summary's instructions while they are written, and nothing once they are sent.
+ */
+export function customBranchSummaryDraft(sessionId: SessionId) {
+  const prompt = useBranchSummaryStore.getState().prompt
+  if (!prompt || String(prompt.sessionId) !== String(sessionId)) return undefined
+  return prompt.mode === 'custom' || prompt.mode === 'summarizing'
+    ? prompt.draftComposerText
+    : undefined
+}

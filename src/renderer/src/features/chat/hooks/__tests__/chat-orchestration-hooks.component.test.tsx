@@ -1,18 +1,19 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { IpcEventChannelMap } from '@shared/types/ipc-events'
-import type { WaggleConfig } from '@shared/types/waggle'
+import type { WaggleConfig, WagglePreset } from '@shared/types/waggle'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { StreamingPhaseHandle } from '@/features/chat/hooks/useStreamingPhase'
-import { useComposerStore } from '@/features/composer/state'
+import { useAgentLoopEventStore } from '../../state/agent-loop-event-store'
 import { useBackgroundRunStore } from '../../state/background-run-store'
 import { useBranchSummaryStore } from '../../state/branch-summary-store'
 import { useChatStore } from '../../state/chat-store'
 import { useBackgroundRunMonitor } from '../useBackgroundRunMonitor'
 import { useChatSendWorkflow } from '../useChatSendWorkflow'
-import { useComposerSection } from '../useComposerSection'
-import { useSessionCopyWorkflow } from '../useSessionCopyWorkflow'
+import {
+  sendWorkflowParams as baseSendWorkflowParams,
+  type SendWorkflowParams,
+} from './send-workflow-params'
 
 type AgentEventPayload = IpcEventChannelMap['agent:event']['payload']
 type RunCompletedPayload = IpcEventChannelMap['agent:run-completed']['payload']
@@ -30,6 +31,7 @@ const apiMock = vi.hoisted(() => {
     getAgentEventHandler: () => agentEventHandler,
     getRunCompletedHandler: () => runCompletedHandler,
     listActiveRuns: vi.fn(),
+    getBackgroundRun: vi.fn(),
     compactSession: vi.fn(),
     cancelWaggle: vi.fn(),
     cloneSessionToNew: vi.fn(),
@@ -52,6 +54,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     compactSession: apiMock.compactSession,
     forkSessionToNew: apiMock.forkSessionToNew,
     listActiveRuns: apiMock.listActiveRuns,
+    getBackgroundRun: apiMock.getBackgroundRun,
     onAgentEvent: apiMock.onAgentEvent,
     onRunCompleted: apiMock.onRunCompleted,
   },
@@ -72,11 +75,16 @@ function requireRunCompletedHandler() {
   return handler
 }
 
-function payload(text: string): AgentSendPayload {
-  return { text, thinkingLevel: 'medium', attachments: [] }
+function emitAgentEvent(event: AgentEventPayload['event']) {
+  requireAgentEventHandler()({ sessionId: SESSION_ID, event })
 }
 
-function waggleConfig(): WaggleConfig {
+function payload(text: string) {
+  const result: AgentSendPayload = { text, attachments: [] }
+  return result
+}
+
+function waggleConfig() {
   return {
     mode: 'sequential',
     agents: [
@@ -94,61 +102,52 @@ function waggleConfig(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: 4 },
-  }
+  } satisfies WaggleConfig
 }
 
-function phaseHandle(current: StreamingPhaseHandle['current'] = null): StreamingPhaseHandle {
+function wagglePreset() {
   return {
-    current,
-    completed: [],
-    totalElapsedMs: 0,
-    reset: vi.fn(),
-  }
+    id: WagglePresetId('review'),
+    name: 'Review',
+    description: 'Review changes',
+    config: waggleConfig(),
+    isBuiltIn: false,
+    createdAt: 1,
+    updatedAt: 1,
+  } satisfies WagglePreset
 }
 
-function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWorkflow>[0]> = {}) {
-  const params = {
-    activeSessionId: SESSION_ID,
-    branchSummary: {
-      materializeBranchSummary: vi.fn().mockResolvedValue(undefined),
-      materializeDraftBranchForSend: vi.fn().mockResolvedValue(true),
+function wagglePayload(text: string) {
+  const preset = wagglePreset()
+  return {
+    ...payload(text),
+    waggle: {
+      presetId: preset.id,
+      presetName: preset.name,
+      source: 'user',
+      config: preset.config,
     },
-    clearDraftBranchForSession: vi.fn(),
-    draftBranch: null,
-    extensionContributions: null,
-    handleSend: vi.fn().mockResolvedValue(undefined),
-    handleSendWaggle: vi.fn().mockResolvedValue(undefined),
-    model: MODEL,
-    phase: { reset: vi.fn() },
-    projectPath: '/tmp/project',
-    refreshSession: vi.fn().mockResolvedValue(undefined),
-    refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
-    sessionCopy: {
-      forkSelectorOpen: false,
-      forkTargets: [],
-      closeForkSelector: vi.fn(),
-      cloneCurrentSessionToNewSession: vi.fn().mockResolvedValue(undefined),
-      forkMessageToNewSession: vi.fn().mockResolvedValue(undefined),
-      openForkSelector: vi.fn(),
-      selectForkTarget: vi.fn(),
-    },
-    setUserDidSend: vi.fn(),
-    setWaggleConfig: vi.fn(),
-    showToast: vi.fn(),
-    startWaggleCollaboration: vi.fn(),
-    stop: vi.fn(),
-    stopWaggleCollaboration: vi.fn(),
-    waggleConfig: null,
-    waggleOwningId: null,
-    waggleStatus: 'idle',
+  } satisfies AgentSendPayload
+}
+
+function sendWorkflowParams(overrides: Partial<SendWorkflowParams> = {}) {
+  return baseSendWorkflowParams({
+    messages: [
+      {
+        id: 'persisted-user',
+        role: 'user',
+        parts: [{ type: 'text', content: 'Existing transcript' }],
+        createdAt: new Date(1),
+      },
+    ],
     ...overrides,
-  } satisfies Parameters<typeof useChatSendWorkflow>[0]
-  return params
+  })
 }
 
 describe('chat orchestration hooks', () => {
   beforeEach(() => {
     apiMock.listActiveRuns.mockReset()
+    apiMock.getBackgroundRun.mockReset().mockResolvedValue(null)
     apiMock.compactSession.mockReset()
     apiMock.cancelWaggle.mockReset()
     apiMock.cloneSessionToNew.mockReset()
@@ -160,14 +159,16 @@ describe('chat orchestration hooks', () => {
     useBackgroundRunStore.setState({
       activeRunIds: new Set(),
       renderSnapshotsBySessionId: new Map(),
+      worktreeLaunchBySessionId: new Map(),
+      firstSendRecoveryBySessionId: new Map(),
     })
+    useAgentLoopEventStore.setState({ sessionsById: new Map() })
     useBranchSummaryStore.getState().clearPrompt()
     useChatStore.setState({
       activeSessionId: null,
       sessionById: new Map(),
       sessions: [],
     })
-    useComposerStore.setState({ input: '', cursorIndex: 0, lexicalEditor: null })
   })
 
   it('tracks background run lifecycle events and clears snapshots after completion refresh', async () => {
@@ -181,11 +182,29 @@ describe('chat orchestration hooks', () => {
     )
     useBackgroundRunStore.getState().setRunRenderMessages(SESSION_ID, [])
 
+    emitAgentEvent({ type: 'agent_end', runId: 'run-1', reason: 'stop', timestamp: 0 })
+    expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
+
     requireAgentEventHandler()({
       sessionId: SESSION_ID,
-      event: { type: 'agent_end', runId: 'run-1', reason: 'stop' },
+      event: {
+        type: 'agent_interaction_request',
+        timestamp: 1,
+        interaction: {
+          interactionId: 'persistent-error',
+          sessionId: SESSION_ID,
+          runId: 'run-1',
+          kind: 'notify',
+          source: 'pi-ui',
+          createdAt: 1,
+          level: 'error',
+          message: 'Could not reach api.github.com',
+        },
+      },
     })
-    expect(useBackgroundRunStore.getState().hasActiveRun(SESSION_ID)).toBe(false)
+    expect(
+      useAgentLoopEventStore.getState().sessionsById.get(SESSION_ID)?.interactionEvents,
+    ).toHaveLength(1)
 
     requireRunCompletedHandler()({ sessionId: SESSION_ID })
     await waitFor(() => expect(refreshSession).toHaveBeenCalledWith(SESSION_ID))
@@ -209,30 +228,65 @@ describe('chat orchestration hooks', () => {
     expect(params.refreshSession).toHaveBeenCalledWith(SESSION_ID)
     expect(params.refreshSessionWorkspace).toHaveBeenCalledWith(SESSION_ID)
     expect(params.handleSend).not.toHaveBeenCalled()
+    expect(useBackgroundRunStore.getState().getRunRenderSnapshot(SESSION_ID)?.messages).toEqual(
+      params.messages,
+    )
   })
 
-  it('sends through Waggle when an idle config belongs to the active session', async () => {
-    const config = waggleConfig()
-    const params = sendWorkflowParams({ waggleConfig: config })
+  it('shows the Host reason when a /compact command is refused', async () => {
+    apiMock.compactSession.mockRejectedValue(
+      new Error(
+        "Error invoking remote method 'agent:compact-session': Error: Nothing to compact (session too small)",
+      ),
+    )
+    const params = sendWorkflowParams()
     const { result } = renderHook(() => useChatSendWorkflow(params))
 
-    await act(() => result.current.sendWithWaggle(payload('Review the refactor')))
+    await act(() => result.current.sendWithWaggle(payload('/compact')))
+
+    expect(params.showToast).toHaveBeenCalledWith('Nothing to compact (session too small)')
+    expect(params.handleSend).not.toHaveBeenCalled()
+  })
+
+  it('sends through Waggle when the one-shot payload includes a preset', async () => {
+    const config = waggleConfig()
+    const params = sendWorkflowParams()
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await act(() => result.current.sendWithWaggle(wagglePayload('Review the refactor')))
 
     expect(params.branchSummary.materializeDraftBranchForSend).toHaveBeenCalledWith(null)
     expect(params.startWaggleCollaboration).toHaveBeenCalledWith(SESSION_ID, config)
-    expect(params.handleSendWaggle).toHaveBeenCalledWith(payload('Review the refactor'), config)
+    expect(params.handleSendWaggle).toHaveBeenCalledWith(
+      wagglePayload('Review the refactor'),
+      config,
+    )
     expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
+  })
+
+  it('stops the pending Waggle state when an active-session send fails', async () => {
+    const params = sendWorkflowParams({
+      handleSendWaggle: vi.fn().mockRejectedValue(new Error('send failed')),
+    })
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await expect(
+      act(() => result.current.sendWithWaggle(wagglePayload('Review the refactor'))),
+    ).rejects.toThrow('send failed')
+
+    expect(params.startWaggleCollaboration).toHaveBeenCalledOnce()
+    expect(params.stopWaggleCollaboration).toHaveBeenCalledWith(SESSION_ID)
   })
 
   it('does not swallow first-message Waggle sends before a session exists', async () => {
     const config = waggleConfig()
-    const params = sendWorkflowParams({ activeSessionId: null, waggleConfig: config })
+    const params = sendWorkflowParams({ activeSessionId: null })
     const { result } = renderHook(() => useChatSendWorkflow(params))
 
-    await act(() => result.current.sendWithWaggle(payload('Run the same prompt again')))
+    await act(() => result.current.sendWithWaggle(wagglePayload('Run the same prompt again')))
 
     expect(params.handleSendWaggle).toHaveBeenCalledWith(
-      payload('Run the same prompt again'),
+      wagglePayload('Run the same prompt again'),
       config,
     )
     expect(params.startWaggleCollaboration).not.toHaveBeenCalled()
@@ -248,72 +302,5 @@ describe('chat orchestration hooks', () => {
     expect(apiMock.cancelWaggle).toHaveBeenCalledWith(SESSION_ID)
     expect(params.stopWaggleCollaboration).toHaveBeenCalledOnce()
     expect(params.stop).toHaveBeenCalledOnce()
-  })
-
-  it('builds composer section state and inserts skill commands without a mounted Lexical editor', () => {
-    useComposerStore.setState({ input: '/' })
-    const startWaggle = vi.fn()
-    const { result } = renderHook(() =>
-      useComposerSection({
-        isLoading: false,
-        isSteering: false,
-        status: 'ready',
-        compactionStatus: null,
-        activeSessionId: SESSION_ID,
-        waggleStatus: 'idle',
-        commandPaletteOpen: false,
-        slashSkills: [],
-        forkSelectorOpen: false,
-        forkTargets: [],
-        phase: phaseHandle({ label: 'Thinking', elapsedMs: 10 }),
-        stop: vi.fn(),
-        showToast: vi.fn(),
-        handleSteer: vi.fn().mockResolvedValue(undefined),
-        handleSendWithWaggle: vi.fn().mockResolvedValue(undefined),
-        handleStartWaggle: startWaggle,
-        handleStopCollaboration: vi.fn(),
-        handleSkipBranchSummary: vi.fn(),
-        handleSummarizeBranch: vi.fn(),
-        handleStartCustomBranchSummary: vi.fn(),
-        handleCancelBranchSummary: vi.fn(),
-        handleOpenForkSelector: vi.fn(),
-        handleCloseForkSelector: vi.fn(),
-        handleSelectForkTarget: vi.fn(),
-        handleCloneToNewSession: vi.fn(),
-      }),
-    )
-
-    act(() => result.current.onSelectSkill('audit'))
-    act(() => result.current.onStartWaggle(waggleConfig()))
-
-    expect(result.current.isLoading).toBe(true)
-    expect(useComposerStore.getState().input).toBe('/audit ')
-    expect(useComposerStore.getState().cursorIndex).toBe('/audit '.length)
-    expect(startWaggle).toHaveBeenCalledOnce()
-  })
-
-  it('keeps session copy commands safe when there is no active session or fork target', async () => {
-    const showToast = vi.fn()
-    const { result } = renderHook(() =>
-      useSessionCopyWorkflow({
-        activeSessionId: null,
-        activeWorkspace: null,
-        draftBranchSourceNodeId: SessionNodeId('draft-source'),
-        model: MODEL,
-        projectPath: '/repo',
-        navigate: vi.fn(),
-        setActiveSession: vi.fn(),
-        loadSessions: vi.fn().mockResolvedValue(undefined),
-        refreshSession: vi.fn().mockResolvedValue(undefined),
-        refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
-        showToast,
-      }),
-    )
-
-    await act(() => result.current.cloneCurrentSessionToNewSession())
-    act(() => result.current.openForkSelector())
-
-    expect(showToast).toHaveBeenCalledWith('No active session to clone.')
-    expect(showToast).toHaveBeenCalledWith('No user messages are available to fork.')
   })
 })

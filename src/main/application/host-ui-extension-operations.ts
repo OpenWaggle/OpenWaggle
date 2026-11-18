@@ -1,0 +1,167 @@
+import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { safeDecodeUnknown } from '@shared/schema'
+import {
+  extensionInvocationBindingSchema,
+  extensionInvokeInputSchema,
+} from '@shared/schemas/extension-broker'
+import { extensionRuntimeModuleAccessInputSchema } from '@shared/schemas/extensions'
+import type { ExtensionInvokeFailure } from '@shared/types/extension-broker'
+import type { ExtensionListContributionsInput } from '@shared/types/extensions'
+import * as Effect from 'effect/Effect'
+import { invokeExtensionCapability } from './extension-capability-broker-service'
+import {
+  acceptExtensionUpdate,
+  approveExtensionBuild,
+  reloadExtension,
+  setExtensionEnabled,
+  setExtensionProjectDisabled,
+  setExtensionTrusted,
+} from './extension-lifecycle-service'
+import { listExtensionPackagesView } from './extension-manager-view-service'
+import {
+  createOrUpdateExtensionPackage,
+  proposeExtensionPackageRemove,
+  proposeExtensionPackageWrite,
+  removeExtensionPackage,
+} from './extension-package-workflow-service'
+import { listExtensionContributionRegistryViewWithPanelIcons } from './extension-panel-icon-service'
+import { isExtensionRuntimeModuleAccessAllowed } from './extension-runtime-module-access-service'
+import {
+  decodeHostUiExtensionListContributionsInput,
+  decodeHostUiExtensionListPackagesInput,
+  normalizeHostUiExtensionAcceptUpdateInput,
+  normalizeHostUiExtensionApplyPackageRemoveInput,
+  normalizeHostUiExtensionApplyPackageWriteInput,
+  normalizeHostUiExtensionApproveBuildInput,
+  normalizeHostUiExtensionEnabledInput,
+  normalizeHostUiExtensionProjectDisabledInput,
+  normalizeHostUiExtensionProposePackageRemoveInput,
+  normalizeHostUiExtensionProposePackageWriteInput,
+  normalizeHostUiExtensionReloadInput,
+  normalizeHostUiExtensionTrustedInput,
+} from './host-ui-extension-input'
+
+export function listHostUiExtensionPackages(input?: unknown) {
+  return Effect.gen(function* () {
+    const decoded = yield* decodeHostUiExtensionListPackagesInput(input)
+    return yield* listExtensionPackagesView(decoded)
+  })
+}
+
+export function listHostUiExtensionContributionsWith<A, E, R>(
+  input: unknown,
+  listContributions: (input: ExtensionListContributionsInput) => Effect.Effect<A, E, R>,
+) {
+  return Effect.gen(function* () {
+    const decoded = yield* decodeHostUiExtensionListContributionsInput(input)
+    return yield* listContributions(decoded)
+  })
+}
+
+export function listHostUiExtensionContributions(input?: unknown) {
+  return listHostUiExtensionContributionsWith(
+    input,
+    listExtensionContributionRegistryViewWithPanelIcons,
+  )
+}
+
+export function authorizeHostUiExtensionRuntimeModule(input: unknown) {
+  const decoded = safeDecodeUnknown(extensionRuntimeModuleAccessInputSchema, input)
+  if (!decoded.success) {
+    return Effect.fail(
+      new Error(`Invalid runtime module authorization: ${decoded.issues.join('; ')}`),
+    )
+  }
+  return isExtensionRuntimeModuleAccessAllowed(decoded.data)
+}
+
+export function proposeHostUiExtensionPackageWrite(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionProposePackageWriteInput(input)
+    return yield* proposeExtensionPackageWrite(normalized)
+  })
+}
+
+export function applyHostUiExtensionPackageWrite(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionApplyPackageWriteInput(input)
+    return yield* createOrUpdateExtensionPackage(normalized)
+  })
+}
+
+export function proposeHostUiExtensionPackageRemove(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionProposePackageRemoveInput(input)
+    return yield* proposeExtensionPackageRemove(normalized)
+  })
+}
+
+export function applyHostUiExtensionPackageRemove(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionApplyPackageRemoveInput(input)
+    return yield* removeExtensionPackage(normalized)
+  })
+}
+
+export function setHostUiExtensionTrusted(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionTrustedInput(input)
+    return yield* setExtensionTrusted(normalized)
+  })
+}
+
+export function setHostUiExtensionEnabled(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionEnabledInput(input)
+    return yield* setExtensionEnabled(normalized)
+  })
+}
+
+export function setHostUiExtensionProjectDisabled(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionProjectDisabledInput(input)
+    return yield* setExtensionProjectDisabled(normalized)
+  })
+}
+
+export function acceptHostUiExtensionUpdate(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionAcceptUpdateInput(input)
+    return yield* acceptExtensionUpdate(normalized)
+  })
+}
+
+export function approveHostUiExtensionBuild(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionApproveBuildInput(input)
+    return yield* approveExtensionBuild(normalized)
+  })
+}
+
+export function reloadHostUiExtension(input: unknown) {
+  return Effect.gen(function* () {
+    const normalized = yield* normalizeHostUiExtensionReloadInput(input)
+    return yield* reloadExtension(normalized)
+  })
+}
+
+function invalidInvokeInput(issues: readonly string[]) {
+  return {
+    ok: false,
+    error: {
+      code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_INPUT,
+      message: 'Invalid extension capability invocation.',
+      issues,
+    },
+  } satisfies ExtensionInvokeFailure
+}
+
+export function invokeHostUiExtension(input: unknown, rawInvocationBinding?: unknown) {
+  const decoded = safeDecodeUnknown(extensionInvokeInputSchema, input)
+  if (!decoded.success) return Effect.succeed(invalidInvokeInput(decoded.issues))
+  if (rawInvocationBinding === undefined) return invokeExtensionCapability(decoded.data)
+  const binding = safeDecodeUnknown(extensionInvocationBindingSchema, rawInvocationBinding)
+  return binding.success
+    ? invokeExtensionCapability(decoded.data, { invocationBinding: binding.data })
+    : Effect.succeed(invalidInvokeInput(binding.issues))
+}

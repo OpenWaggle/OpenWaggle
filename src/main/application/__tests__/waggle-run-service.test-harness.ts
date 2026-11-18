@@ -3,20 +3,27 @@ import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { type Mock, vi } from 'vitest'
+import { SessionProjectionRepositoryError } from '../../errors'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { type AgentKernelRunInput, AgentKernelService } from '../../ports/agent-kernel-service'
+import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
 import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
+import { emptySessionCatalogMethods } from './session-repository-test-support'
 
 export const runMock: Mock = vi.fn()
 export const persistSnapshotMock: Mock = vi.fn()
+export const getTreeMock: Mock = vi.fn()
 export const recordActiveRunMock: Mock = vi.fn()
 export const clearActiveRunMock: Mock = vi.fn()
 export const clearInterruptedRunsMock: Mock = vi.fn()
+export const setTurnCheckpointAnchorMock: Mock = vi.fn()
 
 export const sessionId = SessionId('session-1')
 export const projectPath = '/tmp/openwaggle-project'
@@ -60,9 +67,12 @@ const assistantMessage: Message = {
   createdAt: 10,
 }
 
+/** What the Run reads: the Session, and the models its project's catalog lacks. */
+export const harnessState = { session, modelsNotInCatalog: new Set<string>() }
+
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
-  get: () => Effect.succeed(session),
-  getOptional: () => Effect.succeed(session),
+  get: () => Effect.sync(() => harnessState.session),
+  getOptional: () => Effect.sync(() => harnessState.session),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: () => Effect.succeed(session),
@@ -71,6 +81,18 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   unarchive: () => Effect.void,
   listArchived: () => Effect.succeed([]),
   updateTitle: () => Effect.void,
+  assignProvisionalTitle: () => Effect.succeed(true),
+  setWorktreePlan: () => Effect.void,
+  setAuthorizationMode: () => Effect.void,
+  listTurnCheckpoints: () => Effect.succeed([]),
+  getTurnDiff: () => Effect.succeed(null),
+  getTurnDiffFiles: () => Effect.succeed([]),
+  listTurnDiffFiles: () => Effect.succeed({}),
+  setTurnCheckpointAnchor: (requestedSessionId, turnId, anchorNodeId) =>
+    Effect.sync(() => {
+      setTurnCheckpointAnchorMock(requestedSessionId, turnId, anchorNodeId)
+    }),
+  ...PINNED_SESSION_REPOSITORY_STUB,
 })
 
 const TestSettingsLayer = Layer.succeed(SettingsService, {
@@ -90,9 +112,19 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
+  ...emptySessionCatalogMethods,
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(null),
+  getTree: (requestedSessionId) =>
+    Effect.suspend(() => {
+      const result = getTreeMock(requestedSessionId)
+      return result instanceof SessionProjectionRepositoryError
+        ? Effect.fail(result)
+        : Effect.succeed(result)
+    }),
+  listResourceProjectionPage: () =>
+    Effect.succeed({ nodes: [], throughCreatedOrder: null, hasMore: false }),
+  getResourceProjectionNodes: () => Effect.succeed([]),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input: PersistSessionSnapshotInput) =>
     Effect.sync(() => {
@@ -122,103 +154,107 @@ const TestSessionLayer = Layer.succeed(SessionRepository, {
 const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   createSession: () => Effect.fail(new Error('createSession is not used')),
   run: (input: AgentKernelRunInput) =>
-    Effect.promise(async () => {
-      runMock(input)
-      if (!input.waggle) throw new Error('Expected Waggle run options')
-      const meta = {
-        agentIndex: 0,
-        agentLabel: 'Architect',
-        agentColor: 'blue',
-        agentModel: selectedModel,
-        turnNumber: 0,
-        collaborationMode: 'sequential',
-        sessionId: 'waggle-session-1',
-      } as const
-      input.waggle.onWaggleEvent(
-        {
-          type: 'message_update',
-          messageId: 'assistant-node-1',
-          role: 'assistant',
-          assistantMessageEvent: {
-            type: 'text_delta',
-            contentIndex: 0,
-            delta: 'I inspected',
-          },
-          timestamp: 10,
-          model: meta.agentModel,
-        },
-        meta,
-      )
-      input.waggle.onWaggleEvent(
-        {
-          type: 'custom',
-          timestamp: 11,
-          name: 'openwaggle.github.issues.summary',
-          value: { open: 2 },
-          model: meta.agentModel,
-        },
-        meta,
-      )
-      input.waggle.onTurnEvent({
-        type: 'turn-start',
-        turnNumber: 0,
-        agentIndex: 0,
-        agentLabel: 'Architect',
-      })
-      input.waggle.onTurnEvent({
-        type: 'turn-end',
-        turnNumber: 0,
-        agentIndex: 0,
-        agentLabel: 'Architect',
-        agentColor: 'blue',
-        agentModel: selectedModel,
-      })
-      input.waggle.onTurnEvent({
-        type: 'collaboration-complete',
-        reason: 'Reached maximum turns (1)',
-        totalTurns: 1,
-      })
-      return {
-        newMessages: [
+    Effect.tryPromise({
+      try: async () => {
+        runMock(input)
+        if (!input.waggle) throw new Error('Expected Waggle run options')
+        const meta = {
+          agentIndex: 0,
+          agentLabel: 'Architect',
+          agentColor: 'blue',
+          agentModel: selectedModel,
+          turnNumber: 0,
+          collaborationMode: 'sequential',
+          sessionId: 'waggle-session-1',
+        } as const
+        input.waggle.onWaggleEvent(
           {
-            id: MessageId('user-message-1'),
-            role: 'user',
-            parts: [{ type: 'text', text: 'Review the implementation' }],
-            createdAt: 9,
-          },
-          assistantMessage,
-        ],
-        piSessionId: 'pi-session-1',
-        piSessionFile: '/tmp/pi-session-1.jsonl',
-        sessionSnapshot: {
-          activeNodeId: 'assistant-node-1',
-          nodes: [
-            {
-              id: 'assistant-node-1',
-              parentId: null,
-              piEntryType: 'message',
-              kind: 'assistant_message',
-              role: 'assistant',
-              timestampMs: 10,
-              contentJson: '{}',
-              metadataJson: JSON.stringify({
-                waggle: {
-                  agentIndex: 0,
-                  agentLabel: 'Architect',
-                  agentColor: 'blue',
-                  agentModel: 'openai/gpt-5.4',
-                  turnNumber: 0,
-                  sessionId: meta.sessionId,
-                },
-              }),
-              pathDepth: 0,
-              createdOrder: 0,
+            type: 'message_update',
+            messageId: 'assistant-node-1',
+            role: 'assistant',
+            assistantMessageEvent: {
+              type: 'text_delta',
+              contentIndex: 0,
+              delta: 'I inspected',
             },
+            timestamp: 10,
+            model: meta.agentModel,
+          },
+          meta,
+        )
+        input.waggle.onWaggleEvent(
+          {
+            type: 'custom',
+            timestamp: 11,
+            name: 'openwaggle.github.issues.summary',
+            value: { open: 2 },
+            model: meta.agentModel,
+          },
+          meta,
+        )
+        input.waggle.onTurnEvent({
+          type: 'turn-start',
+          turnNumber: 0,
+          agentIndex: 0,
+          agentLabel: 'Architect',
+        })
+        input.waggle.onTurnEvent({
+          type: 'turn-end',
+          turnNumber: 0,
+          agentIndex: 0,
+          agentLabel: 'Architect',
+          agentColor: 'blue',
+          agentModel: selectedModel,
+        })
+        input.waggle.onTurnEvent({
+          type: 'collaboration-complete',
+          reason: 'Reached maximum turns (1)',
+          totalTurns: 1,
+        })
+        return {
+          newMessages: [
+            {
+              id: MessageId('user-message-1'),
+              role: 'user',
+              parts: [{ type: 'text', text: 'Review the implementation' }],
+              createdAt: 9,
+            },
+            assistantMessage,
           ],
-        },
-      }
+          piSessionId: 'pi-session-1',
+          piSessionFile: '/tmp/pi-session-1.jsonl',
+          sessionSnapshot: {
+            activeNodeId: 'assistant-node-1',
+            nodes: [
+              {
+                id: 'assistant-node-1',
+                parentId: null,
+                piEntryType: 'message',
+                kind: 'assistant_message',
+                role: 'assistant',
+                timestampMs: 10,
+                contentJson: '{}',
+                metadataJson: JSON.stringify({
+                  waggle: {
+                    agentIndex: 0,
+                    agentLabel: 'Architect',
+                    agentColor: 'blue',
+                    agentModel: 'openai/gpt-5.4',
+                    turnNumber: 0,
+                    sessionId: meta.sessionId,
+                  },
+                }),
+                pathDepth: 0,
+                createdOrder: 0,
+              },
+            ],
+          },
+        }
+      },
+      catch: (error) => (error instanceof Error ? error : new Error(String(error))),
     }),
   getContextUsage: () => Effect.fail(new Error('context usage is not used')),
+  listExtensionCommands: () => Effect.succeed([]),
   compact: () => Effect.fail(new Error('compaction is not used')),
   navigateTree: () => Effect.fail(new Error('tree navigation is not used')),
   forkSession: () => Effect.fail(new Error('session fork is not used')),
@@ -226,6 +262,13 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
 })
 
 export const TestLayer = Layer.mergeAll(
+  Layer.succeed(
+    ProviderService,
+    fromPartial({
+      isKnownModel: (model: string) =>
+        Effect.sync(() => !harnessState.modelsNotInCatalog.has(model)),
+    }),
+  ),
   TestSessionProjectionLayer,
   TestSettingsLayer,
   TestSessionLayer,
@@ -234,9 +277,14 @@ export const TestLayer = Layer.mergeAll(
 )
 
 export function resetWaggleRunServiceMocks() {
+  harnessState.session = session
+  harnessState.modelsNotInCatalog.clear()
   runMock.mockReset()
   persistSnapshotMock.mockReset()
+  getTreeMock.mockReset()
+  getTreeMock.mockReturnValue(null)
   recordActiveRunMock.mockReset()
   clearActiveRunMock.mockReset()
   clearInterruptedRunsMock.mockReset()
+  setTurnCheckpointAnchorMock.mockReset()
 }

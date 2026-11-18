@@ -1,0 +1,54 @@
+name: Session Performance
+
+on:
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: Exact commit SHA to benchmark
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      head_sha:
+        description: Exact caller commit SHA to benchmark
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  session-performance:
+    name: Session Performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Verify benchmark commit identity
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "merge_group" && -z "$EXPECTED_SHA" ]]; then
+            EXPECTED_SHA="$DISPATCHED_SHA"
+          fi
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.head_sha || github.sha }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - uses: ./.github/actions/bun-install
+
+      - run: bun run benchmark:session-release

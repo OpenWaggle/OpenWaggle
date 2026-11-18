@@ -24,35 +24,29 @@ function splitFirstToken(value: string) {
   }
 }
 
-export function parsePiWaggleCommandArgs(args: string): PiWaggleCommandIntent {
+export function parsePiWaggleCommandArgs(args: string) {
   const first = splitFirstToken(args)
-  if (!first) {
-    return { type: 'menu' }
-  }
-
-  if (first.token === 'off') {
-    return { type: 'disable' }
-  }
-
-  if (first.token === 'new') {
-    return { type: 'create-preset' }
-  }
-
-  if (first.token === 'edit') {
-    return first.rest ? { type: 'edit-preset', presetId: first.rest } : { type: 'edit-preset' }
-  }
-
-  if (first.token === 'config') {
-    return { type: 'edit-config' }
-  }
-
-  if (first.token === 'turns' || first.token === 'max-turns') {
-    return first.rest ? { type: 'edit-turns', maxTurns: first.rest } : { type: 'edit-turns' }
-  }
-
-  return {
-    type: 'activate-preset',
-    presetId: first.token,
-    ...(first.rest ? { prompt: first.rest } : {}),
-  }
+  // One declaration of the whole union, so declarations name `PiWaggleCommandIntent`.
+  const intent: PiWaggleCommandIntent = !first
+    ? { type: 'menu' }
+    : first.token === 'off'
+      ? { type: 'disable' }
+      : first.token === 'new'
+        ? { type: 'create-preset' }
+        : first.token === 'edit'
+          ? first.rest
+            ? { type: 'edit-preset', presetId: first.rest }
+            : { type: 'edit-preset' }
+          : first.token === 'config'
+            ? { type: 'edit-config' }
+            : first.token === 'turns' || first.token === 'max-turns'
+              ? first.rest
+                ? { type: 'edit-turns', maxTurns: first.rest }
+                : { type: 'edit-turns' }
+              : {
+                  type: 'activate-preset',
+                  presetId: first.token,
+                  ...(first.rest ? { prompt: first.rest } : {}),
+                }
+  return intent
 }

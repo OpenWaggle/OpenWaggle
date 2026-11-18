@@ -1,6 +1,6 @@
-import { SupportedModelId } from '@shared/types/brand'
+import { MessageId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionDetail, SessionTranscriptNode, SessionWorkspace } from '@shared/types/session'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -247,5 +247,50 @@ describe('useWaggleMetadataLookup', () => {
       agentColor: 'blue',
       agentModel: SupportedModelId('claude-sonnet-4-5'),
     })
+  })
+
+  it('reads persisted metadata of older history from the loaded workspace (ADR 0036)', () => {
+    const config = makeConfig()
+    const { architectMeta } = makeProjectedSession(config)
+    // The detail holds only the newest messages; this one is older than its window.
+    const session = {
+      ...makeSessionDetail(config),
+      messagesWindow: { startIndex: 900, pathLength: 901 },
+    }
+    const older = {
+      id: SessionNodeId('older-architect'),
+      sessionId: session.id,
+      parentId: null,
+      piEntryType: 'message',
+      kind: 'assistant_message',
+      role: 'assistant',
+      timestampMs: 1,
+      createdOrder: 1,
+      pathDepth: 1,
+      message: {
+        id: MessageId('older-architect'),
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'earlier' }],
+        metadata: { waggle: architectMeta },
+        createdAt: 1,
+      },
+    } satisfies SessionTranscriptNode
+    const workspace: SessionWorkspace = {
+      tree: {
+        session: { id: session.id, title: 'S', projectPath: null, createdAt: 1, updatedAt: 1 },
+        nodes: [],
+        branches: [],
+        branchStates: [],
+        uiState: null,
+      },
+      activeBranchId: null,
+      activeNodeId: older.id,
+      transcriptPath: [{ node: older, isActive: true }],
+    }
+
+    const { result } = renderHook(() =>
+      useWaggleMetadataLookup(session, [makeAssistantMessage('older-architect')], workspace),
+    )
+    expect(result.current['older-architect']).toEqual(architectMeta)
   })
 })

@@ -7,8 +7,9 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CUSTOM_INTERACTION_RESPONSE_ACTION_ID } from '@/features/extensions'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { ChatComposerExtensionDialogs } from '../ChatComposerExtensionDialogs'
 
 const PROJECT_PATH = '/test/project'
@@ -43,8 +44,8 @@ function extensionDialogEntry({
   readonly manifestPath?: string
   readonly contentHash?: string
   readonly trusted?: boolean
-}): ExtensionContributionRegistryEntry {
-  return {
+}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
     extensionVersion: '1.0.0',
@@ -72,13 +73,17 @@ function extensionDialogEntry({
     },
     diagnostics: [],
   }
+  return entry
 }
 
-function extensionDialogRegistry(kind: string): ExtensionContributionRegistryView {
-  return { projectPaths: [PROJECT_PATH], entries: [extensionDialogEntry({ kind })] }
+function extensionDialogRegistry(kind: string) {
+  return {
+    projectPaths: [PROJECT_PATH],
+    entries: [extensionDialogEntry({ kind })],
+  } satisfies ExtensionContributionRegistryView
 }
 
-function pendingInteraction(): AgentLoopInteraction {
+function pendingInteraction() {
   return {
     interactionId: 'interaction-1',
     sessionId: SessionId('session-1'),
@@ -88,7 +93,8 @@ function pendingInteraction(): AgentLoopInteraction {
     createdAt: 1,
     title: 'Approve action?',
     message: 'The extension wants to proceed.',
-  }
+    purpose: 'user-input',
+  } satisfies AgentLoopInteraction
 }
 
 function extensionFrame(title: string) {
@@ -117,7 +123,7 @@ function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
 }
 
 function extensionFrameId(frame: HTMLIFrameElement) {
-  const frameId = frame.dataset.extensionFrameId
+  const frameId = frame.getAttribute('data-extension-frame-id')
   if (!frameId) {
     throw new Error('Expected extension dialog iframe id.')
   }
@@ -145,6 +151,11 @@ function noOpRespond() {
 }
 
 describe('ChatComposerExtensionDialogs', () => {
+  // Extension dialogs are a lazy chunk; load it once so each opened dialog renders on first await.
+  beforeAll(async () => {
+    await import('@/features/extensions/components')
+  }, COLD_IMPORT_TIMEOUT_MS)
+
   beforeEach(() => {
     apiMock.registerExtensionFrame.mockReset()
     apiMock.unregisterExtensionFrame.mockReset()
@@ -157,7 +168,7 @@ describe('ChatComposerExtensionDialogs', () => {
     apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
   })
 
-  it('opens matching extension dialog contributions from compact composer launchers', () => {
+  it('opens matching extension dialog contributions from compact composer launchers', async () => {
     render(
       <ChatComposerExtensionDialogs
         agentInteractions={[pendingInteraction()]}
@@ -170,7 +181,9 @@ describe('ChatComposerExtensionDialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
     fireEvent.click(screen.getByRole('button', { name: /github approval dialog/i }))
 
-    expect(screen.getByRole('dialog', { name: 'GitHub approval dialog' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('dialog', { name: 'GitHub approval dialog' }),
+    ).toBeInTheDocument()
     expect(screen.getByTitle('Extension module: GitHub approval dialog')).toBeInTheDocument()
   })
 
@@ -187,7 +200,7 @@ describe('ChatComposerExtensionDialogs', () => {
     expect(screen.queryByRole('button', { name: /extensions/i })).not.toBeInTheDocument()
   })
 
-  it('opens the selected package when global and project dialogs share an id', () => {
+  it('opens the selected package when global and project dialogs share an id', async () => {
     render(
       <ChatComposerExtensionDialogs
         agentInteractions={[pendingInteraction()]}
@@ -218,7 +231,9 @@ describe('ChatComposerExtensionDialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
     fireEvent.click(screen.getByRole('button', { name: /project approval dialog/i }))
 
-    expect(screen.getByRole('dialog', { name: 'Project approval dialog' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('dialog', { name: 'Project approval dialog' }),
+    ).toBeInTheDocument()
     expect(screen.getByTitle('Extension module: Project approval dialog')).toBeInTheDocument()
     expect(screen.queryByText('Extension dialog blocked')).not.toBeInTheDocument()
   })
@@ -239,6 +254,7 @@ describe('ChatComposerExtensionDialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
     fireEvent.click(screen.getByRole('button', { name: /github approval dialog/i }))
 
+    await screen.findByRole('dialog', { name: 'GitHub approval dialog' })
     const frame = extensionFrame('GitHub approval dialog')
     await waitFor(() => {
       expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
@@ -281,6 +297,7 @@ describe('ChatComposerExtensionDialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
     fireEvent.click(screen.getByRole('button', { name: /github approval dialog/i }))
 
+    await screen.findByRole('dialog', { name: 'GitHub approval dialog' })
     const frame = extensionFrame('GitHub approval dialog')
     await waitFor(() => {
       expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))

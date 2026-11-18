@@ -1,0 +1,290 @@
+import { FollowUpId, ReportCorrelationId, ReportId, RunId, SessionId } from '@shared/types/brand'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import { describe, expect, it, vi } from 'vitest'
+import type { SessionControlSessionState } from '../../domain/session-control/message-aggregate'
+import {
+  type AgentRunInterruptionInput,
+  type AgentRunInterruptionResult,
+  AgentRunInterruptionService,
+} from '../../ports/agent-run-interruption-service'
+import {
+  type AgentSteeringInput,
+  type AgentSteeringResult,
+  AgentSteeringService,
+} from '../../ports/agent-steering-service'
+import { SessionControlAttachmentService } from '../../ports/session-control-attachment-service'
+import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
+import { SessionControlOperationJournal } from '../../ports/session-control-operation-journal'
+import { interruptSessionRun } from '../session-control-external-service'
+import { steerSessionRun } from '../session-control-steering-service'
+import { noUndeliveredSteers } from './agent-steering-test-layer'
+
+const request = {
+  contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+  requestId: 'request-steer',
+  idempotencyKey: 'idempotency-steer',
+  command: {
+    operation: 'steer',
+    sessionId: 'session-target',
+    expectedRunId: 'run-active',
+    input: { text: 'Use the corrected migration order.', attachmentIds: [] },
+  },
+} as const
+
+const acceptedSteering = {
+  accepted: true,
+  receipt: { delivery: 'queued', durableTextSha256: 'a'.repeat(64), minimumCreatedOrder: 17 },
+} as const
+
+function makeLayer(input: {
+  readonly state: SessionControlSessionState
+  readonly steer: (input: AgentSteeringInput) => Promise<AgentSteeringResult>
+  readonly interrupt?: (input: AgentRunInterruptionInput) => AgentRunInterruptionResult
+}) {
+  let completedOutcome: unknown
+  let currentState = input.state
+  const release = vi.fn(() => Effect.void)
+  return {
+    release,
+    layer: Layer.mergeAll(
+      Layer.succeed(SessionControlOperationJournal, {
+        claim: (claimInput) =>
+          Effect.sync(() => {
+            const decision = claimInput.decide(currentState)
+            if (decision.accepted && decision.state) currentState = decision.state
+            return decision.accepted
+              ? ({ status: 'claimed', stateRevision: currentState.revision } as const)
+              : ({ status: 'completed', replayed: false, outcome: decision.outcome } as const)
+          }),
+        complete: (completeInput) =>
+          Effect.sync(() => {
+            if (completeInput.finalizeState) {
+              currentState = completeInput.finalizeState(currentState)
+            }
+            const outcome = completeInput.outcomeForFinalState
+              ? completeInput.outcomeForFinalState(currentState)
+              : completeInput.outcome
+            completedOutcome = outcome
+            return outcome
+          }),
+      }),
+      Layer.succeed(SessionControlAttachmentService, {
+        prepare: () => Effect.succeed([]),
+        bind: () => Effect.void,
+        cleanupUnreferenced: () => Effect.void,
+        resolve: () => Effect.succeed([]),
+        release,
+      }),
+      Layer.succeed(AgentSteeringService, {
+        steer: (steeringInput) => Effect.promise(() => input.steer(steeringInput)),
+        ...noUndeliveredSteers,
+      }),
+      Layer.succeed(SessionControlIdentityService, {
+        nextRunId: Effect.succeed(RunId('run-unused')),
+        nextFollowUpId: Effect.succeed(FollowUpId('follow-up-returnable')),
+        nextReportId: Effect.succeed(ReportId('report-unused')),
+        nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-unused')),
+        now: Effect.succeed(4242),
+      }),
+      Layer.succeed(AgentRunInterruptionService, {
+        requestInterrupt: (interruptionInput) =>
+          Effect.succeed(input.interrupt?.(interruptionInput) ?? ({ accepted: true } as const)),
+        interrupt: (interruptionInput) =>
+          Effect.succeed(input.interrupt?.(interruptionInput) ?? ({ accepted: true } as const)),
+      }),
+    ),
+    completedOutcome: () => completedOutcome,
+    state: () => currentState,
+  }
+}
+
+describe('Session Control external command service', () => {
+  it('claims and completes an exact-Run Pi steering side effect', async () => {
+    const steer = vi.fn(async () => acceptedSteering)
+    const setup = makeLayer({
+      state: {
+        sessionId: SessionId('session-target'),
+        revision: 7,
+        run: { state: 'active', runId: RunId('run-active') },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      },
+      steer,
+    })
+
+    const response = await Effect.runPromise(
+      steerSessionRun({ callerId: 'local-user', request }).pipe(Effect.provide(setup.layer)),
+    )
+
+    expect(steer).toHaveBeenCalledOnce()
+    expect(steer).toHaveBeenCalledWith({
+      runId: 'run-active',
+      text: 'Use the corrected migration order.',
+      attachments: [],
+      delivery: {
+        kind: 'steer',
+        followUp: {
+          id: FollowUpId('follow-up-returnable'),
+          deliveryState: 'pending',
+          intent: {
+            text: 'Use the corrected migration order.',
+            attachmentIds: [],
+            callerId: 'local-user',
+            acceptedAt: 4242,
+            idempotencyKey: 'idempotency-steer',
+            returnedSteer: { runId: 'run-active' },
+          },
+        },
+      },
+    })
+    expect(response).toEqual({
+      contractVersion: 2,
+      requestId: 'request-steer',
+      idempotencyKey: 'idempotency-steer',
+      replayed: false,
+      outcome: {
+        operation: 'steer',
+        effect: 'steered-run',
+        receipt: acceptedSteering.receipt,
+        sessionId: 'session-target',
+        runId: 'run-active',
+        stateRevision: 7,
+      },
+    })
+    expect(setup.completedOutcome()).toEqual(response.outcome)
+    // A queued steer may return to the Follow-up queue if its Run stops, so it keeps attachments.
+    expect(setup.release).not.toHaveBeenCalled()
+  })
+
+  it('releases the attachments of a steer an extension handled', async () => {
+    const steer = vi.fn<() => Promise<AgentSteeringResult>>(async () => ({
+      accepted: true,
+      receipt: { delivery: 'handled' },
+    }))
+    const setup = makeLayer({
+      state: {
+        sessionId: SessionId('session-target'),
+        revision: 7,
+        run: { state: 'active', runId: RunId('run-active') },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      },
+      steer,
+    })
+
+    await Effect.runPromise(
+      steerSessionRun({ callerId: 'local-user', request }).pipe(Effect.provide(setup.layer)),
+    )
+
+    expect(setup.release).toHaveBeenCalledWith({
+      attachmentIds: [],
+      sessionId: 'session-target',
+      ownerCallerId: 'local-user',
+    })
+  })
+
+  it('rejects a stale expected Run before calling Pi', async () => {
+    const steer = vi.fn(async () => acceptedSteering)
+    const setup = makeLayer({
+      state: {
+        sessionId: SessionId('session-target'),
+        revision: 8,
+        run: { state: 'active', runId: RunId('run-new') },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      },
+      steer,
+    })
+
+    const response = await Effect.runPromise(
+      steerSessionRun({ callerId: 'local-user', request }).pipe(Effect.provide(setup.layer)),
+    )
+
+    expect(steer).not.toHaveBeenCalled()
+    expect(response.outcome).toEqual({
+      operation: 'steer',
+      effect: 'rejected',
+      sessionId: SessionId('session-target'),
+      code: 'run_changed',
+      kind: 'conflict',
+    })
+  })
+
+  it('moves the exact Run to stopping before dispatching interruption', async () => {
+    const interrupt = vi.fn((_input: AgentRunInterruptionInput) => ({ accepted: true as const }))
+    const setup = makeLayer({
+      state: {
+        sessionId: SessionId('session-target'),
+        revision: 9,
+        run: { state: 'active', runId: RunId('run-active') },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      },
+      steer: vi.fn(async () => acceptedSteering),
+      interrupt,
+    })
+
+    const response = await Effect.runPromise(
+      interruptSessionRun({
+        callerId: 'local-user',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-interrupt',
+          idempotencyKey: 'idempotency-interrupt',
+          command: {
+            operation: 'interrupt',
+            sessionId: 'session-target',
+            expectedRunId: 'run-active',
+          },
+        },
+      }).pipe(Effect.provide(setup.layer)),
+    )
+
+    expect(interrupt).toHaveBeenCalledWith({
+      sessionId: 'session-target',
+      runId: 'run-active',
+    })
+    expect(setup.state().run).toEqual({ state: 'stopping', runId: RunId('run-active') })
+    expect(response.outcome).toEqual({
+      operation: 'interrupt',
+      effect: 'interruption-requested',
+      sessionId: 'session-target',
+      runId: 'run-active',
+      stateRevision: 10,
+    })
+  })
+
+  it('releases a claimed stopping state when the exact Run is no longer live', async () => {
+    const setup = makeLayer({
+      state: {
+        sessionId: SessionId('session-target'),
+        revision: 4,
+        run: { state: 'active', runId: RunId('run-active') },
+        followUpQueue: { state: 'running', revision: 0, items: [] },
+      },
+      steer: vi.fn(async () => acceptedSteering),
+      interrupt: () => ({ accepted: false, code: 'run_not_live' }),
+    })
+
+    const response = await Effect.runPromise(
+      interruptSessionRun({
+        callerId: 'local-user',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: 'request-interrupt',
+          idempotencyKey: 'idempotency-interrupt',
+          command: {
+            operation: 'interrupt',
+            sessionId: 'session-target',
+            expectedRunId: 'run-active',
+          },
+        },
+      }).pipe(Effect.provide(setup.layer)),
+    )
+
+    expect(response.outcome).toMatchObject({
+      effect: 'rejected',
+      code: 'run_not_live',
+      kind: 'conflict',
+    })
+    expect(setup.state()).toMatchObject({ revision: 6, run: { state: 'idle' } })
+  })
+})

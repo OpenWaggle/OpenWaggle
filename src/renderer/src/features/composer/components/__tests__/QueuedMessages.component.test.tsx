@@ -1,123 +1,286 @@
 import { SessionId } from '@shared/types/brand'
-import type { ThinkingLevel } from '@shared/types/settings'
-import { fireEvent, render, screen } from '@testing-library/react'
+import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMessageQueueStore } from '@/features/chat/state'
+import { SessionControlRejectedError } from '@/features/chat/hooks'
 import { QueuedMessages } from '../QueuedMessages'
 
 const CONV_A = SessionId('session-a')
-const THINKING: ThinkingLevel = 'medium'
-
-function makePayload(text: string) {
-  return { text, thinkingLevel: THINKING, attachments: [] as const }
+const noOpSteer = vi.fn().mockResolvedValue(undefined)
+const noOpToast = vi.fn()
+interface QueuedMessageFixture {
+  readonly id: string
+  readonly text: string
+  readonly attachmentCount: number
+  readonly createdAt: number
+  readonly deliveryState: 'pending' | 'needs_attention'
+  readonly attentionReason?: 'profile_revoked' | 'authority_changed'
+  readonly wagglePresetName?: string
+  readonly waggleSource?: 'user' | 'agent'
+  readonly callerId?: string
 }
 
-const noOpSteer = vi.fn().mockResolvedValue(undefined)
+const queueMock = vi.hoisted(() => {
+  const items: QueuedMessageFixture[] = []
+  const error: Error | null = null
+  const snapshot: {
+    state: 'running' | 'paused'
+    pauseReason?: FollowUpQueuePauseReason
+    revision: number
+    activeRunId: string | null
+    items: QueuedMessageFixture[]
+  } = { state: 'running', revision: 0, activeRunId: 'run-1', items }
+  return {
+    snapshot,
+    error,
+    refresh: vi.fn().mockResolvedValue(undefined),
+    withdraw: vi.fn().mockResolvedValue(undefined),
+    setPaused: vi.fn().mockResolvedValue(undefined),
+    adopt: vi.fn().mockResolvedValue(undefined),
+  }
+})
+
+vi.mock('@/features/chat/hooks/useSessionFollowUpQueue', () => ({
+  useSessionFollowUpQueue: () => ({
+    snapshot: queueMock.snapshot,
+    error: queueMock.error,
+    refresh: queueMock.refresh,
+    withdraw: queueMock.withdraw,
+    setPaused: queueMock.setPaused,
+    adopt: queueMock.adopt,
+  }),
+}))
+
+function queue(
+  ...items: {
+    id: string
+    text: string
+    attachmentCount?: number
+    deliveryState?: 'pending' | 'needs_attention'
+    attentionReason?: 'profile_revoked' | 'authority_changed'
+    wagglePresetName?: string
+    waggleSource?: 'user' | 'agent'
+    callerId?: string
+  }[]
+) {
+  queueMock.snapshot.items = items.map((item, index) => ({
+    attachmentCount: 0,
+    createdAt: index + 1,
+    deliveryState: 'pending' as const,
+    ...item,
+  }))
+}
+
+function renderQueue() {
+  return render(
+    <QueuedMessages
+      sessionId={CONV_A}
+      onSteer={noOpSteer}
+      isStreaming={false}
+      onToast={noOpToast}
+    />,
+  )
+}
 
 describe('QueuedMessages', () => {
   beforeEach(() => {
-    useMessageQueueStore.setState({ queues: new Map() })
+    queue()
+    queueMock.snapshot.state = 'running'
+    queueMock.snapshot.activeRunId = 'run-1'
+    delete queueMock.snapshot.pauseReason
+    queueMock.error = null
+    queueMock.refresh.mockReset().mockResolvedValue(undefined)
     noOpSteer.mockClear()
+    queueMock.withdraw.mockClear()
+    queueMock.setPaused.mockReset().mockResolvedValue(undefined)
+    noOpToast.mockClear()
   })
 
-  it('renders nothing when the queue is empty', () => {
-    const { container } = render(
-      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />,
+  it('keeps a persistent live region while hiding an empty queue dock', () => {
+    const empty = render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
     )
-    expect(container.firstChild).toBeNull()
-  })
-
-  it('renders nothing when sessionId is null', () => {
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
-    const { container } = render(
-      <QueuedMessages sessionId={null} onSteer={noOpSteer} isStreaming={false} />,
+    expect(screen.getByRole('status')).toHaveTextContent('Follow-up queue empty.')
+    expect(screen.queryByText('Queued')).not.toBeInTheDocument()
+    queue({ id: 'follow-up-1', text: 'test' })
+    empty.rerender(
+      <QueuedMessages
+        sessionId={null}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
     )
-    expect(container.firstChild).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('')
   })
 
-  it('renders header with count badge', () => {
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first'))
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second'))
-    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
+  it('renders the durable Follow-up count and bodies', () => {
+    queue(
+      { id: 'follow-up-1', text: 'first message' },
+      { id: 'follow-up-2', text: 'second message' },
+    )
+    render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
+    )
     expect(screen.getByText('Queued')).toBeInTheDocument()
     expect(screen.getByText('2')).toBeInTheDocument()
-  })
-
-  it('renders message cards with text', () => {
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first message'))
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second message'))
-    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
     expect(screen.getByText('first message')).toBeInTheDocument()
     expect(screen.getByText('second message')).toBeInTheDocument()
   })
 
-  it('shows Steer button only when isStreaming is true', () => {
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
+  it('pauses a running queue through the revision-aware hook so its next Run waits', async () => {
+    queue({ id: 'follow-up-1', text: 'next' })
+    renderQueue()
 
-    const { rerender } = render(
-      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />,
-    )
-    expect(screen.queryByText('Steer')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument()
+    const pause = screen.getByRole('button', { name: 'Pause' })
+    expect(pause).toHaveAccessibleDescription(expect.stringContaining('until you resume'))
+    fireEvent.click(pause)
 
-    rerender(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={true} />)
-    expect(screen.getByText('Steer')).toBeInTheDocument()
+    expect(queueMock.setPaused).toHaveBeenCalledWith(true, 0)
+    await waitFor(() => expect(pause).toHaveAttribute('aria-disabled', 'false'))
   })
 
-  it('uses compaction copy and hides Steer while compaction is running', () => {
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('wait for compact'))
+  it('shows a failed pause through the toast channel in words, not the Host code', async () => {
+    queue({ id: 'follow-up-1', text: 'next' })
+    queueMock.setPaused.mockRejectedValueOnce(
+      new SessionControlRejectedError('queue-pause', 'session_not_found'),
+    )
+    renderQueue()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    await waitFor(() =>
+      expect(noOpToast).toHaveBeenCalledWith('Could not pause the queue. Try again.'),
+    )
+  })
+
+  it('offers promotion to steering only while a Run can accept it', () => {
+    queue({ id: 'follow-up-1', text: 'steer me' })
+    const view = render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
+    )
+    expect(screen.queryByText('Steer')).not.toBeInTheDocument()
+    view.rerender(
+      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming onToast={noOpToast} />,
+    )
+    fireEvent.click(screen.getByText('Steer'))
+    expect(noOpSteer).toHaveBeenCalledWith('follow-up-1')
+  })
+
+  it('keeps the queue available when its active Run accepts steering', () => {
+    queue({ id: 'follow-up-1', text: 'wait for compact' })
     render(
       <QueuedMessages
         sessionId={CONV_A}
         onSteer={noOpSteer}
         isStreaming={true}
-        isCompacting={true}
+        onToast={noOpToast}
+      />,
+    )
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    expect(screen.getByText('Steer')).toBeInTheDocument()
+  })
+
+  it('makes a paused queue visible and resumes it through the revision-aware hook', () => {
+    queue({ id: 'follow-up-1', text: 'continue after recovery' })
+    queueMock.snapshot.state = 'paused'
+    render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
       />,
     )
 
-    expect(screen.getByText('Queued until compaction finishes')).toBeInTheDocument()
-    expect(screen.queryByText('Steer')).not.toBeInTheDocument()
+    expect(screen.getByText('Queue paused')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
+    expect(queueMock.setPaused).toHaveBeenCalledWith(false, 0)
   })
 
-  it('Steer button calls onSteer with correct messageId', () => {
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('steer me'))
-    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={true} />)
+  // A bare "Queue paused" after a failed Run read as the app ignoring the messages.
+  it.each([
+    ['run-failed', 'Paused because the last Run failed.'],
+    ['run-interrupted', 'Paused because the last Run was stopped.'],
+    [
+      'parent-limit',
+      'Agents’ messages wait because agents are running as many Workers as the limits allow. Yours still send.',
+    ],
+    ['requested', 'Paused on request.'],
+    [undefined, 'The queue is paused.'],
+  ] as const)('says the queue paused for %s', (reason, copy) => {
+    queue({ id: 'follow-up-1', text: 'try again' })
+    queueMock.snapshot.state = 'paused'
+    if (reason) queueMock.snapshot.pauseReason = reason
+    render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
+    )
 
-    const steerButton = screen.getByText('Steer')
-    fireEvent.click(steerButton)
-
-    expect(noOpSteer).toHaveBeenCalledOnce()
-    expect(typeof noOpSteer.mock.calls[0][0]).toBe('string')
+    expect(screen.getByText((text) => text.startsWith(copy))).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeVisible()
   })
 
-  it('Trash button dismisses message', () => {
-    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('dismiss me'))
-    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
-    expect(screen.getByText('dismiss me')).toBeInTheDocument()
-
-    const dismissButton = screen.getByTitle('Dismiss')
-    fireEvent.click(dismissButton)
-
-    expect(screen.queryByText('dismiss me')).not.toBeInTheDocument()
-  })
-
-  it('shows attachment count for text-less messages', () => {
-    useMessageQueueStore.getState().enqueue(CONV_A, {
-      text: '',
-      thinkingLevel: THINKING,
-      attachments: [
-        {
-          id: 'a1',
-          kind: 'text',
-          name: 'file.txt',
-          path: '/tmp/file.txt',
-          mimeType: 'text/plain',
-          sizeBytes: 100,
-          extractedText: 'content',
-        },
-      ],
+  it('explains blocked delivery, disables steering, and offers to send it as the user', () => {
+    queue({
+      id: 'follow-up-1',
+      text: 'requires current authority',
+      deliveryState: 'needs_attention',
+      attentionReason: 'authority_changed',
     })
-    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
-    expect(screen.getByText('1 attachment(s)')).toBeInTheDocument()
+    render(
+      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming onToast={noOpToast} />,
+    )
+
+    expect(
+      screen.getByText(
+        // A Run is going, so "Send as me" sends it in its turn rather than now.
+        'The access that queued this message no longer covers this Session. Send it as you to send it in its turn, or dismiss it.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Steer' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
+    expect(noOpSteer).not.toHaveBeenCalled()
+    // A Follow-up never carries its own access, so there is no override to repair.
+    expect(screen.queryByRole('button', { name: 'Use current access' })).not.toBeInTheDocument()
+    expect(screen.getByTitle('Dismiss')).toBeVisible()
+    queueMock.adopt.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: /Send as me/u }))
+    expect(queueMock.adopt).toHaveBeenCalledWith('follow-up-1', 0)
+  })
+
+  it('withdraws by durable Follow-up identity and displays attachment-only intent', () => {
+    queue({ id: 'follow-up-1', text: '', attachmentCount: 2 })
+    render(
+      <QueuedMessages
+        sessionId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={false}
+        onToast={noOpToast}
+      />,
+    )
+    expect(screen.getByText('2 attachments')).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('Dismiss'))
+    expect(queueMock.withdraw).toHaveBeenCalledWith('follow-up-1')
   })
 })

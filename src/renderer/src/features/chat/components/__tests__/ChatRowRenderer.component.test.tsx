@@ -3,7 +3,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { ChatRow } from '../../lib/types-chat-row'
+import type { ChatRow, MessageChatRow } from '../../lib/types-chat-row'
 
 vi.mock('@/features/waggle/components/TurnDivider', () => ({
   TurnDivider: ({
@@ -21,6 +21,10 @@ vi.mock('@/features/waggle/components/TurnDivider', () => ({
       {agentModel ? ` · ${agentModel}` : ''}
     </div>
   ),
+}))
+
+vi.mock('../ChangedFilesCard', () => ({
+  ChangedFilesCard: () => <div data-testid="changed-files-card" />,
 }))
 
 vi.mock('../MessageBubble', () => ({
@@ -54,7 +58,7 @@ function assistantMessage(id: string) {
     id,
     role: 'assistant',
     parts: [{ type: 'text', content: id }],
-  }
+  } satisfies UIMessage
 }
 
 function messageRow(message: UIMessage) {
@@ -74,10 +78,38 @@ function messageRow(message: UIMessage) {
       turnNumber: 0,
       sessionId: 'session-1',
     },
-  }
+  } satisfies MessageChatRow
 }
 
 describe('ChatRowRenderer', () => {
+  it('keeps a settled changed-files card visible while a later run is active', () => {
+    const row = { ...messageRow(assistantMessage('assistant-1')), isRunActive: true }
+    const turn = {
+      turnId: 'turn-1',
+      turnIndex: 1,
+      createdAt: 1,
+      insertions: 2,
+      deletions: 1,
+      anchorNodeId: 'assistant-1',
+    }
+    const extensions = { registry: null, projectPaths: [] }
+
+    render(
+      <ChatRowRenderer
+        row={row}
+        context={{
+          runtime: { sessionId: SessionId('session-1'), extensions },
+          extensions,
+          turnsByAnchorNodeId: new Map([['assistant-1', turn]]),
+          actions: { onOpenTurnDiff: vi.fn() },
+          onDismissError: vi.fn(),
+        }}
+      />,
+    )
+
+    expect(screen.getByTestId('changed-files-card')).toBeVisible()
+  })
+
   it('shows agent and model once for a grouped waggle turn', () => {
     const row: ChatRow = {
       type: 'waggle-turn',

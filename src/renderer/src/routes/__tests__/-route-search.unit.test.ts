@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  changeRequestUrlFromSearch,
   extensionSidePanelTargetFromSearch,
   isSettingsTab,
   parseChatRouteSearch,
+  resourceBrowserTargetFromSearch,
 } from '../-route-search'
 
 describe('parseChatRouteSearch', () => {
@@ -28,6 +30,54 @@ describe('parseChatRouteSearch', () => {
     expect(parseChatRouteSearch({ panel: 'session-tree' })).toEqual({ panel: 'session-tree' })
     expect(parseChatRouteSearch({ panel: 'diff' })).toEqual({ panel: 'diff' })
     expect(parseChatRouteSearch({ panel: 'other' })).toEqual({})
+  })
+
+  it('keeps Files without a path as the navigator on its own', () => {
+    expect(parseChatRouteSearch({ panel: 'file' })).toEqual({ panel: 'file' })
+    expect(parseChatRouteSearch({ panel: 'file', filePath: 'src/a.ts', fileLine: '4' })).toEqual({
+      panel: 'file',
+      filePath: 'src/a.ts',
+      fileLine: 4,
+    })
+  })
+
+  it('binds a change-request route to the Session that opened it', () => {
+    const search = parseChatRouteSearch({
+      panel: 'change-request',
+      changeRequestUrl: 'https://github.com/o/r/pull/7',
+      changeRequestSessionId: 'session-a',
+    })
+    expect(changeRequestUrlFromSearch(search, 'session-a')).toBe('https://github.com/o/r/pull/7')
+    expect(changeRequestUrlFromSearch(search, 'session-b')).toBeNull()
+    expect(parseChatRouteSearch({ panel: 'change-request', changeRequestUrl: 'x' })).toEqual({})
+  })
+
+  it('preserves the selected resource view and item only for the resources panel', () => {
+    const search = parseChatRouteSearch({
+      panel: 'resources',
+      resourceView: 'outputs',
+      resourceId: 'created-pr',
+    })
+
+    expect(search).toEqual({
+      panel: 'resources',
+      resourceView: 'outputs',
+      resourceId: 'created-pr',
+    })
+    expect(resourceBrowserTargetFromSearch(search)).toEqual({
+      view: 'outputs',
+      resourceId: 'created-pr',
+    })
+    expect(
+      parseChatRouteSearch({ panel: 'diff', resourceView: 'outputs', resourceId: 'created-pr' }),
+    ).toEqual({ panel: 'diff' })
+  })
+
+  it('drops every throwaway design-exploration search key', () => {
+    // The prototypes and the mockup that replaced them are gone, so none of their keys may survive
+    // parsing. Kept as a test because a stray key in the route contract outlives the code it served.
+    expect(parseChatRouteSearch({ mockup: 'notifications' })).toEqual({})
+    expect(parseChatRouteSearch({ prototype: 'notifications', variant: 'B1' })).toEqual({})
   })
 
   it('preserves complete extension side panel selections with explicit search keys', () => {
@@ -85,6 +135,8 @@ describe('parseChatRouteSearch', () => {
 describe('settings route guard', () => {
   it('accepts the extensions settings route tab', () => {
     expect(isSettingsTab('extensions')).toBe(true)
+    expect(isSettingsTab('skills')).toBe(true)
+    expect(isSettingsTab('agents')).toBe(true)
   })
 
   it('rejects unknown settings route tabs', () => {

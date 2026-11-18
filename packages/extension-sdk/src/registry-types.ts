@@ -6,6 +6,11 @@ import type {
   ExtensionContributionTargetView,
   ExtensionExecutionPlacement,
 } from './contribution-types.js'
+import type {
+  ExtensionSessionSummaryDisclosure,
+  ExtensionSessionSummaryRow,
+  ExtensionSessionSummaryState,
+} from './generated/manifest.js'
 
 export type ExtensionPackageScopeKind = 'global' | 'project'
 
@@ -41,4 +46,10 @@ export interface ExtensionContributionRegistryEntry {
   readonly runtime?: ExtensionContributionRuntime
   readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string
+  readonly sessionSummary?: {
+    readonly placement: 'context' | 'coordination' | 'details'
+    readonly disclosure?: ExtensionSessionSummaryDisclosure
+    readonly state?: ExtensionSessionSummaryState
+    readonly rows: readonly ExtensionSessionSummaryRow[]
+  }
 }

@@ -1,32 +1,28 @@
-import type { SessionId } from '@shared/types/brand'
+import type { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
+import { RepositoryPath as makeRepositoryPath } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useSessionStatusStore } from '@/features/sessions/state/session-status-store'
 
-interface SessionNavItem {
-  readonly id: SessionId
-  readonly projectPath: string | null
-}
+type SessionNavItem = Pick<
+  SessionSummary,
+  'id' | 'projectPath' | 'environmentMode' | 'worktreePath'
+>
 
 interface SessionNavDeps {
   readonly sessions: readonly SessionNavItem[]
   readonly projectPath: string | null
-  readonly setActiveView: (view: 'chat' | 'skills') => void
+  readonly setActiveView: (view: 'chat') => void
   readonly setProjectPath: (path: string | null) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
   readonly startDraftSession: (projectPath?: string | null) => void
   readonly setActiveSession: (id: SessionId | null) => void
-  readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
-  readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
-}
-
-interface SessionNavHandlers {
-  readonly handleSelectSession: (id: SessionId) => Promise<void>
-  readonly handleNewSession: () => void
-  readonly handleOpenProject: () => Promise<void>
-  readonly handleSelectProjectPath: (path: string) => Promise<void>
+  readonly refreshGitStatus: (workingPath: WorkingPath | null) => Promise<void>
+  readonly refreshGitBranches: (repositoryPath: RepositoryPath | null) => Promise<void>
 }
 
 /** Pure factory — testable without React. */
-export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandlers {
+export function createSessionNavHandlers(deps: SessionNavDeps) {
   const {
     sessions,
     projectPath,
@@ -39,8 +35,13 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
     refreshGitBranches,
   } = deps
 
-  function refreshGit(path: string | null) {
-    void Promise.all([refreshGitStatus(path), refreshGitBranches(path)])
+  function refreshGit(session: SessionNavItem | null, path: string | null) {
+    // Status targets the selected session's working tree via the sole WorkingPath
+    // producer; the branch list is repository-level.
+    void Promise.all([
+      refreshGitStatus(resolveSessionWorkingDir(session, path)),
+      refreshGitBranches(path === null ? null : makeRepositoryPath(path)),
+    ])
   }
 
   async function handleSelectSession(id: SessionId) {
@@ -52,7 +53,7 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
     if (session && session.projectPath !== projectPath) {
       await setProjectPath(session.projectPath)
     }
-    refreshGit(nextProjectPath)
+    refreshGit(session ?? null, nextProjectPath)
   }
 
   function handleNewSession() {
@@ -66,14 +67,14 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
     if (!path) return
     startDraftSession(path)
     await setProjectPath(path)
-    refreshGit(path)
+    refreshGit(null, path)
   }
 
   async function handleSelectProjectPath(path: string) {
     setActiveView('chat')
     startDraftSession(path)
     await setProjectPath(path)
-    refreshGit(path)
+    refreshGit(null, path)
   }
 
   return {
@@ -85,6 +86,6 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
 }
 
 /** Hook wrapper — calls the factory with current deps. */
-export function useSessionNav(deps: SessionNavDeps): SessionNavHandlers {
+export function useSessionNav(deps: SessionNavDeps) {
   return createSessionNavHandlers(deps)
 }

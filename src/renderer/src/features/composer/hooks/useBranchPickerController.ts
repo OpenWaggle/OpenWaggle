@@ -23,22 +23,33 @@ export function useBranchPickerController({ onToast }: UseBranchPickerController
   const openMenu = useComposerStore((s) => s.openMenu)
   const branchQuery = useComposerActionStore((s) => s.branchQuery)
   const setBranchQuery = useComposerActionStore((s) => s.setBranchQuery)
-  const openActionDialog = useComposerActionStore((s) => s.openActionDialog)
-  const currentBranch = git.status?.branch ?? null
-  const branches = filterBranches(git.branches?.branches ?? [], branchQuery)
+  const branchesMatchProject =
+    git.repositoryPath !== null && git.branchesRepositoryPath === git.repositoryPath
+  const currentBranch =
+    git.status?.branch ?? (branchesMatchProject ? (git.branches?.currentBranch ?? null) : null)
+  const branches = filterBranches(
+    branchesMatchProject ? (git.branches?.branches ?? []) : [],
+    branchQuery,
+  )
 
   async function checkoutBranch(name: string) {
+    // Checkout runs in the tree this session uses; the branch list belongs to the repo.
+    const workingPath = git.workingPath
+    const repositoryPath = git.repositoryPath
     await match
       .promise(
         runBranchMutation(
           () =>
-            projectPath
-              ? git.checkoutBranch(projectPath, { name })
+            workingPath && repositoryPath
+              ? git.checkoutBranch(workingPath, repositoryPath, { name })
               : Promise.resolve(NO_PROJECT_RESULT),
           onToast,
         ),
       )
-      .with({ ok: true }, () => openMenu(null))
+      .with({ ok: true }, () => {
+        setBranchQuery('')
+        openMenu(null)
+      })
       .with({ ok: false }, () => undefined)
       .exhaustive()
   }
@@ -54,7 +65,6 @@ export function useBranchPickerController({ onToast }: UseBranchPickerController
     remoteBranches: branches.remoteBranches,
     openMenu,
     setBranchQuery,
-    openActionDialog,
     checkoutBranch,
   }
 }

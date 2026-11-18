@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   isNotFound,
   isCredentialEnvironmentKey,
@@ -69,21 +70,31 @@ function isVersionAtLeast(version: string, minimum: string) {
   return true
 }
 
-function hasWriteProtectedTwoFactorAuthentication(profile: JsonObject) {
+/** The npm profile fields the preflight reads; `npm profile get --json` spells 2FA either way. */
+const npmProfileSchema = Schema.Struct({
+  name: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  tfa: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  'two-factor auth': Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+const npmTwoFactorSchema = Schema.Struct({
+  mode: Schema.Literal('auth-and-writes'),
+  pending: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+type NpmProfile = Schema.Schema.Type<typeof npmProfileSchema>
+
+function hasWriteProtectedTwoFactorAuthentication(profile: NpmProfile) {
   const tfa = profile.tfa
   return (
-    (isJsonObject(tfa) && tfa.mode === 'auth-and-writes' && tfa.pending !== true) ||
+    (isJsonObject(tfa) && Schema.is(npmTwoFactorSchema)(tfa) && tfa.pending !== true) ||
     profile['two-factor auth'] === 'auth-and-writes'
   )
 }
 
-function conflict(name: string, nextAction: string): BootstrapPackageProgress {
-  return { name, nextAction, state: 'conflict' }
+function conflict(name: string, nextAction: string) {
+  return { name, nextAction, state: 'conflict' } satisfies BootstrapPackageProgress
 }
 
-function credentialEnvironmentBlockers(
-  environment: Readonly<Record<string, string | undefined>>,
-) {
+function credentialEnvironmentBlockers(environment: Readonly<Record<string, string | undefined>>) {
   return Object.keys(environment)
     .filter(isCredentialEnvironmentKey)
     .filter((variableName) => Boolean(environment[variableName]))
@@ -121,7 +132,7 @@ function repositoryBlockers(status: string, branch: string, origin: string, isUp
   return blockers
 }
 
-function npmAccountBlockers(username: string, profile: JsonObject, organization: JsonObject) {
+function npmAccountBlockers(username: string, profile: NpmProfile, organization: JsonObject) {
   const blockers: string[] = []
   const profileName = typeof profile.name === 'string' ? profile.name : '(missing)'
   if (profileName !== username) {
@@ -144,7 +155,7 @@ async function inspectPublishedPlaceholder(
   packageName: string,
   dependencies: BootstrapDependencies,
   metadata: unknown,
-): Promise<BootstrapPackageProgress> {
+) {
   const tags = parseJson(
     await runRequired(dependencies, {
       args: ['view', packageName, 'dist-tags', '--json'],
@@ -184,25 +195,26 @@ async function inspectPublishedPlaceholder(
   return pendingPackage(packageName, NEXT_REASSERT_MFA)
 }
 
-function pendingPackage(
-  packageName: string,
-  nextAction: string,
-): BootstrapPackageProgress {
-  return { name: packageName, nextAction, state: 'pending' }
+function pendingPackage(packageName: string, nextAction: string) {
+  return { name: packageName, nextAction, state: 'pending' } satisfies BootstrapPackageProgress
 }
 
 async function inspectPackage(
   projectRoot: string,
   packageName: string,
   dependencies: BootstrapDependencies,
-): Promise<BootstrapPackageProgress> {
+) {
   const packageResult = await runCommand(dependencies, {
     args: ['view', packageName, '--json'],
     command: 'npm',
     cwd: projectRoot,
   })
   if (isNotFound(packageResult)) {
-    return { name: packageName, nextAction: NEXT_PUBLISH, state: 'pending' }
+    return {
+      name: packageName,
+      nextAction: NEXT_PUBLISH,
+      state: 'pending',
+    } satisfies BootstrapPackageProgress
   }
   if (packageResult.exitCode !== 0) {
     throw new Error(
@@ -217,11 +229,7 @@ async function inspectPackage(
     }),
     `npm view ${packageName} versions`,
   )
-  if (
-    !Array.isArray(versions) ||
-    versions.length !== 1 ||
-    versions[0] !== BOOTSTRAP_VERSION
-  ) {
+  if (!Array.isArray(versions) || versions.length !== 1 || versions[0] !== BOOTSTRAP_VERSION) {
     return conflict(packageName, 'refuse occupied package name with non-bootstrap versions')
   }
   const metadataResult = await runCommand(dependencies, {
@@ -237,20 +245,14 @@ async function inspectPackage(
       `npm view ${packageName}@${BOOTSTRAP_VERSION} failed: ${redactBootstrapDiagnostic(metadataResult.stderr)}`,
     )
   }
-  const metadata = parseJson(
-    metadataResult.stdout,
-    `npm view ${packageName}@${BOOTSTRAP_VERSION}`,
-  )
+  const metadata = parseJson(metadataResult.stdout, `npm view ${packageName}@${BOOTSTRAP_VERSION}`)
   if (!isCompatibleBootstrapRecord(metadata, packageName)) {
     return conflict(packageName, 'resolve conflicting bootstrap package metadata')
   }
   return inspectPublishedPlaceholder(projectRoot, packageName, dependencies, metadata)
 }
 
-async function inspectPrerequisites(
-  projectRoot: string,
-  dependencies: BootstrapDependencies,
-) {
+async function inspectPrerequisites(projectRoot: string, dependencies: BootstrapDependencies) {
   const command = (name: string, args: readonly string[]) =>
     runRequired(dependencies, { args, command: name, cwd: projectRoot })
   const nodeVersion = await command('node', ['--version'])
@@ -262,7 +264,10 @@ async function inspectPrerequisites(
   const head = await command('git', ['rev-parse', 'HEAD'])
   const remote = await command('git', ['ls-remote', '--exit-code', 'origin', 'refs/heads/main'])
   const username = await command('npm', ['whoami'])
-  const profile = parseJsonObject(await command('npm', ['profile', 'get', '--json']), 'npm profile get')
+  const profile = decodeUnknownOrThrow(
+    npmProfileSchema,
+    parseJsonObject(await command('npm', ['profile', 'get', '--json']), 'npm profile get'),
+  )
   const organization = parseJsonObject(
     await command('npm', ['org', 'ls', 'openwaggle', username, '--json']),
     'npm org ls',
@@ -276,9 +281,10 @@ async function inspectPrerequisites(
     '--jq',
     '.permissions.admin',
   ])
-  const githubBlockers = isAdmin === 'true'
-    ? []
-    : ['The active GitHub account must have admin access to OpenWaggle/OpenWaggle.']
+  const githubBlockers =
+    isAdmin === 'true'
+      ? []
+      : ['The active GitHub account must have admin access to OpenWaggle/OpenWaggle.']
   const remoteHead = remote.split(/\s/u)[0]
   const blockers = [
     ...credentialEnvironmentBlockers(dependencies.environment),

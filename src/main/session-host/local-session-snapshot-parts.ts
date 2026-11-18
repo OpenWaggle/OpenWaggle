@@ -1,0 +1,136 @@
+import {
+  decodeUnknownExactOrThrow,
+  getParseIssuePaths,
+  Schema,
+  safeDecodeUnknown,
+} from '@shared/schema'
+import { messagePartSchema } from '@shared/schemas/message'
+import type { MessagePart } from '@shared/types/agent'
+import type { BackgroundRunSnapshot } from '@shared/types/background-run'
+import { createLogger } from '../logger'
+import { describeError } from '../utils/describe-error'
+
+const logger = createLogger('session-host/run-snapshots')
+const MAX_REPORTED_ISSUES = 5
+
+/** The Run a snapshot belongs to, for the log line of anything dropped from it. */
+export interface SnapshotContext {
+  readonly sessionId: string
+  readonly runId?: string
+}
+
+/**
+ * Logs what a snapshot lost to a decode failure. A field the Host sends and this client does not
+ * know costs the Run that field on reconnect, not the subscription every Session's live events
+ * travel on: failing the whole snapshot left all Sessions on "Connecting" (#303 `nestedCalls`).
+ */
+export function reportUndecodable(
+  context: SnapshotContext,
+  what: string,
+  error: unknown,
+  details: object = {},
+) {
+  logger.error(`Dropped ${what} from an active Run snapshot this client cannot decode`, {
+    sessionId: context.sessionId,
+    ...(context.runId ? { runId: context.runId } : {}),
+    ...details,
+    // Where the decode failed, never the values: a part holds transcript and tool content.
+    issues: getParseIssuePaths(error)?.slice(0, MAX_REPORTED_ISSUES) ?? [describeError(error)],
+  })
+}
+
+/** A part's size as the frame carried it; it came from JSON, so it serialises back. */
+function byteLength(value: unknown) {
+  return Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8')
+}
+
+/** A part as an active Run snapshot carries it, decoded exactly with the transcript's own schema. */
+function decodeMessagePart(value: unknown) {
+  return decodeUnknownExactOrThrow(messagePartSchema, value)
+}
+
+/** An earlier assistant message, with its parts still to decode one by one. */
+const assistantMessageCandidateSchema = Schema.Struct({
+  messageId: Schema.String,
+  timestamp: Schema.Number,
+  parts: Schema.Array(Schema.Unknown),
+})
+
+const partTypeSchema = Schema.Struct({ type: Schema.String })
+
+/**
+ * The Run's earlier assistant messages, from a Host that retains them. Fields a later Host adds to
+ * one are not read. One that is malformed, or holds a part this client cannot decode, is left out,
+ * as the Host leaves out one its caps cut short: the reconnect then shows the saved copy.
+ */
+export function decodeAssistantMessageSnapshots(value: unknown, context: SnapshotContext) {
+  if (value === undefined) return {}
+  if (!Array.isArray(value)) {
+    reportUndecodable(context, 'the earlier assistant messages', 'not an array')
+    return {}
+  }
+  const assistantMessages = value.flatMap((value: unknown, messageIndex) => {
+    const decoded = safeDecodeUnknown(assistantMessageCandidateSchema, value)
+    if (!decoded.success) {
+      reportUndecodable(context, 'an earlier assistant message', 'malformed message', {
+        messageIndex,
+      })
+      return []
+    }
+    const candidate = decoded.data
+    try {
+      return [
+        {
+          messageId: candidate.messageId,
+          timestamp: candidate.timestamp,
+          parts: candidate.parts.map(decodeMessagePart),
+        },
+      ]
+    } catch (error) {
+      reportUndecodable(context, 'an earlier assistant message', error, {
+        messageId: candidate.messageId,
+      })
+      return []
+    }
+  })
+  return assistantMessages.length > 0 ? { assistantMessages } : {}
+}
+
+/**
+ * The streaming message's parts. One this client cannot decode is left out and counted as
+ * omitted, and the message is marked cut short, so the renderer does not take the remaining parts
+ * for the whole message over a longer copy it already shows.
+ */
+export function decodeStreamingParts(
+  candidate: { readonly parts: readonly unknown[]; readonly messageId?: string },
+  context: SnapshotContext,
+) {
+  const parts: MessagePart[] = []
+  let omittedBytes = 0
+  candidate.parts.forEach((part, partIndex) => {
+    try {
+      parts.push(decodeMessagePart(part))
+    } catch (error) {
+      omittedBytes += byteLength(part)
+      reportUndecodable(context, 'a streaming message part', error, {
+        ...(candidate.messageId ? { messageId: candidate.messageId } : {}),
+        partIndex,
+        partType: Schema.is(partTypeSchema)(part) ? part.type : null,
+      })
+    }
+  })
+  return { parts, omittedBytes, dropped: parts.length < candidate.parts.length }
+}
+
+export function withUndecodableParts(
+  degraded: BackgroundRunSnapshot['degraded'],
+  streaming: ReturnType<typeof decodeStreamingParts>,
+) {
+  if (!streaming.dropped) return degraded
+  return {
+    reason: 'content-limit',
+    ...degraded,
+    omittedBytes: (degraded?.omittedBytes ?? 0) + streaming.omittedBytes,
+    messageCutShort: true,
+  } satisfies BackgroundRunSnapshot['degraded']
+}

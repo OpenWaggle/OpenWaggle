@@ -39,7 +39,7 @@ export function familyCountsFor(entries: readonly ExtensionContributionRegistryE
 
 export function summarizePackageContributions(
   entries: readonly ExtensionContributionRegistryEntry[],
-): PackageContributionSummary {
+) {
   return {
     familyCounts: familyCountsFor(entries),
     totalCount: entries.length,

@@ -1,0 +1,282 @@
+import type {
+  ExtensionAPI,
+  ExtensionToolContext,
+  ToolDefinition,
+} from '@earendil-works/pi-coding-agent'
+import { SessionId } from '@shared/types/brand'
+import type { BrowserPreviewAutomationSnapshot } from '@shared/types/browser-preview-automation'
+import { fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BrowserPreviewAutomationServiceShape } from '../../../ports/browser-preview-automation-service'
+import { createBrowserPreviewAutomationExtension } from '../browser-preview-automation-extension'
+import { createBrowserPreviewRuntimeResources } from '../pi-agent-kernel-run'
+
+const status = {
+  available: true,
+  visible: true,
+  tabId: 'tab-1',
+  url: 'http://localhost:5173/',
+  title: 'Application',
+  loading: false,
+  viewport: { mode: 'fill' as const },
+  appearance: 'system' as const,
+}
+
+const snapshot: BrowserPreviewAutomationSnapshot = {
+  url: status.url,
+  title: status.title,
+  loading: false,
+  visibleText: 'Ready',
+  interactiveElements: [],
+  accessibilityTree: null,
+  consoleEntries: [],
+  networkEntries: [],
+  actionTimeline: [],
+  screenshot: { mimeType: 'image/png', data: 'cG5n', width: 800, height: 600 },
+}
+
+const service = fromPartial<BrowserPreviewAutomationServiceShape>({
+  status: vi.fn(() => Effect.succeed(status)),
+  navigate: vi.fn(() => Effect.succeed(status)),
+  click: vi.fn(() => Effect.void),
+  resize: vi.fn(() => Effect.succeed({ tabId: 'tab-1', viewport: { mode: 'fill' as const } })),
+  snapshot: vi.fn(() => Effect.succeed(snapshot)),
+})
+
+async function registeredTools() {
+  const tools = new Map<string, ToolDefinition>()
+  const factory = createBrowserPreviewAutomationExtension({
+    scope: { sessionId: SessionId('session-1'), workingPath: '/project' },
+    service,
+  })
+  await factory(
+    fromPartial<ExtensionAPI>({
+      registerTool: (tool: ToolDefinition) => tools.set(tool.name, tool),
+      on: () => undefined,
+    }),
+  )
+  return tools
+}
+
+function context(confirm: ExtensionToolContext['ui']['confirm']) {
+  return fromPartial<ExtensionToolContext>({ hasUI: true, ui: { confirm } })
+}
+
+describe('Pi browser preview automation extension', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('registers the full collaborative preview tool contract', async () => {
+    const tools = await registeredTools()
+
+    expect([...tools.keys()]).toEqual([
+      'preview_status',
+      'preview_snapshot',
+      'preview_open',
+      'preview_navigate',
+      'preview_resize',
+      'preview_set_appearance',
+      'preview_click',
+      'preview_type',
+      'preview_press',
+      'preview_scroll',
+      'preview_evaluate',
+      'preview_wait_for',
+      'preview_recording_start',
+      'preview_recording_stop',
+    ])
+  })
+
+  it('withholds both tools and instructions when agent browser access is disabled', () => {
+    const disabled = createBrowserPreviewRuntimeResources({
+      enabled: false,
+      sessionId: SessionId('session-1'),
+      workingPath: '/project',
+      service,
+    })
+    const enabled = createBrowserPreviewRuntimeResources({
+      enabled: true,
+      sessionId: SessionId('session-1'),
+      workingPath: '/project',
+      service,
+    })
+
+    expect(disabled).toEqual({ trustedExtensionFactories: [], systemPromptAppendices: [] })
+    expect(enabled.trustedExtensionFactories).toHaveLength(1)
+    // The preview tools announce themselves with one rule instead of an appendix on every request.
+    expect(enabled.systemPromptAppendices).toEqual([])
+  })
+
+  it('registers every preview tool on demand, with the usage guidance on preview_status', async () => {
+    const tools = await registeredTools()
+
+    for (const tool of tools.values()) {
+      expect(tool).toMatchObject({ exposure: 'deferred', namespace: { name: 'openwaggle' } })
+      expect(tool.promptSnippet).toBeUndefined()
+    }
+    expect(tools.get('preview_status')?.description).toContain('preview_open')
+    expect(tools.get('preview_status')?.description).toContain(
+      'instead of switching to another browser integration',
+    )
+  })
+
+  it('reports status without requesting page-control authority', async () => {
+    const tools = await registeredTools()
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>()
+
+    const result = await tools
+      .get('preview_status')
+      ?.execute('status-1', {}, undefined, undefined, context(confirm))
+
+    expect(confirm).not.toHaveBeenCalled()
+    expect(service.status).toHaveBeenCalledWith(
+      { sessionId: SessionId('session-1'), workingPath: '/project' },
+      {},
+    )
+    expect(result?.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('http://localhost:5173/'),
+    })
+  })
+
+  it('does not interact with the page after a denied approval', async () => {
+    const tools = await registeredTools()
+    const result = await tools.get('preview_click')?.execute(
+      'click-1',
+      { locator: 'role=button[name="Save"]' },
+      undefined,
+      undefined,
+      context(async () => false),
+    )
+
+    expect(service.click).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ isError: true })
+  })
+
+  it('returns page inspection metadata and the PNG as native image content', async () => {
+    const tools = await registeredTools()
+    const result = await tools.get('preview_snapshot')?.execute(
+      'snapshot-1',
+      {},
+      undefined,
+      undefined,
+      context(async () => true),
+    )
+
+    expect(service.snapshot).toHaveBeenCalledOnce()
+    expect(result?.content).toEqual([
+      { type: 'text', text: expect.not.stringContaining('cG5n') },
+      { type: 'image', data: 'cG5n', mimeType: 'image/png' },
+    ])
+  })
+
+  it('answers a snapshot without an image when the page painted no frame', async () => {
+    vi.mocked(service.snapshot).mockReturnValueOnce(
+      Effect.succeed({ ...snapshot, screenshot: null, screenshotUnavailable: 'hidden window' }),
+    )
+    const tools = await registeredTools()
+    const result = await tools.get('preview_snapshot')?.execute(
+      'snapshot-2',
+      { include: ['console'] },
+      undefined,
+      undefined,
+      context(async () => true),
+    )
+
+    expect(service.snapshot).toHaveBeenCalledWith(
+      { sessionId: SessionId('session-1'), workingPath: '/project' },
+      {},
+    )
+    expect(result?.content).toEqual([
+      { type: 'text', text: expect.stringContaining('"screenshotUnavailable":"hidden window"') },
+    ])
+  })
+
+  it('forwards navigation targets through the session-scoped service', async () => {
+    const tools = await registeredTools()
+    await tools.get('preview_navigate')?.execute(
+      'navigate-1',
+      { target: { kind: 'environment-port', port: 5173 } },
+      undefined,
+      undefined,
+      context(async () => true),
+    )
+
+    expect(service.navigate).toHaveBeenCalledWith(
+      { sessionId: SessionId('session-1'), workingPath: '/project' },
+      { target: { kind: 'environment-port', port: 5173 } },
+    )
+  })
+
+  it('resizes through one object schema and still enforces each mode contract', async () => {
+    const tools = await registeredTools()
+    const resize = tools.get('preview_resize')
+    const confirm = vi.fn<ExtensionToolContext['ui']['confirm']>(async () => true)
+    const scope = { sessionId: SessionId('session-1'), workingPath: '/project' }
+
+    expect(structuredClone(resize?.parameters)).toMatchObject({
+      type: 'object',
+      required: ['mode'],
+      properties: {
+        mode: { enum: ['fill', 'freeform', 'preset'] },
+      },
+    })
+    await expect(
+      resize?.execute(
+        'resize-1',
+        { mode: 'freeform', width: 800 },
+        undefined,
+        undefined,
+        context(confirm),
+      ),
+    ).rejects.toThrow('requires both width and height')
+    await expect(
+      resize?.execute(
+        'resize-1b',
+        { mode: 'freeform', width: 3_840, height: 3_840 },
+        undefined,
+        undefined,
+        context(confirm),
+      ),
+    ).rejects.toThrow('exceeds the viewport limit')
+    await expect(
+      resize?.execute('resize-2', { mode: 'preset' }, undefined, undefined, context(confirm)),
+    ).rejects.toThrow('requires preset')
+    expect(confirm).not.toHaveBeenCalled()
+    expect(service.resize).not.toHaveBeenCalled()
+
+    await resize?.execute(
+      'resize-3',
+      { mode: 'fill', width: 800, preset: 'ipad-air' },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, { mode: 'fill' })
+    await resize?.execute(
+      'resize-4',
+      { tabId: 'tab-2', mode: 'preset', preset: 'ipad-air', orientation: 'landscape' },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, {
+      tabId: 'tab-2',
+      mode: 'preset',
+      preset: 'ipad-air',
+      orientation: 'landscape',
+    })
+    await resize?.execute(
+      'resize-5',
+      { mode: 'freeform', width: 800, height: 600 },
+      undefined,
+      undefined,
+      context(confirm),
+    )
+    expect(service.resize).toHaveBeenLastCalledWith(scope, {
+      mode: 'freeform',
+      width: 800,
+      height: 600,
+    })
+  })
+})

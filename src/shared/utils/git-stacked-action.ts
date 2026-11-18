@@ -1,0 +1,192 @@
+import { match } from '@diegogbrisa/ts-match'
+import type { GitStackedAction, SourceControlProviderId } from '@shared/types/git'
+import type { LocalVcsStatus } from '../types/vcs'
+import {
+  type ChangeRequestTerminology,
+  DEFAULT_CHANGE_REQUEST_TERMINOLOGY,
+  getChangeRequestTerminology,
+} from './source-control-presentation'
+
+const AUTO_FEATURE_BRANCH_FALLBACK = 'feature/update'
+const BRANCH_FRAGMENT_MAX_LENGTH = 64
+const FIRST_DUPLICATE_SUFFIX = 2
+
+export function sanitizeBranchFragment(raw: string) {
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/['"`]/g, '')
+    .replace(/^[./\s_-]+|[./\s_-]+$/g, '')
+
+  const fragment = normalized
+    .replace(/[^a-z0-9/_-]+/g, '-')
+    .replace(/\/+/g, '/')
+    .replace(/-+/g, '-')
+    .replace(/^[./_-]+|[./_-]+$/g, '')
+    .slice(0, BRANCH_FRAGMENT_MAX_LENGTH)
+    .replace(/[./_-]+$/g, '')
+
+  return fragment.length > 0 ? fragment : 'update'
+}
+
+export function sanitizeFeatureBranchName(raw: string) {
+  const sanitized = sanitizeBranchFragment(raw)
+  if (sanitized.startsWith('codex/')) return sanitized
+  if (sanitized.includes('/')) {
+    return sanitized.startsWith('feature/') ? sanitized : `feature/${sanitized}`
+  }
+  return `feature/${sanitized}`
+}
+
+/** Pick a unique feature branch name given the existing branch names. */
+export function resolveAutoFeatureBranchName(
+  existingBranchNames: readonly string[],
+  preferredBranch?: string,
+) {
+  const preferred = preferredBranch?.trim()
+  const base = sanitizeFeatureBranchName(
+    preferred && preferred.length > 0 ? preferred : AUTO_FEATURE_BRANCH_FALLBACK,
+  )
+  const existing = new Set(existingBranchNames.map((name) => name.toLowerCase()))
+  if (!existing.has(base)) return base
+
+  let suffix = FIRST_DUPLICATE_SUFFIX
+  while (existing.has(`${base}-${suffix}`)) suffix += 1
+  return `${base}-${suffix}`
+}
+
+/** Ordered progress-stage labels for a stacked action, shown as it advances. */
+export function buildGitActionProgressStages(input: {
+  action: GitStackedAction
+  hasCustomCommitMessage: boolean
+  hasWorkingTreeChanges: boolean
+  pushTarget?: string
+  featureBranch?: boolean
+  shouldPushBeforePr?: boolean
+  terminology?: ChangeRequestTerminology
+}) {
+  const terminology = input.terminology ?? DEFAULT_CHANGE_REQUEST_TERMINOLOGY
+  const branchStages = input.featureBranch ? ['Preparing feature ref...'] : []
+  const pushStage = input.pushTarget ? `Pushing to ${input.pushTarget}...` : 'Pushing...'
+  const prStage = `Creating ${terminology.singular}...`
+
+  if (input.action === 'push') return [...branchStages, pushStage]
+  if (input.action === 'pull') return ['Pulling...']
+  if (input.action === 'create_pr') {
+    return input.shouldPushBeforePr === false
+      ? [...branchStages, prStage]
+      : [...branchStages, pushStage, prStage]
+  }
+
+  const includeCommit = input.action === 'commit' || input.hasWorkingTreeChanges
+  const commitStages = includeCommit ? ['Committing...'] : []
+
+  if (input.action === 'commit') return [...branchStages, ...commitStages]
+  if (input.action === 'commit_push') return [...branchStages, ...commitStages, pushStage]
+  return [...branchStages, ...commitStages, pushStage, prStage]
+}
+
+export type DefaultBranchConfirmableAction = 'push' | 'create_pr' | 'commit_push' | 'commit_push_pr'
+
+export function requiresDefaultBranchConfirmation(
+  action: GitStackedAction,
+  isDefaultRef: boolean,
+): action is DefaultBranchConfirmableAction {
+  if (!isDefaultRef) return false
+  return (
+    action === 'push' ||
+    action === 'create_pr' ||
+    action === 'commit_push' ||
+    action === 'commit_push_pr'
+  )
+}
+
+export interface DefaultBranchActionDialogCopy {
+  readonly title: string
+  readonly description: string
+  readonly continueLabel: string
+}
+
+export function resolveDefaultBranchActionDialogCopy(input: {
+  action: DefaultBranchConfirmableAction
+  branchName: string
+  includesCommit: boolean
+  provider?: SourceControlProviderId | null
+}) {
+  const branchLabel = input.branchName
+  const suffix = ` on "${branchLabel}". You can continue on this ref or create a feature ref and run the same action there.`
+  const terminology = getChangeRequestTerminology(input.provider)
+
+  if (input.action === 'push' || input.action === 'commit_push') {
+    if (input.includesCommit) {
+      return {
+        title: 'Commit & push to default ref?',
+        description: `This action will commit and push changes${suffix}`,
+        continueLabel: `Commit & push to ${branchLabel}`,
+      } satisfies DefaultBranchActionDialogCopy
+    }
+    return {
+      title: 'Push to default ref?',
+      description: `This action will push local commits${suffix}`,
+      continueLabel: `Push to ${branchLabel}`,
+    } satisfies DefaultBranchActionDialogCopy
+  }
+
+  if (input.includesCommit) {
+    return {
+      title: `Commit, push & create ${terminology.shortLabel} from default ref?`,
+      description: `This action will commit, push, and create a ${terminology.singular}${suffix}`,
+      continueLabel: `Commit, push & create ${terminology.shortLabel}`,
+    } satisfies DefaultBranchActionDialogCopy
+  }
+  return {
+    title: `Push & create ${terminology.shortLabel} from default ref?`,
+    description: `This action will push local commits and create a ${terminology.singular}${suffix}`,
+    continueLabel: `Push & create ${terminology.shortLabel}`,
+  } satisfies DefaultBranchActionDialogCopy
+}
+
+/** Ordered phases a stacked action executes; used to sequence the workflow. */
+export function planStackedActionPhases(action: GitStackedAction) {
+  return match(action)
+    .with('commit', () => ['commit'] as const)
+    .with('push', () => ['push'] as const)
+    .with('pull', () => ['push'] as const)
+    .with('create_pr', () => ['push', 'pr'] as const)
+    .with('commit_push', () => ['commit', 'push'] as const)
+    .with('commit_push_pr', () => ['commit', 'push', 'pr'] as const)
+    .exhaustive()
+}
+
+/**
+ * Whether a stacked action would write the default branch, from either end.
+ *
+ * Git can resolve a push to a different branch or remote through pushRemote, pushDefault,
+ * push.default, and upstream configuration. Judging only the checked-out ref can therefore approve
+ * a different destination from the one the mutation will update.
+ */
+export function targetsDefaultRef(
+  status: Pick<LocalVcsStatus, 'isDefaultRef' | 'pushTargetIsDefaultRef'>,
+) {
+  return status.isDefaultRef || status.pushTargetIsDefaultRef
+}
+
+/**
+ * The branch the confirmation should name: the destination when a push would write somewhere else.
+ *
+ * Telling the user "you are on feature" while the push updates `main` is worse than not asking, because it
+ * invites them to confirm the wrong thing.
+ */
+export function defaultBranchActionLabel(
+  status: Pick<
+    LocalVcsStatus,
+    'isDefaultRef' | 'pushTargetIsDefaultRef' | 'pushTargetRef' | 'refName'
+  >,
+) {
+  if (!status.isDefaultRef && status.pushTargetIsDefaultRef && status.pushTargetRef !== null) {
+    return status.refName === null || status.refName === status.pushTargetRef
+      ? status.pushTargetRef
+      : `${status.pushTargetRef} (from ${status.refName})`
+  }
+  return status.refName ?? 'the default branch'
+}

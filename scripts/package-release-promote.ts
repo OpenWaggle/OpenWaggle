@@ -5,12 +5,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import type { PackageReleaseAttestationIdentity } from './package-release-artifact-contract'
+import type { PackageReleasePublicationEnvironment } from './package-release-promotion'
 
 const CLI_ARGUMENT_START_INDEX = 2
 const EXPECTED_CLI_ARGUMENT_COUNT = 2
-const GH_ATTESTATION_COMMAND_PREFIX_LENGTH = 2
-
 interface PackageReleasePlan {
   readonly sourceSha: string
 }
@@ -27,6 +25,7 @@ interface PackageReleaseArtifact {
 interface PackageReleaseArtifactManifest {
   readonly packages: readonly PackageReleaseArtifact[]
   readonly sourceSha: string
+  readonly sourceTree: string
 }
 
 interface PromotionDependencies {
@@ -49,23 +48,31 @@ interface PromotionModule {
     plan: PackageReleasePlan,
     artifactRoot: string,
   ) => Promise<PackageReleaseArtifactManifest>
+  readonly verifyPackageReleasePublicationEnvironment: (
+    plan: PackageReleasePlan,
+    environment: PackageReleasePublicationEnvironment,
+  ) => void
 }
 
 interface ArtifactContractModule {
-  readonly assertPackageReleaseAttestationIdentity: (
-    value: unknown,
-    identity: PackageReleaseAttestationIdentity,
-  ) => void
-  readonly packageReleaseAttestationVerificationArgs: (
-    file: string,
-    repository: string,
-    sourceSha: string,
-  ) => readonly string[]
   readonly releaseAssetRepairPlan: (
     value: unknown,
     tag: string,
     expectedNames: readonly string[],
   ) => Readonly<{ missingNames: readonly string[]; presentNames: readonly string[] }>
+}
+
+interface ProvenanceModule {
+  readonly verifyPackageReleaseArtifactProvenance: (
+    input: Readonly<{
+      artifactFiles: readonly string[]
+      artifactRoot: string
+      candidateSourceSha: string
+      repository: string
+      runId: string
+      sourceTree: string
+    }>,
+  ) => Promise<void>
 }
 
 interface CommandResult {
@@ -87,15 +94,26 @@ function run(command: string, args: readonly string[], allowFailure = false) {
   })
 }
 
-function isJsonObject(value: unknown): value is { readonly [key: string]: unknown } {
+/*
+ * This script runs under plain Node with no install, so it checks its JSON with local type guards
+ * and reads its environment by destructuring `process.env`, instead of the shared schemas.
+ */
+function isJsonObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isPromotionModule(value: unknown): value is PromotionModule {
-  return isJsonObject(value) &&
+  return (
+    isJsonObject(value) &&
+    'promoteVerifiedPackageRelease' in value &&
     typeof value.promoteVerifiedPackageRelease === 'function' &&
+    'readPackageReleasePlan' in value &&
     typeof value.readPackageReleasePlan === 'function' &&
-    typeof value.verifyPromotionBundle === 'function'
+    'verifyPromotionBundle' in value &&
+    typeof value.verifyPromotionBundle === 'function' &&
+    'verifyPackageReleasePublicationEnvironment' in value &&
+    typeof value.verifyPackageReleasePublicationEnvironment === 'function'
+  )
 }
 
 async function loadPromotionModule() {
@@ -106,10 +124,11 @@ async function loadPromotionModule() {
 }
 
 function isArtifactContractModule(value: unknown): value is ArtifactContractModule {
-  return isJsonObject(value) &&
-    typeof value.assertPackageReleaseAttestationIdentity === 'function' &&
-    typeof value.packageReleaseAttestationVerificationArgs === 'function' &&
+  return (
+    isJsonObject(value) &&
+    'releaseAssetRepairPlan' in value &&
     typeof value.releaseAssetRepairPlan === 'function'
+  )
 }
 
 async function loadArtifactContractModule() {
@@ -121,11 +140,36 @@ async function loadArtifactContractModule() {
   return loaded
 }
 
+function isProvenanceModule(value: unknown): value is ProvenanceModule {
+  return (
+    isJsonObject(value) &&
+    'verifyPackageReleaseArtifactProvenance' in value &&
+    typeof value.verifyPackageReleaseArtifactProvenance === 'function'
+  )
+}
+
+async function loadProvenanceModule() {
+  const moduleUrl = new URL('./package-release-provenance.ts', import.meta.url).href
+  const loaded: unknown = await import(moduleUrl)
+  if (!isProvenanceModule(loaded)) {
+    throw new Error('Package release provenance module is invalid.')
+  }
+  return loaded
+}
+
 async function readRegistryIntegrity(name: string, version: string) {
-  const result = await run('npm', [
-    'view', `${name}@${version}`, 'dist.integrity', '--json',
-    '--registry', 'https://registry.npmjs.org/',
-  ], true)
+  const result = await run(
+    'npm',
+    [
+      'view',
+      `${name}@${version}`,
+      'dist.integrity',
+      '--json',
+      '--registry',
+      'https://registry.npmjs.org/',
+    ],
+    true,
+  )
   if (result.exitCode !== 0) {
     if (/E404|404 Not Found/.test(result.stderr)) return null
     throw new Error(result.stderr.trim() || `Unable to inspect ${name}@${version} on npm.`)
@@ -138,12 +182,13 @@ async function readRegistryIntegrity(name: string, version: string) {
 }
 
 async function ensureTag(tag: string, sourceSha: string) {
-  const repository = process.env.GITHUB_REPOSITORY
+  const { GITHUB_REPOSITORY: repository } = process.env
   if (repository === undefined) throw new Error('GITHUB_REPOSITORY is required.')
   const existing = await run('gh', ['api', `repos/${repository}/git/ref/tags/${tag}`], true)
   if (existing.exitCode === 0) {
     const response: unknown = JSON.parse(existing.stdout)
-    if (!isJsonObject(response) || !isJsonObject(response.object) || response.object.sha !== sourceSha) {
+    const target = isJsonObject(response) && 'object' in response ? response.object : undefined
+    if (!isJsonObject(target) || !('sha' in target) || target.sha !== sourceSha) {
       throw new Error(`Immutable package tag ${tag} points to a different commit.`)
     }
     return
@@ -152,12 +197,21 @@ async function ensureTag(tag: string, sourceSha: string) {
     throw new Error(existing.stderr.trim() || `Unable to inspect package tag ${tag}.`)
   }
   await run('gh', [
-    'api', '--method', 'POST', `repos/${repository}/git/refs`,
-    '-f', `ref=refs/tags/${tag}`, '-f', `sha=${sourceSha}`,
+    'api',
+    '--method',
+    'POST',
+    `repos/${repository}/git/refs`,
+    '-f',
+    `ref=refs/tags/${tag}`,
+    '-f',
+    `sha=${sourceSha}`,
   ])
 }
 
-async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
+async function ensureGitHubRelease({
+  artifact,
+  artifactRoot,
+}: Readonly<{
   artifact: PackageReleaseArtifact
   artifactRoot: string
   sourceSha: string
@@ -184,8 +238,13 @@ async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
     try {
       for (const assetName of repairPlan.presentNames) {
         await run('gh', [
-          'release', 'download', artifact.tag,
-          '--pattern', assetName, '--dir', temporaryDirectory,
+          'release',
+          'download',
+          artifact.tag,
+          '--pattern',
+          assetName,
+          '--dir',
+          temporaryDirectory,
         ])
         const [expected, downloaded] = await Promise.all([
           readFile(path.join(artifactRoot, assetName)),
@@ -217,9 +276,16 @@ async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
     const notesPath = path.join(temporaryDirectory, `${artifact.key}.md`)
     await writeFile(notesPath, `${artifact.releaseNotes}\n`)
     await run('gh', [
-      'release', 'create', artifact.tag,
+      'release',
+      'create',
+      artifact.tag,
       ...expectedPaths,
-      '--verify-tag', '--title', `${artifact.name} ${artifact.version}`, '--notes-file', notesPath,
+      '--verify-tag',
+      '--latest=false',
+      '--title',
+      `${artifact.name} ${artifact.version}`,
+      '--notes-file',
+      notesPath,
     ])
   } finally {
     await rm(temporaryDirectory, { force: true, recursive: true })
@@ -228,42 +294,6 @@ async function ensureGitHubRelease({ artifact, artifactRoot }: Readonly<{
 
 function sleep(durationMs: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, durationMs))
-}
-
-function verifyPublicationEnvironment(plan: PackageReleasePlan) {
-  if (process.env.GITHUB_EVENT_NAME !== 'push' || process.env.GITHUB_REF !== 'refs/heads/main') {
-    throw new Error('Package publication is allowed only for a main branch push.')
-  }
-  if (process.env.GITHUB_SHA !== plan.sourceSha) {
-    throw new Error('Package release plan does not match the triggering main commit.')
-  }
-  if (process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN === undefined ||
-    process.env.ACTIONS_ID_TOKEN_REQUEST_URL === undefined) {
-    throw new Error('GitHub OIDC token request environment is unavailable.')
-  }
-}
-
-async function verifyArtifactProvenance(
-  artifactRoot: string,
-  manifest: PackageReleaseArtifactManifest,
-  identity: PackageReleaseAttestationIdentity,
-) {
-  const artifactContract = await loadArtifactContractModule()
-  for (const file of [
-    path.join(artifactRoot, 'release-artifacts.json'),
-    ...manifest.packages.map(({ file }) => path.join(artifactRoot, file)),
-  ]) {
-    const verificationArgs = artifactContract.packageReleaseAttestationVerificationArgs(
-      file,
-      identity.repository,
-      identity.sourceSha,
-    )
-    const verification = await run(
-      'gh', ['attestation', 'verify', ...verificationArgs.slice(GH_ATTESTATION_COMMAND_PREFIX_LENGTH)],
-    )
-    const result: unknown = JSON.parse(verification.stdout)
-    artifactContract.assertPackageReleaseAttestationIdentity(result, identity)
-  }
 }
 
 export async function runPackageReleasePromoteCli(args: readonly string[]) {
@@ -276,34 +306,66 @@ export async function runPackageReleasePromoteCli(args: readonly string[]) {
   }
   const promotion = await loadPromotionModule()
   const plan = await promotion.readPackageReleasePlan(planPath)
-  verifyPublicationEnvironment(plan)
+  const env = process.env
+  const {
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: actionsIdTokenRequestToken,
+    ACTIONS_ID_TOKEN_REQUEST_URL: actionsIdTokenRequestUrl,
+    GITHUB_EVENT_NAME: eventName,
+    RECOVERY_RELEASE_SHA: recoveryReleaseSha,
+    GITHUB_REF: ref,
+    GITHUB_SHA: sha,
+  } = env
+  promotion.verifyPackageReleasePublicationEnvironment(plan, {
+    actionsIdTokenRequestToken,
+    actionsIdTokenRequestUrl,
+    eventName,
+    recoveryReleaseSha,
+    ref,
+    sha,
+  })
   const manifest = await promotion.verifyPromotionBundle(plan, artifactRoot)
-  const repository = process.env.GITHUB_REPOSITORY
-  const selectedRunId = process.env.EXPECTED_ARTIFACT_RUN_ID
-  const selectedSourceSha = process.env.EXPECTED_ARTIFACT_SOURCE_SHA
-  if (repository === undefined || selectedRunId === undefined || selectedSourceSha === undefined ||
-    !/^[1-9]\d*$/.test(selectedRunId)) {
+  const {
+    GITHUB_REPOSITORY: repository,
+    EXPECTED_ARTIFACT_RUN_ID: selectedRunId,
+    EXPECTED_ARTIFACT_SOURCE_SHA: selectedSourceSha,
+  } = env
+  if (
+    repository === undefined ||
+    selectedRunId === undefined ||
+    selectedSourceSha === undefined ||
+    !/^[1-9]\d*$/.test(selectedRunId)
+  ) {
     throw new Error('Selected package artifact CI identity is incomplete.')
   }
   if (manifest.sourceSha !== selectedSourceSha) {
     throw new Error('Package artifact source SHA does not match its successful CI run.')
   }
-  await verifyArtifactProvenance(artifactRoot, manifest, {
+  const provenance = await loadProvenanceModule()
+  await provenance.verifyPackageReleaseArtifactProvenance({
+    artifactFiles: ['release-artifacts.json', ...manifest.packages.map(({ file }) => file)],
+    artifactRoot,
+    candidateSourceSha: selectedSourceSha,
     repository,
     runId: selectedRunId,
-    sourceSha: selectedSourceSha,
+    sourceTree: manifest.sourceTree,
   })
   await promotion.promoteVerifiedPackageRelease(plan, manifest, artifactRoot, {
     ensureGitHubRelease,
     ensureTag,
     publish: async (_artifact, tarballPath) => {
-      await run('node', [
+      const result = await run('node', [
         '--disable-warning=MODULE_TYPELESS_PACKAGE_JSON',
         path.join('scripts', 'package-release-publish.ts'),
         tarballPath,
       ])
+      if (result.stdout) process.stdout.write(result.stdout)
+      if (result.stderr) process.stderr.write(result.stderr)
     },
-    readRegistryIntegrity,
+    readRegistryIntegrity: async (name, version) => {
+      const integrity = await readRegistryIntegrity(name, version)
+      if (integrity === null) console.log(`npm does not serve ${name}@${version} yet.`)
+      return integrity
+    },
     sleep,
   })
 }

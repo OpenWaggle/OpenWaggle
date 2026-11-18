@@ -1,11 +1,77 @@
+import type { RepositoryPath } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
+import {
+  SESSION_QUERY_CONTRACT_VERSION,
+  SESSION_QUERY_DISCOVERY_LIMIT,
+} from '@shared/types/session-query'
+import { loadInBatches } from '@shared/utils/batches'
+import type { QueryClient } from '@tanstack/react-query'
 import type { useNavigate } from '@tanstack/react-router'
+import { refreshArchivedSessions } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
+import { archiveWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
+import { openProjectInDraft } from './open-project-in-draft'
 import { clearComposerDraftsForSessions, errorMessage } from './sidebar-action-utils'
+import {
+  deleteProjectSessionsChildrenFirst,
+  deleteRemovedProjectSession,
+} from './sidebar-project-session-deletion'
 
 type Navigate = ReturnType<typeof useNavigate>
+const SESSION_HYDRATION_BATCH_SIZE = 100
+const SESSION_MUTATION_CONCURRENCY = 8
 
-interface SidebarProjectActionDeps {
+async function runWithConcurrency<T>(
+  items: readonly T[],
+  operation: (item: T) => Promise<unknown>,
+) {
+  let completed = 0
+  const failures: unknown[] = []
+  for (let offset = 0; offset < items.length; offset += SESSION_MUTATION_CONCURRENCY) {
+    const results = await Promise.allSettled(
+      items.slice(offset, offset + SESSION_MUTATION_CONCURRENCY).map(operation),
+    )
+    for (const result of results) {
+      if (result.status === 'fulfilled') completed += 1
+      else failures.push(result.reason)
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `${completed} of ${items.length} operations completed; ${failures.length} failed. Retry to finish the remaining work.`,
+      { cause: failures[0] },
+    )
+  }
+}
+
+async function listProjectSessionSummaries(path: string) {
+  const ids: SessionId[] = []
+  for (const archived of [false, true]) {
+    let cursor: string | undefined
+    do {
+      const response = await api.querySessionControl({
+        contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+        requestId: crypto.randomUUID(),
+        query: {
+          operation: 'list',
+          projectPath: path,
+          archived,
+          limit: SESSION_QUERY_DISCOVERY_LIMIT,
+          ...(cursor ? { cursor } : {}),
+        },
+      })
+      if (response.outcome.operation !== 'list' || !('sessions' in response.outcome)) {
+        throw new Error('Project Session listing returned an unexpected response.')
+      }
+      ids.push(...response.outcome.sessions.map((session) => SessionId(session.sessionId)))
+      cursor = response.outcome.nextCursor
+    } while (cursor)
+  }
+  return loadInBatches(ids, SESSION_HYDRATION_BATCH_SIZE, (batch) => api.listSessionsByIds(batch))
+}
+
+export interface SidebarProjectActionDeps {
   readonly activeSessionId: string | null
   readonly displayProjectName: (path: string) => string
   readonly expandProject: (path: string) => void
@@ -13,87 +79,165 @@ interface SidebarProjectActionDeps {
   readonly loadSessionTrees: () => Promise<void>
   readonly navigate: Navigate
   readonly projectPath: string | null
-  readonly refreshGit: (path: string | null) => void
+  readonly queryClient: QueryClient
+  readonly refreshGit: (path: RepositoryPath | null) => void
   readonly removeProjectReferences: (path: string) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
-  readonly sessions: readonly SessionSummary[]
   readonly setProjectDisplayName: (path: string, name: string) => Promise<void>
   readonly setProjectPath: (path: string) => Promise<void>
   readonly showToast: (message: string) => void
   readonly startDraftSession: (projectPath: string | null) => void
+  /** Leave every session without creating a new draft session. */
+  readonly clearActiveSession: () => void
+  /** The live active session, read after the confirmation and the archives settle. */
+  readonly getActiveSessionId: () => string | null
   readonly clearTransientDraftContext: () => void
 }
 
-function projectSessionsForPath(
-  sessions: readonly SessionSummary[],
-  archivedSessions: readonly SessionSummary[],
-  path: string,
-) {
-  const byId = new Map<string, SessionSummary>()
+function dependentSessionsById(sessions: readonly SessionSummary[]) {
+  const dependentsBySession = new Map<string, SessionSummary[]>()
+  const sessionIds = new Set(sessions.map((session) => String(session.id)))
   for (const session of sessions) {
-    if (session.projectPath === path) byId.set(String(session.id), session)
+    const dependencyIds = new Set([
+      ...(session.lineage?.parentSessionId ? [String(session.lineage.parentSessionId)] : []),
+      ...(session.derivation ? [String(session.derivation.sourceSessionId)] : []),
+    ])
+    for (const dependencyId of dependencyIds) {
+      if (!sessionIds.has(dependencyId)) continue
+      const dependents = dependentsBySession.get(dependencyId) ?? []
+      dependents.push(session)
+      dependentsBySession.set(dependencyId, dependents)
+    }
   }
-  for (const session of archivedSessions) {
-    if (session.projectPath === path) byId.set(String(session.id), session)
+  return dependentsBySession
+}
+
+export function sessionsInDeletionOrder(sessions: readonly SessionSummary[]) {
+  const dependentsBySession = dependentSessionsById(sessions)
+  const ordered: SessionSummary[] = []
+  const discovered = new Set<string>()
+  for (const root of sessions) {
+    const stack: { readonly session: SessionSummary; readonly expanded: boolean }[] = [
+      { session: root, expanded: false },
+    ]
+    while (stack.length > 0) {
+      const frame = stack.pop()
+      if (!frame) break
+      const sessionId = String(frame.session.id)
+      if (frame.expanded) {
+        ordered.push(frame.session)
+        continue
+      }
+      if (discovered.has(sessionId)) continue
+      discovered.add(sessionId)
+      stack.push({ session: frame.session, expanded: true })
+      const dependents = dependentsBySession.get(sessionId) ?? []
+      for (let index = dependents.length - 1; index >= 0; index -= 1) {
+        const dependent = dependents[index]
+        if (dependent) stack.push({ session: dependent, expanded: false })
+      }
+    }
   }
-  return [...byId.values()]
+  return ordered
 }
 
-function resetToDraftForProject(deps: SidebarProjectActionDeps, projectPath: string | null) {
-  deps.clearTransientDraftContext()
-  deps.startDraftSession(projectPath)
-  if (projectPath) deps.expandProject(projectPath)
-  void deps.navigate({ to: '/' })
+function selectProjectPath(deps: SidebarProjectActionDeps, path: string) {
+  return openProjectInDraft(deps, path)
 }
 
-async function selectProjectPath(deps: SidebarProjectActionDeps, path: string) {
-  resetToDraftForProject(deps, path)
-  await deps.setProjectPath(path)
-  deps.refreshGit(path)
-}
-
-async function archiveProjectSessions(
-  deps: SidebarProjectActionDeps,
-  path: string,
-  projectSessions: readonly SessionSummary[],
-) {
+async function archiveProjectSessions(deps: SidebarProjectActionDeps, path: string) {
+  const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   if (sessionCount === 0) return
 
   const confirmed = await api.showConfirm(
     `Archive ${sessionCount} session${sessionCount === 1 ? '' : 's'} in ${deps.displayProjectName(path)}?`,
-    `Project: ${path}`,
+    `Project: ${deps.displayProjectName(path)}`,
   )
   if (!confirmed) return
 
-  await Promise.all(projectSessions.map((session) => api.archiveSession(session.id)))
+  await runWithConcurrency(projectSessions, async (session) => {
+    await api.archiveSession(session.id)
+    await archiveWorkspaceOwner(String(session.id))
+  })
   clearComposerDraftsForSessions(projectSessions)
-  await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
+  await Promise.all([
+    deps.loadChatSessions(),
+    deps.loadSessionTrees(),
+    refreshArchivedSessions(deps.queryClient),
+  ])
 
+  // Read live: the user may have opened another session while the archives ran.
+  const activeSessionId = deps.getActiveSessionId()
   const archivedActiveSession =
-    deps.activeSessionId !== null &&
-    projectSessions.some((session) => String(session.id) === deps.activeSessionId)
-  if (archivedActiveSession) resetToDraftForProject(deps, deps.projectPath)
+    activeSessionId !== null &&
+    projectSessions.some((session) => String(session.id) === activeSessionId)
+  // Archiving is not a request for a new session: return to the empty home without a draft.
+  if (archivedActiveSession) {
+    deps.clearTransientDraftContext()
+    deps.clearActiveSession()
+    void deps.navigate({ to: '/' })
+  }
 }
 
+/** Once the removal is done, the drafts it would not carry are forgotten, carried or not. */
 async function removeProject(deps: SidebarProjectActionDeps, path: string) {
-  const archivedSessions = await api.listArchivedSessions()
-  const projectSessions = projectSessionsForPath(deps.sessions, archivedSessions, path)
+  const releaseDrafts: (() => void)[] = []
+  try {
+    await removeProjectWith(deps, path, releaseDrafts)
+  } finally {
+    for (const releaseDraft of releaseDrafts) releaseDraft()
+  }
+}
+
+async function removeProjectWith(
+  deps: SidebarProjectActionDeps,
+  path: string,
+  releaseDrafts: (() => void)[],
+) {
+  const projectSessions = await listProjectSessionSummaries(path)
   const sessionCount = projectSessions.length
   const confirmed = await api.showConfirm(
-    `Remove ${deps.displayProjectName(path)} and permanently delete ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
-    `Project: ${path}\nThis cannot be undone.`,
+    `Remove ${deps.displayProjectName(path)} and delete its ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
+    `Project: ${deps.displayProjectName(path)}\nSessions started in OpenWaggle are deleted permanently. Sessions from the pi command keep their Pi files and come back if you add the folder again. If the folder is inside another project, that project lists them instead.`,
   )
   if (!confirmed) return
 
   const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
-  const activeRuns = await api.listActiveRuns()
-  await Promise.all(
-    activeRuns
-      .filter((run) => projectSessionIds.has(String(run.sessionId)))
-      .map((run) => api.cancelAgent(run.sessionId)),
-  )
-  await Promise.all(projectSessions.map((session) => api.deleteSession(session.id)))
+  try {
+    // Discovery stops listing the project's `pi` sessions before the Sessions to delete are read.
+    await api.beginProjectRemoval(path)
+    const currentSessions = await listProjectSessionSummaries(path)
+    if (
+      currentSessions.length !== projectSessionIds.size ||
+      currentSessions.some((session) => !projectSessionIds.has(String(session.id)))
+    ) {
+      throw new Error(
+        'Project sessions changed while confirming removal. Review them and try again.',
+      )
+    }
+    const activeRuns = await api.listActiveRuns()
+    await runWithConcurrency(
+      activeRuns.filter((run) => projectSessionIds.has(String(run.sessionId))),
+      (run) => api.cancelAgent(run.sessionId),
+    )
+    await deleteProjectSessionsChildrenFirst(currentSessions, (id) =>
+      deleteRemovedProjectSession(id, releaseDrafts),
+    )
+    // A Session created in the project meanwhile was not confirmed for deletion; keep the project.
+    if ((await listProjectSessionSummaries(path)).length > 0) {
+      throw new Error(
+        'Sessions were added to the project while removing it. Review them and try again.',
+      )
+    }
+  } catch (error) {
+    await Promise.allSettled([
+      deps.loadChatSessions(),
+      deps.loadSessionTrees(),
+      refreshArchivedSessions(deps.queryClient),
+    ])
+    throw error
+  }
   clearComposerDraftsForSessions(projectSessions)
   await deps.removeProjectReferences(path)
   await Promise.all([deps.loadChatSessions(), deps.loadSessionTrees()])
@@ -107,12 +251,12 @@ async function removeProject(deps: SidebarProjectActionDeps, path: string) {
 
 export function createSidebarProjectActions(deps: SidebarProjectActionDeps) {
   return {
-    archiveSessions(path: string, projectSessions: readonly SessionSummary[]) {
-      void archiveProjectSessions(deps, path, projectSessions).catch((error: unknown) => {
+    archiveSessions: (path: string, _projectSessions: readonly SessionSummary[]) => {
+      void archiveProjectSessions(deps, path).catch((error: unknown) => {
         deps.showToast(`Failed to archive project sessions: ${errorMessage(error)}`)
       })
     },
-    async openProject() {
+    openProject: async () => {
       const path = await deps.selectFolder()
       if (!path) return
       try {
@@ -121,22 +265,22 @@ export function createSidebarProjectActions(deps: SidebarProjectActionDeps) {
         deps.showToast(`Failed to select project: ${errorMessage(error)}`)
       }
     },
-    openInFinder(path: string) {
+    openInFinder: (path: string) => {
       void api.openPath(path).catch((error: unknown) => {
         deps.showToast(`Failed to open project folder: ${errorMessage(error)}`)
       })
     },
-    remove(path: string) {
+    remove: (path: string) => {
       void removeProject(deps, path).catch((error: unknown) => {
         deps.showToast(`Failed to remove project: ${errorMessage(error)}`)
       })
     },
-    rename(path: string, name: string) {
+    rename: (path: string, name: string) => {
       void deps.setProjectDisplayName(path, name).catch((error: unknown) => {
         deps.showToast(`Failed to rename project: ${errorMessage(error)}`)
       })
     },
-    async selectProjectPath(path: string) {
+    selectProjectPath: async (path: string) => {
       try {
         await selectProjectPath(deps, path)
       } catch (error) {

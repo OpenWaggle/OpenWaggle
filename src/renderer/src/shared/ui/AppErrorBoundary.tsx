@@ -1,5 +1,7 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
+import { reportRendererError } from '@/shared/lib/error-reporting'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from './Button'
 
@@ -32,6 +34,8 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
       message: error.message,
       stack: errorInfo.componentStack,
     })
+    // The boundary catches render errors, so the SDK's global handlers never see them.
+    reportRendererError(error)
   }
 
   private readonly handleReload = () => {
@@ -48,12 +52,12 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
             <AlertTriangle className="size-4" />
             <h1 className="text-sm font-semibold">Something went wrong</h1>
           </div>
-          <p className="text-[13px] text-text-secondary">
+          <p className="text-sm text-text-secondary">
             The renderer hit an unexpected error. You can reload to recover.
           </p>
           {this.state.message && (
-            <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border bg-bg p-2 text-[12px] text-text-tertiary whitespace-pre-wrap break-words">
-              {this.state.message}
+            <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border bg-bg p-2 text-xs text-text-tertiary whitespace-pre-wrap break-words">
+              {formatDisplayPathsInText(this.state.message, [])}
             </pre>
           )}
           <Button

@@ -6,7 +6,7 @@ export function agentLoopInteractionTitle(interaction: AgentLoopInteraction) {
   return matchBy(interaction, 'kind')
     .with('confirm', 'select', 'input', 'editor', (value) => value.title)
     .with('notify', () => 'Notification')
-    .with('custom', (value) => `Custom interaction · ${value.customType}`)
+    .with('custom', () => 'Custom interaction')
     .exhaustive()
 }
 
@@ -16,7 +16,7 @@ export function agentLoopInteractionMessage(interaction: AgentLoopInteraction) {
     .with(
       'custom',
       () =>
-        'This custom Pi interaction requires an OpenWaggle desktop renderer. Pi TUI components are not executed inside Electron.',
+        'This custom interaction requires an OpenWaggle desktop renderer. Terminal UI components are not executed inside Electron.',
     )
     .with('select', 'input', 'editor', () => undefined)
     .exhaustive()
@@ -29,9 +29,7 @@ export function agentLoopInteractionRequiresDesktopRenderer(interaction: AgentLo
     .exhaustive()
 }
 
-function extensionInteractionActions(
-  interaction: AgentLoopInteraction,
-): ExtensionInteractionView['actions'] {
+function extensionInteractionActions(interaction: AgentLoopInteraction) {
   return matchBy(interaction, 'kind')
     .with('confirm', () => [
       { id: 'accept', label: 'Approve', tone: 'primary' as const },
@@ -50,7 +48,7 @@ function extensionInteractionActions(
 export function toExtensionInteractionView(
   interaction: AgentLoopInteraction,
   state: ExtensionInteractionView['state'] = 'pending',
-): ExtensionInteractionView {
+) {
   const message = agentLoopInteractionMessage(interaction)
   const customType = interaction.kind === 'custom' ? interaction.customType : interaction.kind
   return {

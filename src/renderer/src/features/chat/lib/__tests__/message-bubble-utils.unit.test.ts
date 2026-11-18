@@ -9,18 +9,18 @@ import {
 
 type MessagePart = UIMessage['parts'][number]
 
-function textPart(content: string): MessagePart {
-  return { type: 'text', content }
+function textPart(content: string) {
+  return { type: 'text', content } satisfies MessagePart
 }
 
-function toolCallPart(name: string, id = 'tc-1'): MessagePart {
+function toolCallPart(name: string, id = 'tc-1') {
   return {
     type: 'tool-call',
     id,
     name,
     arguments: '{}',
     state: 'output-available',
-  }
+  } satisfies MessagePart
 }
 
 describe('isRenderableTextPart', () => {
@@ -97,5 +97,10 @@ describe('hasRenderableTextPartBeforeIndex', () => {
   it('returns false when index is negative', () => {
     const parts: UIMessage['parts'] = [textPart('first')]
     expect(hasRenderableTextPartBeforeIndex(parts, -1)).toBe(false)
+  })
+
+  it('checks every part when the index is past the end', () => {
+    expect(hasRenderableTextPartBeforeIndex([toolCallPart('run'), textPart('only')], 5)).toBe(true)
+    expect(hasRenderableTextPartBeforeIndex([toolCallPart('run')], 5)).toBe(false)
   })
 })

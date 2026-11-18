@@ -1,24 +1,46 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,
 } from '@shared/types/agent-loop-interaction'
-import type { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { RepositoryPath, SessionBranchId, SessionId, WorkingPath } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import type { SessionDetail } from '@shared/types/session'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
-import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
+import type { WaggleCollaborationStatus, WagglePreset } from '@shared/types/waggle'
 import type { AgentChatStatus, AgentCompactionStatus } from '../hooks/useAgentChat'
+import type { PendingSend } from '../lib/optimistic-user-message'
 import type { SessionForkTarget } from '../lib/session-fork-targets'
+import type { TranscriptRemoteHistory } from '../lib/transcript-remote-history'
 import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
 
+/**
+ * `loading` while the selected Session's detail or transcript has not hydrated yet, which must never
+ * render the Welcome screen (ADR 0036).
+ */
+export type ChatTranscriptState = 'no-session' | 'loading' | 'ready'
+
 export interface ChatTranscriptSectionState {
+  readonly transcriptState?: ChatTranscriptState
+  /** When the Session was created, for the transcript's start marker. */
+  readonly sessionCreatedAt?: number | null
+  /** History the Host still holds above the loaded transcript window (ADR 0036, B5). */
+  readonly remoteHistory?: TranscriptRemoteHistory | null
   readonly messages: UIMessage[]
   readonly isLoading: boolean
   readonly projectPath: string | null
+  readonly worktreePath: string | null
+  /** The root the workspace file view opens relative paths against. */
+  readonly workingPath: string | null
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
+  readonly activeBranchId?: SessionBranchId | null
+  /** Exact persisted workspace path rendered for this branch or deep-linked node. */
+  readonly activePathNodeIds?: readonly string[]
   readonly chatRows: ChatRow[]
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]
@@ -26,10 +48,10 @@ export interface ChatTranscriptSectionState {
   readonly lastUserMessageId: string | null
   /** Monotonic streaming signal used by scroll-follow without rescanning the full transcript. */
   readonly streamSignalVersion: number
-  /** Intent flag; true when the user pressed Send and consumed by the scroll hook. */
-  readonly userDidSend: boolean
-  /** Clears userDidSend after the scroll effect processes it. */
-  readonly onUserDidSendConsumed: () => void
+  /** A send the transcript has not held near the top yet; consumed by the viewport. */
+  readonly pendingSend: PendingSend | null
+  /** Clears `pendingSend` once the viewport has held the sent message. */
+  readonly onPendingSendConsumed: () => void
   onOpenProject: () => Promise<void>
   onSelectProjectPath: (path: string) => void
   onRetryText: (content: string) => Promise<void>
@@ -38,12 +60,29 @@ export interface ChatTranscriptSectionState {
   onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
   onForkFromMessage: (messageId: string) => void
+  /** Copies the conversation through a turn's reply into a new Session. */
+  onForkFromResponse: (messageId: string) => void
+  /**
+   * The Host holds the Session, from a send until its Run settles (which outlasts the transcript's
+   * own loading state) or while a compaction runs, so no branch or copy is offered.
+   */
+  readonly copiesBlocked: boolean
+  onViewTurnDiff: (messageId: string, filePath?: string) => void
+  readonly turnAnchorMessageIds: ReadonlySet<string>
+  /** Turn checkpoints keyed by their anchored terminal assistant message id (ADR 0034). */
+  readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
+  onToggleTurnFold: (turnKey: string) => void
 }
 
 export interface ChatComposerSectionState {
   readonly activeSessionId: SessionId | null
+  readonly projectPath?: string | null
+  readonly recentProjects: readonly string[]
+  readonly session: SessionDetail | null
+  readonly sessionDetailPending: boolean
+  readonly isFirstMessage: boolean
   readonly waggleStatus: WaggleCollaborationStatus
-  readonly commandPaletteOpen: boolean
+  readonly slashCommandMenuOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly isLoading: boolean
   readonly status: AgentChatStatus
@@ -52,7 +91,7 @@ export interface ChatComposerSectionState {
   readonly forkTargets: readonly SessionForkTarget[]
   onStopCollaboration: () => void
   onSelectSkill: (skillId: string, skillName?: string) => void
-  onStartWaggle: (config: WaggleConfig) => void
+  onStartWaggle: (preset: WagglePreset) => void
   onSendWithWaggle: (payload: AgentSendPayload) => Promise<void>
   onSteer: (messageId: string) => Promise<void>
   onCancel: () => void
@@ -65,10 +104,18 @@ export interface ChatComposerSectionState {
   onCloseForkSelector: () => void
   onSelectForkTarget: (target: SessionForkTarget) => void
   onCloneToNewSession: () => void
+  onOpenProject: () => Promise<void>
+  onSelectProjectPath: (path: string) => void
+  onSetAuthorizationMode: (authorizationMode: AgentAuthorizationMode | null) => Promise<void>
 }
 
 export interface ChatDiffSectionState {
-  readonly projectPath: string | null
+  readonly session: SessionDetail | null
+  /** The working tree this panel reads and mutates (a Session worktree in worktree mode). */
+  readonly workingPath: WorkingPath | null
+  /** The repository the session belongs to, for telling a worktree apart from the checkout. */
+  readonly repositoryPath: RepositoryPath | null
+  readonly sessionId: SessionId | null
   onSendMessage: (content: string) => Promise<void>
 }
 

@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { fauxAssistantMessage } from '@earendil-works/pi-ai'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import { describe, expect, it } from 'vitest'
+import { fromAny } from '@total-typescript/shoehorn'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 import {
   createOpenWaggleAgentSessionFromServices,
@@ -12,68 +14,42 @@ import {
 } from '../pi-session-lifecycle'
 
 async function createTempProject() {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-session-lifecycle-'))
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-session-lifecycle-'))
+  onTestFinished(() => fs.rm(projectPath, { recursive: true, force: true }))
+  return projectPath
 }
 
 describe('Pi session lifecycle', () => {
-  it('binds session_start with the MCP adapter runtime context and emits session_shutdown on dispose', async () => {
+  it('binds session_start and emits session_shutdown on dispose', async () => {
     const projectPath = await createTempProject()
-    const adapterCwd = path.join(projectPath, 'generated-adapter-cwd')
-    const configPath = path.join(projectPath, 'generated-mcp.json')
-    await fs.mkdir(adapterCwd, { recursive: true })
-    await fs.writeFile(configPath, '{"mcpServers":{}}\n', 'utf8')
-
     const events: {
-      readonly sessionStartCwds: string[]
-      readonly sessionStartConfigs: string[]
-      readonly sessionShutdownCwds: string[]
-      readonly sessionShutdownConfigs: string[]
+      starts: number
       shutdowns: number
     } = {
-      sessionStartCwds: [],
-      sessionStartConfigs: [],
-      sessionShutdownCwds: [],
-      sessionShutdownConfigs: [],
+      starts: 0,
       shutdowns: 0,
     }
     const factory: ExtensionFactory = (pi) => {
-      pi.registerFlag('mcp-config', {
-        description: 'Path to MCP config file',
-        type: 'string',
-      })
       pi.on('session_start', () => {
-        events.sessionStartCwds.push(process.cwd())
-        const config = pi.getFlag('mcp-config')
-        if (typeof config === 'string') {
-          events.sessionStartConfigs.push(config)
-        }
+        events.starts += 1
       })
       pi.on('session_shutdown', () => {
-        events.sessionShutdownCwds.push(process.cwd())
-        const config = pi.getFlag('mcp-config')
-        if (typeof config === 'string') {
-          events.sessionShutdownConfigs.push(config)
-        }
         events.shutdowns += 1
       })
     }
 
     const services = await createPiRuntimeServices(projectPath, {
       extensionFactories: [factory],
-      mcpRuntimeContext: { configPath, adapterCwd },
     })
     const { session } = await createOpenWaggleAgentSessionFromServices({
       services,
       sessionManager: SessionManager.inMemory(projectPath),
     })
 
-    expect(events.sessionStartCwds).toEqual([adapterCwd])
-    expect(events.sessionStartConfigs).toEqual([configPath])
+    expect(events.starts).toBe(1)
 
     await disposeOpenWagglePiSession(session)
     expect(events.shutdowns).toBe(1)
-    expect(events.sessionShutdownCwds).toEqual([adapterCwd])
-    expect(events.sessionShutdownConfigs).toEqual([configPath])
   })
 
   it('does not let shutdown hook failures escape disposal', async () => {
@@ -85,7 +61,6 @@ describe('Pi session lifecycle', () => {
     }
     const services = await createPiRuntimeServices(projectPath, {
       extensionFactories: [factory],
-      mcpRuntimeContext: null,
     })
     const { session } = await createOpenWaggleAgentSessionFromServices({
       services,
@@ -95,45 +70,118 @@ describe('Pi session lifecycle', () => {
     await expect(disposeOpenWagglePiSession(session)).resolves.toBeUndefined()
   })
 
-  it('scopes raw lifecycle operations to the MCP adapter runtime context', async () => {
+  it('emits input before executing a registered extension command', async () => {
     const projectPath = await createTempProject()
-    const adapterCwd = path.join(projectPath, 'generated-adapter-cwd')
-    const configPath = path.join(projectPath, 'generated-mcp.json')
-    await fs.mkdir(adapterCwd, { recursive: true })
-    await fs.writeFile(configPath, '{"mcpServers":{}}\n', 'utf8')
-
-    const shutdownCwds: string[] = []
-    const shutdownConfigs: string[] = []
+    const events: string[] = []
     const factory: ExtensionFactory = (pi) => {
-      pi.registerFlag('mcp-config', {
-        description: 'Path to MCP config file',
-        type: 'string',
+      pi.on('input', () => {
+        events.push('input')
+        return { action: 'continue' }
       })
-      pi.on('session_shutdown', () => {
-        shutdownCwds.push(process.cwd())
-        const config = pi.getFlag('mcp-config')
-        if (typeof config === 'string') {
-          shutdownConfigs.push(config)
-        }
+      pi.registerCommand('registered-command', {
+        description: 'Ordering probe',
+        handler: async () => {
+          events.push('command')
+        },
       })
     }
-
     const services = await createPiRuntimeServices(projectPath, {
       extensionFactories: [factory],
-      mcpRuntimeContext: { configPath, adapterCwd },
     })
     const { session } = await createOpenWaggleAgentSessionFromServices({
       services,
       sessionManager: SessionManager.inMemory(projectPath),
     })
 
-    await withOpenWagglePiSessionLifecycleContext(session, () =>
-      session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' }),
+    await session.prompt('/registered-command')
+
+    expect(events).toEqual(['input', 'command'])
+    await disposeOpenWagglePiSession(session)
+  })
+
+  it('re-reads steering queues after post-run compaction checks', async () => {
+    const projectPath = await createTempProject()
+    const services = await createPiRuntimeServices(projectPath)
+    const { session } = await createOpenWaggleAgentSessionFromServices({
+      services,
+      sessionManager: SessionManager.inMemory(projectPath),
+    })
+    const checkStarted = Promise.withResolvers<void>()
+    const finishCheck = Promise.withResolvers<void>()
+    let hasQueuedMessages = false
+    const internals = fromAny<
+      {
+        _lastAssistantMessage: ReturnType<typeof fauxAssistantMessage> | undefined
+        _checkCompaction: () => Promise<boolean>
+        _handlePostAgentRun: () => Promise<boolean>
+        agent: { hasQueuedMessages: () => boolean }
+      },
+      typeof session
+    >(session)
+    internals._lastAssistantMessage = fauxAssistantMessage('Turn complete')
+    internals.agent.hasQueuedMessages = vi.fn(() => hasQueuedMessages)
+    internals._checkCompaction = vi.fn(async () => {
+      checkStarted.resolve()
+      await finishCheck.promise
+      return false
+    })
+
+    const handling = internals._handlePostAgentRun()
+    await checkStarted.promise
+    hasQueuedMessages = true
+    finishCheck.resolve()
+
+    await expect(handling).resolves.toBe(true)
+    await disposeOpenWagglePiSession(session)
+  })
+
+  it('executes raw lifecycle operations without process-global mutation', async () => {
+    const projectPath = await createTempProject()
+    const services = await createPiRuntimeServices(projectPath)
+    const { session } = await createOpenWaggleAgentSessionFromServices({
+      services,
+      sessionManager: SessionManager.inMemory(projectPath),
+    })
+
+    const result = await withOpenWagglePiSessionLifecycleContext(session, async () =>
+      Promise.resolve({ cwd: process.cwd(), argv: [...process.argv] }),
     )
 
-    expect(shutdownCwds).toEqual([adapterCwd])
-    expect(shutdownConfigs).toEqual([configPath])
+    expect(result).toEqual({ cwd: process.cwd(), argv: [...process.argv] })
 
     await disposeOpenWagglePiSession(session)
+  })
+
+  it("logs an extension's errors, so a turn it could not start is not lost", async () => {
+    const warn = vi.fn()
+    vi.doMock('../../../logger', () => ({
+      createLogger: () => ({ warn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+    }))
+    vi.resetModules()
+    try {
+      const lifecycle = await import('../pi-session-lifecycle')
+      const projectPath = await createTempProject()
+      const services = await createPiRuntimeServices(projectPath)
+      const { session } = await lifecycle.createOpenWaggleAgentSessionFromServices({
+        services,
+        sessionManager: SessionManager.inMemory(projectPath),
+      })
+
+      session.extensionRunner.emitError({
+        extensionPath: '<runtime>',
+        event: 'send_message',
+        error: 'Sign-in expired',
+      })
+
+      expect(warn).toHaveBeenCalledWith('Pi extension failed', {
+        extensionPath: '<runtime>',
+        event: 'send_message',
+        error: 'Sign-in expired',
+      })
+      await lifecycle.disposeOpenWagglePiSession(session)
+    } finally {
+      vi.doUnmock('../../../logger')
+      vi.resetModules()
+    }
   })
 })

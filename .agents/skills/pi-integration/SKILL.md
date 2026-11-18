@@ -17,7 +17,8 @@ Keep OpenWaggle a product/UI layer over Pi. Pi semantics are the runtime source 
 
 ## Provider, Model, And Auth
 
-- Source metadata from Pi `AuthStorage`, `ModelRegistry`, and project-scoped session services.
+- Source provider, model, and auth metadata from Pi `ModelRuntime` and project-scoped session services.
+- Derive API-key and OAuth support from each Pi provider's typed `auth` metadata; do not mirror provider capability lists in OpenWaggle.
 - Treat model identity as `provider/modelId`.
 - Keep provider-level runtime availability separate from API-key configured state and OAuth connected state.
 - Provider catalog/probe services should avoid loading optional MCP adapter extensions when only metadata/auth probing is needed.
@@ -31,6 +32,8 @@ Keep OpenWaggle a product/UI layer over Pi. Pi semantics are the runtime source 
 - Persist projected snapshots before telling the renderer that manual compaction is complete.
 - Preserve compatible active-run rows across snapshot reprojection.
 - Keep transcript/workspace ordering aligned with Pi compaction: summary, kept messages, later messages.
+- Bump `PI_ENTRY_PROJECTION_VERSION` (`agent-kernel/entry-projection-version.ts`) whenever `projectPiEntry` output (kind, role, content or metadata JSON) changes. A Run keeps already-stored entries as they are (D6); only a version change makes every Session project all its entries again and repair stored rows.
+- Pass `sessionSnapshot.piProjection` on to `persistSnapshot` with the nodes; a snapshot saved without it records no version, so its tail is never reused.
 
 ## Transport And Tools
 
@@ -61,9 +64,9 @@ Keep OpenWaggle a product/UI layer over Pi. Pi semantics are the runtime source 
 Run targeted unit/integration tests for the touched adapter/service plus:
 
 ```bash
-pnpm check
-pnpm typecheck
-pnpm lint
+bun run check
+bun run typecheck
+bun run lint
 ```
 
 Use Electron QA for renderer/preload/IPC-visible behavior.

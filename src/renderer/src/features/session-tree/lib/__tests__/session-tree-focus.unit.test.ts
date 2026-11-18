@@ -30,7 +30,7 @@ describe('tree-relative focus helpers', () => {
     ]
     const rows = visibleRows({
       nodes: hiddenParentTree,
-      filteredNodes: [hiddenParentTree[0], hiddenParentTree[2]],
+      filteredNodes: hiddenParentTree.filter((item) => item.id !== 'hidden-tool'),
       expandedNodeIds: ['root', 'hidden-tool'],
     })
 

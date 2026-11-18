@@ -1,30 +1,220 @@
-import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_THINKING_LEVEL,
+  type Settings,
+  type ThinkingLevel,
+} from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { ThinkingLevelDefaultService } from '../../ports/thinking-level-default-service'
 import { SettingsService } from '../../services/settings-service'
 
-function mergeSettings(current: Settings, partial: Partial<Settings>): Settings {
+function nextSetting<T>(current: T, partial: T | undefined) {
+  return partial === undefined ? current : partial
+}
+
+function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
   return {
-    selectedModel: partial.selectedModel ?? current.selectedModel,
-    favoriteModels: partial.favoriteModels ?? current.favoriteModels,
-    enabledModels: partial.enabledModels ?? current.enabledModels,
-    projectPath: partial.projectPath !== undefined ? partial.projectPath : current.projectPath,
-    thinkingLevel: partial.thinkingLevel ?? current.thinkingLevel,
-    recentProjects: partial.recentProjects ?? current.recentProjects,
-    skillTogglesByProject: partial.skillTogglesByProject ?? current.skillTogglesByProject,
-    projectDisplayNames: partial.projectDisplayNames ?? current.projectDisplayNames,
+    selectedModel: nextSetting(current.selectedModel, partial.selectedModel),
+    favoriteModels: nextSetting(current.favoriteModels, partial.favoriteModels),
+    enabledModels: nextSetting(current.enabledModels, partial.enabledModels),
+    projectPath: nextSetting(current.projectPath, partial.projectPath),
+    updateChannel: nextSetting(current.updateChannel, partial.updateChannel),
+    usageStatisticsEnabled: nextSetting(
+      current.usageStatisticsEnabled,
+      partial.usageStatisticsEnabled,
+    ),
+    automaticWorktreeRemoval: nextSetting(
+      current.automaticWorktreeRemoval,
+      partial.automaticWorktreeRemoval,
+    ),
+    desktopNotifications: nextSetting(current.desktopNotifications, partial.desktopNotifications),
+    compactionThresholdPercent: nextSetting(
+      current.compactionThresholdPercent,
+      partial.compactionThresholdPercent,
+    ),
+    sessionTitleModel: nextSetting(current.sessionTitleModel, partial.sessionTitleModel),
+    recentProjects: nextSetting(current.recentProjects, partial.recentProjects),
+    skillTogglesByProject: nextSetting(
+      current.skillTogglesByProject,
+      partial.skillTogglesByProject,
+    ),
+    agentDefinitionTogglesByProject: nextSetting(
+      current.agentDefinitionTogglesByProject,
+      partial.agentDefinitionTogglesByProject,
+    ),
+    projectDisplayNames: nextSetting(current.projectDisplayNames, partial.projectDisplayNames),
+    selectedModelsByProject: nextSetting(
+      current.selectedModelsByProject,
+      partial.selectedModelsByProject,
+    ),
+    projectPathAliases: nextSetting(current.projectPathAliases, partial.projectPathAliases),
+    defaultAuthorizationMode: nextSetting(
+      current.defaultAuthorizationMode,
+      partial.defaultAuthorizationMode,
+    ),
+    shortcutRules: nextSetting(current.shortcutRules, partial.shortcutRules),
+    shortcutBindings: nextSetting(current.shortcutBindings, partial.shortcutBindings),
+    extensionPanelShortcutBindings: nextSetting(
+      current.extensionPanelShortcutBindings,
+      partial.extensionPanelShortcutBindings,
+    ),
+    defaultSessionEnvironmentMode: nextSetting(
+      current.defaultSessionEnvironmentMode,
+      partial.defaultSessionEnvironmentMode,
+    ),
+    browserLinkTarget: nextSetting(current.browserLinkTarget, partial.browserLinkTarget),
+    browserProfiles: nextSetting(current.browserProfiles, partial.browserProfiles),
+    browserDefaultProfileId: nextSetting(
+      current.browserDefaultProfileId,
+      partial.browserDefaultProfileId,
+    ),
+    browserDefaultViewport: nextSetting(
+      current.browserDefaultViewport,
+      partial.browserDefaultViewport,
+    ),
+    browserDefaultZoomFactor: nextSetting(
+      current.browserDefaultZoomFactor,
+      partial.browserDefaultZoomFactor,
+    ),
+    browserDefaultAppearance: nextSetting(
+      current.browserDefaultAppearance,
+      partial.browserDefaultAppearance,
+    ),
+    browserRecordingFrameRate: nextSetting(
+      current.browserRecordingFrameRate,
+      partial.browserRecordingFrameRate,
+    ),
+    browserAutoShowFloatingPreview: nextSetting(
+      current.browserAutoShowFloatingPreview,
+      partial.browserAutoShowFloatingPreview,
+    ),
+    enableAgentBrowserAccess: nextSetting(
+      current.enableAgentBrowserAccess,
+      partial.enableAgentBrowserAccess,
+    ),
   }
 }
 
-function cloneSettings(settings: Settings): Settings {
+function mergeSessionHostSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    sessionHostParentConcurrencyLimit:
+      partial.sessionHostParentConcurrencyLimit ?? current.sessionHostParentConcurrencyLimit,
+    sessionHostParentConcurrencyLimitsByProject:
+      partial.sessionHostParentConcurrencyLimitsByProject ??
+      current.sessionHostParentConcurrencyLimitsByProject,
+    sessionHostRunCeiling: partial.sessionHostRunCeiling ?? current.sessionHostRunCeiling,
+    sessionHostIdleGracePeriodMs:
+      partial.sessionHostIdleGracePeriodMs ?? current.sessionHostIdleGracePeriodMs,
+    multiAgentEnabled: partial.multiAgentEnabled ?? current.multiAgentEnabled,
+    multiAgentEnabledByProject:
+      partial.multiAgentEnabledByProject ?? current.multiAgentEnabledByProject,
+    piSessionContinuationByProject:
+      partial.piSessionContinuationByProject ?? current.piSessionContinuationByProject,
+  }
+}
+
+function mergeAppearanceSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    diffSyntaxTheme: nextSetting(current.diffSyntaxTheme, partial.diffSyntaxTheme),
+    syntaxThemeSelections: nextSetting(
+      current.syntaxThemeSelections,
+      partial.syntaxThemeSelections,
+    ),
+    diffView: nextSetting(current.diffView, partial.diffView),
+    diffWrapLines: nextSetting(current.diffWrapLines, partial.diffWrapLines),
+    rightPanelRailVisibleWhenClosed: nextSetting(
+      current.rightPanelRailVisibleWhenClosed,
+      partial.rightPanelRailVisibleWhenClosed,
+    ),
+    appearancePreferences: nextSetting(
+      current.appearancePreferences,
+      partial.appearancePreferences,
+    ),
+    codemodeEnabled: nextSetting(current.codemodeEnabled, partial.codemodeEnabled),
+    cacheWarming: nextSetting(current.cacheWarming, partial.cacheWarming),
+    piRuntimeSettingsChosen: current.piRuntimeSettingsChosen,
+  }
+}
+
+function mergeSettings(current: Settings, partial: Partial<Settings>) {
+  return {
+    ...mergeGeneralSettings(current, partial),
+    ...mergeSessionHostSettings(current, partial),
+    ...mergeAppearanceSettings(current, partial),
+    changeRequestOpenDestination:
+      partial.changeRequestOpenDestination === undefined
+        ? current.changeRequestOpenDestination
+        : partial.changeRequestOpenDestination,
+    changeRequestOpenDestinationByProject: nextSetting(
+      current.changeRequestOpenDestinationByProject,
+      partial.changeRequestOpenDestinationByProject,
+    ),
+    sourceControlHostProviders: nextSetting(
+      current.sourceControlHostProviders,
+      partial.sourceControlHostProviders,
+    ),
+    sourceControlDetectedHostProviders: nextSetting(
+      current.sourceControlDetectedHostProviders,
+      partial.sourceControlDetectedHostProviders,
+    ),
+    sourceControlRepositoryAccounts: nextSetting(
+      current.sourceControlRepositoryAccounts,
+      partial.sourceControlRepositoryAccounts,
+    ),
+    sourceControlChangeRequestRepositories: nextSetting(
+      current.sourceControlChangeRequestRepositories,
+      partial.sourceControlChangeRequestRepositories,
+    ),
+    sourceControlProjectDeclarations: nextSetting(
+      current.sourceControlProjectDeclarations,
+      partial.sourceControlProjectDeclarations,
+    ),
+  }
+}
+
+function cloneSettings(settings: Settings) {
   return {
     ...settings,
     favoriteModels: [...settings.favoriteModels],
     enabledModels: [...settings.enabledModels],
     recentProjects: [...settings.recentProjects],
+    browserProfiles: settings.browserProfiles.map((profile) => ({ ...profile })),
     skillTogglesByProject: { ...settings.skillTogglesByProject },
+    agentDefinitionTogglesByProject: { ...settings.agentDefinitionTogglesByProject },
     projectDisplayNames: { ...settings.projectDisplayNames },
-  }
+    selectedModelsByProject: { ...settings.selectedModelsByProject },
+    projectPathAliases: { ...settings.projectPathAliases },
+    shortcutRules: settings.shortcutRules.map((rule) => ({
+      ...rule,
+      shortcut: { ...rule.shortcut },
+    })),
+    shortcutBindings: { ...settings.shortcutBindings },
+    extensionPanelShortcutBindings: { ...settings.extensionPanelShortcutBindings },
+    sessionHostParentConcurrencyLimitsByProject: {
+      ...settings.sessionHostParentConcurrencyLimitsByProject,
+    },
+    multiAgentEnabledByProject: { ...settings.multiAgentEnabledByProject },
+    piSessionContinuationByProject: { ...settings.piSessionContinuationByProject },
+    syntaxThemeSelections: { ...settings.syntaxThemeSelections },
+    appearancePreferences: {
+      ...settings.appearancePreferences,
+      typography: { ...settings.appearancePreferences.typography },
+    },
+  } satisfies Settings
+}
+
+/** Pi's default thinking level, held in memory: what extensions see as `thinkingLevel`. */
+export function makeThinkingLevelDefaultLayer(initial: ThinkingLevel = DEFAULT_THINKING_LEVEL) {
+  let current = initial
+  return Layer.succeed(ThinkingLevelDefaultService, {
+    getDefault: () => Effect.sync(() => current),
+    getConfiguredDefault: () => Effect.sync(() => current),
+    setDefault: (level) =>
+      Effect.sync(() => {
+        current = level
+      }),
+  })
 }
 
 export function makeBrokerSettingsLayer(currentProjectPath: string | null) {
@@ -33,13 +223,16 @@ export function makeBrokerSettingsLayer(currentProjectPath: string | null) {
     projectPath: currentProjectPath,
   }
 
-  return Layer.succeed(SettingsService, {
-    get: () => Effect.sync(() => cloneSettings(currentSettings)),
-    update: (partial) =>
-      Effect.sync(() => {
-        currentSettings = mergeSettings(currentSettings, partial)
-      }),
-    initialize: () => Effect.void,
-    flushForTests: () => Effect.void,
-  })
+  return Layer.merge(
+    Layer.succeed(SettingsService, {
+      get: () => Effect.sync(() => cloneSettings(currentSettings)),
+      update: (partial) =>
+        Effect.sync(() => {
+          currentSettings = mergeSettings(currentSettings, partial)
+        }),
+      initialize: () => Effect.void,
+      flushForTests: () => Effect.void,
+    }),
+    makeThinkingLevelDefaultLayer(),
+  )
 }

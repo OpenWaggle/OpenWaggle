@@ -1,0 +1,205 @@
+import { McpServer } from '@modelcontextprotocol/server'
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
+import { MCP_LEGACY_PROTOCOL_VERSIONS, MCP_MODERN_PROTOCOL_VERSIONS } from '@shared/constants/mcp'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import { Schema } from 'effect'
+import { routedCliStdoutStream } from './cli-stdout'
+import { standardSchemaWithJson } from './effect-standard-schema'
+import { refusedCredentialError } from './local-session-cli-client'
+import { serveDualEraMcpLoopbackHttp } from './mcp-server-http'
+import { serveDualEraMcpStdio } from './mcp-server-stdio'
+import type { OpenWaggleMcpServeOptions } from './openwaggle-mcp-server-policy'
+import {
+  type McpSessionHostExecutor,
+  mcpSessionHostIdentity,
+  registerOpenWaggleSessionToolV2,
+} from './openwaggle-mcp-session-tool-v2'
+import { openLocalSessionConnection } from './session-host/local-session-client-connection'
+import { ensureLocalSessionHost } from './session-host/local-session-host-launcher'
+import {
+  prepareLocalSessionHostPaths,
+  refreshLocalSessionHostEndpoint,
+  resolveLocalSessionHostPaths,
+} from './session-host/local-session-paths'
+
+export {
+  OPENWAGGLE_MCP_SERVE_GRANTS,
+  type OpenWaggleMcpServeGrant,
+  type OpenWaggleMcpServeOptions,
+} from './openwaggle-mcp-server-policy'
+
+const CATALOG_CACHE_TTL_MS = 60_000
+const RESOURCE_LIST_CACHE_TTL_MS = 10_000
+const MAX_SERVER_SUBSCRIPTIONS = 128
+
+function registerServerResources(server: McpServer, options: OpenWaggleMcpServeOptions) {
+  server.registerResource(
+    'OpenWaggle caller capabilities',
+    'openwaggle://caller/capabilities',
+    {
+      title: 'OpenWaggle MCP caller capabilities',
+      description: 'The exact grants and constraints applied to this MCP server process.',
+      mimeType: 'application/json',
+    },
+    async (uri) => ({
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify({
+            ...(options.identity.kind === 'owner'
+              ? { authority: 'owner', authorizationCeiling: options.identity.authorizationCeiling }
+              : {
+                  authority: 'profile',
+                  profile: options.identity.profile,
+                  authorizationCeiling: 'profile',
+                }),
+            grants: [...options.grants].sort(),
+            workspaceRoots: options.workspaceRoots,
+            exportRoots: options.exportRoots ?? [],
+            attachmentRoots: options.attachmentRoots ?? [],
+            sessionIds: [...options.sessionIds].sort(),
+            ...(options.originSessionId ? { originSessionId: options.originSessionId } : {}),
+            transports: [options.transport],
+            sessionContractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            protocolCompatibility: {
+              modern: MCP_MODERN_PROTOCOL_VERSIONS,
+              legacy: MCP_LEGACY_PROTOCOL_VERSIONS,
+            },
+          }),
+        },
+      ],
+    }),
+  )
+}
+
+/** Prompt arguments are strings; an argument the prompt does not name is ignored, not refused. */
+const delegatePromptArgumentsSchema = standardSchemaWithJson(
+  Schema.Struct({ objective: Schema.String, projectPath: Schema.String }),
+  { errors: 'all' },
+)
+
+function registerServerPrompt(server: McpServer) {
+  server.registerPrompt(
+    'delegate-openwaggle-task',
+    {
+      title: 'Delegate a task to OpenWaggle',
+      description: 'Prepare a durable Session or Hive Worker request for Session Control v2.',
+      argsSchema: delegatePromptArgumentsSchema,
+    },
+    ({ objective, projectPath }) => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Use openwaggle_hive with operation="launch", projectPath=${JSON.stringify(projectPath)}, and this objective. If delegating from an active Session, use operation="spawn" with its exact Session and Run IDs instead:\n\n${objective}`,
+          },
+        },
+      ],
+    }),
+  )
+}
+
+export function createOpenWaggleMcpServer(
+  options: OpenWaggleMcpServeOptions,
+  dependencies: { readonly execute?: McpSessionHostExecutor } = {},
+) {
+  const server = new McpServer(
+    { name: 'OpenWaggle', version: options.version },
+    {
+      instructions:
+        'Use openwaggle_hive for durable Session and Hive orchestration through Session Control v2. Follow-ups remain queued for the next Run; Steering targets one exact active Run. Raw shell and transparent upstream MCP passthrough are intentionally unavailable.',
+      cacheHints: {
+        'tools/list': { ttlMs: CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
+        'prompts/list': { ttlMs: CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
+        'resources/list': { ttlMs: RESOURCE_LIST_CACHE_TTL_MS, cacheScope: 'private' },
+        'resources/read': { ttlMs: 0, cacheScope: 'private' },
+        'server/discover': { ttlMs: CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
+      },
+    },
+  )
+  registerServerResources(server, options)
+  registerServerPrompt(server)
+  registerOpenWaggleSessionToolV2(server, options, {
+    userDataRoot: options.userDataRoot,
+    version: options.version,
+    ...(dependencies.execute ? { execute: dependencies.execute } : {}),
+  })
+  return server
+}
+
+/**
+ * A profile server authenticates once before it serves, so a revoked or unknown profile or a
+ * wrong credential stops it at startup instead of failing every call (#350). Every call still
+ * authenticates again, so a later revocation is enforced too.
+ */
+export async function verifyServeIdentity(options: OpenWaggleMcpServeOptions) {
+  const identity = options.identity
+  if (identity.kind !== 'profile') return
+  const paths = await prepareLocalSessionHostPaths(
+    resolveLocalSessionHostPaths({ userDataRoot: options.userDataRoot }),
+  )
+  const connection = {
+    paths,
+    clientVersion: options.version,
+    workingDirectory: options.workspaceRoots[0] ?? process.cwd(),
+    ...mcpSessionHostIdentity(options),
+  }
+  try {
+    await ensureLocalSessionHost(connection)
+    const opened = await openLocalSessionConnection({
+      ...connection,
+      paths: await refreshLocalSessionHostEndpoint(paths),
+    })
+    opened.socket.destroy()
+  } catch (cause) {
+    // Only a refused credential is the profile's fault; a Host that is starting, handing over,
+    // or slow keeps its own kind, as in the CLI.
+    throw refusedCredentialError({ profile: identity.profile }, cause)
+  }
+}
+
+export async function serveOpenWaggleMcpServer(options: OpenWaggleMcpServeOptions) {
+  await verifyServeIdentity(options)
+  const factory = () => createOpenWaggleMcpServer(options)
+  const reportError = (error: Error) =>
+    options.stderr?.write(`OpenWaggle MCP server error: ${error.message}\n`)
+  if (options.transport === 'streamable-http') {
+    if (options.httpPort === undefined || !options.bearerToken) {
+      throw new Error('Loopback Streamable HTTP requires a port and bearer token.')
+    }
+    const handle = await serveDualEraMcpLoopbackHttp({
+      factory,
+      port: options.httpPort,
+      bearerToken: options.bearerToken,
+      maxSubscriptions: MAX_SERVER_SUBSCRIPTIONS,
+      onerror: reportError,
+    })
+    options.stderr?.write(`OpenWaggle MCP listening at ${handle.url}\n`)
+    try {
+      await new Promise<void>((resolve) => {
+        process.once('SIGINT', resolve)
+        process.once('SIGTERM', resolve)
+      })
+    } finally {
+      await handle.close().catch(() => undefined)
+    }
+    return
+  }
+  const routedStdout = routedCliStdoutStream()
+  const handle = serveDualEraMcpStdio(factory, {
+    ...(routedStdout ? { transport: new StdioServerTransport(process.stdin, routedStdout) } : {}),
+    maxSubscriptions: MAX_SERVER_SUBSCRIPTIONS,
+    onerror: reportError,
+  })
+  try {
+    await new Promise<void>((resolve, reject) => {
+      process.stdin.once('end', resolve)
+      process.stdin.once('close', resolve)
+      process.stdin.once('error', reject)
+    })
+  } finally {
+    await handle.close().catch(() => undefined)
+  }
+}

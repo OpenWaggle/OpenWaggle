@@ -1,0 +1,207 @@
+import { fromPartial } from '@total-typescript/shoehorn'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+interface WatcherMockInstance {
+  close: ReturnType<typeof vi.fn>
+  emitError: (error: Error) => void
+  emitReady: () => void
+  listenerCount: (type: string) => number
+}
+
+interface WatcherMocks {
+  instances: WatcherMockInstance[]
+  watch: ReturnType<typeof vi.fn>
+}
+
+const watcherMocks = vi.hoisted<WatcherMocks>(() => ({
+  instances: [],
+  watch: vi.fn(),
+}))
+
+watcherMocks.watch.mockImplementation(() => {
+  type Listener = ((...args: unknown[]) => void) & { original?: (...args: unknown[]) => void }
+  const listeners = new Map<string, Listener[]>()
+  const watcher = {
+    close: vi.fn(async () => undefined),
+    on(type: string, listener: Listener) {
+      const entries = listeners.get(type) ?? []
+      entries.push(listener)
+      listeners.set(type, entries)
+      return watcher
+    },
+    once(type: string, listener: (...args: unknown[]) => void) {
+      const onceListener: Listener = (...args: unknown[]) => {
+        const entries = listeners.get(type) ?? []
+        listeners.set(
+          type,
+          entries.filter((entry) => entry !== onceListener),
+        )
+        listener(...args)
+      }
+      onceListener.original = listener
+      return watcher.on(type, onceListener)
+    },
+    removeListener(type: string, listener: (...args: unknown[]) => void) {
+      const entries = listeners.get(type) ?? []
+      listeners.set(
+        type,
+        entries.filter((entry) => entry !== listener && entry.original !== listener),
+      )
+      return watcher
+    },
+    listenerCount(type: string) {
+      return listeners.get(type)?.length ?? 0
+    },
+    emitError(error: Error) {
+      const entries = [...(listeners.get('error') ?? [])]
+      if (entries.length === 0) throw error
+      for (const listener of entries) listener(error)
+    },
+    emitReady() {
+      for (const listener of [...(listeners.get('ready') ?? [])]) listener()
+    },
+  }
+  watcherMocks.instances.push(watcher)
+  return watcher
+})
+
+vi.mock('chokidar', () => ({ watch: watcherMocks.watch }))
+vi.mock('../workspace-git-ignore-filter', () => ({
+  WorkspaceGitIgnoreFilter: { create: async () => undefined },
+}))
+vi.mock('../filesystem-workspace-file-service', () => ({
+  invalidateWorkspaceFileIndex: vi.fn(),
+}))
+
+import type { RendererSurface } from '../../ports/desktop-shell/renderer-surfaces'
+import {
+  setWorkspaceWatcherPlatformForTests,
+  unwatchWorkspaceFiles,
+  watchWorkspaceFiles,
+} from '../workspace-file-watcher'
+
+// The chokidar backend, which Linux uses.
+setWorkspaceWatcherPlatformForTests('linux')
+
+/** The watcher chokidar was asked for, once the backend has loaded. */
+async function watcherAt(index: number) {
+  await vi.waitFor(() => {
+    if (!watcherMocks.instances[index]) throw new Error('No watcher yet')
+  })
+  const watcher = watcherMocks.instances[index]
+  if (!watcher) throw new Error('Expected a watcher.')
+  return watcher
+}
+
+function webContents(id: number) {
+  return fromPartial<RendererSurface>({
+    id,
+    isDestroyed: () => false,
+    once: vi.fn(),
+    send: vi.fn(),
+  })
+}
+
+describe('workspace watcher lifecycle', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    watcherMocks.instances = []
+    watcherMocks.watch.mockClear()
+  })
+
+  it('closes a failed startup, removes readiness listeners, and allows a clean retry', async () => {
+    const root = '/project/startup-error'
+    const subscriber = webContents(10)
+    const first = watchWorkspaceFiles(root, subscriber)
+    const failedWatcher = await watcherAt(0)
+
+    failedWatcher.emitError(new Error('watch startup failed'))
+    await expect(first).rejects.toThrow('watch startup failed')
+    expect(failedWatcher.close).toHaveBeenCalledOnce()
+    expect(failedWatcher.listenerCount('ready')).toBe(0)
+    expect(failedWatcher.listenerCount('error')).toBe(0)
+
+    const retry = watchWorkspaceFiles(root, subscriber)
+    const retryWatcher = await watcherAt(1)
+    retryWatcher.emitReady()
+    await retry
+    await unwatchWorkspaceFiles(root, subscriber.id)
+    expect(retryWatcher.close).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a persistent runtime error listener and reports overflow after repeated errors', async () => {
+    vi.useFakeTimers()
+    const root = '/project/runtime-error'
+    const subscriber = webContents(11)
+    const pending = watchWorkspaceFiles(root, subscriber)
+    const watcher = await watcherAt(0)
+    watcher.emitReady()
+    await pending
+
+    expect(watcher.listenerCount('error')).toBe(1)
+    watcher.emitError(new Error('first runtime failure'))
+    watcher.emitError(new Error('second runtime failure'))
+    expect(watcher.listenerCount('error')).toBe(1)
+    await vi.advanceTimersByTimeAsync(120)
+    expect(subscriber.send).toHaveBeenCalledWith('workspace-files:changed', {
+      workingPath: root,
+      paths: [],
+      overflow: true,
+    })
+
+    await unwatchWorkspaceFiles(root, subscriber.id)
+    expect(watcher.listenerCount('error')).toBe(0)
+  })
+
+  it('shares pending startup and closes it when every subscriber leaves before ready', async () => {
+    const root = '/project/pending'
+    const firstSubscriber = webContents(1)
+    const secondSubscriber = webContents(2)
+    const first = watchWorkspaceFiles(root, firstSubscriber)
+    const second = watchWorkspaceFiles(root, secondSubscriber)
+
+    const watcher = await watcherAt(0)
+    expect(watcherMocks.watch).toHaveBeenCalledTimes(1)
+    await Promise.all([
+      unwatchWorkspaceFiles(root, firstSubscriber.id),
+      unwatchWorkspaceFiles(root, secondSubscriber.id),
+    ])
+    watcher.emitReady()
+    await Promise.all([first, second])
+    expect(watcher.close).toHaveBeenCalledOnce()
+  })
+
+  it('keeps one ready watcher until its final subscriber leaves', async () => {
+    const root = '/project/ready'
+    const firstSubscriber = webContents(3)
+    const secondSubscriber = webContents(4)
+    const first = watchWorkspaceFiles(root, firstSubscriber)
+    const second = watchWorkspaceFiles(root, secondSubscriber)
+    const watcher = await watcherAt(0)
+    watcher.emitReady()
+    await Promise.all([first, second])
+
+    await unwatchWorkspaceFiles(root, firstSubscriber.id)
+    expect(watcher.close).not.toHaveBeenCalled()
+    await unwatchWorkspaceFiles(root, secondSubscriber.id)
+    expect(watcher.close).toHaveBeenCalledOnce()
+  })
+
+  it('watches only info/exclude of .git, a source of the ignore list (review R5 P3-3)', async () => {
+    const root = '/project/exclude'
+    const subscriber = webContents(12)
+    const pending = watchWorkspaceFiles(root, subscriber)
+    const watcher = await watcherAt(0)
+    watcher.emitReady()
+    await pending
+    const options: { ignored: (candidate: string) => boolean } =
+      watcherMocks.watch.mock.calls[0]?.[1]
+
+    expect(options.ignored(`${root}/.git`)).toBe(false)
+    expect(options.ignored(`${root}/.git/info`)).toBe(false)
+    expect(options.ignored(`${root}/.git/info/exclude`)).toBe(false)
+    expect(options.ignored(`${root}/.git/objects`)).toBe(true)
+    expect(options.ignored(`${root}/node_modules`)).toBe(true)
+    await unwatchWorkspaceFiles(root, subscriber.id)
+  })
+})

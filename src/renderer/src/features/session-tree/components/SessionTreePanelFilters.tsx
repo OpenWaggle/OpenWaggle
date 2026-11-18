@@ -12,7 +12,7 @@ export function SessionTreePanelFilters({ filters }: SessionTreePanelFiltersProp
   return (
     <div className="grid h-12 shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4 border-b border-border px-4 py-2">
       <div className="flex h-8 items-center gap-2">
-        <label htmlFor="session-tree-filter" className="text-[12px] text-text-tertiary">
+        <label htmlFor="session-tree-filter" className="text-xs text-text-tertiary">
           Filter
         </label>
         <Select
@@ -36,7 +36,7 @@ export function SessionTreePanelFilters({ filters }: SessionTreePanelFiltersProp
           onChange={(event) => filters.onSearchQueryChange(event.target.value)}
           placeholder="Search nodes"
           inputSize="sm"
-          className="rounded-lg border-input-card-border bg-bg-secondary pr-3 pl-9 text-text-secondary focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]"
+          className="rounded-lg border-input-card-border bg-bg-secondary pr-3 pl-9 text-text-secondary"
           aria-label="Search Session Tree nodes"
         />
       </div>

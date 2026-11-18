@@ -1,5 +1,6 @@
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { JsonObject, JsonValue } from '@shared/types/json'
+import { piPackageSource, piSettingsFields } from './pi-settings-fields'
 
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
 export const PI_CONFIG_DIR = '.pi'
@@ -68,18 +69,8 @@ function prependResourceRoots(
   return result
 }
 
-function isJsonObject(value: JsonValue): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function getPackageSource(value: JsonValue): string | null {
-  if (typeof value === 'string') {
-    return value
-  }
-  if (isJsonObject(value) && typeof value.source === 'string') {
-    return value.source
-  }
-  return null
+function getPackageSource(value: JsonValue) {
+  return piPackageSource(value)
 }
 
 function segmentsToPath(segments: readonly string[]) {
@@ -243,31 +234,32 @@ export function withOpenWaggleResourcePrecedence(
   options: OpenWaggleResourcePrecedenceOptions = {},
 ) {
   const packageSources = getImplicitOpenWaggleExtensionPackageSources(projectPath, options)
+  const current = piSettingsFields(settings)
   return {
     ...settings,
     ...(packageSources.length > 0
       ? {
-          packages: prependPackageSources(projectPath, settings.packages, packageSources),
+          packages: prependPackageSources(projectPath, current.packages, packageSources),
         }
       : {}),
     skills: prependResourceRoots(
       projectPath,
-      settings.skills,
+      current.skills,
       getImplicitResourceRoots(projectPath, 'skills', options),
     ),
     extensions: prependResourceRoots(
       projectPath,
-      settings.extensions,
+      current.extensions,
       getImplicitExtensionResourceRoots(projectPath, options),
     ),
     prompts: prependResourceRoots(
       projectPath,
-      settings.prompts,
+      current.prompts,
       getImplicitResourceRoots(projectPath, 'prompts', options),
     ),
     themes: prependResourceRoots(
       projectPath,
-      settings.themes,
+      current.themes,
       getImplicitResourceRoots(projectPath, 'themes', options),
     ),
   }

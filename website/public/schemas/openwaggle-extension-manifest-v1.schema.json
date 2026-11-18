@@ -1,0 +1,1825 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwaggle.ai/schemas/openwaggle-extension-manifest-v1.schema.json",
+  "title": "OpenWaggle openwaggle.extension.json",
+  "description": "The manifest of an OpenWaggle extension package: what it is, the files it ships, the capabilities it calls and where it shows up.",
+  "type": "object",
+  "required": [
+    "manifestVersion",
+    "id",
+    "name",
+    "version",
+    "sdk",
+    "sourceFiles",
+    "builtArtifacts"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "The JSON Schema for this file."
+    },
+    "manifestVersion": {
+      "type": "number",
+      "enum": [
+        1
+      ],
+      "description": "Manifest format version. Always 1."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 96,
+      "description": "Package id, the same as the package folder name: lowercase letters, digits, \".\", \"_\" and \"-\", starting with a letter or digit."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "maxLength": 120,
+      "description": "Display name."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+      "description": "Package version, a semver string raised with each update."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "maxLength": 2000,
+      "description": "Short description."
+    },
+    "sdk": {
+      "type": "object",
+      "required": [
+        "openwaggle"
+      ],
+      "properties": {
+        "openwaggle": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The extension API versions of the OpenWaggle host the package works with, a semver range such as \">=0.1.0 <0.2.0\". The host API version and the @openwaggle/extension-sdk npm version are separate contracts: an SDK 0.3 package still names the host range."
+        }
+      }
+    },
+    "sourceFiles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$",
+        "maxLength": 260
+      },
+      "description": "Every source file in the package. Paths relative to the package folder, with forward slashes."
+    },
+    "builtArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$",
+        "maxLength": 260
+      },
+      "description": "Every built file OpenWaggle loads, local build outputs included. Paths relative to the package folder, with forward slashes."
+    },
+    "install": {
+      "type": "object",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "prebuilt",
+            "local-build"
+          ],
+          "description": "prebuilt: the package ships its built files (the default). local-build: OpenWaggle runs build.command on the user’s machine."
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "required": [
+        "command"
+      ],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\r\\n\\u0000]*$",
+          "maxLength": 500,
+          "allOf": [
+            {
+              "pattern": "\\S"
+            }
+          ],
+          "description": "The command that builds the package, run in the package folder."
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$",
+            "maxLength": 260
+          },
+          "description": "The files the build writes. Defaults to builtArtifacts. Paths relative to the package folder, with forward slashes."
+        }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "properties": {
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "path"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$",
+                "maxLength": 260
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 2000
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                }
+              },
+              "keywords": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                }
+              }
+            }
+          },
+          "description": "Docs pages the package ships."
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "required": [
+        "origins"
+      ],
+      "properties": {
+        "origins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^https://(?:[a-z0-9_-]+(?:\\.[a-z0-9_-]+)*|\\[[0-9a-f:.]+\\])(?::(?!443$)[0-9]{1,5})?$",
+            "maxLength": 300,
+            "allOf": [
+              {
+                "pattern": "\\S"
+              }
+            ]
+          },
+          "description": "External origins the package may reach, each an exact HTTPS origin with no path, such as https://api.github.com."
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+            "maxLength": 128
+          },
+          "methods": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+              "maxLength": 128
+            }
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "app",
+                "project",
+                "session",
+                "branch"
+              ]
+            }
+          }
+        }
+      },
+      "description": "The SDK capabilities the package calls, with their methods and scopes."
+    },
+    "contributions": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "category": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "slashCommands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "category": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "settingsSections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "sidePanels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              },
+              "icon": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "svg"
+                    ],
+                    "properties": {
+                      "svg": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "\\.[Ss][Vv][Gg]$",
+                        "maxLength": 260,
+                        "allOf": [
+                          {
+                            "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "dialogs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "transcriptRenderers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "toolRenderers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "customMessageRenderers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "interactionRenderers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "statusWidgets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "runtime",
+              "execution",
+              "entry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "federated-module",
+                  "trusted-renderer"
+                ]
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "host-renderer",
+                  "frame"
+                ]
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!__context__(?:[\\\\/]|$))",
+                "maxLength": 260,
+                "allOf": [
+                  {
+                    "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "matches": {
+                "type": "object",
+                "properties": {
+                  "toolNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "customMessageNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "interactionKinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "capability": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                  "maxLength": 128
+                }
+              }
+            }
+          }
+        },
+        "sessionSummarySections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "rows"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "maxLength": 120
+              },
+              "placement": {
+                "type": "string",
+                "enum": [
+                  "context",
+                  "coordination",
+                  "details"
+                ]
+              },
+              "target": {
+                "type": "object",
+                "properties": {
+                  "projectPaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "sessionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              "disclosure": {
+                "type": "object",
+                "properties": {
+                  "defaultExpanded": {
+                    "type": "boolean"
+                  },
+                  "collapsible": {
+                    "type": "boolean"
+                  },
+                  "autoCollapseAfterMs": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 300000
+                  }
+                }
+              },
+              "state": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "status"
+                    ],
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "ready"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "status"
+                    ],
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "loading",
+                          "live"
+                        ]
+                      },
+                      "message": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "\\S",
+                        "maxLength": 2000
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "status",
+                      "message"
+                    ],
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "failure"
+                        ]
+                      },
+                      "message": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "\\S",
+                        "maxLength": 2000
+                      }
+                    }
+                  }
+                ]
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "label"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                      "maxLength": 128
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S",
+                      "maxLength": 120
+                    },
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S",
+                      "maxLength": 2000
+                    },
+                    "badge": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S",
+                      "maxLength": 120
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "resourceId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                      "maxLength": 128
+                    },
+                    "action": {
+                      "type": "object",
+                      "required": [
+                        "family",
+                        "contributionId"
+                      ],
+                      "properties": {
+                        "family": {
+                          "type": "string",
+                          "enum": [
+                            "commands",
+                            "sidePanels",
+                            "dialogs"
+                          ]
+                        },
+                        "contributionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+                          "maxLength": 128
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "Contributions by family: where the package shows up in OpenWaggle."
+    },
+    "pi": {
+      "type": "object",
+      "properties": {
+        "resourceRoots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$",
+            "maxLength": 260
+          },
+          "description": "Folders of Pi resources (skills, extensions, prompts, themes) the package adds. Paths relative to the package folder, with forward slashes."
+        }
+      }
+    },
+    "trusted": {
+      "type": "object",
+      "properties": {
+        "main": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$",
+          "maxLength": 260,
+          "description": "Trusted local code that runs in the main process."
+        },
+        "renderer": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$",
+          "maxLength": 260,
+          "description": "Privileged renderer code. Every contribution with runtime \"trusted-renderer\" needs it."
+        }
+      }
+    },
+    "runtimeRequirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+            "maxLength": 128
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S",
+            "maxLength": 120
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "binary",
+              "command"
+            ]
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)(?![A-Za-z]:[\\\\/])(?!(?:[\\s\\S]*[\\\\/])?\\.{1,2}(?:[\\\\/]|$))[^\\\\/\\u0000]+(?:[\\\\/][^\\\\/\\u0000]+)*$",
+            "maxLength": 260
+          },
+          "binary": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?![\\s\\S]*\\s$)[^\\\\/\\r\\n\\u0000]+$",
+            "maxLength": 120,
+            "allOf": [
+              {
+                "pattern": "\\S"
+              }
+            ]
+          }
+        }
+      },
+      "description": "Programs the package needs. OpenWaggle checks for each one and never installs a missing program."
+    }
+  }
+}

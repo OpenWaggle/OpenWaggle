@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
 
+import type { AgentSendReport } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { isReportableSendFailure, MessageNotDelivered } from '../../lib/message-delivery'
+import { useForegroundSendStore } from '../../state/foreground-send-store'
+import { userStopCount } from '../../state/optimistic-steer-store'
+import {
+  resetThinkingLevelWritesForTests,
+  writeThinkingLevel,
+} from '../../state/session-thinking-level-writes'
 import {
   apiMock,
   createDeferred,
@@ -11,6 +19,7 @@ import {
   createSessionWithId,
   emitAgentEvent,
   emitRunCompleted,
+  firstSendRecoveryCalls,
   installUseAgentChatTestLifecycle,
   SEND_PAYLOAD,
   useAgentChat,
@@ -18,14 +27,34 @@ import {
 
 describe('useAgentChat foreground run', () => {
   installUseAgentChatTestLifecycle()
+
+  it('retains the exact first turn until a blank session run completes', async () => {
+    const model = SupportedModelId('claude-sonnet-4-5')
+    const { result } = renderHook(() =>
+      useAgentChat(SessionId('session-1'), createSessionWithId(SessionId('session-1')), model),
+    )
+
+    let sendPromise: Promise<void> | null = null
+    await act(async () => {
+      sendPromise = result.current.sendMessage(SEND_PAYLOAD)
+    })
+
+    expect(firstSendRecoveryCalls).toContainEqual([
+      SessionId('session-1'),
+      { payload: SEND_PAYLOAD, waggleConfig: null, model },
+    ])
+
+    await act(async () => {
+      emitRunCompleted({ sessionId: SessionId('session-1') })
+      await sendPromise
+    })
+
+    expect(firstSendRecoveryCalls.at(-1)).toEqual([SessionId('session-1'), null])
+  })
+
   it('streams optimistic user and assistant text through OpenWaggle runtime events', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -90,12 +119,7 @@ describe('useAgentChat foreground run', () => {
     apiMock.sendMessage.mockRejectedValueOnce(failure)
 
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     await act(async () => {
@@ -111,12 +135,7 @@ describe('useAgentChat foreground run', () => {
 
   it('settles a foreground send when the run is cancelled', async () => {
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        createSession(),
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), createSession(), SupportedModelId('claude-sonnet-4-5')),
     )
 
     let sendPromise: Promise<void> | null = null
@@ -124,17 +143,20 @@ describe('useAgentChat foreground run', () => {
       sendPromise = result.current.sendMessage(SEND_PAYLOAD)
     })
 
+    const stopsBefore = userStopCount(SessionId('session-1'))
     await act(async () => {
       result.current.stop()
       await sendPromise
     })
 
     expect(apiMock.cancelAgent).toHaveBeenCalledWith(SessionId('session-1'))
+    expect(userStopCount(SessionId('session-1'))).toBe(stopsBefore + 1)
     expect(result.current.status).toBe('ready')
   })
 
   it('does not fail a foreground send when the selected session changes mid-run', async () => {
-    const send = createDeferred<void>()
+    // The send resolves with main's report of the run, as the real channel does.
+    const send = createDeferred<AgentSendReport>()
     apiMock.sendMessage.mockReturnValueOnce(send.promise)
 
     const { result, rerender } = renderHook(
@@ -144,7 +166,7 @@ describe('useAgentChat foreground run', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: SessionId('session-1'),
@@ -170,7 +192,7 @@ describe('useAgentChat foreground run', () => {
     })
 
     await act(async () => {
-      send.resolve(undefined)
+      send.resolve({ outcome: 'delivered' })
       await expect(sendPromise).resolves.toBeUndefined()
     })
 
@@ -189,7 +211,7 @@ describe('useAgentChat foreground run', () => {
       }: {
         readonly sessionId: SessionId
         readonly session: SessionDetail
-      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5'), 'medium'),
+      }) => useAgentChat(sessionId, session, SupportedModelId('claude-sonnet-4-5')),
       {
         initialProps: {
           sessionId: sessionA,
@@ -220,5 +242,94 @@ describe('useAgentChat foreground run', () => {
     expect(result.current.status).toBe('ready')
     expect(result.current.backgroundStreaming).toBe(false)
     expect(result.current.messages).toEqual([])
+  })
+
+  it('reports a cancelled send without putting the session into an error state', async () => {
+    /*
+     * A cancellation has to reach the caller, because work submitted with the message - a review - was cleared
+     * before the send and is restored only on a failure. But it must not travel the run-failure path: that
+     * tears the run down and sets an error status, and "queue a follow-up, then press Stop" makes the run being
+     * torn down the *replacement*. Stopping settles the run, the queued send begins immediately, and the
+     * superseded send's reply arrives afterwards - by which time the session-wide delivery evidence has been
+     * cleared by that replacement. So the rejection carries its outcome, and the session is left alone.
+     */
+    const send = createDeferred<AgentSendReport>()
+    apiMock.sendMessage.mockReturnValueOnce(send.promise)
+
+    const { result } = renderHook(() =>
+      useAgentChat(
+        SessionId('session-1'),
+        createSessionWithId(SessionId('session-1')),
+        SupportedModelId('claude-sonnet-4-5'),
+      ),
+    )
+
+    // Captured up front, so the rejection is never momentarily unobserved.
+    let sendOutcome: unknown = null
+    await act(async () => {
+      void result.current.sendMessage(SEND_PAYLOAD).catch((error: unknown) => {
+        sendOutcome = error
+      })
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      send.resolve({ outcome: 'cancelled' })
+      result.current.stop()
+      await Promise.resolve()
+    })
+
+    expect(sendOutcome).toBeInstanceOf(MessageNotDelivered)
+    expect(sendOutcome).toMatchObject({ outcome: 'cancelled' })
+    // The user's own Stop is not worth reporting to them as a failure.
+    expect(isReportableSendFailure(sendOutcome)).toBe(false)
+    // Not an error state: the run this would have torn down may be the one that replaced it.
+    expect(result.current.status).not.toBe('error')
+    expect(result.current.error).toBeUndefined()
+  })
+
+  it('dispatches only after a thinking pick has landed, and marks the Session as starting', async () => {
+    resetThinkingLevelWritesForTests()
+    const sessionId = SessionId('session-1')
+    let finishWrite: (() => void) | undefined
+    void writeThinkingLevel({
+      target: sessionId,
+      level: 'low',
+      write: () =>
+        new Promise<void>((resolve) => {
+          finishWrite = resolve
+        }),
+      refresh: async () => {},
+    })
+    const { result } = renderHook(() =>
+      useAgentChat(
+        sessionId,
+        createSessionWithId(sessionId),
+        SupportedModelId('claude-sonnet-4-5'),
+      ),
+    )
+
+    let sendPromise: Promise<void> | null = null
+    await act(async () => {
+      sendPromise = result.current.sendMessage(SEND_PAYLOAD)
+      await Promise.resolve()
+    })
+    // The Host reads the Session thinking level when the Run starts.
+    expect(apiMock.sendMessage).not.toHaveBeenCalled()
+    // The pickers must not offer another change while this Run is starting.
+    expect(useForegroundSendStore.getState().counts.has(sessionId)).toBe(true)
+
+    await act(async () => {
+      finishWrite?.()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(apiMock.sendMessage).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      emitRunCompleted({ sessionId })
+      await sendPromise
+    })
+    expect(useForegroundSendStore.getState().counts.has(sessionId)).toBe(false)
   })
 })

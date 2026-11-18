@@ -1,161 +1,303 @@
+import {
+  hotkeysCoreFeature,
+  type ItemInstance,
+  selectionFeature,
+  syncDataLoaderFeature,
+} from '@headless-tree/core'
+import { AssistiveTreeDescription, useTree } from '@headless-tree/react'
 import type { GitFileDiff } from '@shared/types/git'
-import { Check, ChevronDown, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  type MouseEvent,
+  type UIEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import {
+  buildNavigatorTree,
+  NAVIGATOR_ROOT_ID,
+  type NavigatorNode,
+} from '@/features/diff-panel/lib/navigator-tree'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
-
-const FILE_TREE_NODE_VALUE_12 = 12
-const FILE_TREE_NODE_VALUE_8 = 8
-const FILE_TREE_NODE_VALUE_4 = 4
-
-interface TreeNode {
-  name: string
-  path: string
-  children: TreeNode[]
-  isFile: boolean
-  isChanged: boolean
-}
-
-function getChildMap(pathKey: string, childMapsByPath: Map<string, Map<string, TreeNode>>) {
-  let childMap = childMapsByPath.get(pathKey)
-  if (!childMap) {
-    childMap = new Map()
-    childMapsByPath.set(pathKey, childMap)
-  }
-  return childMap
-}
-
-function buildTree(files: readonly GitFileDiff[]) {
-  const changedPaths = new Set(files.map((f) => f.path))
-  const root: TreeNode[] = []
-  const rootChildrenByName = new Map<string, TreeNode>()
-  const childMapsByPath = new Map<string, Map<string, TreeNode>>()
-
-  for (const file of files) {
-    const parts = file.path.split('/')
-    let current = root
-    let currentChildrenByName = rootChildrenByName
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i] ?? ''
-      const isFile = i === parts.length - 1
-      const pathSoFar = parts.slice(0, i + 1).join('/')
-
-      let existing = currentChildrenByName.get(part)
-      if (!existing) {
-        existing = {
-          name: part,
-          path: pathSoFar,
-          children: [],
-          isFile,
-          isChanged: isFile && changedPaths.has(file.path),
-        }
-        current.push(existing)
-        currentChildrenByName.set(part, existing)
-      }
-      current = existing.children
-      currentChildrenByName = getChildMap(pathSoFar, childMapsByPath)
-    }
-  }
-
-  return root
-}
-
-interface FileTreeNodeProps {
-  node: TreeNode
-  depth: number
-  onFileClick: (path: string) => void
-}
-
-function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps) {
-  const [expanded, setExpanded] = useState(true)
-
-  // Indentation: 12px root, increases by 8px per level
-  const paddingLeft = FILE_TREE_NODE_VALUE_12 + depth * FILE_TREE_NODE_VALUE_8
-
-  if (node.isFile) {
-    return (
-      <Button
-        variant="unstyled"
-        type="button"
-        onClick={() => onFileClick(node.path)}
-        className={cn(
-          'flex items-center gap-1.5 h-5 w-full text-left',
-          node.isChanged && 'bg-diff-highlight-bg',
-        )}
-        style={{ paddingLeft: `${String(paddingLeft + FILE_TREE_NODE_VALUE_4)}px` }}
-      >
-        {node.isChanged && <span className="shrink-0 size-[5px] rounded-full bg-accent" />}
-        <span
-          className={cn(
-            'text-[12px] truncate',
-            node.isChanged ? 'text-text-primary' : 'text-text-secondary',
-          )}
-        >
-          {node.name}
-        </span>
-      </Button>
-    )
-  }
-
-  const ChevIcon = expanded ? ChevronDown : ChevronRight
-
-  return (
-    <div className="w-full">
-      <Button
-        variant="unstyled"
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 h-[22px] w-full text-left"
-        style={{ paddingLeft: `${String(paddingLeft)}px` }}
-      >
-        <ChevIcon className="size-[11px] text-text-tertiary shrink-0" />
-        <span className="text-[12px] text-text-secondary">{node.name}</span>
-      </Button>
-      {expanded &&
-        node.children.map((child) => (
-          <FileTreeNode key={child.path} node={child} depth={depth + 1} onFileClick={onFileClick} />
-        ))}
-    </div>
-  )
-}
+import { FileChangeBadges } from './FileChangeBadges'
+import { uncheckedFields } from '@shared/utils/object-shape'
 
 interface FileTreeProps {
-  files: readonly GitFileDiff[]
-  onFileClick: (path: string) => void
-  onSendReview: () => void
-  reviewCount: number
+  readonly files: readonly GitFileDiff[]
+  readonly onFileClick: (path: string) => void
 }
 
-export function FileTree({ files, onFileClick, onSendReview, reviewCount }: FileTreeProps) {
-  const tree = buildTree(files)
+const INDENT_PX = 10
+const ROW_PADDING_PX = 8
+const ROW_HEIGHT_REM = 1.375
+const DEFAULT_ROOT_FONT_SIZE_PX = 16
+const DEFAULT_ROW_HEIGHT_PX = ROW_HEIGHT_REM * DEFAULT_ROOT_FONT_SIZE_PX
+const VIRTUAL_OVERSCAN_ROWS = 6
+const FALLBACK_VIEWPORT_HEIGHT_PX = DEFAULT_ROW_HEIGHT_PX * 12
+
+type ButtonClickHandler = (event: MouseEvent<HTMLButtonElement>) => void
+type ContainerRefCallback = (element: HTMLDivElement | null) => void
+
+/**
+ * getProps() from the tree library is loosely typed, so narrow its click handler
+ * at the boundary instead of asserting. Without forwarding it, the library's focus
+ * and selection handling would be lost.
+ */
+function isClickHandler(value: unknown): value is ButtonClickHandler {
+  return typeof value === 'function'
+}
+
+function isContainerRefCallback(value: unknown): value is ContainerRefCallback {
+  return typeof value === 'function'
+}
+
+function currentRowHeight() {
+  const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+  return Number.isFinite(rootFontSize) && rootFontSize > 0
+    ? rootFontSize * ROW_HEIGHT_REM
+    : DEFAULT_ROW_HEIGHT_PX
+}
+
+const ROOT_NODE: NavigatorNode = { path: NAVIGATOR_ROOT_ID, name: 'Changed files', isFile: false }
+
+/**
+ * Changed-file navigator.
+ *
+ * Built on @headless-tree so keyboard navigation, focus management, and the
+ * ARIA tree semantics come from a maintained implementation rather than being
+ * hand-rolled, while every row is still rendered with our own tokens (ADR 0016).
+ *
+ * Expansion is DERIVED, not stored: every folder is expanded unless the user
+ * explicitly collapsed it. `initialState.expandedItems` is applied only on mount,
+ * so storing it meant a navigator that mounted while the diff was still empty --
+ * routine in Branch and Turn scope, where the working tree is often clean -- kept
+ * an empty expanded set forever and rendered zero rows while the diff body showed
+ * files. Deriving it makes the rendered tree a pure function of the current diff.
+ */
+function useNavigatorTree(
+  files: readonly GitFileDiff[],
+  scrollToItem: (item: ItemInstance<NavigatorNode>) => void,
+) {
+  const { nodes, childrenByPath } = useMemo(() => buildNavigatorTree(files), [files])
+  const folderIds = useMemo(() => [...childrenByPath.keys()], [childrenByPath])
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
+  const expandedItems = useMemo(
+    () => folderIds.filter((id) => !collapsed.has(id)),
+    [folderIds, collapsed],
+  )
+
+  return useTree<NavigatorNode>({
+    rootItemId: NAVIGATOR_ROOT_ID,
+    getItemName: (item) => item.getItemData().name,
+    isItemFolder: (item) => !item.getItemData().isFile,
+    dataLoader: {
+      getItem: (itemId) => nodes.get(itemId) ?? ROOT_NODE,
+      getChildren: (itemId) => [...(childrenByPath.get(itemId) ?? [])],
+    },
+    indent: INDENT_PX,
+    scrollToItem,
+    // Only expandedItems is controlled; selection and focus stay internal to the
+    // library so its own keyboard handling keeps working.
+    state: { expandedItems },
+    setState: (updater) => {
+      const next = typeof updater === 'function' ? updater({ expandedItems }) : updater
+      if (next.expandedItems === undefined) return
+      const nextExpanded = new Set(next.expandedItems)
+      setCollapsed((prev) => {
+        const computed = folderIds.filter((id) => !nextExpanded.has(id))
+        // Preserve identity when nothing actually changed. Without this the
+        // controlled expandedItems array is new on every sync, the library calls
+        // setState again, and React aborts with "Too many re-renders".
+        if (computed.length === prev.size && computed.every((id) => prev.has(id))) return prev
+        return new Set(computed)
+      })
+    },
+    features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature],
+  })
+}
+
+function useVirtualizedNavigator(files: readonly GitFileDiff[]) {
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(FALLBACK_VIEWPORT_HEIGHT_PX)
+  const [rowHeight, setRowHeight] = useState(currentRowHeight)
+  const scrollToItem = useCallback((item: ItemInstance<NavigatorNode>) => {
+    const viewport = viewportRef.current
+    if (viewport === null) return
+    const index = item.getItemMeta().index
+    const measuredRowHeight = currentRowHeight()
+    const rowTop = index * measuredRowHeight
+    const rowBottom = rowTop + measuredRowHeight
+    const visibleBottom = viewport.scrollTop + viewport.clientHeight
+    let nextScrollTop = viewport.scrollTop
+    if (rowTop < viewport.scrollTop) nextScrollTop = rowTop
+    if (rowTop >= viewport.scrollTop && rowBottom > visibleBottom) {
+      nextScrollTop = rowBottom - viewport.clientHeight
+    }
+    if (nextScrollTop === viewport.scrollTop) return
+    viewport.scrollTo({ top: nextScrollTop })
+    setScrollTop(nextScrollTop)
+  }, [])
+  const tree = useNavigatorTree(files, scrollToItem)
+  const items = tree.getItems().filter((item) => item.getItemData().path !== NAVIGATOR_ROOT_ID)
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (viewport === null || typeof ResizeObserver === 'undefined') return
+    const updateHeight = () => {
+      if (viewport.clientHeight > 0) setViewportHeight(viewport.clientHeight)
+      setRowHeight(currentRowHeight())
+    }
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(viewport)
+    const rootObserver = new MutationObserver(updateHeight)
+    rootObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style'],
+    })
+    return () => {
+      observer.disconnect()
+      rootObserver.disconnect()
+    }
+  }, [])
+
+  const firstVisibleIndex = Math.floor(scrollTop / rowHeight)
+  const startIndex = Math.max(0, firstVisibleIndex - VIRTUAL_OVERSCAN_ROWS)
+  const visibleRowCount = Math.ceil(viewportHeight / rowHeight)
+  const endIndex = Math.min(
+    items.length,
+    firstVisibleIndex + visibleRowCount + VIRTUAL_OVERSCAN_ROWS,
+  )
+  const visibleRows = items
+    .slice(startIndex, endIndex)
+    .map((item, offset) => ({ item, index: startIndex + offset }))
+  const focusedIndex = items.findIndex((item) => item.isFocused())
+  if (focusedIndex >= 0 && (focusedIndex < startIndex || focusedIndex >= endIndex)) {
+    const focusedItem = items[focusedIndex]
+    if (focusedItem !== undefined) visibleRows.push({ item: focusedItem, index: focusedIndex })
+  }
+  const containerProps = tree.getContainerProps()
+  const { ref: libraryContainerRef } = uncheckedFields<{ readonly ref: ContainerRefCallback }>(
+    containerProps,
+  )
+  const treeContainerRef = isContainerRefCallback(libraryContainerRef)
+    ? libraryContainerRef
+    : undefined
+  const handleContainerRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      viewportRef.current = element
+      treeContainerRef?.(element)
+    },
+    [treeContainerRef],
+  )
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    setScrollTop(event.currentTarget.scrollTop)
+    if (event.currentTarget.clientHeight > 0) {
+      setViewportHeight(event.currentTarget.clientHeight)
+    }
+  }, [])
+
+  return {
+    tree,
+    containerProps,
+    handleContainerRef,
+    handleScroll,
+    items,
+    rowHeight,
+    startIndex,
+    visibleRows,
+  }
+}
+
+export function FileTree({ files, onFileClick }: FileTreeProps) {
+  // React Compiler must not memoize this component. @headless-tree owns a mutable
+  // tree instance and mutates it in place, so `tree` keeps the same identity while
+  // its visible-item list changes. The compiler therefore cached the mapped rows
+  // and the navigator rendered permanently empty in the packaged/dev app while
+  // every test passed -- vitest does not run the compiler, so the suite is
+  // structurally blind to this class of bug (see .agents/memory/testing.md).
+  'use no memo'
+
+  const { tree, containerProps, handleContainerRef, handleScroll, items, rowHeight, visibleRows } =
+    useVirtualizedNavigator(files)
 
   return (
-    <div className="flex flex-col justify-between h-full w-[200px] bg-diff-bg border-l border-border py-3 shrink-0">
-      {/* Tree */}
-      <div className="flex-1 overflow-y-auto">
-        {tree.map((node) => (
-          <FileTreeNode key={node.path} node={node} depth={0} onFileClick={onFileClick} />
-        ))}
-      </div>
-
-      {/* Send Review Dock */}
-      <div className="px-2 pt-1.5 pb-2 border-t border-border">
-        <Button
-          variant="unstyled"
-          type="button"
-          onClick={onSendReview}
-          disabled={reviewCount === 0}
-          className={cn(
-            'flex items-center justify-center gap-1 w-full h-6 rounded bg-gradient-to-b from-accent to-accent-dim border border-accent-dim',
-            'text-[11px] font-semibold text-diff-bg',
-            'disabled:opacity-40 transition-opacity',
-          )}
+    <div className="flex min-h-0 flex-1 flex-col py-2">
+      <div
+        {...containerProps}
+        ref={handleContainerRef}
+        onScroll={handleScroll}
+        className="min-h-0 flex-1 overflow-auto outline-none"
+      >
+        <AssistiveTreeDescription tree={tree} />
+        <div
+          className="relative w-full"
+          data-navigator-virtual-space="true"
+          style={{ height: `${String(items.length * rowHeight)}px` }}
         >
-          <Check className="size-[10px]" />
-          Send review
-          {reviewCount > 0 && ` (${String(reviewCount)})`}
-        </Button>
+          {visibleRows.map(({ item, index }) => {
+            const data = item.getItemData()
+            const isFolder = !data.isFile
+            const ChevIcon = item.isExpanded() ? ChevronDown : ChevronRight
+            const itemProps = item.getProps()
+            const { onClick: itemOnClick } = uncheckedFields<{
+              readonly onClick: ButtonClickHandler
+            }>(itemProps)
+            const libraryOnClick = isClickHandler(itemOnClick) ? itemOnClick : undefined
+            return (
+              <Button
+                variant="unstyled"
+                type="button"
+                {...itemProps}
+                key={item.getId()}
+                onClick={(event) => {
+                  // The library handler synchronizes selection and internal focus, then
+                  // performs the folder toggle. Calling it alongside our own toggle used
+                  // to collapse and immediately re-expand the row.
+                  libraryOnClick?.(event)
+                  if (isFolder) return
+                  onFileClick(data.path)
+                }}
+                style={{
+                  position: 'absolute',
+                  insetInline: 0,
+                  top: `${String(index * rowHeight)}px`,
+                  paddingLeft: `${String(item.getItemMeta().level * INDENT_PX + ROW_PADDING_PX)}px`,
+                  // Chromium can skip layout and paint for navigator rows outside the scrollport.
+                  // Keep the intrinsic height equal to h-5.5 so scrolling does not jump as rows enter view.
+                  contentVisibility: 'auto',
+                  containIntrinsicSize: `auto ${String(ROW_HEIGHT_REM)}rem`,
+                }}
+                className={cn(
+                  'flex h-5.5 w-full items-center gap-1.5 pr-1.5 text-left outline-none',
+                  item.isFocused() && 'bg-bg-hover',
+                  item.isSelected() && 'bg-diff-highlight-bg',
+                  'hover:bg-bg-hover',
+                )}
+              >
+                {isFolder ? (
+                  <ChevIcon className="size-3 shrink-0 text-text-tertiary" />
+                ) : (
+                  <span className="size-3 shrink-0" />
+                )}
+                <span
+                  className={cn(
+                    'truncate text-xs',
+                    data.isFile ? 'text-text-primary' : 'text-text-secondary',
+                  )}
+                >
+                  {data.name}
+                </span>
+                {data.stats ? <FileChangeBadges stats={data.stats} /> : null}
+              </Button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

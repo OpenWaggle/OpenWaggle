@@ -2,10 +2,12 @@ import type { SessionId } from '@shared/types/brand'
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
 import type { SupportedModelId } from '@shared/types/llm'
 import { useEffect, useState } from 'react'
+import { subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('context-meter')
+const PERCENT_MULTIPLIER = 100
 
 interface ContextUsageRequestState {
   readonly key: string
@@ -15,7 +17,7 @@ interface ContextUsageRequestState {
 
 interface UseContextUsageSnapshotInput {
   readonly activeSessionId: SessionId | null
-  readonly selectedModel: SupportedModelId
+  readonly selectedModel: SupportedModelId | undefined
   readonly requestKey: string
 }
 
@@ -31,18 +33,68 @@ export function useContextUsageSnapshot({
   })
 
   useEffect(() => {
-    if (!activeSessionId || typeof api.getContextUsage !== 'function') return
+    if (!activeSessionId || !selectedModel) return
 
     let cancelled = false
+    let receivedLiveUpdate = false
     const currentRequestKey = requestKey
+
+    const unsubscribe = subscribeAgentEvents((payload) => {
+      const event = payload.event
+      // A virtual selection's usage arrives under the model its router chose, with that
+      // model's own window, and names the selection it was routed from.
+      const forSelectedModel =
+        event.model === selectedModel ||
+        (event.type === 'context_usage' && event.routedFrom === selectedModel)
+      if (cancelled || payload.sessionId !== activeSessionId || !forSelectedModel) {
+        return
+      }
+
+      if (event.type === 'context_usage') {
+        receivedLiveUpdate = true
+        // Live usage carries no Session totals; the last read ones stay until the next read.
+        setRequestState((current) => {
+          const session = current.key === currentRequestKey ? current.snapshot?.session : undefined
+          return {
+            key: currentRequestKey,
+            snapshot: {
+              tokens: event.tokens,
+              contextWindow: event.contextWindow,
+              percent: (event.tokens / event.contextWindow) * PERCENT_MULTIPLIER,
+              ...(session ? { session } : {}),
+            },
+            failed: false,
+          }
+        })
+        return
+      }
+
+      if (event.type === 'compaction_end' && !event.aborted && !event.errorMessage) {
+        receivedLiveUpdate = true
+        setRequestState((current) => ({
+          key: currentRequestKey,
+          snapshot:
+            current.key === currentRequestKey && current.snapshot
+              ? {
+                  tokens: null,
+                  contextWindow: current.snapshot.contextWindow,
+                  percent: null,
+                }
+              : null,
+          failed: false,
+        }))
+      }
+    })
 
     api
       .getContextUsage(activeSessionId, selectedModel)
       .then((snapshot) => {
-        if (!cancelled) setRequestState({ key: currentRequestKey, snapshot, failed: false })
+        if (!cancelled && !receivedLiveUpdate) {
+          setRequestState({ key: currentRequestKey, snapshot, failed: false })
+        }
       })
       .catch((error: unknown) => {
-        if (cancelled) return
+        if (cancelled || receivedLiveUpdate) return
         logger.warn('Failed to load Pi context usage', {
           error: error instanceof Error ? error.message : String(error),
         })
@@ -51,6 +103,7 @@ export function useContextUsageSnapshot({
 
     return () => {
       cancelled = true
+      unsubscribe()
     }
   }, [activeSessionId, selectedModel, requestKey])
 

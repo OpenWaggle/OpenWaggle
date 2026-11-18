@@ -1,104 +1,52 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import {
-  readReleaseCiWorkflowJobs,
-  type ReleaseCiWorkflowJob,
-} from './release-ci-policy-workflow'
+import { readReleaseCiWorkflowJobs, type ReleaseCiWorkflowJob } from './release-ci-policy-workflow'
 import { matchesReleaseCiWorkflowAstContract } from './package-release-validator-workflow-structure'
+import {
+  SESSION_PERFORMANCE_WORKFLOW_PATH,
+  validateSessionPerformanceCiPolicy,
+} from './release-ci-performance-policy'
+import {
+  CHECKOUT_STEP,
+  ALLOWED_JOB_CONDITIONS,
+  COMMIT_POLICY_CHECKOUT_STEP,
+  CONCURRENCY_CANCEL_LINE,
+  CONCURRENCY_GROUP,
+  DISPATCH_GUARD_STEP,
+  EXPECTED_STEPS,
+  IMMUTABLE_ACTIONS,
+  REQUIRED_COMMANDS,
+} from './release-ci-policy-steps'
 
 export const REQUIRED_CI_CHECKS = [
   'Commit Policy',
   'Typecheck & Lint',
-  'Unit & Component Tests',
+  'Unit Tests',
+  'Integration & Component Tests',
+  'MCP Conformance',
 ] as const
-const EXPECTED_CI_JOBS = [...REQUIRED_CI_CHECKS, 'Package release rehearsal (Node ${{ matrix.node }})',
-  'Prepare immutable package release artifacts', 'Package Release Gate'] as const
+const EXPECTED_CI_JOBS = [
+  ...REQUIRED_CI_CHECKS,
+  'Session Performance',
+  'Detect Changed Surfaces',
+  'Package Consumer Rehearsal (Node 22.19.0)',
+  'Website & Docs Rehearsal (Node 24.14.0)',
+  'Classify Package Release Candidate',
+  'Build and attest package artifacts (Release Please PR only)',
+  'Package Release Candidate',
+  'Package Release Gate',
+] as const
 
 const CI_WORKFLOW_PATH = '.github/workflows/ci.yml'
 const CONCURRENCY_POLICY_FIELD_COUNT = 2
-const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'steps'] as const
-const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
-const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
-const PNPM_ACTION_SETUP = 'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4'
-const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, PNPM_ACTION_SETUP, ACTION_SETUP_NODE] as const
-const CONCURRENCY_GROUP =
-  'group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}'
-const DISPATCH_GUARD_STEP = `      - name: Verify dispatched commit identity
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          DISPATCHED_SHA: \${{ github.sha }}
-          EXPECTED_SHA: \${{ inputs.head_sha }}
-        run: |
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"`
-const CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
-        with:
-          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
-const COMMIT_POLICY_CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
-        with:
-          fetch-depth: 0
-          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
-const PNPM_SETUP_STEP = `      - uses: ${PNPM_ACTION_SETUP}
-        with:
-          version: 11.6.0`
-const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
-        with:
-          node-version: 24.14.0
-          cache: pnpm`
-const INSTALL_STEP = '      - run: pnpm install --frozen-lockfile'
-const RELEASE_POLICY_STEP = '      - run: pnpm exec tsx scripts/release-ci-policy.ts'
-const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
-        env:
-          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
-          COMMIT_POLICY_TO: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: \${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
-
-const EXPECTED_STEPS = new Map<string, readonly string[]>([
-  [
-    'Commit Policy',
-    [
-      DISPATCH_GUARD_STEP,
-      COMMIT_POLICY_CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_STEP,
-      RELEASE_POLICY_STEP,
-      CONVENTIONAL_COMMITS_STEP,
-    ],
-  ],
-  [
-    'Typecheck & Lint',
-    [
-      DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_STEP,
-      '      - run: pnpm check',
-    ],
-  ],
-  [
-    'Unit & Component Tests',
-    [
-      DISPATCH_GUARD_STEP,
-      CHECKOUT_STEP,
-      PNPM_SETUP_STEP,
-      NODE_SETUP_STEP,
-      INSTALL_STEP,
-      '      - run: pnpm test',
-    ],
-  ],
-])
+const REQUIRED_JOB_KEYS = ['name', 'runs-on', 'timeout-minutes', 'steps'] as const
 
 function hasMainBranchTrigger(workflow: string, trigger: string) {
   return new RegExp(`^ {2}${trigger}:\\s*\\n {4}branches: \\[main\\]$`, 'm').test(workflow)
 }
 
 function readSteps(job: ReleaseCiWorkflowJob) {
-  const starts = [...job.block.matchAll(/^ {6}- /gm)].flatMap((match) =>
-    match.index === undefined ? [] : [match.index],
-  )
+  const starts = [...job.block.matchAll(/^ {6}- /gm)].map((match) => match.index)
 
   return starts.map((start, index) =>
     job.block.slice(start, starts[index + 1] ?? job.block.length).trimEnd(),
@@ -129,6 +77,11 @@ function validateTriggers(workflow: string, violations: string[]) {
   if (!hasMainBranchTrigger(workflow, 'pull_request')) {
     violations.push('CI must run on pull requests targeting main.')
   }
+  if (!hasMainBranchTrigger(workflow, 'merge_group')) {
+    violations.push(
+      'CI must run on merge_group entries so the Full gate validates the merge result.',
+    )
+  }
 }
 
 function validateDispatchSupport(
@@ -136,7 +89,8 @@ function validateDispatchSupport(
   jobs: readonly ReleaseCiWorkflowJob[],
   violations: string[],
 ) {
-  const dispatchInput = /^ {2}workflow_dispatch:\s*\n {4}inputs:\s*\n {6}head_sha:\s*\n(?: {8}.+\n)*? {8}required: true\s*\n {8}type: string$/m
+  const dispatchInput =
+    /^ {2}workflow_dispatch:\s*\n {4}inputs:\s*\n {6}head_sha:\s*\n(?: {8}.+\n)*? {8}required: true\s*\n {8}type: string$/m
   if (!dispatchInput.test(workflow)) {
     violations.push('CI must accept a required workflow_dispatch head_sha input.')
   }
@@ -144,9 +98,7 @@ function validateDispatchSupport(
   const requiredJobs = jobs.filter((job) => isRequiredCheck(job.name))
   const guardedJobs = requiredJobs.filter((job) => readSteps(job)[0] === DISPATCH_GUARD_STEP)
   const checkoutJobs = requiredJobs.filter((job) =>
-    readSteps(job).some(
-      (step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP,
-    ),
+    readSteps(job).some((step) => step === CHECKOUT_STEP || step === COMMIT_POLICY_CHECKOUT_STEP),
   )
 
   if (checkoutJobs.length !== REQUIRED_CI_CHECKS.length) {
@@ -183,10 +135,10 @@ function validateConcurrency(workflow: string, violations: string[]) {
   if (
     concurrency.length !== CONCURRENCY_POLICY_FIELD_COUNT ||
     concurrency[0] !== CONCURRENCY_GROUP ||
-    concurrency[1] !== 'cancel-in-progress: true'
+    concurrency[1] !== CONCURRENCY_CANCEL_LINE
   ) {
     violations.push(
-      'CI concurrency must isolate workflow_dispatch runs by inputs.head_sha and cancel stale duplicate work.',
+      'CI concurrency must isolate workflow_dispatch runs by inputs.head_sha, cancel stale duplicate work, and never cancel merge-queue validation.',
     )
   }
 }
@@ -232,14 +184,40 @@ function validateSecurity(
 function validateRequiredJobContract(job: ReleaseCiWorkflowJob, violations: string[]) {
   if (!isRequiredCheck(job.name)) return
   const jobKeys = job.keys
+  // A job may carry a job-level `if` only if it is registered in
+  // ALLOWED_JOB_CONDITIONS with an exact condition (the release-pr-skipped test jobs).
+  // Every required job runs on ubuntu-latest.
+  const expectedKeys = ALLOWED_JOB_CONDITIONS.has(job.name)
+    ? [...REQUIRED_JOB_KEYS, 'if']
+    : [...REQUIRED_JOB_KEYS]
+  const contractRunner = 'ubuntu-latest'
   const hasExactJobContract =
-    jobKeys.length === REQUIRED_JOB_KEYS.length &&
-    REQUIRED_JOB_KEYS.every((key) => jobKeys.includes(key)) &&
-    /^ {4}runs-on: ubuntu-latest$/m.test(job.block)
+    jobKeys.length === expectedKeys.length &&
+    expectedKeys.every((key) => jobKeys.includes(key)) &&
+    new RegExp(`^ {4}runs-on: ${contractRunner}$`, 'm').test(job.block)
   if (!hasExactJobContract) {
     violations.push(
-      `CI job ${job.name} must keep the exact blocking job contract: name, ubuntu-latest runner, and steps only.`,
+      `CI job ${job.name} must keep the exact blocking job contract: name, ${contractRunner} runner, and steps only.`,
     )
+  }
+}
+
+function validateConditionalJobs(jobs: readonly ReleaseCiWorkflowJob[], violations: string[]) {
+  for (const requiredName of REQUIRED_CI_CHECKS) {
+    if (ALLOWED_JOB_CONDITIONS.has(requiredName)) continue
+    const job = jobs.find((candidate) => candidate.name === requiredName)
+    if (job?.keys.includes('if')) {
+      violations.push('CI required jobs must run unconditionally for every configured trigger.')
+      break
+    }
+  }
+  for (const [jobName, conditionLines] of ALLOWED_JOB_CONDITIONS) {
+    const job = jobs.find((candidate) => candidate.name === jobName)
+    if (job === undefined) continue
+    const hasExactCondition = conditionLines.every((line) => job.block.includes(line))
+    if (!hasExactCondition) {
+      violations.push(`CI conditional job ${jobName} must keep its exact job-level condition.`)
+    }
   }
 }
 
@@ -257,9 +235,7 @@ function validateRequiredChecks(
       `CI must expose exactly these stable job names: ${EXPECTED_CI_JOBS.join(', ')}.`,
     )
   }
-  if (jobs.some((job) => isRequiredCheck(job.name) && job.keys.includes('if'))) {
-    violations.push('CI required jobs must run unconditionally for every configured trigger.')
-  }
+  validateConditionalJobs(jobs, violations)
   if (/^ {8}continue-on-error:/m.test(workflow)) {
     violations.push('CI required steps must not use continue-on-error.')
   }
@@ -272,20 +248,20 @@ function validateRequiredChecks(
     const expected = EXPECTED_STEPS.get(job.name)
     if (expected === undefined) continue
     const actual = readSteps(job)
-    if (actual.length === expected.length && actual.every((step, index) => step === expected[index])) {
+    if (
+      actual.length === expected.length &&
+      actual.every((step, index) => step === expected[index])
+    ) {
       continue
     }
 
-    const requiredCommand =
-      job.name === 'Typecheck & Lint'
-        ? 'pnpm check'
-        : job.name === 'Unit & Component Tests'
-          ? 'pnpm test'
-          : undefined
+    const requiredCommand = REQUIRED_COMMANDS.get(job.name)
     if (requiredCommand !== undefined) {
       const exactStep = `      - run: ${requiredCommand}`
       if (!actual.includes(exactStep)) {
-        violations.push(`CI job ${job.name} must run ${requiredCommand} as an exact, fail-closed step.`)
+        violations.push(
+          `CI job ${job.name} must run ${requiredCommand} as an exact, fail-closed step.`,
+        )
       }
     }
     violations.push(`CI job ${job.name} steps must match the fail-closed required sequence.`)
@@ -312,7 +288,15 @@ export function validateReleaseCiPolicy(workflow: string) {
 
 async function main() {
   const workflowPath = path.join(process.cwd(), CI_WORKFLOW_PATH)
-  const violations = validateReleaseCiPolicy(await readFile(workflowPath, 'utf8'))
+  const performancePath = path.join(process.cwd(), SESSION_PERFORMANCE_WORKFLOW_PATH)
+  const [workflow, performanceWorkflow] = await Promise.all([
+    readFile(workflowPath, 'utf8'),
+    readFile(performancePath, 'utf8'),
+  ])
+  const violations = [
+    ...validateReleaseCiPolicy(workflow),
+    ...validateSessionPerformanceCiPolicy(performanceWorkflow),
+  ]
 
   if (violations.length === 0) {
     console.log('Release CI policy passed.')
@@ -323,7 +307,7 @@ async function main() {
   process.exitCode = 1
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
   void main().catch((error: unknown) => {
     console.error(String(error))
     process.exitCode = 1

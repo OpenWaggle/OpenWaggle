@@ -1,0 +1,308 @@
+import {
+  isJsonSchemaObject,
+  type JsonSchemaObject,
+  type MutableJsonSchema,
+  keywordsOf,
+  propertiesOf,
+  requiredOf,
+  resolvePointer,
+  schemaArray,
+} from './json-schema-object'
+
+/**
+ * Root keywords at least one supported provider rejects. Bedrock (and Anthropic) require
+ * `type: "object"` and reject root `anyOf`/`oneOf`/`allOf`; OpenAI function parameters must be
+ * `type: "object"` and must not use `oneOf`/`anyOf`/`allOf`/`enum`/`not` at the top level. A root
+ * `$ref`, `const`, or conditional hides the object shape from both.
+ */
+const ROOT_FORBIDDEN_KEYWORDS = [
+  'anyOf',
+  'oneOf',
+  'allOf',
+  'not',
+  'enum',
+  'const',
+  '$ref',
+  'if',
+  'then',
+  'else',
+] as const
+const ROOT_DROPPED_KEYWORDS = ['not', 'enum', 'const', 'if', 'then', 'else'] as const
+const ALTERNATIVE_KEYWORDS = ['anyOf', 'oneOf'] as const
+const MAX_REFERENCE_DEPTH = 16
+/** Bounds flattening `{ anyOf: [{ $ref: '#' }, ...] }`, which otherwise recurses without end. */
+const MAX_FLATTEN_DEPTH = 4
+const MAX_FLATTENED_SCHEMAS = 256
+
+/** Why a provider would reject `schema` as a tool's parameters; empty when every provider accepts it. */
+export function providerToolSchemaViolations(schema: unknown) {
+  if (!isJsonSchemaObject(schema)) return ['root schema is not a JSON object']
+  const violations: string[] = []
+  const { type, properties } = keywordsOf(schema)
+  if (type !== 'object') {
+    violations.push(`root type is ${JSON.stringify(type) ?? 'missing'}, expected "object"`)
+  }
+  for (const keyword of ROOT_FORBIDDEN_KEYWORDS) {
+    if (schema[keyword] !== undefined) violations.push(`root declares ${keyword}`)
+  }
+  if (properties !== undefined && !isJsonSchemaObject(properties)) {
+    violations.push('root properties is not an object')
+  }
+  return violations
+}
+
+export interface ProviderToolParameters {
+  /** A schema every provider accepts: an object root without root combinators or references. */
+  readonly schema: JsonSchemaObject
+  /** What was changed to get there; empty when the input already conformed and is returned as is. */
+  readonly repairs: readonly string[]
+}
+
+/** Replaces a root `$ref` with the local definition it names, keeping sibling keywords. */
+function inlineReference(
+  node: JsonSchemaObject,
+  document: JsonSchemaObject,
+  repairs: string[],
+  depth = 0,
+): JsonSchemaObject {
+  const { $ref: reference, $id: id } = keywordsOf(node)
+  if (typeof reference !== 'string') return node
+  const { $ref: _reference, ...siblings } = node
+  // A nested `$id` rebases local references to that resource; document-root resolution misreads them.
+  const rebased = node !== document && typeof id === 'string'
+  const target =
+    !rebased && depth < MAX_REFERENCE_DEPTH ? resolvePointer(document, reference) : undefined
+  if (!target) {
+    repairs.push(`dropped unresolvable root $ref ${reference}`)
+    return siblings
+  }
+  repairs.push(`inlined root $ref ${reference}`)
+  // The inlined resource's `$id` must not become the base of the flattened root.
+  const { $id: _id, ...inlined } = inlineReference(target, document, repairs, depth + 1)
+  return { ...inlined, ...siblings }
+}
+
+function isObjectShaped(schema: JsonSchemaObject) {
+  const { type } = keywordsOf(schema)
+  if (type === undefined) return true
+  if (type === 'object') return true
+  return Array.isArray(type) && type.includes('object')
+}
+
+function withoutDuplicates(schemas: readonly unknown[]) {
+  const seen = new Set<string>()
+  return schemas.filter((schema) => {
+    const key = JSON.stringify(schema)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** A short, model-readable summary of one alternative: what it requires and what it pins. */
+function describeAlternative(schema: JsonSchemaObject) {
+  const pinned = Object.entries(propertiesOf(schema)).flatMap(([key, property]) => {
+    const pin = isJsonSchemaObject(property) ? keywordsOf(property).const : undefined
+    return pin === undefined ? [] : [`${key}=${JSON.stringify(pin)}`]
+  })
+  const required = requiredOf(schema)
+  const parts = [
+    ...(pinned.length > 0 ? [pinned.join(', ')] : []),
+    required.length > 0 ? `requires ${required.join(', ')}` : 'requires nothing',
+  ]
+  return parts.join('; ')
+}
+
+/** The root being assembled: its own keywords plus the properties and requirements merged into it. */
+interface FlatRoot {
+  readonly result: MutableJsonSchema
+  readonly properties: MutableJsonSchema
+  readonly required: Set<string>
+}
+
+interface FlattenLimits {
+  readonly depth: number
+  /** Schemas left to flatten across the whole call, shared by every level. */
+  readonly budget: { remaining: number }
+}
+
+function flattenMembers(
+  members: readonly JsonSchemaObject[],
+  document: JsonSchemaObject,
+  repairs: string[],
+  limits: FlattenLimits,
+) {
+  const nested = { depth: limits.depth + 1, budget: limits.budget }
+  return members.map((member) =>
+    flattenRoot(inlineReference(member, document, repairs), document, repairs, nested),
+  )
+}
+
+function mergeConjunction(root: FlatRoot, members: readonly MutableJsonSchema[]) {
+  for (const member of members) {
+    // A property constrained twice keeps the first constraint; the full schema is enforced at run time.
+    for (const [key, property] of Object.entries(propertiesOf(member))) {
+      if (!(key in root.properties)) root.properties[key] = property
+    }
+    for (const key of requiredOf(member)) root.required.add(key)
+    const { description } = keywordsOf(member)
+    if (keywordsOf(root.result).description === undefined && typeof description === 'string') {
+      Object.assign(root.result, { description })
+    }
+  }
+}
+
+/** Only what every alternative requires can be required once they share one object. */
+function requiredByEvery(alternatives: readonly MutableJsonSchema[]) {
+  const [first, ...others] = alternatives
+  const othersRequired = others.map((alternative) => new Set(requiredOf(alternative)))
+  return (first ? requiredOf(first) : []).filter((key) =>
+    othersRequired.every((required) => required.has(key)),
+  )
+}
+
+function mergeAlternatives(
+  root: FlatRoot,
+  alternatives: readonly MutableJsonSchema[],
+  hasUnconstrainedAlternative: boolean,
+) {
+  const occurrences = new Map<string, unknown[]>()
+  for (const alternative of alternatives) {
+    for (const [key, property] of Object.entries(propertiesOf(alternative))) {
+      occurrences.set(key, [...(occurrences.get(key) ?? []), property])
+    }
+  }
+  for (const [key, schemas] of occurrences) {
+    if (key in root.properties) continue
+    const distinct = withoutDuplicates(schemas)
+    root.properties[key] = distinct.length === 1 ? distinct[0] : { anyOf: distinct }
+  }
+  // A `true` alternative accepts any object: nothing is then required or closed by every one.
+  const constrained = hasUnconstrainedAlternative ? [] : alternatives
+  for (const key of requiredByEvery(constrained)) root.required.add(key)
+  const allClosed =
+    constrained.length > 0 &&
+    constrained.every((alternative) => keywordsOf(alternative).additionalProperties === false)
+  const { additionalProperties, description } = keywordsOf(root.result)
+  if (additionalProperties === undefined && allClosed) {
+    Object.assign(root.result, { additionalProperties: false })
+  }
+  const note = alternativesNote(alternatives, hasUnconstrainedAlternative)
+  Object.assign(root.result, {
+    description: typeof description === 'string' ? `${description}\n\n${note}` : note,
+  })
+}
+
+/** Tells the model which shapes the flattened alternatives had, since the schema no longer does. */
+function alternativesNote(
+  alternatives: readonly MutableJsonSchema[],
+  hasUnconstrainedAlternative: boolean,
+) {
+  const described = [
+    ...alternatives.map(describeAlternative),
+    ...(hasUnconstrainedAlternative ? ['any object'] : []),
+  ]
+  const shapes = described.map((shape, index) => `${String(index + 1)}) ${shape}`).join('; ')
+  return `Arguments take one of ${String(described.length)} shapes, checked when the tool runs: ${shapes}.`
+}
+
+function flattenRoot(
+  node: JsonSchemaObject,
+  document: JsonSchemaObject,
+  repairs: string[],
+  limits: FlattenLimits = { depth: 0, budget: { remaining: MAX_FLATTENED_SCHEMAS } },
+) {
+  const { anyOf: _anyOf, oneOf: _oneOf, allOf, ...rest } = node
+  // A member referencing an ancestor (`{ anyOf: [{ $ref: '#' }] }`) would recurse forever.
+  // Dropping the combinators there only loosens the schema; call-time validation is exact.
+  limits.budget.remaining -= 1
+  if (limits.depth >= MAX_FLATTEN_DEPTH || limits.budget.remaining < 0) {
+    repairs.push('stopped flattening recursive root combinators')
+    return { ...rest }
+  }
+  const root: FlatRoot = {
+    result: { ...rest },
+    properties: { ...propertiesOf(node) },
+    required: new Set(requiredOf(node)),
+  }
+  const conjunction = schemaArray(allOf)
+  if (conjunction) {
+    mergeConjunction(root, flattenMembers(conjunction, document, repairs, limits))
+    repairs.push(`merged root allOf of ${String(conjunction.length)} schemas`)
+  }
+  for (const keyword of ALTERNATIVE_KEYWORDS) {
+    const members = schemaArray(node[keyword])
+    if (!members) continue
+    const raw = node[keyword]
+    const hasUnconstrainedAlternative = Array.isArray(raw) && raw.includes(true)
+    mergeAlternatives(
+      root,
+      flattenMembers(members, document, repairs, limits).filter(isObjectShaped),
+      hasUnconstrainedAlternative,
+    )
+    const count = Array.isArray(raw) ? raw.length : members.length
+    repairs.push(`flattened root ${keyword} of ${String(count)} schemas`)
+  }
+  const { result, properties, required } = root
+  if (Object.keys(properties).length > 0 || keywordsOf(result).properties !== undefined) {
+    Object.assign(result, { properties })
+  }
+  if (required.size > 0) return Object.assign(result, { required: [...required] })
+  const { required: _required, ...withoutRequired } = result
+  return withoutRequired
+}
+
+/**
+ * Turns any JSON Schema into tool parameters every provider accepts, keeping as much of its
+ * meaning as an object root can carry. Callers that repaired a schema must still validate
+ * arguments against the original. The result can also reject some arguments the original
+ * accepts, so it suits tools Pi does not validate calls for, such as MCP sampling tools.
+ */
+export function providerToolParameters(schema: unknown) {
+  if (isJsonSchemaObject(schema) && providerToolSchemaViolations(schema).length === 0) {
+    const parameters: ProviderToolParameters = { schema, repairs: [] }
+    return parameters
+  }
+  if (!isJsonSchemaObject(schema)) {
+    const parameters: ProviderToolParameters = {
+      schema: { type: 'object', properties: {} },
+      repairs: [
+        schema === undefined
+          ? 'no input schema; accepts any object'
+          : `schema ${JSON.stringify(schema)} is not an object; accepts any object`,
+      ],
+    }
+    return parameters
+  }
+  const repairs: string[] = []
+  const flattened = flattenRoot(inlineReference(schema, schema, repairs), schema, repairs)
+  for (const keyword of ROOT_DROPPED_KEYWORDS) {
+    if (flattened[keyword] === undefined) continue
+    delete flattened[keyword]
+    repairs.push(`dropped root ${keyword}; enforced when the tool runs`)
+  }
+  const { type } = keywordsOf(flattened)
+  if (type !== 'object') {
+    if (!isObjectShaped(flattened)) {
+      repairs.push(
+        `root type ${JSON.stringify(type)} cannot describe tool arguments; accepts any object`,
+      )
+      const { description, title, $schema } = flattened
+      const parameters: ProviderToolParameters = {
+        schema: {
+          type: 'object',
+          properties: {},
+          ...(description === undefined ? {} : { description }),
+          ...(title === undefined ? {} : { title }),
+          ...($schema === undefined ? {} : { $schema }),
+        },
+        repairs: [...new Set(repairs)],
+      }
+      return parameters
+    }
+    repairs.push(`set root type ${JSON.stringify(type) ?? 'missing'} to "object"`)
+    Object.assign(flattened, { type: 'object' })
+  }
+  const parameters: ProviderToolParameters = { schema: flattened, repairs: [...new Set(repairs)] }
+  return parameters
+}

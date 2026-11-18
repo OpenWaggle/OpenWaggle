@@ -1,0 +1,27 @@
+import type { ThinkingLevel } from '@shared/types/settings'
+import { Context, type Effect } from 'effect'
+
+/**
+ * Pi's global default thinking level: where a new Session's thinking level starts. A Session's
+ * own thinking level is Session state; changing it as the desktop user also makes it this default
+ * (Pi's `setThinkingLevel(level, { persist: true })`), without changing any existing Session.
+ */
+export interface ThinkingLevelDefaultServiceShape {
+  /**
+   * Pi's global default, where every new Session starts. OpenWaggle never uses a project-level
+   * `defaultThinkingLevel` (`.pi/settings.json` or `.openwaggle/settings.json` `pi`), so a draft
+   * pick always sticks.
+   */
+  readonly getDefault: () => Effect.Effect<ThinkingLevel, Error>
+  /**
+   * The level Pi's global settings name as `defaultThinkingLevel`, or `undefined` when they name
+   * none (and `getDefault` falls back to Pi's built-in default).
+   */
+  readonly getConfiguredDefault: () => Effect.Effect<ThinkingLevel | undefined, Error>
+  /** Persists Pi's global default. */
+  readonly setDefault: (level: ThinkingLevel) => Effect.Effect<void, Error>
+}
+
+export class ThinkingLevelDefaultService extends Context.Tag(
+  '@openwaggle/ThinkingLevelDefaultService',
+)<ThinkingLevelDefaultService, ThinkingLevelDefaultServiceShape>() {}

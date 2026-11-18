@@ -1,16 +1,34 @@
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { Effect, Layer } from 'effect'
 import { SessionProjectionRepositoryError } from '../errors'
-import { SessionRepository, type SessionRepositoryShape } from '../ports/session-repository'
+import { createLogger } from '../logger'
+import {
+  type PersistSessionSnapshotInput,
+  SessionRepository,
+  type SessionRepositoryShape,
+} from '../ports/session-repository'
+import {
+  SessionTranscriptRepair,
+  type SessionTranscriptRepairShape,
+} from '../ports/session-transcript-repair'
+import { unwrapFiberFailure } from '../utils/describe-error'
+
+const logger = createLogger('session-repository')
 
 async function loadSessionRepositoryStores() {
-  const store = await import('../store/sessions')
-  const sessionDetailStore = await import('../store/session-details')
-  const { withSessionLock } = await import('../store/session-lock')
+  // Independent dynamic imports — load them concurrently.
+  const [store, sessionDetailStore, { withSessionLock }] = await Promise.all([
+    import('../store/sessions'),
+    import('../store/session-details'),
+    import('../store/session-lock'),
+  ])
 
   return { store, sessionDetailStore, withSessionLock }
 }
 
-type SessionRepositoryStores = Awaited<ReturnType<typeof loadSessionRepositoryStores>>
+type SessionRepositoryStores = Awaited<ReturnType<typeof loadSessionRepositoryStores>> & {
+  readonly transcriptRepair: SessionTranscriptRepairShape
+}
 
 function repositoryOperation<T>(operation: string, task: () => Promise<T>) {
   return Effect.tryPromise({
@@ -22,12 +40,62 @@ function repositoryOperation<T>(operation: string, task: () => Promise<T>) {
 function createSessionReadMethods(deps: SessionRepositoryStores) {
   return {
     list: (limit) => repositoryOperation('listSessions', () => deps.store.listSessions(limit)),
+    listCatalogPage: (archived, limit, cursor) =>
+      repositoryOperation('listSessionCatalogPage', () =>
+        deps.store.listSessionCatalogPage(archived, limit, cursor),
+      ),
+    listProjectPage: (limit, cursor, search, matchingDisplayNamePaths) =>
+      repositoryOperation('listSessionProjectPage', () =>
+        deps.store.listSessionProjectPage(limit, cursor, search, matchingDisplayNamePaths),
+      ),
+    hasActiveProjectPath: (paths) =>
+      repositoryOperation('hasActiveSessionProjectPath', () =>
+        deps.store.hasActiveSessionProjectPath(paths),
+      ),
+    listByIds: (sessionIds) =>
+      repositoryOperation('listSessionsByIds', () => deps.store.listSessionsByIds(sessionIds)),
+    listHiveCatalogPage: (sessionId, limit, cursor) =>
+      repositoryOperation('listHiveSessionCatalogPage', () =>
+        deps.store.listHiveSessionCatalogPage(sessionId, limit, cursor),
+      ),
+    listHiveTreeCatalogPage: (sessionId, limit, cursor, pendingRequests) =>
+      repositoryOperation('listHiveTreeSessionCatalogPage', () =>
+        deps.store.listHiveTreeSessionCatalogPage(sessionId, limit, cursor, pendingRequests),
+      ),
+    listArchivedBranchCatalogPage: (limit, cursor) =>
+      repositoryOperation('listArchivedSessionBranchCatalogPage', () =>
+        deps.store.listArchivedSessionBranchCatalogPage(limit, cursor),
+      ),
     listArchivedBranches: (limit) =>
       repositoryOperation('listArchivedSessionBranches', () =>
         deps.store.listArchivedSessionBranches(limit),
       ),
+    queryArchivedItems: (query) =>
+      repositoryOperation('queryArchivedItems', () => deps.store.queryArchivedItems(query)),
+    listArchivedItemRefs: (query) =>
+      repositoryOperation('listArchivedItemRefs', () => deps.store.listArchivedItemRefs(query)),
+    readArchivedItemStates: (refs) =>
+      repositoryOperation('readArchivedItemStates', () => deps.store.readArchivedItemStates(refs)),
+    setArchiveTimes: (entries) =>
+      repositoryOperation('setArchiveTimes', () => deps.store.setArchiveTimes(entries)),
     getTree: (sessionId) =>
       repositoryOperation('getSessionTree', () => deps.store.getSessionTree(sessionId)),
+    getNodeMutationRevision: (sessionId) =>
+      repositoryOperation('getSessionNodeMutationRevision', () =>
+        deps.store.getSessionNodeMutationRevision(sessionId),
+      ),
+    searchTreeNodes: (sessionId, query, after) =>
+      repositoryOperation('searchSessionTreeNodes', () =>
+        deps.store.searchSessionTreePage(sessionId, query, after),
+      ),
+    listResourceProjectionPage: (sessionId, afterCreatedOrder, limit) =>
+      repositoryOperation('listSessionResourceProjectionPage', () =>
+        deps.store.listSessionResourceProjectionPage(sessionId, afterCreatedOrder, limit),
+      ),
+    getResourceProjectionNodes: (sessionId, nodeIds) =>
+      repositoryOperation('getSessionResourceProjectionNodes', () =>
+        deps.store.getSessionResourceProjectionNodes(sessionId, nodeIds),
+      ),
     getWorkspace: (sessionId, selection) =>
       repositoryOperation('getSessionWorkspace', () =>
         deps.store.getSessionWorkspace(sessionId, selection),
@@ -38,17 +106,81 @@ function createSessionReadMethods(deps: SessionRepositoryStores) {
       ),
   } satisfies Pick<
     SessionRepositoryShape,
-    'list' | 'listArchivedBranches' | 'getTree' | 'getWorkspace' | 'listActiveRunsForRecovery'
+    | 'list'
+    | 'listCatalogPage'
+    | 'listProjectPage'
+    | 'hasActiveProjectPath'
+    | 'listByIds'
+    | 'listHiveCatalogPage'
+    | 'listHiveTreeCatalogPage'
+    | 'listArchivedBranchCatalogPage'
+    | 'listArchivedBranches'
+    | 'queryArchivedItems'
+    | 'listArchivedItemRefs'
+    | 'readArchivedItemStates'
+    | 'setArchiveTimes'
+    | 'getTree'
+    | 'getNodeMutationRevision'
+    | 'searchTreeNodes'
+    | 'listResourceProjectionPage'
+    | 'getResourceProjectionNodes'
+    | 'getWorkspace'
+    | 'listActiveRunsForRecovery'
   >
+}
+
+/**
+ * Saves a snapshot, first renaming Pi entries whose ids another Session already holds.
+ *
+ * Such a snapshot can never be saved as it is, and every later snapshot of the Session would
+ * fail the same way; see {@link SessionTranscriptRepair}. The repair runs under the Session lock,
+ * after the run or operation that produced the snapshot has released its agent session. When the
+ * transcript cannot be repaired, the repair failure is logged and the named conflict is rethrown.
+ */
+async function persistSnapshotRepairingEntryIds(
+  deps: SessionRepositoryStores,
+  input: PersistSessionSnapshotInput,
+) {
+  try {
+    await deps.sessionDetailStore.persistSessionSnapshot(input)
+    return
+  } catch (error) {
+    const failure = unwrapFiberFailure(error)
+    if (!(failure instanceof deps.sessionDetailStore.SessionNodeIdConflictError)) throw error
+    const repair = await Effect.runPromise(
+      Effect.either(
+        deps.transcriptRepair.renameForeignEntryIds(
+          input,
+          new Set(failure.conflicts.map((conflict) => conflict.nodeId)),
+        ),
+      ),
+    )
+    if (repair._tag === 'Left' || !repair.right) {
+      logger.error('Could not rename transcript entries whose ids belong to other Sessions', {
+        sessionId: input.sessionId,
+        piSessionFile: input.piSessionFile,
+        conflictCount: failure.conflicts.length,
+        conflicts: failure.conflicts.slice(0, deps.sessionDetailStore.MAX_NAMED_CONFLICTS),
+        ...(repair._tag === 'Left' ? { error: formatErrorMessage(repair.left.cause) } : {}),
+      })
+      throw failure
+    }
+    const repaired = repair.right
+    logger.warn('Renamed transcript entries whose ids belong to other Sessions', {
+      sessionId: input.sessionId,
+      piSessionFile: input.piSessionFile,
+      conflictCount: failure.conflicts.length,
+      conflicts: failure.conflicts.slice(0, deps.sessionDetailStore.MAX_NAMED_CONFLICTS),
+    })
+    await deps.sessionDetailStore.persistSessionSnapshot(repaired)
+  }
 }
 
 function createSessionDetailMethods(deps: SessionRepositoryStores) {
   return {
     persistSnapshot: (input) =>
       repositoryOperation('persistSessionSnapshot', () =>
-        deps.withSessionLock(input.sessionId, () =>
-          deps.sessionDetailStore.persistSessionSnapshot(input),
-        ),
+        deps.withSessionLock(input.sessionId, () => persistSnapshotRepairingEntryIds(deps, input)),
       ),
     updateRuntime: (input) =>
       repositoryOperation('updateSessionRuntime', () =>
@@ -100,16 +232,18 @@ function createActiveRunMethods(deps: SessionRepositoryStores) {
   >
 }
 
-function createSessionRepositoryShape(deps: SessionRepositoryStores): SessionRepositoryShape {
+function createSessionRepositoryShape(deps: SessionRepositoryStores) {
   return {
     ...createSessionReadMethods(deps),
     ...createSessionDetailMethods(deps),
     ...createSessionBranchMethods(deps),
     ...createActiveRunMethods(deps),
-  }
+  } satisfies SessionRepositoryShape
 }
 
-export const SqliteSessionRepositoryLive = Effect.promise(async () => {
-  const deps = await loadSessionRepositoryStores()
+export const SqliteSessionRepositoryLive = Effect.gen(function* () {
+  const transcriptRepair = yield* SessionTranscriptRepair
+  const stores = yield* Effect.promise(loadSessionRepositoryStores)
+  const deps = { ...stores, transcriptRepair }
   return Layer.succeed(SessionRepository, SessionRepository.of(createSessionRepositoryShape(deps)))
 }).pipe(Layer.unwrapEffect)

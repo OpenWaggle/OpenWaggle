@@ -2,13 +2,13 @@ import { BUILT_IN_COMPOSER_SLASH_COMMAND } from './built-in-slash-commands'
 
 export type SessionCopyCommand = { readonly type: 'fork' } | { readonly type: 'clone' }
 
-export function parseSessionCopyCommand(input: string): SessionCopyCommand | null {
+export function parseSessionCopyCommand(input: string) {
   const trimmed = input.trim()
   if (trimmed === BUILT_IN_COMPOSER_SLASH_COMMAND.FORK) {
-    return { type: 'fork' }
+    return { type: 'fork' } satisfies SessionCopyCommand
   }
   if (trimmed === BUILT_IN_COMPOSER_SLASH_COMMAND.CLONE) {
-    return { type: 'clone' }
+    return { type: 'clone' } satisfies SessionCopyCommand
   }
   return null
 }

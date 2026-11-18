@@ -13,7 +13,7 @@ import { ExtensionProjectOverridesRepository } from '../ports/extension-project-
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
-import { auditedFailure } from './extension-capability-broker-audit'
+import { auditedFailure, cyclicPayloadFailure } from './extension-capability-broker-audit'
 import {
   contributionEntryDeclaresCapability,
   contributionEntryDeclaresMethod,
@@ -30,33 +30,29 @@ import {
   methodIsDeclared,
 } from './extension-contribution-authorization-model'
 import { listExtensionContributionRegistryView } from './extension-contribution-registry-service'
+import { invocationHasMountedSessionBinding } from './extension-invocation-binding'
 
 export interface InvokeExtensionCapabilityDependencies {
   readonly now?: () => number
+  readonly invocationBinding?: string
 }
 
 type ScopeResolution =
   | { readonly _tag: 'ok' }
   | { readonly _tag: 'failure'; readonly message: string }
 
-function scopeOk(): ScopeResolution {
-  return { _tag: 'ok' }
+function scopeOk() {
+  return { _tag: 'ok' } satisfies ScopeResolution
 }
 
-function scopeFailure(message: string): ScopeResolution {
-  return { _tag: 'failure', message }
-}
-
-function currentTimestamp(dependencies: InvokeExtensionCapabilityDependencies) {
-  return dependencies.now?.() ?? Date.now()
+function scopeFailure(message: string) {
+  return { _tag: 'failure', message } satisfies ScopeResolution
 }
 
 function resolveActiveProjectScope(scope: ExtensionInvokeScope) {
   return Effect.gen(function* () {
     const projectPath = getScopeProjectPath(scope)
-    if (!projectPath) {
-      return scopeOk()
-    }
+    if (!projectPath) return scopeOk()
 
     const settings = yield* SettingsService
     const activeProjectPath = (yield* settings.get()).projectPath
@@ -211,8 +207,10 @@ export function invokeExtensionCapability(
   dependencies: InvokeExtensionCapabilityDependencies = {},
 ) {
   return Effect.gen(function* () {
-    const input = normalizeInput(rawInput)
-    const timestamp = currentTimestamp(dependencies)
+    const timestamp = dependencies.now?.() ?? Date.now()
+    const normalized = normalizeInput(rawInput)
+    if (normalized._tag === 'Left') return yield* cyclicPayloadFailure(normalized.left, timestamp)
+    const input = normalized.right
     const scopeProjectPath = getScopeProjectPath(input.scope)
     const lookupProjectPath = yield* resolveInvocationLookupProjectPath(input.scope)
     const scopeResolution = yield* resolveScopeContext(input.scope)
@@ -265,6 +263,15 @@ export function invokeExtensionCapability(
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNKNOWN_CONTRIBUTION,
         message: `Contribution "${input.contributionId}" was not found for extension "${input.extensionId}".`,
+        timestamp,
+      })
+    }
+
+    if (!invocationHasMountedSessionBinding(entry, input, dependencies.invocationBinding)) {
+      return yield* auditedFailure({
+        invocation: input,
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
+        message: 'Session resource access requires a host-bound mounted Session contribution.',
         timestamp,
       })
     }

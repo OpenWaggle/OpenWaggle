@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { MessageChatRow } from '../../lib/types-chat-row'
 import {
   buildChatRows,
   createUserMessage,
@@ -18,6 +19,7 @@ describe('buildChatRows compaction summaries', () => {
         compactionSummary: {
           summary: 'Kept the failing test context.',
           tokensBefore: 123456,
+          reason: 'threshold',
         },
       },
     }
@@ -39,6 +41,82 @@ describe('buildChatRows compaction summaries', () => {
       id: 'compaction-summary',
       summary: 'Kept the failing test context.',
       tokensBefore: 123456,
+      reason: 'threshold',
+    })
+  })
+
+  it.each([
+    ['manual', 'manual'],
+    ['threshold', 'automatic'],
+    ['overflow', 'automatic'],
+  ] as const)('appends an inline %s compaction status row', (reason, presentation) => {
+    const rows = buildChatRows({
+      messages: [createUserMessage('user-1', 'continue')],
+      isLoading: true,
+      error: undefined,
+      lastUserMessage: 'continue',
+      dismissedError: null,
+      sessionId: 'session-compacting',
+      waggleMetadataLookup: {},
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+      compactionStatus: {
+        type: 'compacting',
+        reason,
+        summaryCountAtStart: 0,
+        timeline: [
+          {
+            id: 'compaction-running',
+            phase: 'running',
+            reason,
+            summaryCountAtStart: 0,
+            messageCountAtStart: 1,
+          },
+        ],
+      },
+    })
+
+    expect(rows.find((row) => row.type === 'compaction-status')).toEqual({
+      type: 'compaction-status',
+      id: 'compaction-running',
+      anchorMessageCount: 1,
+      announce: true,
+      state: `${presentation}-running`,
+    })
+    expect(rows.some((row) => row.type === 'phase-indicator')).toBe(false)
+  })
+
+  it('keeps a completed status visible until its durable summary is hydrated', () => {
+    const rows = buildChatRows({
+      messages: [createUserMessage('user-1', 'continue')],
+      isLoading: true,
+      error: undefined,
+      lastUserMessage: 'continue',
+      dismissedError: null,
+      sessionId: 'session-compacting',
+      waggleMetadataLookup: {},
+      phase: { current: { label: 'Thinking', elapsedMs: 0 }, completed: [], totalElapsedMs: 0 },
+      compactionStatus: {
+        type: 'completed',
+        reason: 'threshold',
+        summaryCountAtStart: 0,
+        timeline: [
+          {
+            id: 'compaction-complete',
+            phase: 'completed',
+            reason: 'threshold',
+            summaryCountAtStart: 0,
+            messageCountAtStart: 1,
+          },
+        ],
+      },
+    })
+
+    expect(rows.find((row) => row.type === 'compaction-status')).toEqual({
+      type: 'compaction-status',
+      id: 'compaction-complete',
+      anchorMessageCount: 1,
+      announce: true,
+      state: 'automatic-complete',
     })
   })
 
@@ -75,16 +153,32 @@ describe('buildChatRows compaction summaries', () => {
 })
 
 describe('buildChatRows interrupted runs', () => {
-  it('places an interrupted run notice before transcript messages', () => {
+  it('marks the settled fold row as interrupted instead of appending a notice row', () => {
     const rows = buildChatRows({
-      messages: [createUserMessage('user-1', 'continue from last run')],
+      messages: [
+        createUserMessage('user-1', 'continue from last run'),
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-call',
+              id: 'tool-a',
+              name: 'bash',
+              arguments: '{}',
+              state: 'output-available',
+            },
+            { type: 'text', content: 'Partial progress before the stop.' },
+          ],
+        },
+      ],
       isLoading: false,
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
       sessionId: 'session-interrupted',
       waggleMetadataLookup: {},
-      phase: { current: null, completed: [], totalElapsedMs: 0 },
+      phase: { current: null, completed: [], totalElapsedMs: 4000 },
       interruptedRun: {
         runId: 'run-interrupted-1',
         sessionId: SessionId('session-interrupted'),
@@ -95,12 +189,11 @@ describe('buildChatRows interrupted runs', () => {
       },
     })
 
-    expect(rows[0]).toMatchObject({
-      type: 'interrupted-run',
-      runId: 'run-interrupted-1',
-      branchId: SessionBranchId('session-interrupted:main'),
+    expect(rows[1]).toMatchObject({
+      type: 'turn-fold',
+      interrupted: true,
+      label: 'You stopped after 4s',
     })
-    expect(rows[1]).toMatchObject({ type: 'message' })
   })
 })
 
@@ -127,7 +220,7 @@ describe('buildChatRows reasoning visibility', () => {
     })
 
     const assistantRows = rows.filter(
-      (row) => row.type === 'message' && row.message.role === 'assistant',
+      (row): row is MessageChatRow => row.type === 'message' && row.message.role === 'assistant',
     )
 
     expect(assistantRows).toHaveLength(1)
@@ -168,7 +261,7 @@ describe('buildChatRows isRunActive', () => {
     })
 
     const assistantRows = rows.filter(
-      (row) => row.type === 'message' && row.message.role === 'assistant',
+      (row): row is MessageChatRow => row.type === 'message' && row.message.role === 'assistant',
     )
 
     // All assistant rows in an active run should have isRunActive true
@@ -199,7 +292,7 @@ describe('buildChatRows isRunActive', () => {
     })
 
     const assistantRows = rows.filter(
-      (row) => row.type === 'message' && row.message.role === 'assistant',
+      (row): row is MessageChatRow => row.type === 'message' && row.message.role === 'assistant',
     )
 
     for (const row of assistantRows) {

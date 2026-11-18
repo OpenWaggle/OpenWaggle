@@ -1,17 +1,4 @@
-export * from './agent-loop.js'
-export type * from './broker.js'
-export {
-  createExtensionBrokerSdk,
-  createExtensionBrokerSdkFromInvoke,
-  extensionCapabilityAuditEntrySchema,
-  extensionInvokeErrorSchema,
-  extensionInvokeFailureSchema,
-  extensionInvokeInputSchema,
-  extensionInvokeResultSchema,
-  extensionInvokeScopeSchema,
-  extensionInvokeSuccessSchema,
-  toInvokeInput,
-} from './broker.js'
+export type * from './agent-loop.js'
 export { OPENWAGGLE_EXTENSION, OPENWAGGLE_EXTENSION_BROKER } from './constants.js'
 export type * from './context.js'
 export {
@@ -19,26 +6,17 @@ export {
   createOpenWaggleExtensionSharedModules,
   createOpenWaggleExtensionSurfaceContext,
 } from './context.js'
-export * from './docs.js'
-export {
-  type JsonArray,
-  type JsonObject,
-  type JsonPrimitive,
-  type JsonValue,
-  jsonPrimitiveSchema,
-  jsonValueSchema,
-} from './json.js'
-export * from './manifest.js'
-export {
-  createRuntimeContributionSdk,
-  extensionRuntimeRegisterContributionResultSchema,
-  extensionRuntimeUnregisterContributionResultSchema,
-} from './runtime.js'
+export type * from './docs.js'
+export type * from './json.js'
+export type * from './manifest.js'
+export { defineExtensionManifest } from './manifest.js'
+export type * from './sdk-types.js'
+export type * from './syntax.js'
+export { createPlainExtensionSyntaxResult } from './syntax.js'
 export type * from './theme.js'
 export {
   createOpenWaggleExtensionTheme,
   extensionThemeCssVariableEntries,
-  isOpenWaggleExtensionTheme,
   OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES,
 } from './theme.js'
 export type * from './types.js'

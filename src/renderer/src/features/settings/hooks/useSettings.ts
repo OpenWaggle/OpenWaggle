@@ -1,35 +1,75 @@
-import { useEffect } from 'react'
+import type { OAuthProvider } from '@shared/types/auth'
+import type { Settings } from '@shared/types/settings'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuthStore, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
+import { useSyntaxThemeCatalogStore } from '@/features/settings/state/syntax-theme-store'
 import { api } from '@/shared/lib/ipc'
+
+interface ProviderCatalogLoaders {
+  readonly loadProviderModels: (settings: Settings) => Promise<Settings | null>
+  readonly loadAllAuthAccounts: (providers: readonly OAuthProvider[]) => Promise<void>
+  readonly isActive: () => boolean
+}
+
+/**
+ * Loads the Pi provider catalog for the loaded settings, keeps the selection it repaired, then
+ * loads the accounts of its sign-in providers. Startup and the provider catalog retry share it.
+ * Only the repaired selection is merged back, since settings may have changed while it loaded.
+ */
+async function hydrateProviderCatalog(loaders: ProviderCatalogLoaders) {
+  const updatedSettings = await loaders.loadProviderModels(usePreferencesStore.getState().settings)
+  if (!loaders.isActive()) return
+
+  if (updatedSettings) {
+    const { selectedModel } = updatedSettings
+    usePreferencesStore.setState((state) => ({ settings: { ...state.settings, selectedModel } }))
+  }
+
+  const oauthProviders = useProviderStore
+    .getState()
+    .providerModels.flatMap((provider) => (provider.auth.supportsOAuth ? [provider.provider] : []))
+  await loaders.loadAllAuthAccounts(oauthProviders)
+}
 
 /**
  * Load settings and provider models on mount. Call once at the app root.
  */
-export function useSettingsSetup(): void {
+export function useSettingsSetup() {
   const loadSettings = usePreferencesStore((s) => s.loadSettings)
+  const loadSyntaxThemeCatalog = useSyntaxThemeCatalogStore((s) => s.load)
   const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
   const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
+  const [attempt, setAttempt] = useState(0)
+
+  const retry = useCallback(() => {
+    usePreferencesStore.setState({ isLoaded: false, loadError: null })
+    setAttempt((current) => current + 1)
+  }, [])
 
   useEffect(() => {
     let active = true
 
     async function initialize() {
-      await loadSettings()
-      if (!active) return
-
-      const updatedSettings = await loadProviderModels(usePreferencesStore.getState().settings)
-      if (!active) return
-
-      if (updatedSettings) {
-        usePreferencesStore.setState({ settings: updatedSettings })
+      let prefetchedSettings: Promise<Settings> | undefined
+      if (attempt === 0) {
+        // B11: the settings request is in flight while the Syntax theme catalog loads. Settings
+        // still apply after the catalog registered its imported themes, which they may select.
+        prefetchedSettings = api.getSettings()
+        prefetchedSettings.catch(() => undefined)
+        await loadSyntaxThemeCatalog(null)
+        if (!active) return
       }
 
-      const oauthProviders = useProviderStore
-        .getState()
-        .providerModels.filter((provider) => provider.auth.supportsOAuth)
-        .map((provider) => provider.provider)
-      await loadAllAuthAccounts(oauthProviders)
+      await loadSettings(prefetchedSettings)
+      if (!active) return
+      if (usePreferencesStore.getState().loadError !== null) return
+
+      await hydrateProviderCatalog({
+        loadProviderModels,
+        loadAllAuthAccounts,
+        isActive: () => active,
+      })
     }
 
     void initialize()
@@ -37,7 +77,7 @@ export function useSettingsSetup(): void {
     return () => {
       active = false
     }
-  }, [loadSettings, loadProviderModels, loadAllAuthAccounts])
+  }, [attempt, loadSyntaxThemeCatalog, loadSettings, loadProviderModels, loadAllAuthAccounts])
 
   // Subscribe to OAuth status events from main process (per-provider)
   useEffect(() => {
@@ -50,6 +90,23 @@ export function useSettingsSetup(): void {
       }
     })
   }, [])
+
+  return retry
+}
+
+/**
+ * Retries a provider catalog that failed to load while settings loaded, through the same steps as
+ * startup: the catalog for the current settings, then the sign-in accounts it lists. Resolves to
+ * whether the catalog loaded.
+ */
+export function useProviderCatalogRetry() {
+  const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
+  const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
+
+  return async () => {
+    await hydrateProviderCatalog({ loadProviderModels, loadAllAuthAccounts, isActive: () => true })
+    return useProviderStore.getState().loadError === null
+  }
 }
 
 /**
@@ -64,9 +121,7 @@ export function usePreferences() {
   const toggleFavoriteModel = usePreferencesStore((s) => s.toggleFavoriteModel)
   const setEnabledModels = usePreferencesStore((s) => s.setEnabledModels)
   const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
-  const setThinkingLevel = usePreferencesStore((s) => s.setThinkingLevel)
   const pushRecentProject = usePreferencesStore((s) => s.pushRecentProject)
-  const retryLoad = usePreferencesStore((s) => s.retryLoad)
 
   return {
     settings,
@@ -76,9 +131,7 @@ export function usePreferences() {
     toggleFavoriteModel,
     setEnabledModels,
     setProjectPath,
-    setThinkingLevel,
     pushRecentProject,
-    retryLoad,
   }
 }
 

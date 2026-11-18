@@ -1,0 +1,79 @@
+import { cn } from '@/shared/lib/cn'
+import { Button } from '@/shared/ui/Button'
+
+/**
+ * A section heading: label, count, and actions that appear on hover.
+ *
+ * One component for Pinned and Projects because the prototype styles them identically, and
+ * two implementations drifted immediately: the app's Projects heading was 30px at 12px medium
+ * with no count, against the prototype's 26px at 11px semibold uppercase with one.
+ *
+ * Deliberately not sticky. When the heading pinned to the top of the scroll area, session rows
+ * slid behind it mid-scroll and a half-hidden row collided with the title, which read as a
+ * broken layout. The heading now scrolls away with its section, so a row can never render
+ * behind it.
+ */
+export function SidebarSectionHead({
+  label,
+  count,
+  children,
+}: {
+  readonly label: string
+  readonly count: number
+  /** Header actions. Hidden until the heading is hovered or holds focus. */
+  readonly children?: React.ReactNode
+}) {
+  return (
+    <div
+      data-qa="sidebar-section-head"
+      className="group/head flex h-6.5 items-center gap-1.5 bg-bg-secondary px-3.5 font-semibold text-xs text-text-tertiary uppercase tracking-wider"
+    >
+      <span>{label}</span>
+      <span className="font-medium text-text-muted tracking-normal">{count}</span>
+      {children === undefined ? null : (
+        <span className="ml-auto flex gap-0.5 opacity-0 transition-opacity group-hover/head:opacity-100 group-focus-within/head:opacity-100">
+          {children}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A 20px square icon button, the prototype's `.icon-btn`.
+ *
+ * Shared so header and row actions are the same size everywhere. The app had several sizes.
+ */
+export function SidebarIconButton({
+  label,
+  title,
+  isActive = false,
+  onClick,
+  children,
+  ...rest
+}: {
+  readonly label: string
+  readonly title?: string
+  readonly isActive?: boolean
+  readonly onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
+  readonly children: React.ReactNode
+  // Aria attributes so a Popover trigger can be told it opens a menu, and whether it is open.
+} & Record<`data-${string}`, unknown> &
+  React.AriaAttributes) {
+  return (
+    <Button
+      variant="unstyled"
+      type="button"
+      aria-label={label}
+      title={title ?? label}
+      onClick={onClick}
+      {...rest}
+      className={cn(
+        'grid size-5 flex-none place-items-center rounded transition-colors hover:bg-bg-hover hover:text-text-primary',
+        isActive ? 'text-accent' : 'text-text-tertiary',
+      )}
+    >
+      {children}
+    </Button>
+  )
+}

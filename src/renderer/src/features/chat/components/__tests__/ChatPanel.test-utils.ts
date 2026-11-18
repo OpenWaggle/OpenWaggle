@@ -1,0 +1,128 @@
+import { RepositoryPath, SessionId, WorkingPath } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
+import type { SessionWorkspace } from '@shared/types/session'
+import { fromPartial } from '@total-typescript/shoehorn'
+import { vi } from 'vitest'
+import { useComposerStore } from '@/features/composer/state'
+import { useSessionStore } from '@/features/sessions/state'
+import type { ChatPanelSections } from '../../model/chat-panel-sections'
+
+export const PROJECT_PATH = '/test/project'
+
+export function seedComposerWorkspace() {
+  useComposerStore
+    .getState()
+    .switchScopedDraftContext(`project:${PROJECT_PATH}:session:session-1:main`)
+  useSessionStore.setState({
+    activeWorkspace: fromPartial<SessionWorkspace>({
+      tree: { session: { id: SessionId('session-1'), projectPath: PROJECT_PATH } },
+      activeBranchId: null,
+      activeNodeId: null,
+    }),
+    draftBranch: null,
+  })
+}
+
+export function makeMessage(
+  overrides: Partial<UIMessage> & { id: string; role: 'user' | 'assistant' },
+) {
+  return fromPartial<UIMessage>({
+    parts: [],
+    ...overrides,
+  })
+}
+
+/** Build a full ChatPanelSections for the panel under test, with focused overrides. */
+export function createSections(
+  overrides: Partial<ChatPanelSections['transcript']> = {},
+  composerOverrides: Partial<ChatPanelSections['composer']> = {},
+) {
+  const transcript = {
+    messages: [],
+    isLoading: false,
+    projectPath: PROJECT_PATH,
+    worktreePath: null,
+    workingPath: null,
+    recentProjects: [],
+    activeSessionId: SessionId('session-1'),
+    chatRows: [],
+    extensionRegistry: null,
+    extensionProjectPaths: [PROJECT_PATH],
+    lastUserMessageId: null,
+    streamSignalVersion: 0,
+    pendingSend: null,
+    onPendingSendConsumed: vi.fn(),
+    onOpenProject: vi.fn().mockResolvedValue(undefined),
+    onSelectProjectPath: vi.fn(),
+    onRetryText: vi.fn().mockResolvedValue(undefined),
+    onOpenSettings: vi.fn(),
+    onDismissError: vi.fn(),
+    onDismissInterruptedRun: vi.fn(),
+    onBranchFromMessage: vi.fn(),
+    onForkFromMessage: vi.fn(),
+    onForkFromResponse: vi.fn(),
+    copiesBlocked: false,
+    onViewTurnDiff: vi.fn(),
+    onToggleTurnFold: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
+    turnsByAnchorNodeId: new Map(),
+    ...overrides,
+  }
+
+  const workingPath = transcript.projectPath === null ? null : WorkingPath(transcript.projectPath)
+  const repositoryPath =
+    transcript.projectPath === null ? null : RepositoryPath(transcript.projectPath)
+
+  const sections: ChatPanelSections = {
+    transcript,
+    composer: {
+      activeSessionId: transcript.activeSessionId,
+      projectPath: transcript.projectPath,
+      recentProjects: transcript.recentProjects,
+      session: null,
+      sessionDetailPending: false,
+      isFirstMessage: false,
+      waggleStatus: 'idle',
+      slashCommandMenuOpen: false,
+      slashSkills: [],
+      forkSelectorOpen: false,
+      forkTargets: [],
+      isLoading: transcript.isLoading,
+      status: transcript.isLoading ? 'streaming' : 'ready',
+      compactionStatus: null,
+      onStopCollaboration: vi.fn(),
+      onSelectSkill: vi.fn(),
+      onStartWaggle: vi.fn(),
+      onSendWithWaggle: vi.fn().mockResolvedValue(undefined),
+      onSteer: vi.fn().mockResolvedValue(undefined),
+      onCancel: vi.fn(),
+      onToast: vi.fn(),
+      onSkipBranchSummary: vi.fn(),
+      onSummarizeBranch: vi.fn(),
+      onStartCustomBranchSummary: vi.fn(),
+      onCancelBranchSummary: vi.fn(),
+      onOpenForkSelector: vi.fn(),
+      onCloseForkSelector: vi.fn(),
+      onSelectForkTarget: vi.fn(),
+      onCloneToNewSession: vi.fn(),
+      onOpenProject: transcript.onOpenProject,
+      onSelectProjectPath: transcript.onSelectProjectPath,
+      onSetAuthorizationMode: vi.fn().mockResolvedValue(undefined),
+      ...composerOverrides,
+    },
+    diff: {
+      session: null,
+      workingPath,
+      repositoryPath,
+      sessionId: transcript.activeSessionId,
+      onSendMessage: transcript.onRetryText,
+    },
+    agentInteractions: [],
+    agentCustomMessages: [],
+    agentInteractionEvents: [],
+    extensionRegistry: transcript.extensionRegistry,
+    extensionProjectPaths: transcript.extensionProjectPaths,
+    onRespondAgentInteraction: vi.fn().mockResolvedValue(undefined),
+  }
+  return sections
+}

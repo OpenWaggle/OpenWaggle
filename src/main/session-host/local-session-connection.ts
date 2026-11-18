@@ -1,0 +1,316 @@
+import type { Socket } from 'node:net'
+import { decodeLocalSessionClientFrame } from '@shared/schemas/local-session-protocol'
+import type { LocalSessionClientFrame } from '@shared/types/local-session-client-frame'
+import { createLogger } from '../logger'
+import { LocalSessionAdmissionGate } from './local-session-admission-gate'
+import {
+  type ActiveLocalSessionCommand,
+  abortProfileFencedCommands,
+  isSelfProfileCredentialMutation,
+} from './local-session-command-admission'
+import { executeLocalSessionCommandFrame } from './local-session-command-frame'
+import { bindLocalSessionConnectionInput } from './local-session-connection-input'
+import { LocalSessionConnectionSubscriptions } from './local-session-connection-subscriptions'
+import { localSessionErrorFrame, type SessionHostRefusalCode } from './local-session-error-frame'
+import type { LocalSessionEventCursorProjection } from './local-session-event-cursor-projection'
+import { establishLocalSessionHandshake } from './local-session-handshake'
+import { LocalSessionHandshakeDeadline } from './local-session-handshake-deadline'
+import { LocalSessionInboundRetention } from './local-session-inbound-retention'
+import type { LocalSessionOutboundByteBudget } from './local-session-outbound-budget'
+import { LocalSessionOutboundWriter } from './local-session-outbound-writer'
+import {
+  drainLocalSessionProfileAdmission,
+  LocalSessionInvalidationCloser,
+} from './local-session-profile-connection-lifecycle'
+import type { LocalSessionProfileAdmissionRefreshOptions } from './local-session-profile-invalidation'
+import type {
+  LocalSessionAuthenticationBudget,
+  LocalSessionInboundByteBudget,
+} from './local-session-resource-policy'
+import type {
+  AuthenticatedLocalSessionCaller,
+  LocalSessionServerDependencies,
+} from './local-session-server'
+
+const logger = createLogger('session-host/connection')
+
+const DEFAULT_HANDSHAKE_TIMEOUT_MS = 5000
+
+export class LocalSessionConnection {
+  private readonly inbound: LocalSessionInboundRetention
+  private readonly admission = new LocalSessionAdmissionGate()
+  private readonly subscriptions: LocalSessionConnectionSubscriptions
+  private readonly commandControllers = new Map<string, ActiveLocalSessionCommand>()
+  private caller: AuthenticatedLocalSessionCaller | null = null
+  private negotiatedRevision: number | null = null
+  private serverAuthenticated: boolean
+  private releaseClientLiveness: (() => void) | null = null
+  private closed = false
+  /** A connection-level failure was reported; the socket is ending. */
+  private failing = false
+  private readonly handshakeDeadline: LocalSessionHandshakeDeadline
+  private readonly authenticationController = new AbortController()
+  private readonly outbound: LocalSessionOutboundWriter
+  private readonly invalidationCloser = new LocalSessionInvalidationCloser()
+
+  private readonly socket: Socket
+  private readonly dependencies: LocalSessionServerDependencies
+  private readonly authenticationBudget: LocalSessionAuthenticationBudget
+  private readonly cursorProjection: LocalSessionEventCursorProjection
+
+  constructor(
+    socket: Socket,
+    dependencies: LocalSessionServerDependencies,
+    inboundBudget: LocalSessionInboundByteBudget,
+    authenticationBudget: LocalSessionAuthenticationBudget,
+    outboundBudget: LocalSessionOutboundByteBudget,
+    cursorProjection: LocalSessionEventCursorProjection,
+  ) {
+    this.socket = socket
+    this.dependencies = dependencies
+    this.authenticationBudget = authenticationBudget
+    this.cursorProjection = cursorProjection
+    this.inbound = new LocalSessionInboundRetention(inboundBudget)
+    this.outbound = new LocalSessionOutboundWriter(
+      socket,
+      outboundBudget,
+      this.authenticationController.signal,
+      dependencies.maxPendingOutboundFramesPerConnection,
+      dependencies.writeFrame,
+      () => this.caller?.callerId,
+    )
+    this.subscriptions = new LocalSessionConnectionSubscriptions({
+      dependencies,
+      admission: this.admission,
+      cursorProjection,
+      caller: () => this.caller,
+      negotiatedRevision: () => this.negotiatedRevision,
+      closed: () => this.closed,
+      send: (frame) => this.outbound.send(frame),
+      connectionFailed: () => this.socket.destroy(),
+    })
+    this.serverAuthenticated = dependencies.authenticateServer === undefined
+    const timeout = dependencies.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS
+    this.handshakeDeadline = new LocalSessionHandshakeDeadline(timeout, () => {
+      void this.fail('handshake_timeout', 'Local Session handshake timed out.', true)
+    })
+  }
+
+  start() {
+    bindLocalSessionConnectionInput({
+      socket: this.socket,
+      inbound: this.inbound,
+      closed: () => this.closed,
+      handleValue: (value) => this.handleValue(value),
+      failed: (code, message) => this.fail(code, message),
+    })
+    this.socket.once('close', () => this.close())
+    this.socket.once('error', () => this.close())
+  }
+
+  disconnectRevokedProfile(profileId: string) {
+    if (this.caller?.profileAuthority?.profileId !== profileId) return
+    if (!this.admission.isFenced()) void this.admission.fence()
+    this.invalidationCloser.disconnect(
+      this.socket,
+      this.dependencies.profileInvalidationCloseTimeoutMs,
+    )
+  }
+
+  fenceProfileAdmission(profileName: string) {
+    if (this.caller?.profileAuthority?.profileName !== profileName) return Promise.resolve()
+    const drained = this.admission.fence()
+    this.subscriptions.requireResync()
+    abortProfileFencedCommands(this.commandControllers.values())
+    return this.drainProfileAdmission(drained)
+  }
+
+  refreshProfileAdmission(
+    profileId?: string,
+    options?: LocalSessionProfileAdmissionRefreshOptions,
+  ) {
+    const authority = this.caller?.profileAuthority
+    if (!authority || (profileId && authority.profileId !== profileId)) return Promise.resolve()
+    const consumesExistingFence =
+      options?.consumeExistingFence === true && this.admission.hasFence()
+    const drained = consumesExistingFence ? this.admission.waitForReaders() : this.admission.fence()
+    this.subscriptions.requireResync()
+    const refresh = async () => {
+      await this.drainProfileAdmission(drained)
+      if (this.closed) return
+      const caller = this.caller
+      if (!caller || !this.dependencies.refreshCaller) {
+        this.admission.releaseFence()
+        return
+      }
+      try {
+        this.caller = await this.dependencies.refreshCaller(caller)
+        this.cursorProjection.refreshCaller(this.caller)
+        this.admission.releaseFence()
+      } catch {
+        this.socket.end()
+      }
+    }
+    return this.admission.enqueueRefresh(refresh)
+  }
+
+  shutdown() {
+    this.socket.destroy()
+  }
+
+  private async drainProfileAdmission(drained: Promise<void>) {
+    await drainLocalSessionProfileAdmission(
+      drained,
+      this.dependencies.profileAdmissionDrainTimeoutMs,
+      () => {
+        this.close()
+        this.socket.destroy()
+      },
+    )
+  }
+
+  private async handleValue(value: unknown) {
+    const authenticated = this.caller !== null && this.negotiatedRevision !== null
+    // The connection already answered handshake_timeout and is ending.
+    if (!authenticated && this.handshakeDeadline.expired) return
+    if (!this.serverAuthenticated) {
+      await this.handleServerAuthentication(value)
+      return
+    }
+    if (!authenticated) {
+      this.handshakeDeadline.markHelloReceived()
+      await this.handleHello(value)
+      return
+    }
+    await this.handleClientFrame(decodeLocalSessionClientFrame(value))
+  }
+
+  private async handleServerAuthentication(value: unknown) {
+    const authenticateServer = this.dependencies.authenticateServer
+    if (!authenticateServer) {
+      throw new Error('Local Session Host identity authority is unavailable.')
+    }
+    await this.outbound.sendHandshakeFrame(await authenticateServer(value))
+    this.serverAuthenticated = true
+  }
+
+  private async handleHello(value: unknown) {
+    const result = await establishLocalSessionHandshake({
+      value,
+      socket: this.socket,
+      dependencies: this.dependencies,
+      budget: this.authenticationBudget,
+      signal: this.authenticationController.signal,
+      send: (frame) => this.outbound.sendHandshakeFrame(frame),
+      authenticationFailed: (failure) => {
+        logger.warn('Local Session authentication failed', { reason: failure.reason })
+        return this.fail(failure.code, failure.message, failure.retryable)
+      },
+    })
+    if (result.status === 'closed') return
+    if (this.closed || this.handshakeDeadline.expired) {
+      // Authentication outlived the deadline or the peer; admitting it would leak liveness.
+      this.socket.end()
+      return
+    }
+    this.caller = result.caller
+    this.negotiatedRevision = result.revision
+    this.inbound.markAuthenticated()
+    this.releaseClientLiveness = this.dependencies.liveness.acquire('client')
+    this.handshakeDeadline.clear()
+    await this.outbound.sendHandshakeFrame(result.negotiation)
+  }
+
+  private async handleClientFrame(frame: LocalSessionClientFrame) {
+    if (frame.kind === 'command') return this.handleCommand(frame)
+    if (frame.kind === 'subscribe') {
+      return this.subscriptions.subscribe(frame.requestId, frame.after, frame.sessionIds)
+    }
+    return this.subscriptions.unsubscribe(frame.requestId, frame.subscriptionId)
+  }
+
+  private async handleCommand(frame: Extract<LocalSessionClientFrame, { kind: 'command' }>) {
+    if (!this.caller || this.negotiatedRevision === null) return
+    const controller = new AbortController()
+    const activeCommand = { controller, abortOnProfileFence: false }
+    this.commandControllers.set(frame.requestId, activeCommand)
+    const untrack = this.dependencies.inflightCommands?.track(frame.payload)
+    try {
+      while (!this.closed) {
+        await this.admission.waitUntilReady()
+        const releaseGateReader = this.admission.acquireReader(this.closed)
+        if (!releaseGateReader) continue
+        activeCommand.abortOnProfileFence = true
+        const releaseAdmissionReader = () => {
+          activeCommand.abortOnProfileFence = false
+          releaseGateReader()
+        }
+        const caller = this.caller
+        const negotiatedRevision = this.negotiatedRevision
+        if (!caller || negotiatedRevision === null) {
+          releaseAdmissionReader()
+          return
+        }
+        const selfCredentialMutation = isSelfProfileCredentialMutation({
+          caller,
+          frame,
+          negotiatedRevision,
+        })
+        if (selfCredentialMutation) releaseAdmissionReader()
+        try {
+          await executeLocalSessionCommandFrame({
+            frame,
+            caller,
+            negotiatedRevision,
+            dependencies: this.dependencies,
+            eventCursor: this.cursorProjection.expose(caller, this.dependencies.eventHub.cursor()),
+            resolveEventCursor: (cursor) => this.cursorProjection.resolve(caller, cursor),
+            exposeEventCursor: (cursor) => this.cursorProjection.expose(caller, cursor),
+            signal: controller.signal,
+            send: (response) => this.outbound.send(response),
+            ...(!selfCredentialMutation ? { releaseAdmissionReader } : {}),
+          })
+        } finally {
+          releaseAdmissionReader()
+        }
+        return
+      }
+    } finally {
+      untrack?.()
+      this.commandControllers.delete(frame.requestId)
+    }
+  }
+
+  /** Reports a connection-level failure, then ends the connection. */
+  private async fail(code: SessionHostRefusalCode, message: string, retryable = false) {
+    if (this.closed || this.failing) return
+    this.failing = true
+    try {
+      // The error frame is best effort: fail() runs fire and forget from the handshake deadline
+      // and the inbound protocol paths, so a peer that went away mid-write must not turn the
+      // report into an escaping rejection; the socket ends either way.
+      await this.outbound
+        .sendHandshakeFrame(localSessionErrorFrame(code, message, retryable))
+        .catch(() => undefined)
+    } finally {
+      this.socket.end()
+    }
+  }
+
+  private close() {
+    if (this.closed) return
+    this.closed = true
+    this.admission.close()
+    this.authenticationController.abort()
+    this.inbound.releasePendingFrame()
+    this.handshakeDeadline.clear()
+    this.invalidationCloser.close()
+    for (const command of this.commandControllers.values()) {
+      command.controller.abort(new Error('Local Session client disconnected.'))
+    }
+    this.commandControllers.clear()
+    this.subscriptions.close()
+    this.releaseClientLiveness?.()
+    this.releaseClientLiveness = null
+  }
+}

@@ -1,0 +1,98 @@
+/**
+ * The main build's shape: no top-level require of a lazy external, a hidden source map for every
+ * file, and a startup that loads only the externals it may. Its sizes (the boot shim, what each
+ * process loads) are budgets in performance/perf-budgets.json, which the `perf-budgets` step checks;
+ * this prints them for reference and fails on none.
+ */
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { MAIN_PROCESSES, parseMainChunkManifest, processStartupChunks } from './main-bundle-graph'
+import { disallowedTopLevelRequires } from './main-bundle-requires'
+import { probeStartupExternals, startupExternalFailures } from './main-bundle-startup-externals'
+import { MAIN_CHUNK_MANIFEST_PATH } from './vite/main-chunk-manifest'
+
+const MAIN_OUT_DIRECTORY = path.resolve('out/main')
+const MAIN_BOOT_FILE = 'boot.js'
+
+async function fileBytes(file: string) {
+  return (await fs.stat(path.join(MAIN_OUT_DIRECTORY, file))).size
+}
+
+/**
+ * The boot shim and every main chunk have their hidden source map (electron.vite.config.ts): the bundle is minified, so
+ * a field stack trace is `index.js:1:<column>` and only the map turns it back into source lines.
+ */
+async function missingSourceMaps(files: readonly string[]) {
+  const missing: string[] = []
+  for (const file of files) {
+    const map = path.join(MAIN_OUT_DIRECTORY, `${file}.map`)
+    const exists = await fs.stat(map).then(
+      () => true,
+      () => false,
+    )
+    if (!exists) {
+      missing.push(`out/main/${file}.map is missing; the main build must emit hidden source maps.`)
+    }
+  }
+  return missing
+}
+
+async function topLevelRequireFailures(files: readonly string[]) {
+  const failures: string[] = []
+  for (const file of files) {
+    const source = await fs.readFile(path.join(MAIN_OUT_DIRECTORY, file), 'utf8')
+    const disallowed = disallowedTopLevelRequires(source)
+    if (disallowed.length > 0) {
+      failures.push(
+        `out/main/${file} requires ${disallowed.join(', ')} at its top level; import them where they are used, ` +
+          'or route them through scripts/vite/lazy-external-requires.ts.',
+      )
+    }
+  }
+  return failures
+}
+
+async function main() {
+  const manifest = parseMainChunkManifest(
+    JSON.parse(await fs.readFile(path.join(MAIN_OUT_DIRECTORY, MAIN_CHUNK_MANIFEST_PATH), 'utf8')),
+  )
+  const failures = await topLevelRequireFailures([
+    MAIN_BOOT_FILE,
+    ...manifest.map((entry) => entry.file),
+  ])
+  failures.push(
+    ...(await missingSourceMaps([MAIN_BOOT_FILE, ...manifest.map((entry) => entry.file)])),
+  )
+  const bootBytes = await fileBytes(MAIN_BOOT_FILE)
+  const lines = [
+    `${MAIN_BOOT_FILE}: ${String(bootBytes)} bytes`,
+    `${String(manifest.length)} main chunks`,
+  ]
+  // Where a require sits is not when it runs: run the bundle's startup and see what it loads.
+  const entry = manifest.find((chunk) => chunk.isEntry)
+  if (entry) {
+    const probed = probeStartupExternals(path.join(MAIN_OUT_DIRECTORY, entry.file))
+    failures.push(...startupExternalFailures(probed))
+    lines.push(
+      ...probed.map(
+        (result) =>
+          `startup of ${result.argv.join(' ')}: loads ${result.loaded.join(', ') || 'nothing external'}`,
+      ),
+    )
+  }
+  for (const startup of MAIN_PROCESSES) {
+    const chunks = processStartupChunks(manifest, startup.startupModules)
+    const sizes = await Promise.all(chunks.map(fileBytes))
+    const bytes = sizes.reduce((total, size) => total + size, 0)
+    lines.push(
+      `${startup.label}: ${String(bytes)} bytes in ${String(chunks.length)} chunks at startup (${startup.metric})`,
+    )
+  }
+  process.stdout.write(`${lines.join('\n')}\n`)
+  if (failures.length > 0) throw new Error(failures.join('\n'))
+}
+
+void main().catch((error: unknown) => {
+  console.error(error)
+  process.exitCode = 1
+})

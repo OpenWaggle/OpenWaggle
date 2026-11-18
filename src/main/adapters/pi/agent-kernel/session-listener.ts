@@ -1,7 +1,16 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
-import { toJsonValue } from '../pi-message-mapper'
+import type { AgentTransportUserMessage } from '@shared/types/stream'
+import { classifyAgentError } from '../../../agent/error-classifier'
+import { userFacingErrorDetail } from '../../../utils/describe-error'
+import { createStreamingMessageId, toJsonValue } from '../pi-message-mapper'
+import {
+  observePiAssistantMessageForUsageStatistics,
+  observePiCompactionForUsageStatistics,
+  observePiToolResultForUsageStatistics,
+  observePiToolUseForUsageStatistics,
+} from '../pi-usage-statistics'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
 import { handleMessageStart, handleMessageUpdate } from './assistant-events'
 import type {
@@ -14,11 +23,23 @@ import type {
   QueueUpdateSessionEvent,
   SessionListenerInput,
   SessionListenerState,
+  ToolCallStreamState,
   ToolExecutionEndSessionEvent,
   ToolExecutionStartSessionEvent,
   ToolExecutionUpdateSessionEvent,
 } from './listener-types'
+import { responseContextUsageEvent } from './pi-response-usage'
 import { emitEvent } from './transport-emitter'
+import {
+  incorporatedCustomMessageDisplay,
+  incorporatedUserMessageDisplay,
+  type PiUserMessageEntrySource,
+} from './user-message-events'
+
+/** Nested calls (Pi `ctx.executeTool()`) name their calling tool call; model-issued calls do not. */
+function parentToolCall(event: { readonly parentToolCallId?: string }) {
+  return event.parentToolCallId ? { parentToolCallId: event.parentToolCallId } : {}
+}
 
 function emitAgentStart(state: SessionListenerState) {
   emitEvent(state.input.onEvent, {
@@ -35,12 +56,14 @@ function handleToolExecutionStart(
 ) {
   const toolInput = toJsonValue(event.args)
   state.toolCallInputs.set(event.toolCallId, toolInput)
+  observePiToolUseForUsageStatistics(event.toolName, event.args)
   emitEvent(state.input.onEvent, {
     type: 'tool_execution_start',
     toolCallId: event.toolCallId,
     toolName: event.toolName,
     args: toolInput,
-    parentMessageId: state.currentMessageId ?? undefined,
+    ...(state.currentMessageId ? { parentMessageId: state.currentMessageId } : {}),
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })
@@ -58,28 +81,72 @@ function handleToolExecutionUpdate(
     toolName: event.toolName,
     args: toolInput,
     partialResult: toJsonValue(event.partialResult),
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })
 }
 
 function handleToolExecutionEnd(state: SessionListenerState, event: ToolExecutionEndSessionEvent) {
+  const args = state.toolCallInputs.get(event.toolCallId)
   emitEvent(state.input.onEvent, {
     type: 'tool_execution_end',
     toolCallId: event.toolCallId,
     toolName: event.toolName,
-    args: state.toolCallInputs.get(event.toolCallId),
+    ...(args === undefined ? {} : { args }),
     result: toJsonValue(event.result),
     isError: event.isError,
+    ...parentToolCall(event),
     timestamp: Date.now(),
     model: state.input.model,
   })
 }
 
+/**
+ * Publishes a user message the moment Pi incorporates it into the Run, so the transcript shows a
+ * Follow-up as soon as its Run starts and a steer when the agent reads it. Pi emits a user message's
+ * start and end back to back. At its end the display projection is recorded and the entry is about
+ * to be appended, so the event carries the same parts, log order, and digest as the persisted node.
+ */
+function emitIncorporatedUserMessage(
+  state: SessionListenerState,
+  display: (source: PiUserMessageEntrySource) => AgentTransportUserMessage,
+) {
+  const sessionEntries = state.input.sessionEntries
+  if (!sessionEntries) return
+  emitEvent(state.input.onEvent, {
+    type: 'message_start',
+    messageId: createStreamingMessageId(),
+    role: 'user',
+    userMessage: display(sessionEntries),
+    timestamp: Date.now(),
+    model: state.input.model,
+  })
+}
+
+function handleIncorporatedUserMessage(
+  state: SessionListenerState,
+  message: MessageEndSessionEvent['message'],
+) {
+  if (message.role === 'user') {
+    emitIncorporatedUserMessage(state, (source) => incorporatedUserMessageDisplay(source, message))
+    return true
+  }
+  const display = message.role === 'custom' ? incorporatedCustomMessageDisplay(message) : null
+  if (!display) return false
+  emitIncorporatedUserMessage(state, display)
+  return true
+}
+
 function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionEvent) {
+  if (handleIncorporatedUserMessage(state, event.message)) return
+  if (event.message.role === 'toolResult') {
+    return observePiToolResultForUsageStatistics(state.runId, event.message)
+  }
   if (!state.currentMessageId || event.message.role !== 'assistant') {
     return
   }
+  observePiAssistantMessageForUsageStatistics(state.runId, event.message)
 
   emitEvent(state.input.onEvent, {
     type: 'message_end',
@@ -87,7 +154,12 @@ function handleMessageEnd(state: SessionListenerState, event: MessageEndSessionE
     role: 'assistant',
     timestamp: Date.now(),
     model: state.input.model,
+    ...(event.message.stopReason === 'error' && event.message.errorMessage
+      ? { errorMessage: event.message.errorMessage }
+      : {}),
   })
+  const contextUsage = responseContextUsageEvent(state.input, event.message)
+  if (contextUsage) emitEvent(state.input.onEvent, contextUsage)
   state.currentMessageId = null
 }
 
@@ -109,11 +181,19 @@ function emitCompactionStart(state: SessionListenerState, event: CompactionStart
     model: state.input.model,
   })
 }
+
+function compactionTransportResult(state: SessionListenerState, event: CompactionEndSessionEvent) {
+  const entryId = event.result?.entryId
+  if (typeof entryId !== 'string') return null
+  return { entryId: state.input.nodeIds ? state.input.nodeIds.toNodeId(entryId) : entryId }
+}
+
 function emitCompactionEnd(state: SessionListenerState, event: CompactionEndSessionEvent) {
+  observePiCompactionForUsageStatistics(event)
   emitEvent(state.input.onEvent, {
     type: 'compaction_end',
     reason: event.reason,
-    result: toJsonValue(event.result ?? null),
+    result: compactionTransportResult(state, event),
     aborted: event.aborted,
     willRetry: event.willRetry,
     ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),
@@ -135,25 +215,44 @@ function emitAutoRetryStart(state: SessionListenerState, event: AutoRetryStartSe
 }
 
 function emitAutoRetryEnd(state: SessionListenerState, event: AutoRetryEndSessionEvent) {
+  const cancelled = event.finalError === 'Retry cancelled'
   emitEvent(state.input.onEvent, {
     type: 'auto_retry_end',
     success: event.success,
     attempt: event.attempt,
-    ...(event.finalError ? { finalError: event.finalError } : {}),
+    ...(cancelled ? { cancelled: true } : {}),
+    ...(!cancelled && event.finalError ? { finalError: event.finalError } : {}),
     timestamp: Date.now(),
     model: state.input.model,
   })
 }
 
+/**
+ * The error a failed `agent_end` carries, classified as the Host classifies a terminal error: this
+ * event is the Run's only terminal failure event, so it names the code and a redacted detail.
+ */
+function classifiedAgentEndError(messages: AgentEndSessionEvent['messages']) {
+  const error = getAgentEndError(messages)
+  if (!error) return undefined
+  const classified = classifyAgentError(new Error(error.message))
+  return { message: userFacingErrorDetail(classified.message), code: classified.code }
+}
+
 function emitAgentEnd(state: SessionListenerState, event: AgentEndSessionEvent) {
   const reason = getAgentEndReason(event.messages)
   const error =
-    reason === 'error' || reason === 'aborted' ? getAgentEndError(event.messages) : undefined
+    reason === 'error'
+      ? classifiedAgentEndError(event.messages)
+      : reason === 'aborted'
+        ? getAgentEndError(event.messages)
+        : undefined
+  const usage = getAgentEndUsage(event.messages)
   emitEvent(state.input.onEvent, {
     type: 'agent_end',
     runId: state.runId,
     reason,
-    usage: getAgentEndUsage(event.messages),
+    ...(event.willRetry ? { willRetry: true } : {}),
+    ...(usage ? { usage } : {}),
     ...(error ? { error } : {}),
     timestamp: Date.now(),
     model: state.input.model,
@@ -164,7 +263,15 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
   matchBy(event, 'type')
     .with('agent_start', () => emitAgentStart(state))
     .with('agent_end', (value) => emitAgentEnd(state, value))
-    .with('agent_settled', () => undefined)
+    .with('agent_settled', (value) =>
+      emitEvent(state.input.onEvent, {
+        type: 'agent_settled',
+        runId: state.runId,
+        aborted: value.aborted,
+        timestamp: Date.now(),
+        model: state.input.model,
+      }),
+    )
     .with('entry_appended', () => undefined)
     .with('session_info_changed', () => undefined)
     .with('thinking_level_changed', () => undefined)
@@ -173,6 +280,12 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
     .with('message_start', (value) => handleMessageStart(state, value))
     .with('message_update', (value) => handleMessageUpdate(state, value))
     .with('message_end', (value) => handleMessageEnd(state, value))
+    .with(
+      // Session-side bash output deltas are TUI-only in Pi; the renderer
+      // projects tool executions through tool_execution_* events instead.
+      'bash_execution_update',
+      () => undefined,
+    )
     .with('tool_execution_start', (value) => handleToolExecutionStart(state, value))
     .with('tool_execution_update', (value) => handleToolExecutionUpdate(state, value))
     .with('tool_execution_end', (value) => handleToolExecutionEnd(state, value))
@@ -181,6 +294,12 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
     .with('compaction_end', (value) => emitCompactionEnd(state, value))
     .with('auto_retry_start', (value) => emitAutoRetryStart(state, value))
     .with('auto_retry_end', (value) => emitAutoRetryEnd(state, value))
+    .with(
+      'summarization_retry_scheduled',
+      'summarization_retry_attempt_start',
+      'summarization_retry_finished',
+      () => undefined,
+    )
     .exhaustive()
 }
 
@@ -192,6 +311,7 @@ export function createSessionListener(input: SessionListenerInput, runId: string
     thinkingSteps: new Set<string>(),
     startedToolCalls: new Set<string>(),
     toolCallInputs: new Map<string, JsonValue>(),
+    toolCallStreams: new Map<string, ToolCallStreamState>(),
   }
 
   return (event: AgentSessionEvent) => handleSessionEvent(state, event)

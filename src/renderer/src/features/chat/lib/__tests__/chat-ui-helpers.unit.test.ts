@@ -65,7 +65,7 @@ describe('queue failure feedback', () => {
     reportAutoSendQueueFailure(
       { logger, showToast },
       SessionId('session-1'),
-      { text: 'queued prompt', thinkingLevel: 'medium', attachments: [] },
+      { text: 'queued prompt', attachments: [] },
       new Error('offline'),
     )
 

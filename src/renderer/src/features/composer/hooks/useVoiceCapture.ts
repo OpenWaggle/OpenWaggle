@@ -3,6 +3,7 @@ import { VOICE_MODEL_BASE } from '@shared/types/voice'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useVoiceVisualizer } from 'react-voice-visualizer'
 import { useComposerStore } from '@/features/composer/state/composer-store'
+import { withFinally } from '@/shared/lib/async-outcome'
 import { api } from '@/shared/lib/ipc'
 import {
   decodeAudioBlob,
@@ -11,6 +12,7 @@ import {
   trimSilence,
   WHISPER_TARGET_SAMPLE_RATE,
 } from '../lib/voice-utils'
+import { useComposerInputGuard } from './useComposerInputGuard'
 
 type VoiceSubmitAction = 'insert' | 'send'
 const VOICE_DURATION_PAD_LENGTH = 2
@@ -19,8 +21,11 @@ export type VoiceRecorderMode = 'idle' | 'recording' | 'transcribing'
 export type VoiceVisualizerControls = ReturnType<typeof useVoiceVisualizer>
 
 interface UseVoiceCaptureOptions {
+  readonly disabled?: boolean
   insertText: (text: string) => void
-  sendComposed: (text: string) => boolean
+  sendComposed: (text: string) => boolean | Promise<boolean>
+  /** When set, stop-and-send inserts the transcript and calls this instead of `sendComposed`. */
+  sendAfterInsert?: (() => void) | null
 }
 
 export interface VoiceCaptureController {
@@ -42,22 +47,79 @@ function formatVoiceError(error: unknown) {
     : 'Voice input is unavailable in this environment. Continue by typing your prompt.'
 }
 
+interface RecordedBlobTranscription {
+  readonly action: VoiceSubmitAction
+  readonly isCurrentDraft: () => boolean
+  readonly setError: (error: string | null) => void
+  readonly insertTranscript: (transcript: string) => void
+  readonly sendAfterInsert: (() => void) | null
+  readonly sendComposed: (text: string) => boolean | Promise<boolean>
+}
+
+/** Transcribes a finished recording and inserts or sends it; kept out of the hook (see `withFinally`). */
+async function transcribeRecordedBlob(blob: Blob, input: RecordedBlobTranscription) {
+  const { action, isCurrentDraft, setError, insertTranscript, sendAfterInsert } = input
+  try {
+    const decoded = await decodeAudioBlob(blob)
+    if (!isCurrentDraft()) return
+    const whisperSamples = downsampleAudio(
+      decoded.samples,
+      decoded.sampleRate,
+      WHISPER_TARGET_SAMPLE_RATE,
+    )
+    const trimmedSamples = trimSilence(whisperSamples, WHISPER_TARGET_SAMPLE_RATE)
+    if (trimmedSamples.length === 0) {
+      setError('No speech detected. Try again or continue typing.')
+      return
+    }
+
+    const result = await api.transcribeVoiceLocal({
+      pcm16: toPcm16(trimmedSamples),
+      sampleRate: WHISPER_TARGET_SAMPLE_RATE,
+      model: VOICE_MODEL_BASE,
+    })
+    if (!isCurrentDraft()) return
+    const transcript = result.text.trim()
+    if (!transcript) {
+      setError('No speech detected. Try again or continue typing.')
+      return
+    }
+
+    if (action !== 'send') {
+      insertTranscript(transcript)
+      return
+    }
+    if (sendAfterInsert) {
+      // Editing a queued message: the transcript joins the edit, then the edit is saved.
+      insertTranscript(transcript)
+      sendAfterInsert()
+      return
+    }
+    const store = useComposerStore.getState()
+    const composedText = [store.input.trim(), transcript].filter(Boolean).join(' ')
+    const submitted = await input.sendComposed(composedText)
+    if (!submitted && isCurrentDraft()) {
+      insertTranscript(transcript)
+    }
+  } catch (transcriptionError) {
+    if (isCurrentDraft()) setError(formatVoiceError(transcriptionError))
+  }
+}
+
 export function useVoiceCapture({
+  disabled = false,
   insertText,
   sendComposed,
-}: UseVoiceCaptureOptions): VoiceCaptureController {
+  sendAfterInsert = null,
+}: UseVoiceCaptureOptions) {
   const [error, setError] = useState<string | null>(null)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [lastElapsedSeconds, setLastElapsedSeconds] = useState(0)
 
-  const sendComposedRef = useRef(sendComposed)
-  sendComposedRef.current = sendComposed
-
-  const insertTextRef = useRef(insertText)
-  insertTextRef.current = insertText
-
   const pendingSubmitActionRef = useRef<VoiceSubmitAction>('insert')
   const handledBlobRef = useRef<Blob | null>(null)
+  const recordingDraftRef = useRef<(() => boolean) | null>(null)
+  const captureInputGuard = useComposerInputGuard(disabled)
 
   const visualizerControls = useVoiceVisualizer({
     shouldHandleBeforeUnload: false,
@@ -70,22 +132,23 @@ export function useVoiceCapture({
     : isRecording
       ? 'recording'
       : 'idle'
-  const elapsedSeconds = isRecording
-    ? Math.floor(visualizerControls.recordingTime / TIME_UNIT.MILLISECONDS_PER_SECOND)
-    : lastElapsedSeconds
+  const recordingSeconds = Math.floor(
+    visualizerControls.recordingTime / TIME_UNIT.MILLISECONDS_PER_SECOND,
+  )
+  // A stopped recording keeps showing how long it ran.
+  if (isRecording && lastElapsedSeconds !== recordingSeconds) {
+    setLastElapsedSeconds(recordingSeconds)
+  }
+  const elapsedSeconds = isRecording ? recordingSeconds : lastElapsedSeconds
 
-  useEffect(() => {
-    if (!isRecording) return
-    setLastElapsedSeconds(
-      Math.floor(visualizerControls.recordingTime / TIME_UNIT.MILLISECONDS_PER_SECOND),
-    )
-  }, [isRecording, visualizerControls.recordingTime])
-
-  useEffect(() => {
-    if (!visualizerControls.error) return
-    setIsTranscribing(false)
-    setError(formatVoiceError(visualizerControls.error))
-  }, [visualizerControls.error])
+  const [shownRecorderError, setShownRecorderError] = useState<Error | null>(null)
+  if (shownRecorderError !== visualizerControls.error) {
+    setShownRecorderError(visualizerControls.error)
+    if (visualizerControls.error) {
+      setIsTranscribing(false)
+      setError(formatVoiceError(visualizerControls.error))
+    }
+  }
 
   function insertTranscriptAtCursor(rawTranscript: string) {
     const transcript = rawTranscript.trim()
@@ -96,54 +159,34 @@ export function useVoiceCapture({
     const needsLeadingSpace = currentInput.length > 0 && !/\s$/.test(currentInput)
     const inserted = `${needsLeadingSpace ? ' ' : ''}${transcript}`
 
-    insertTextRef.current(inserted)
+    insertText(inserted)
   }
 
   const handleRecordedBlob = useEffectEvent(async (blob: Blob, action: VoiceSubmitAction) => {
+    const isCurrentDraft = recordingDraftRef.current
+    if (!isCurrentDraft?.()) {
+      visualizerControls.clearCanvas()
+      return
+    }
     setIsTranscribing(true)
     setError(null)
 
-    try {
-      const decoded = await decodeAudioBlob(blob)
-      const whisperSamples = downsampleAudio(
-        decoded.samples,
-        decoded.sampleRate,
-        WHISPER_TARGET_SAMPLE_RATE,
-      )
-      const trimmedSamples = trimSilence(whisperSamples, WHISPER_TARGET_SAMPLE_RATE)
-      if (trimmedSamples.length === 0) {
-        setError('No speech detected. Try again or continue typing.')
-        return
-      }
-
-      const result = await api.transcribeVoiceLocal({
-        pcm16: toPcm16(trimmedSamples),
-        sampleRate: WHISPER_TARGET_SAMPLE_RATE,
-        model: VOICE_MODEL_BASE,
-      })
-      const transcript = result.text.trim()
-      if (!transcript) {
-        setError('No speech detected. Try again or continue typing.')
-        return
-      }
-
-      if (action === 'send') {
-        const store = useComposerStore.getState()
-        const composedText = [store.input.trim(), transcript].filter(Boolean).join(' ')
-        const submitted = sendComposedRef.current(composedText)
-        if (!submitted) {
-          insertTranscriptAtCursor(transcript)
-        }
-      } else {
-        insertTranscriptAtCursor(transcript)
-      }
-    } catch (transcriptionError) {
-      setError(formatVoiceError(transcriptionError))
-    } finally {
-      visualizerControls.clearCanvas()
-      handledBlobRef.current = null
-      setIsTranscribing(false)
-    }
+    await withFinally(
+      () =>
+        transcribeRecordedBlob(blob, {
+          action,
+          isCurrentDraft,
+          setError,
+          insertTranscript: insertTranscriptAtCursor,
+          sendAfterInsert,
+          sendComposed,
+        }),
+      () => {
+        visualizerControls.clearCanvas()
+        handledBlobRef.current = null
+        setIsTranscribing(false)
+      },
+    )
   })
 
   useEffect(() => {
@@ -154,6 +197,10 @@ export function useVoiceCapture({
   }, [visualizerControls.recordedBlob])
 
   function startCapture() {
+    if (disabled) return
+    const isCurrentDraft = captureInputGuard()
+    if (!isCurrentDraft()) return
+    recordingDraftRef.current = isCurrentDraft
     pendingSubmitActionRef.current = 'insert'
     handledBlobRef.current = null
     setError(null)
@@ -189,8 +236,8 @@ export function useVoiceCapture({
     setError(null)
   }
 
-  return {
-    canStart: mode === 'idle',
+  const controller: VoiceCaptureController = {
+    canStart: !disabled && mode === 'idle',
     clearError,
     elapsedSeconds,
     error,
@@ -201,9 +248,10 @@ export function useVoiceCapture({
     toggleVoice,
     visualizerControls,
   }
+  return controller
 }
 
-export function formatVoiceDuration(totalSeconds: number): string {
+export function formatVoiceDuration(totalSeconds: number) {
   const seconds = Math.max(0, Math.floor(totalSeconds))
   const minutesPart = Math.floor(seconds / TIME_UNIT.SECONDS_PER_MINUTE)
   const secondsPart = seconds % TIME_UNIT.SECONDS_PER_MINUTE

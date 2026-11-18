@@ -8,9 +8,13 @@ const { typedHandleMock, invokeExtensionCapabilityMock } = vi.hoisted(() => ({
   invokeExtensionCapabilityMock: vi.fn(),
 }))
 
-vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 vi.mock('../../application/extension-capability-broker-service', () => ({
   invokeExtensionCapability: invokeExtensionCapabilityMock,
@@ -73,9 +77,11 @@ describe('registerExtensionBrokerHandlers', () => {
   it('registers extensions:invoke and routes valid invocations to the broker service', async () => {
     const handler = getRegisteredHandler()
 
-    const result = await handler?.({}, validInvocation)
+    const result = await handler?.({}, validInvocation, 'host-issued-binding')
 
-    expect(invokeExtensionCapabilityMock).toHaveBeenCalledWith(validInvocation)
+    expect(invokeExtensionCapabilityMock).toHaveBeenCalledWith(validInvocation, {
+      invocationBinding: 'host-issued-binding',
+    })
     expect(result).toMatchObject({ ok: true, value: { scope: validInvocation.scope } })
   })
 
@@ -83,6 +89,18 @@ describe('registerExtensionBrokerHandlers', () => {
     const handler = getRegisteredHandler()
 
     const result = await handler?.({}, { extensionId: 'Sample Extension' })
+
+    expect(invokeExtensionCapabilityMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_INPUT },
+    })
+  })
+
+  it('rejects malformed host-issued invocation bindings before reaching the broker', async () => {
+    const handler = getRegisteredHandler()
+
+    const result = await handler?.({}, validInvocation, '')
 
     expect(invokeExtensionCapabilityMock).not.toHaveBeenCalled()
     expect(result).toMatchObject({

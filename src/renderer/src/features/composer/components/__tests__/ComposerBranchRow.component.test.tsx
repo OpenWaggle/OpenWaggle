@@ -1,8 +1,10 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { render, screen } from '@testing-library/react'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerActionStore } from '@/features/composer/state/composer-action-store'
 import { useComposerStore } from '@/features/composer/state/composer-store'
+import type { SessionContextRowState } from '@/features/git'
 import { useGitStore } from '@/features/git/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { ComposerBranchRow } from '../ComposerBranchRow'
@@ -15,9 +17,6 @@ vi.mock('@/shared/lib/ipc', () => ({
     listGitBranches: vi.fn().mockResolvedValue(null),
     checkoutGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'Checked out' }),
     createGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    renameGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    deleteGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
-    setGitBranchUpstream: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
   },
 }))
 
@@ -32,35 +31,49 @@ describe('ComposerBranchRow', () => {
     })
     useGitStore.setState({
       ...useGitStore.getInitialState(),
-      status: {
-        branch: 'main',
-        additions: 0,
-        deletions: 0,
-        filesChanged: 0,
-        changedFiles: [],
-        clean: true,
-        ahead: 0,
-        behind: 0,
+      statusByWorkingPath: {
+        '/test/project': {
+          status: {
+            branch: 'main',
+            additions: 0,
+            deletions: 0,
+            filesChanged: 0,
+            changedFiles: [],
+            clean: true,
+            ahead: 0,
+            behind: 0,
+          },
+          isLoading: false,
+          error: null,
+        },
       },
-      branches: { branches: [] },
+      branches: { currentBranch: null, branches: [] },
     })
   })
 
-  it('renders the branch picker in a right-aligned row when a project is selected', () => {
-    const { container } = render(<ComposerBranchRow />)
+  it('renders the single run-target picker when a project is selected', () => {
+    render(<ComposerBranchRow strip={null} />)
 
-    expect(screen.getByTitle('Manage branches')).toBeInTheDocument()
-    expect(screen.getByText('main')).toBeInTheDocument()
-    expect(container.firstElementChild).toHaveClass('justify-end')
+    expect(screen.getByRole('button', { name: 'Run target: main' })).toBeInTheDocument()
   })
 
-  it('renders no row when no project is selected', () => {
+  it('renders a disabled project-first placeholder when no project is selected', () => {
     usePreferencesStore.setState({
       settings: { ...DEFAULT_SETTINGS, projectPath: null },
     })
 
-    const { container } = render(<ComposerBranchRow />)
+    render(<ComposerBranchRow strip={null} />)
 
-    expect(container.firstChild).toBeNull()
+    expect(screen.getByRole('button', { name: 'Run target: Select project first' })).toBeDisabled()
+  })
+
+  it('keeps the run target disabled while branches are loading', () => {
+    const loadingStrip = fromPartial<SessionContextRowState>({
+      branchStatus: 'loading',
+    })
+
+    render(<ComposerBranchRow strip={loadingStrip} />)
+
+    expect(screen.getByRole('button', { name: 'Run target: Loading branches…' })).toBeDisabled()
   })
 })

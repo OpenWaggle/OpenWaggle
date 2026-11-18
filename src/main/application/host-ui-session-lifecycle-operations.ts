@@ -1,0 +1,292 @@
+import { randomUUID } from 'node:crypto'
+import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
+import { sessionDeleteRequestOptionsSchema } from '@shared/schemas/session-operation-requests'
+import { SessionId } from '@shared/types/brand'
+import type { SessionDeleteOptions } from '@shared/types/session'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
+import type { SessionOrganizationCommand } from '@shared/types/session-organization'
+import * as Cause from 'effect/Cause'
+import * as Effect from 'effect/Effect'
+import { cleanupSessionRun } from '../agent/session-cleanup'
+import { createLogger } from '../logger'
+import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { SettingsService } from '../services/settings-service'
+import { validateRequiredProjectPath } from '../utils/project-path-validation'
+import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
+import {
+  decodeSessionOperationArgument,
+  invalid,
+  requireArgCount,
+  requiredString,
+  requireOptionalArgCount,
+  validateOptionalModel,
+  validateOptionalThinkingLevel,
+  validateSessionId,
+  validateSessionNodeId,
+  validateWorktreePlan,
+} from './host-ui-session-operation-validation'
+import { dispatchNestedLocalSessionCommand } from './local-session-nested-command'
+import {
+  beginPiSessionProjectRemoval,
+  deleteSessionForProjectRemoval,
+} from './pi-session-project-removal'
+
+const logger = createLogger('host-ui-session-copy')
+
+const TWO_ARGUMENTS = 2
+const THREE_ARGUMENTS = 3
+const FOUR_ARGUMENTS = 4
+
+export function mutateLocalUiSession(
+  command: Extract<
+    Parameters<typeof dispatchNestedLocalSessionCommand>[0]['payload'],
+    { contract: 'local-ui-v1' }
+  >['request']['command'],
+) {
+  return Effect.gen(function* () {
+    const result = yield* dispatchNestedLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+      payload: {
+        contract: 'local-ui-v1',
+        request: { requestId: randomUUID(), command },
+      },
+    })
+    if (result.contract !== 'local-ui-v1') {
+      return yield* invalid('Session Host rejected the Local UI mutation.')
+    }
+    return result.response
+  })
+}
+
+/**
+ * Creates a desktop Session: `[projectPath, worktreePlan?, model?, thinkingLevel?]`. The thinking
+ * level is the one the draft showed, stored on the new Session alone as its specialization; it
+ * never writes Pi's global default.
+ */
+export function createSession(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    yield* requireOptionalArgCount(args, 1, FOUR_ARGUMENTS)
+    const projectPath = yield* requiredString(args[0], 'Project path')
+    const normalizedProjectPath = yield* validateRequiredProjectPath(projectPath)
+    const worktreePlan = yield* validateWorktreePlan(args[1])
+    const model = yield* validateOptionalModel(args[TWO_ARGUMENTS])
+    const thinkingLevel = yield* validateOptionalThinkingLevel(args[THREE_ARGUMENTS])
+    const settings = yield* (yield* SettingsService).get()
+    const environmentMode = worktreePlan?.environmentMode ?? settings.defaultSessionEnvironmentMode
+    const result = yield* dispatchNestedLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: normalizedProjectPath },
+      payload: {
+        contract: 'session-lifecycle-v2',
+        request: {
+          contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          idempotencyKey: randomUUID(),
+          command: {
+            operation: 'create',
+            projectPath: normalizedProjectPath,
+            workspace:
+              environmentMode === 'worktree'
+                ? {
+                    mode: 'new-worktree',
+                    ...(worktreePlan?.baseRef ? { baseRef: worktreePlan.baseRef } : {}),
+                    ...(worktreePlan?.startFromOrigin !== undefined
+                      ? { startFromOrigin: worktreePlan.startFromOrigin }
+                      : {}),
+                  }
+                : { mode: 'local' },
+            ...(model || thinkingLevel
+              ? {
+                  specialization: {
+                    ...(model ? { modelId: model } : {}),
+                    ...(thinkingLevel ? { thinkingLevel } : {}),
+                  },
+                }
+              : {}),
+          },
+        },
+      },
+    })
+    if (
+      result.contract !== 'session-lifecycle-v2' ||
+      result.response.outcome.effect !== 'created-root'
+    ) {
+      return yield* invalid('Session Host rejected GUI Session creation.')
+    }
+    const session = yield* (yield* SessionProjectionRepository).getOptional(
+      SessionId(result.response.outcome.sessionId),
+    )
+    return session ?? (yield* invalid('Created Session projection is missing.'))
+  })
+}
+
+export function forkSession(args: readonly unknown[], position: 'before' | 'at') {
+  return Effect.gen(function* () {
+    yield* requireArgCount(args, THREE_ARGUMENTS)
+    const sourceSessionId = yield* validateSessionId(args[0])
+    yield* requiredString(args[1], 'Session model')
+    const targetNodeId = yield* validateSessionNodeId(args[TWO_ARGUMENTS])
+    const result = yield* dispatchNestedLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+      payload: {
+        contract: 'session-lifecycle-v2',
+        request: {
+          contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          idempotencyKey: randomUUID(),
+          command: { operation: 'fork', sourceSessionId, targetNodeId, position },
+        },
+      },
+    })
+    if (
+      result.contract !== 'session-lifecycle-v2' ||
+      result.response.outcome.effect !== 'forked-session'
+    ) {
+      return yield* invalid('Session Host rejected GUI Session fork.')
+    }
+    const session = yield* (yield* SessionProjectionRepository).getOptional(
+      SessionId(result.response.outcome.sessionId),
+    )
+    if (!session) return yield* invalid('Forked Session projection is missing.')
+    return {
+      session,
+      cancelled: false,
+      ...(result.response.outcome.editorText
+        ? { editorText: result.response.outcome.editorText }
+        : {}),
+    }
+  }).pipe(
+    // The desktop app shows the reason in a toast and nothing else kept it, so a copy that kept
+    // failing left no trace to diagnose it from. A busy Session's refusal is thrown, so it is a
+    // defect of the cause, not its error. An interrupted copy (the Host stopping) did not fail.
+    Effect.tapErrorCause((cause) =>
+      Cause.isInterruptedOnly(cause)
+        ? Effect.void
+        : Effect.sync(() =>
+            logger.warn('Desktop Session copy failed', {
+              // `before` forks before a user message; `at` clones or forks from a response.
+              position,
+              sourceSessionId: typeof args[0] === 'string' ? args[0] : undefined,
+              targetNodeId:
+                typeof args[TWO_ARGUMENTS] === 'string' ? args[TWO_ARGUMENTS] : undefined,
+              error: Cause.pretty(cause).split('\n')[0],
+            }),
+          ),
+    ),
+  )
+}
+
+export function organizeSession(
+  command: SessionOrganizationCommand,
+  expectedEffect: 'session-renamed' | 'session-archived' | 'session-unarchived',
+) {
+  return Effect.gen(function* () {
+    const result = yield* dispatchNestedLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+      payload: {
+        contract: 'session-control-v2',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          idempotencyKey: randomUUID(),
+          command,
+        },
+      },
+    })
+    if (
+      result.contract !== 'session-control-v2' ||
+      result.response.outcome.effect !== expectedEffect
+    ) {
+      return yield* invalid('Session Host rejected Session organization.')
+    }
+  })
+}
+
+export function setAuthorizationMode(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    yield* requireArgCount(args, TWO_ARGUMENTS)
+    const sessionId = yield* validateSessionId(args[0])
+    const mode = args[1]
+    if (mode !== null && !isAgentAuthorizationMode(mode)) {
+      return yield* invalid('Session authorization mode is invalid.')
+    }
+    const result = yield* dispatchNestedLocalSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+      payload: {
+        contract: 'session-control-v2',
+        request: {
+          contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+          requestId: randomUUID(),
+          idempotencyKey: randomUUID(),
+          command: { operation: 'authorization-set', sessionId, authorizationMode: mode },
+        },
+      },
+    })
+    if (
+      result.contract !== 'session-control-v2' ||
+      result.response.outcome.effect !== 'authorization-updated'
+    ) {
+      return yield* invalid('Session Host rejected Authorization mode update.')
+    }
+  })
+}
+
+export function dismissInterruptedRun(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    yield* requireArgCount(args, TWO_ARGUMENTS)
+    const sessionId = yield* validateSessionId(args[0])
+    const runId = yield* requiredString(args[1], 'Run ID')
+    yield* mutateLocalUiSession({ operation: 'dismiss-interrupted-run', sessionId, runId })
+  })
+}
+
+/** `sessions:begin-project-removal`: discovery leaves the project alone while it is removed. */
+export function beginProjectRemoval(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    yield* requireArgCount(args, 1)
+    const projectPath = (yield* requiredString(args[0], 'Project path')).trim()
+    yield* Effect.sync(() => beginPiSessionProjectRemoval(projectPath))
+  })
+}
+
+/** The window's delete options; `removingProject` defaults to false. */
+function validateDeleteOptions(value: unknown) {
+  return value === undefined
+    ? Effect.succeed({ removingProject: false })
+    : decodeSessionOperationArgument(sessionDeleteRequestOptionsSchema, value).pipe(
+        Effect.map((options) => ({ removingProject: options.removingProject === true })),
+      )
+}
+
+/**
+ * Deleting a discovered Pi session on its own removes it from OpenWaggle and keeps it from being
+ * listed again; removing its project keeps the file listable for when the folder is added back
+ * (ADR 0051). Either way the Pi file stays.
+ */
+export function deleteSession(args: readonly unknown[]) {
+  return Effect.gen(function* () {
+    yield* requireOptionalArgCount(args, 1, TWO_ARGUMENTS)
+    const sessionId = yield* validateSessionId(args[0])
+    const options = yield* validateDeleteOptions(args[1])
+    yield* deleteSessionWithOptions(sessionId, options)
+  })
+}
+
+/** Deletes one session through the Host and forgets its local run state. */
+export function deleteSessionWithOptions(sessionId: SessionId, options: SessionDeleteOptions) {
+  return Effect.gen(function* () {
+    const deletion = mutateLocalUiSession({
+      operation: 'delete',
+      sessionId,
+      ...(options.removingProject ? { removingProject: true } : {}),
+      ...(options.requireArchived ? { requireArchived: true } : {}),
+    })
+    yield* options.removingProject ? deleteSessionForProjectRemoval(sessionId, deletion) : deletion
+    yield* Effect.sync(() => {
+      clearAgentPhase(sessionId)
+      clearStreamBuffer(sessionId)
+      cleanupSessionRun(sessionId)
+      emitRunCompleted(sessionId)
+    })
+  })
+}

@@ -87,7 +87,7 @@ function makeInvocation(input: {
   readonly method: string
   readonly scope?: ExtensionInvokeInput['scope']
   readonly payload?: unknown
-}): ExtensionInvokeInput {
+}) {
   return {
     extensionId: BROKER_EXTENSION_ID,
     contributionId: input.contributionId,
@@ -95,7 +95,7 @@ function makeInvocation(input: {
     method: input.method,
     scope: input.scope ?? { kind: 'app' },
     ...(input.payload !== undefined ? { payload: input.payload } : { payload: {} }),
-  }
+  } satisfies ExtensionInvokeInput
 }
 
 describe('invokeExtensionCapability typed OpenWaggle capabilities', () => {
@@ -271,7 +271,7 @@ describe('invokeExtensionCapability typed OpenWaggle capabilities', () => {
           key: OPENWAGGLE_EXTENSION_BROKER.SETTING_KEY.MODEL_PREFERENCES,
           projectPath: PROJECT_PATH,
           value: {
-            thinkingLevel: 'minimal',
+            favoriteModels: [],
           },
         },
       }),

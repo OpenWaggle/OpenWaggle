@@ -1,40 +1,92 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { match } from '@diegogbrisa/ts-match'
-import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import type { PreparedAttachment } from '@shared/types/agent'
+import { preparedAttachmentSchema } from '@shared/schemas/validation'
+import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
+import { withArgumentRefusal } from '../application/host-ui-argument-schemas'
+import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { decodeSessionOperationArgument } from '../application/host-ui-session-operation-validation'
+import { appPaths } from '../desktop-shell/app-paths'
 import { createLogger } from '../logger'
-import { rememberPreparedAttachment } from '../utils/attachment-registry'
 import {
-  buildTempPromptFilename,
+  configurePreparedAttachmentRegistry,
+  rememberPreparedAttachment,
+} from '../utils/attachment-registry'
+import {
+  discardRegisteredImageAttachment,
+  prepareRegisteredImageAttachmentFromBytes,
+} from './attachment-preparation'
+import {
   cleanupTempAttachments,
-  ensureTempAttachmentsDirectory,
-  TEMP_PROMPT_MIME_TYPE,
+  createTempPromptPath,
   TEXT_ATTACHMENT_MAX_SIZE_MB,
   writePromptTextFileWithProgress,
 } from './attachment-temp-files'
-import {
-  DOCX_MIME_TYPE,
-  extractAttachmentText,
-  ODT_MIME_TYPE,
-  RTF_MIME_TYPE,
-} from './attachment-text-extraction'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
+export {
+  discardRegisteredImageAttachment,
+  prepareRegisteredAttachment,
+  prepareRegisteredImageAttachmentFromBytes,
+} from './attachment-preparation'
+
 const logger = createLogger('ipc/attachments')
 
-const prepareArgsSchema = Schema.Struct({
-  projectPath: Schema.String.pipe(Schema.minLength(1)),
-  paths: Schema.Array(Schema.String).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
-})
-const prepareFromTextArgsSchema = Schema.Struct({
-  text: Schema.String.pipe(Schema.minLength(1)),
-  operationId: Schema.String.pipe(Schema.minLength(1)),
-})
+/*
+ * Each positional argument is decoded with its own schema, and a refusal is the one message
+ * that names it. The channel map keeps the labelled argument tuples, which a schema cannot carry.
+ */
+const projectPathArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(Schema.minLength(1)),
+  'Project path must be a non-empty string.',
+)
+const attachmentPathsArgumentSchema = withArgumentRefusal(
+  Schema.Array(Schema.String).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
+  `Attachment paths must be a list of at most ${String(ATTACHMENT.MAX_COUNT)} file paths.`,
+)
+/** The longest file name common file systems (ext4, APFS, NTFS in UTF-8) accept. */
+const MAX_FILE_NAME_BYTES = 255
+/**
+ * The file name a prompt attachment is written under, which the Host shows as its name: a single
+ * Markdown file name of letters, digits, spaces, and `_ . · -`, so it can neither leave its
+ * directory nor carry markup into the `[Attachment: …]` line the model reads.
+ */
+const promptAttachmentNameArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(
+    Schema.pattern(/^[\p{L}\p{N}_·-][\p{L}\p{N}_. ·-]{0,124}\.md$/u),
+    Schema.filter((name) => Buffer.byteLength(name, 'utf8') <= MAX_FILE_NAME_BYTES),
+  ),
+  'Attachment name must be a Markdown file name of letters, digits, spaces and _ . · -.',
+)
+const attachmentTextArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(Schema.minLength(1)),
+  'Attachment text must be a non-empty string.',
+)
+/** The bytes a pasted image is made of; the image type itself is checked when it is prepared. */
+const attachmentImageBytesArgumentSchema = withArgumentRefusal(
+  Schema.Uint8ArrayFromSelf,
+  'Attachment image bytes must be a byte array.',
+)
+const attachmentImageFileNameArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.filter((name) => Buffer.byteLength(name, 'utf8') <= MAX_FILE_NAME_BYTES),
+  ),
+  'Attachment image name must be a non-empty file name.',
+)
+/** Empty when the browser could not type the blob; preparation then reads the type from the name. */
+const attachmentImageMimeTypeArgumentSchema = withArgumentRefusal(
+  Schema.String,
+  'Attachment image type must be a media type string.',
+)
+const operationIdArgumentSchema = withArgumentRefusal(
+  Schema.String.pipe(Schema.minLength(1)),
+  'Operation ID must be a non-empty string.',
+)
 
 function describeUnknownError(error: unknown) {
   if (error instanceof Error) {
@@ -44,138 +96,44 @@ function describeUnknownError(error: unknown) {
   return { message: String(error) }
 }
 
-function resolveAttachmentKind(mimeType: string) {
-  if (mimeType === 'application/pdf') return 'pdf'
-  if (mimeType.startsWith('image/')) return 'image'
-  return 'text'
-}
-
-function guessMimeType(filePath: string) {
-  const ext = path.extname(filePath).toLowerCase()
-  return match(ext)
-    .with('.pdf', () => 'application/pdf')
-    .with('.png', () => 'image/png')
-    .with('.jpg', () => 'image/jpeg')
-    .with('.jpeg', () => 'image/jpeg')
-    .with('.webp', () => 'image/webp')
-    .with('.gif', () => 'image/gif')
-    .with('.bmp', () => 'image/bmp')
-    .with('.svg', () => 'image/svg+xml')
-    .with('.md', () => 'text/markdown')
-    .with('.json', () => 'application/json')
-    .with('.yaml', () => 'application/yaml')
-    .with('.yml', () => 'application/yaml')
-    .with('.xml', () => 'application/xml')
-    .with('.csv', () => 'text/csv')
-    .with('.log', () => 'text/plain')
-    .with('.docx', () => DOCX_MIME_TYPE)
-    .with('.rtf', () => RTF_MIME_TYPE)
-    .with('.odt', () => ODT_MIME_TYPE)
-    .with('.ts', () => 'text/plain')
-    .with('.tsx', () => 'text/plain')
-    .with('.js', () => 'text/plain')
-    .with('.jsx', () => 'text/plain')
-    .with('.mjs', () => 'text/plain')
-    .with('.cjs', () => 'text/plain')
-    .with('.py', () => 'text/plain')
-    .with('.java', () => 'text/plain')
-    .with('.go', () => 'text/plain')
-    .with('.rs', () => 'text/plain')
-    .with('.swift', () => 'text/plain')
-    .with('.kt', () => 'text/plain')
-    .with('.css', () => 'text/plain')
-    .with('.scss', () => 'text/plain')
-    .with('.sass', () => 'text/plain')
-    .with('.less', () => 'text/plain')
-    .with('.html', () => 'text/plain')
-    .with('.htm', () => 'text/plain')
-    .with('.txt', () => 'text/plain')
-    .otherwise(() => null)
-}
-
-async function prepareAttachment(filePath: string): Promise<PreparedAttachment> {
-  const stats = await fs.stat(filePath)
-  if (!stats.isFile()) {
-    throw new Error(`Not a file: ${filePath}`)
-  }
-  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
-    throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
-    )
-  }
-
-  const mimeType = guessMimeType(filePath)
-  if (!mimeType) {
-    throw new Error(
-      `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images, PDFs.`,
-    )
-  }
-  const buffer = await fs.readFile(filePath)
-  const kind = resolveAttachmentKind(mimeType)
-  const attachmentName = path.basename(filePath)
-
-  const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
-
-  return {
-    id: randomUUID(),
-    kind,
-    origin: 'user-file',
-    name: path.basename(filePath),
-    path: filePath,
-    mimeType,
-    sizeBytes: stats.size,
-    extractedText,
-  }
-}
-
 export { hydrateAttachmentSources } from '../utils/attachment-hydration'
+
+function prepareAttachmentsThroughHost(
+  baseDirectory: string,
+  entries: readonly { readonly path: string; readonly origin?: AttachmentOrigin }[],
+) {
+  return Effect.gen(function* () {
+    const result = yield* dispatchGuiSessionCommand({
+      caller: { callerId: 'gui:local-user', workingDirectory: baseDirectory },
+      payload: {
+        contract: 'local-attachments-v1',
+        request: { requestId: randomUUID(), entries },
+      },
+    })
+    if (result.contract !== 'local-attachments-v1') {
+      return yield* Effect.fail(new Error('Session Host rejected attachment preparation.'))
+    }
+    for (const attachment of result.response.attachments) {
+      yield* Effect.promise(() => rememberPreparedAttachment(attachment, attachment.path))
+    }
+    return [...result.response.attachments]
+  })
+}
 
 function registerPrepareAttachmentHandler() {
   typedHandle('attachments:prepare', (_event, rawProjectPath: unknown, rawPaths: unknown) =>
     Effect.gen(function* () {
-      const { projectPath: pp, paths } = decodeUnknownOrThrow(prepareArgsSchema, {
-        projectPath: rawProjectPath,
-        paths: rawPaths,
-      })
-
-      const projectPath = yield* validateRequiredProjectPath(pp)
-
-      const normalized = paths
-        .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(projectPath, entry)))
-        .map((entry) => path.normalize(entry))
-
-      const uniquePaths = [...new Set(normalized)]
-      if (uniquePaths.length === 0) return []
-      if (uniquePaths.length > ATTACHMENT.MAX_COUNT) {
-        return yield* Effect.fail(
-          new Error(
-            `A maximum of ${String(ATTACHMENT.MAX_COUNT)} attachments is supported per message.`,
-          ),
-        )
-      }
-
-      const resolvedPaths = yield* Effect.promise(() =>
-        Promise.all(uniquePaths.map((filePath) => fs.realpath(filePath))),
+      const requestedProjectPath = yield* decodeSessionOperationArgument(
+        projectPathArgumentSchema,
+        rawProjectPath,
       )
-      const stats = yield* Effect.promise(() =>
-        Promise.all(resolvedPaths.map((filePath) => fs.stat(filePath))),
-      )
-      const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
-      if (totalSize > ATTACHMENT.MAX_TOTAL_SIZE_BYTES) {
-        return yield* Effect.fail(
-          new Error(
-            `Total attachment size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
-          ),
-        )
-      }
+      const paths = yield* decodeSessionOperationArgument(attachmentPathsArgumentSchema, rawPaths)
 
-      const prepared: PreparedAttachment[] = []
-      for (const filePath of resolvedPaths) {
-        const attachment = yield* Effect.promise(() => prepareAttachment(filePath))
-        rememberPreparedAttachment(attachment, filePath)
-        prepared.push(attachment)
-      }
-      return prepared
+      const projectPath = yield* validateRequiredProjectPath(requestedProjectPath)
+      return yield* prepareAttachmentsThroughHost(
+        projectPath,
+        paths.map((filePath) => ({ path: filePath })),
+      )
     }),
   )
 }
@@ -183,12 +141,17 @@ function registerPrepareAttachmentHandler() {
 function registerPrepareFromTextAttachmentHandler() {
   typedHandle(
     'attachments:prepare-from-text',
-    (_event, rawText: unknown, rawOperationId: unknown) =>
+    (_event, rawText: unknown, rawOperationId: unknown, rawName?: unknown) =>
       Effect.gen(function* () {
-        const { text, operationId } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
-          text: rawText,
-          operationId: rawOperationId,
-        })
+        const text = yield* decodeSessionOperationArgument(attachmentTextArgumentSchema, rawText)
+        const operationId = yield* decodeSessionOperationArgument(
+          operationIdArgumentSchema,
+          rawOperationId,
+        )
+        const name =
+          rawName === undefined
+            ? undefined
+            : yield* decodeSessionOperationArgument(promptAttachmentNameArgumentSchema, rawName)
         const sizeBytes = Buffer.byteLength(text, 'utf8')
         if (sizeBytes > ATTACHMENT.MAX_SIZE_BYTES) {
           return yield* Effect.fail(
@@ -196,9 +159,9 @@ function registerPrepareFromTextAttachmentHandler() {
           )
         }
 
-        const tempAttachmentsDir = yield* Effect.promise(() => ensureTempAttachmentsDirectory())
-        const fileName = buildTempPromptFilename(Date.now())
-        const filePath = path.join(tempAttachmentsDir, fileName)
+        // Named after the composer's label, so the sent message shows the chip's name.
+        const filePath = yield* Effect.promise(() => createTempPromptPath(name))
+        const fileName = path.basename(filePath)
 
         yield* Effect.promise(() => writePromptTextFileWithProgress(filePath, text, operationId))
         const stats = yield* Effect.promise(() => fs.stat(filePath))
@@ -208,27 +171,59 @@ function registerPrepareFromTextAttachmentHandler() {
           )
         }
 
-        const attachment: PreparedAttachment = {
-          id: randomUUID(),
-          kind: 'text',
-          origin: 'auto-paste-text',
-          name: fileName,
-          path: filePath,
-          mimeType: TEMP_PROMPT_MIME_TYPE,
-          sizeBytes: stats.size,
-          extractedText: text,
+        const attachments = yield* prepareAttachmentsThroughHost(process.cwd(), [
+          { path: filePath, origin: 'auto-paste-text' },
+        ])
+        const attachment = attachments[0]
+        if (!attachment) {
+          return yield* Effect.fail(new Error('Generated attachment preparation returned no file.'))
         }
-        rememberPreparedAttachment(attachment, filePath)
         return attachment
       }),
   )
 }
 
-export function registerAttachmentHandlers(): void {
+function registerPrepareImageFromBytesAttachmentHandler() {
+  typedHandle(
+    'attachments:prepare-image-from-bytes',
+    (_event, rawBytes: unknown, rawFileName: unknown, rawMimeType: unknown) =>
+      Effect.gen(function* () {
+        const bytes = yield* decodeSessionOperationArgument(
+          attachmentImageBytesArgumentSchema,
+          rawBytes,
+        )
+        const fileName = yield* decodeSessionOperationArgument(
+          attachmentImageFileNameArgumentSchema,
+          rawFileName,
+        )
+        const mimeType = yield* decodeSessionOperationArgument(
+          attachmentImageMimeTypeArgumentSchema,
+          rawMimeType,
+        )
+        return yield* Effect.promise(() =>
+          prepareRegisteredImageAttachmentFromBytes({ bytes, fileName, mimeType }),
+        )
+      }),
+  )
+}
+
+function registerDiscardAttachmentHandler() {
+  typedHandle('attachments:discard', (_event, rawAttachment: unknown) =>
+    Effect.gen(function* () {
+      const attachment = decodeUnknownOrThrow(preparedAttachmentSchema, rawAttachment)
+      yield* Effect.promise(() => discardRegisteredImageAttachment(attachment))
+    }),
+  )
+}
+
+export function registerAttachmentHandlers() {
+  configurePreparedAttachmentRegistry(appPaths.userData())
   void cleanupTempAttachments().catch((error: unknown) => {
     logger.warn('Temp prompt attachment cleanup failed during startup', describeUnknownError(error))
   })
 
   registerPrepareAttachmentHandler()
   registerPrepareFromTextAttachmentHandler()
+  registerPrepareImageFromBytesAttachmentHandler()
+  registerDiscardAttachmentHandler()
 }

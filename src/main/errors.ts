@@ -1,3 +1,4 @@
+import type { SESSION_RESOURCE_CATALOG_STALE_MESSAGE } from '@shared/types/session-resource'
 import { Data } from 'effect'
 
 export class ValidationIssuesError extends Data.TaggedError('ValidationIssuesError')<{
@@ -16,6 +17,13 @@ export class DatabaseQueryError extends Data.TaggedError('DatabaseQueryError')<{
   readonly cause?: unknown
 }> {}
 
+export class SettingsStoreReadError extends Data.TaggedError('SettingsStoreReadError')<{
+  readonly operation: 'read' | 'decode'
+  readonly message: string
+  readonly key?: string
+  readonly cause?: unknown
+}> {}
+
 export class ProviderLookupError extends Data.TaggedError('ProviderLookupError')<{
   readonly modelId: string
 }> {}
@@ -27,7 +35,153 @@ export class SessionProjectionRepositoryError extends Data.TaggedError(
   readonly cause?: unknown
 }> {}
 
-export class StandardsLoadError extends Data.TaggedError('StandardsLoadError')<{
+export class SessionTitleRepositoryError extends Data.TaggedError('SessionTitleRepositoryError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+/** A Title model request that could not produce a title; the Session keeps its current title. */
+export class SessionTitleGenerationError extends Data.TaggedError('SessionTitleGenerationError')<{
+  /** `off`: the Title model was turned Off while the request waited for its turn. */
+  readonly reason: 'no-model' | 'request-failed' | 'empty-response' | 'off'
+  readonly message: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceRepositoryError extends Data.TaggedError(
+  'SessionResourceRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceCatalogCursorError extends Data.TaggedError(
+  'SessionResourceCatalogCursorError',
+)<{
+  readonly message: typeof SESSION_RESOURCE_CATALOG_STALE_MESSAGE
+}> {}
+
+export class SessionOutputRetryRepositoryError extends Data.TaggedError(
+  'SessionOutputRetryRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceStoreError extends Data.TaggedError('SessionResourceStoreError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceImageFetchError extends Data.TaggedError(
+  'SessionResourceImageFetchError',
+)<{
+  readonly url: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionResourceThumbnailError extends Data.TaggedError(
+  'SessionResourceThumbnailError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionControlRepositoryError extends Data.TaggedError(
+  'SessionControlRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class ScheduledTaskRepositoryError extends Data.TaggedError('ScheduledTaskRepositoryError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionControlOperationPendingError extends Data.TaggedError(
+  'SessionControlOperationPendingError',
+)<{
+  readonly operation: string
+  readonly sessionId: string
+  readonly idempotencyKey: string
+}> {}
+
+export class SessionLifecycleRepositoryError extends Data.TaggedError(
+  'SessionLifecycleRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionLifecyclePreparationError extends Data.TaggedError(
+  'SessionLifecyclePreparationError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+  /**
+   * For a refusal a client can act on: its code, which a command error frame carries, and the
+   * sentence that says why, shown as it is.
+   */
+  readonly code?: string
+  readonly message?: string
+}> {}
+
+export class LocalSessionProfileRepositoryError extends Data.TaggedError(
+  'LocalSessionProfileRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class LocalSessionAuthenticationError extends Data.TaggedError(
+  'LocalSessionAuthenticationError',
+)<{
+  readonly code: 'profile_not_found' | 'profile_revoked' | 'credential_rejected'
+}> {}
+
+export class LocalSessionCommandAuthorizationError extends Data.TaggedError(
+  'LocalSessionCommandAuthorizationError',
+)<{
+  readonly code:
+    | 'capability_denied'
+    | 'target_scope_denied'
+    | 'authorization_ceiling_exceeded'
+    | 'profile_not_found'
+    | 'profile_revoked'
+  readonly missing?: readonly string[]
+  /** Why this particular refusal happened, when the code's general reason would mislead. */
+  readonly detail?: string
+}> {}
+
+export class SessionAuthorizationTargetRepositoryError extends Data.TaggedError(
+  'SessionAuthorizationTargetRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionHostRecoveryRepositoryError extends Data.TaggedError(
+  'SessionHostRecoveryRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionQueryRepositoryError extends Data.TaggedError('SessionQueryRepositoryError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionExportOperationRepositoryError extends Data.TaggedError(
+  'SessionExportOperationRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class SessionExportArtifactError extends Data.TaggedError('SessionExportArtifactError')<{
+  readonly operation: string
   readonly message: string
   readonly cause?: unknown
 }> {}
@@ -72,5 +226,11 @@ export class ExtensionPackageRepositoryError extends Data.TaggedError(
 
 export class DocsBundleError extends Data.TaggedError('DocsBundleError')<{
   readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class WorkspaceFileError extends Data.TaggedError('WorkspaceFileError')<{
+  readonly operation: string
+  readonly message: string
   readonly cause?: unknown
 }> {}

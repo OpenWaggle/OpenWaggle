@@ -25,20 +25,21 @@ import {
 
 function withContributions(
   extensionPackage: DiscoveredExtensionPackage,
-  contributions: OpenWaggleExtensionManifest['contributions'],
-): DiscoveredExtensionPackage {
+  contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>,
+) {
   const manifest = extensionPackage.manifest
   if (!manifest) {
     throw new Error('Expected test package to include a manifest.')
   }
 
-  return {
+  const result: DiscoveredExtensionPackage = {
     ...extensionPackage,
     manifest: {
       ...manifest,
       contributions,
     },
   }
+  return result
 }
 
 describe('listExtensionContributionRegistryView failure isolation', () => {

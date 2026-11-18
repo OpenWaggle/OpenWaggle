@@ -4,12 +4,19 @@ import {
   OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
 } from '@shared/constants/extension-frame'
 import { createOpenWaggleExtensionSharedModules } from '@shared/extension-context'
+import type {
+  OpenWaggleExtensionSyntaxHighlightInput,
+  OpenWaggleExtensionSyntaxHighlightOptions,
+  OpenWaggleExtensionSyntaxHighlightResult,
+} from '@shared/extension-sdk'
+import { createPlainExtensionSyntaxResult } from '@shared/extension-sdk'
 import type { ExtensionSdkInvokeRequest } from '@shared/extension-sdk-core'
 import { extensionThemeCssVariableEntries } from '@shared/extension-theme'
 import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
 import type { JsonValue } from '@shared/types/json'
 import type { OpenWaggleExtensionMountContext } from './extension-federated-module'
+import { type PendingFrameCalls, settleFrameResult } from './extension-frame-bootstrap-results'
 import { createFrameExtensionSdk } from './extension-frame-bootstrap-sdk'
 import { decodedParentMessage, isFederatedModule } from './extension-frame-bootstrap-validation'
 
@@ -27,6 +34,12 @@ type ExtensionFrameChildMessage =
   | { readonly type: 'open-external'; readonly url: string }
   | { readonly type: 'resize'; readonly height: number }
   | { readonly type: 'surface-action'; readonly actionId: string; readonly payload?: JsonValue }
+  | {
+      readonly type: 'syntax-highlight'
+      readonly requestId: string
+      readonly input: OpenWaggleExtensionSyntaxHighlightInput
+    }
+  | { readonly type: 'syntax-highlight-cancel'; readonly requestId: string }
 
 let activeConfig: ExtensionFrameConfig | null = null
 let cleanup: (() => void) | null = null
@@ -35,7 +48,9 @@ let invokeSequence = 0
 let resizeAnimationFrame = 0
 let resizeObserver: ResizeObserver | null = null
 
-const pendingInvocations = new Map<string, (result: ExtensionInvokeResult) => void>()
+const pendingCalls: PendingFrameCalls = { invocations: new Map(), syntaxHighlights: new Map() }
+const pendingInvocations = pendingCalls.invocations
+const pendingSyntaxHighlights = pendingCalls.syntaxHighlights
 const frameId = frameIdFromLocation()
 
 function describeError(error: unknown) {
@@ -116,6 +131,16 @@ function stopResizeObserver() {
 
 function runCleanup() {
   stopResizeObserver()
+  for (const pending of pendingSyntaxHighlights.values()) {
+    pending.removeAbortListener()
+    pending.resolve(
+      createPlainExtensionSyntaxResult({
+        ...pending.input,
+        diagnostic: 'Extension frame was disposed.',
+      }),
+    )
+  }
+  pendingSyntaxHighlights.clear()
   if (cleanup === null) {
     return
   }
@@ -137,16 +162,50 @@ function invoke(input: ExtensionSdkInvokeRequest) {
   })
 }
 
+function highlightSyntax(
+  input: OpenWaggleExtensionSyntaxHighlightInput,
+  options?: OpenWaggleExtensionSyntaxHighlightOptions,
+) {
+  const requestId = `syntax-${String(++invokeSequence)}`
+  if (options?.signal?.aborted) {
+    return Promise.resolve(
+      createPlainExtensionSyntaxResult({ ...input, diagnostic: 'Syntax request was cancelled.' }),
+    )
+  }
+  post({ type: 'syntax-highlight', requestId, input })
+  return new Promise<OpenWaggleExtensionSyntaxHighlightResult>((resolve) => {
+    const cancel = () => {
+      const pending = pendingSyntaxHighlights.get(requestId)
+      if (!pending) return
+      pendingSyntaxHighlights.delete(requestId)
+      pending.removeAbortListener()
+      post({ type: 'syntax-highlight-cancel', requestId })
+      resolve(
+        createPlainExtensionSyntaxResult({
+          ...input,
+          diagnostic: 'Syntax request was cancelled.',
+        }),
+      )
+    }
+    options?.signal?.addEventListener('abort', cancel, { once: true })
+    pendingSyntaxHighlights.set(requestId, {
+      input,
+      resolve,
+      removeAbortListener: () => options?.signal?.removeEventListener('abort', cancel),
+    })
+  })
+}
+
 function mountContext(input: {
   readonly config: ExtensionFrameConfig
   readonly root: HTMLElement
-}): OpenWaggleExtensionMountContext {
+}) {
   return {
     ...input.config.context,
     root: input.root,
-    sdk: createFrameExtensionSdk({ invokeBroker: invoke, post }),
+    sdk: createFrameExtensionSdk({ invokeBroker: invoke, highlightSyntax, post }),
     modules: createOpenWaggleExtensionSharedModules(input.config.context.theme),
-  }
+  } satisfies OpenWaggleExtensionMountContext
 }
 
 function applyExtensionTheme(config: ExtensionFrameConfig) {
@@ -182,13 +241,7 @@ function handleParentMessage(root: HTMLElement, event: MessageEvent<unknown>) {
     return
   }
 
-  const resolve = pendingInvocations.get(message.requestId)
-  if (!resolve) {
-    return
-  }
-
-  pendingInvocations.delete(message.requestId)
-  resolve(message.result)
+  settleFrameResult(pendingCalls, message)
 }
 
 function rootElement() {

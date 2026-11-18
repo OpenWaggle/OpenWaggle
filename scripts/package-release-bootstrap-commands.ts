@@ -28,10 +28,7 @@ export function redactBootstrapDiagnostic(value: string) {
     .replace(/(github_pat_[A-Za-z0-9_]{20,})/gu, '[redacted]')
     .replace(/(Bearer\s+)[^\s]+/giu, '$1[redacted]')
     .replace(/(https:\/\/www\.npmjs\.com\/auth\/cli\/)[^\s"']+/giu, '$1[redacted]')
-    .replace(
-      /(https:\/\/registry\.npmjs\.org\/-\/v1\/done\?authId=)[^\s"']+/giu,
-      '$1[redacted]',
-    )
+    .replace(/(https:\/\/registry\.npmjs\.org\/-\/v1\/done\?authId=)[^\s"']+/giu, '$1[redacted]')
     .trim()
 }
 
@@ -41,9 +38,7 @@ export function isCredentialEnvironmentKey(key: string) {
     GITHUB_TOKEN_ENVIRONMENT_KEYS.some((candidate) => candidate === normalized) ||
     normalized === 'NODE_AUTH_TOKEN' ||
     (normalized.startsWith('NPM_') &&
-      (normalized.includes('TOKEN') ||
-        normalized.includes('_AUTH') ||
-        normalized.includes('OTP')))
+      (normalized.includes('TOKEN') || normalized.includes('_AUTH') || normalized.includes('OTP')))
   )
 }
 

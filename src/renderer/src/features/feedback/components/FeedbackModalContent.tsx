@@ -65,7 +65,7 @@ export function FeedbackModalBody({
       </div>
 
       <label className="block" htmlFor={FEEDBACK_TITLE_INPUT_ID}>
-        <span className="mb-1.5 block text-[13px] font-medium text-text-secondary">Title</span>
+        <span className="mb-1.5 block text-sm font-medium text-text-secondary">Title</span>
         <TextInput
           id={FEEDBACK_TITLE_INPUT_ID}
           type="text"
@@ -76,9 +76,7 @@ export function FeedbackModalBody({
       </label>
 
       <label className="block" htmlFor={FEEDBACK_DESCRIPTION_INPUT_ID}>
-        <span className="mb-1.5 block text-[13px] font-medium text-text-secondary">
-          Description
-        </span>
+        <span className="mb-1.5 block text-sm font-medium text-text-secondary">Description</span>
         <Textarea
           id={FEEDBACK_DESCRIPTION_INPUT_ID}
           rows={DESCRIPTION_ROWS}
@@ -96,7 +94,7 @@ export function FeedbackModalBody({
         lastUserMessage={lastUserMessage}
       />
       {fb.ghStatus !== null && <GhCliStatusBanner fb={fb} ghReady={ghReady} />}
-      {fb.error && <p className="text-[13px] text-error">{fb.error}</p>}
+      {fb.error && <p className="text-sm text-error">{fb.error}</p>}
     </div>
   )
 }
@@ -112,7 +110,7 @@ function FeedbackAttachmentOptions({
 }) {
   return (
     <div className="rounded-md border border-border bg-bg p-3">
-      <p className="mb-2 text-[12px] font-medium text-text-tertiary">Include with report</p>
+      <p className="mb-2 text-xs font-medium text-text-tertiary">Include with report</p>
       <div className="space-y-1.5">
         <ToggleRow
           label="System info (OS, versions)"
@@ -156,7 +154,7 @@ function GhCliStatusBanner({
   return (
     <div
       className={cn(
-        'flex items-center gap-2 rounded-md border px-3 py-2 text-[13px]',
+        'flex items-center gap-2 rounded-md border px-3 py-2 text-sm',
         ghReady
           ? 'border-success/30 bg-success/6 text-success'
           : 'border-warning/30 bg-warning/6 text-warning',
@@ -182,7 +180,7 @@ function GhCliHelpText({ available }: { readonly available: boolean }) {
     <span>
       {available ? 'GitHub CLI not authenticated — run ' : 'GitHub CLI not found — install from '}
       {available ? (
-        <code className="rounded bg-bg px-1 py-0.5 text-[12px]">gh auth login</code>
+        <code className="rounded bg-bg px-1 py-0.5 text-xs">gh auth login</code>
       ) : (
         <Button
           variant="link"

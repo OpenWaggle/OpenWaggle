@@ -1,43 +1,71 @@
+import { registerAgentDefinitionsHandlers } from './agent-definitions-handler'
 import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
+import { registerBackgroundStartHandlers } from './background-start-handler'
+import { registerBrowserPreviewHandlers } from './browser-preview-handler'
 import { registerComposerHandlers } from './composer-handler'
+import { registerDesktopNotificationsHandlers } from './desktop-notifications-handler'
 import { registerDocsHandlers } from './docs-handler'
 import { registerExtensionBrokerHandlers } from './extension-broker-handler'
 import { registerExtensionFrameHandlers } from './extension-frame-handler'
 import { registerExtensionsHandlers } from './extensions-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
+import { registerInlineVisualizationFrameHandlers } from './inline-visualization-frame-handler'
+import { registerMcpAppFrameHandlers } from './mcp-app-frame-handler'
 import { registerMcpHandlers } from './mcp-handler'
+import { registerProfileAccessHandlers } from './profile-access-handler'
+import { registerProjectActionHandlers } from './project-actions-handler'
 import { registerProjectHandlers } from './project-handler'
 import { registerProvidersHandlers } from './providers-handler'
+import { registerScheduledTasksHandlers } from './scheduled-tasks-handler'
+import { registerSessionControlHandlers } from './session-control-handler'
 import { registerSessionDetailsHandlers } from './session-details-handler'
+import { registerSessionResourceHandlers } from './session-resource-handler'
+import { registerSessionResourceInvalidationBridge } from './session-resource-invalidation-bridge'
 import { registerSessionsHandlers } from './sessions-handler'
 import { registerSettingsHandlers } from './settings-handler'
 import { registerShellHandlers } from './shell-handler'
 import { registerSkillsHandlers } from './skills-handler'
+import { registerSyntaxThemeHandlers } from './syntax-themes-handler'
 import { registerTerminalHandlers } from './terminal-handler'
 import { registerUpdaterHandlers } from './updater-handler'
+import { registerUsageCostHandlers } from './usage-cost-handler'
 import { registerVoiceHandlers } from './voice-handler'
 import { registerWaggleHandlers } from './waggle-handler'
 import { registerWagglePresetsHandlers } from './waggle-presets-handler'
+import { registerWorkspaceFileHandlers } from './workspace-files-handler'
 
 export { cleanupTerminals } from './terminal-handler'
 
-export function registerAllIpcHandlers(): void {
+export function registerAllIpcHandlers() {
+  registerProfileAccessHandlers()
+  registerAgentDefinitionsHandlers()
   registerAuthHandlers()
+  registerBrowserPreviewHandlers()
   registerAgentHandlers()
+  registerSessionControlHandlers()
   registerSettingsHandlers()
+  registerSyntaxThemeHandlers()
   registerSessionsHandlers()
   registerSessionDetailsHandlers()
+  registerSessionResourceHandlers()
+  registerSessionResourceInvalidationBridge()
   registerAttachmentHandlers()
   registerGitHandlers()
   registerExtensionsHandlers()
   registerExtensionBrokerHandlers()
   registerExtensionFrameHandlers()
+  registerInlineVisualizationFrameHandlers()
+  registerMcpAppFrameHandlers()
   registerMcpHandlers()
+  registerProjectActionHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
+  registerUsageCostHandlers()
+  registerScheduledTasksHandlers()
+  registerBackgroundStartHandlers()
   registerTerminalHandlers()
   registerVoiceHandlers()
   registerSkillsHandlers()
@@ -48,4 +76,6 @@ export function registerAllIpcHandlers(): void {
   registerUpdaterHandlers()
   registerComposerHandlers()
   registerDocsHandlers()
+  registerDesktopNotificationsHandlers()
+  registerWorkspaceFileHandlers()
 }

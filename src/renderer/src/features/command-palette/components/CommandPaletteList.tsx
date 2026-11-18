@@ -19,13 +19,15 @@ export function CommandPaletteList({
   const entries = buildCommandPaletteEntries(items)
 
   return (
-    <div ref={listRef} className="max-h-[400px] overflow-y-auto">
+    <div ref={listRef} className="max-h-100 overflow-y-auto">
       {items.length === 0 ? <CommandPaletteEmptyState /> : null}
       {entries.map((entry) => {
-        if (entry.type === 'section')
+        if (entry.type === 'section') {
           return <CommandPaletteSectionHeader key={entry.key} label={entry.label} />
-        if (entry.type === 'separator')
+        }
+        if (entry.type === 'separator') {
           return <div key={entry.key} className="border-t border-border" />
+        }
         return (
           <CommandPaletteItemButton
             key={entry.key}
@@ -42,7 +44,7 @@ export function CommandPaletteList({
 
 function CommandPaletteEmptyState() {
   return (
-    <div className="flex h-16 items-center justify-center text-[13px] text-text-muted">
+    <div className="flex h-16 items-center justify-center text-sm text-text-muted">
       No matching commands
     </div>
   )
@@ -50,12 +52,17 @@ function CommandPaletteEmptyState() {
 
 interface CommandPaletteSectionHeaderProps {
   readonly label: string
+  readonly id?: string
 }
 
-function CommandPaletteSectionHeader({ label }: CommandPaletteSectionHeaderProps) {
+export function CommandPaletteSectionHeader({ label, id }: CommandPaletteSectionHeaderProps) {
   return (
-    <div className="flex h-7 items-center border-t border-border px-3.5">
-      <span className="text-[11px] font-medium text-text-muted">{label}</span>
+    <div
+      id={id}
+      role="presentation"
+      className="flex h-7 items-center border-t border-border px-3.5"
+    >
+      <span className="text-xs font-medium text-text-muted">{label}</span>
     </div>
   )
 }

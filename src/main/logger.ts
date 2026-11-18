@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
-import { TIME_UNIT } from '@shared/constants/time'
-import type { Logger, LogLevel } from '@shared/types/logger'
+import { TIME_UNIT, LOG_RETENTION } from '@shared/constants/time'
+import type { LogLevel } from '@shared/types/logger'
+import { loggerMethods } from '@shared/utils/logger-methods'
 import { logLevel as configuredLogLevel } from './env'
 
-const SLICE_ARG_1 = 11
-const SLICE_ARG_2 = 23
+const ISO_TIME_START = 11
 const SLICE_ARG_2_VALUE_10 = 10
 const FILE_LOGGER_FALLBACK_PREFIX = '[file-logger]'
 
@@ -18,13 +18,13 @@ const LOG_LEVEL_PRIORITIES: Record<LogLevel, number> = {
 }
 
 interface LogEntry {
+  /** When the line was logged, as `toISOString()`: the file write happens later (#357). */
+  readonly at: string
   readonly namespace: string
   readonly level: LogLevel
   readonly message: string
   readonly data?: object
 }
-
-export type { Logger, LogLevel }
 
 function safeSerialize(data: object) {
   try {
@@ -34,8 +34,21 @@ function safeSerialize(data: object) {
   }
 }
 
+/**
+ * `HH:mm:ss.mmmZ`: UTC, as the date in the log file's name is. The `Z` says so; without it a
+ * reader in another zone took the times for local ones (#357).
+ */
+function lineTimestamp(entry: LogEntry) {
+  return entry.at.slice(ISO_TIME_START)
+}
+
+/** The UTC day a line belongs to, `YYYY-MM-DD`, which names its file. */
+function lineDate(entry: LogEntry) {
+  return entry.at.slice(0, SLICE_ARG_2_VALUE_10)
+}
+
 function formatLine(entry: LogEntry) {
-  const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
+  const ts = lineTimestamp(entry)
   if (entry.data && Object.keys(entry.data).length > 0) {
     return `${ts} [${entry.namespace}] ${entry.message} ${safeSerialize(entry.data)}`
   }
@@ -47,7 +60,7 @@ function isLevelEnabled(level: LogLevel) {
 }
 
 function writeToConsole(entry: LogEntry) {
-  const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
+  const ts = lineTimestamp(entry)
   const prefix = `${ts} [${entry.namespace}] ${entry.message}`
   const consoleMethod = {
     debug: console.debug,
@@ -75,19 +88,23 @@ function reportFileLoggerFailure(message: string, error: unknown) {
 
 // --- File writer (injected logsDir, async buffered writes) ---
 
-import { LOG_RETENTION } from '@shared/constants/time'
+const DEFAULT_LOG_FILE_STEM = 'openwaggle'
+/** The detached Session Host's log file stem, beside the GUI's `openwaggle-YYYY-MM-DD.log`. */
+export const SESSION_HOST_LOG_FILE_STEM = 'openwaggle-host'
 
 class FileWriter {
   private logsDir: string | null = null
+  private fileStem = DEFAULT_LOG_FILE_STEM
   private currentDate: string | null = null
   private currentPath: string | null = null
   private buffer: LogEntry[] = []
   private flushScheduled = false
 
-  async init(logsDir: string) {
+  async init(logsDir: string, fileStem = DEFAULT_LOG_FILE_STEM) {
     try {
       await mkdir(logsDir, { recursive: true })
       this.logsDir = logsDir
+      this.fileStem = fileStem
       this.currentDate = null
       this.currentPath = null
       this.ensureDatePath()
@@ -107,6 +124,8 @@ class FileWriter {
   }
 
   getLogFilePath() {
+    // A writer that has not logged since midnight would otherwise name yesterday's file.
+    if (this.logsDir) this.ensureDatePath()
     return this.currentPath ?? ''
   }
 
@@ -114,21 +133,55 @@ class FileWriter {
     const dateStr = new Date().toISOString().slice(0, SLICE_ARG_2_VALUE_10) // YYYY-MM-DD
     if (dateStr === this.currentDate) return
     this.currentDate = dateStr
-    this.currentPath = path.join(this.logsDir ?? '', `openwaggle-${dateStr}.log`)
+    this.currentPath = this.pathForDate(dateStr)
   }
+
+  private pathForDate(dateStr: string) {
+    return path.join(this.logsDir ?? '', `${this.fileStem}-${dateStr}.log`)
+  }
+
+  /**
+   * A batch is written on the next tick, which can be after midnight UTC. Each line goes to the
+   * file of the day it was logged, so a 23:59:59.999Z line never lands in the next day's file.
+   */
+  private batchesByDate(entries: readonly LogEntry[]) {
+    const batches = new Map<string, string[]>()
+    for (const entry of entries) {
+      const lines = batches.get(lineDate(entry)) ?? []
+      lines.push(formatLine(entry))
+      batches.set(lineDate(entry), lines)
+    }
+    return [...batches].map(([date, lines]) => ({
+      target: this.pathForDate(date),
+      batch: `${lines.join('\n')}\n`,
+    }))
+  }
+
+  private pendingWrite: Promise<void> = Promise.resolve()
 
   private flush() {
     this.flushScheduled = false
     if (this.buffer.length === 0) return
+    if (!this.logsDir) return
     this.ensureDatePath()
-    if (!this.currentPath) return
-    const batchEntries = this.buffer.splice(0)
-    const batch = `${batchEntries.map((entry) => formatLine(entry)).join('\n')}\n`
-    fs.appendFile(this.currentPath, batch, (error) => {
-      if (error) {
-        reportFileLoggerFailure('failed to append log batch', error)
-      }
-    })
+    for (const { target, batch } of this.batchesByDate(this.buffer.splice(0))) {
+      // Chained so a drain awaits every batch written so far, in order.
+      this.pendingWrite = this.pendingWrite.then(
+        () =>
+          new Promise<void>((resolve) => {
+            fs.appendFile(target, batch, (error) => {
+              if (error) reportFileLoggerFailure('failed to append log batch', error)
+              resolve()
+            })
+          }),
+      )
+    }
+  }
+
+  /** Writes everything buffered so far; awaited before a process exits (ADR 0037). */
+  async drain() {
+    this.flush()
+    await this.pendingWrite
   }
 
   private async pruneOldLogs() {
@@ -143,19 +196,22 @@ class FileWriter {
           TIME_UNIT.SECONDS_PER_MINUTE *
           TIME_UNIT.MILLISECONDS_PER_SECOND
       const entries = await readdir(logsDir)
-      const deletions = entries
-        .filter((entry) => entry.startsWith('openwaggle-') && entry.endsWith('.log'))
-        .map(async (entry) => {
-          const filePath = path.join(logsDir, entry)
-          const st = await stat(filePath)
-          if (st.mtimeMs < cutoff) {
-            await unlink(filePath)
-          }
-        })
+      const deletions = entries.flatMap((entry) =>
+        entry.startsWith(`${this.fileStem}-`) && entry.endsWith('.log')
+          ? [unlinkIfOlderThan(path.join(logsDir, entry), cutoff)]
+          : [],
+      )
       await Promise.allSettled(deletions)
     } catch (error) {
       reportFileLoggerFailure('failed to prune old log files', error)
     }
+  }
+}
+
+async function unlinkIfOlderThan(filePath: string, cutoff: number) {
+  const st = await stat(filePath)
+  if (st.mtimeMs < cutoff) {
+    await unlink(filePath)
   }
 }
 
@@ -166,41 +222,44 @@ const fileWriter = new FileWriter()
  * Returns a promise that resolves when directory creation and log pruning complete.
  * Callers may ignore the return value for fire-and-forget initialization.
  */
-export function initFileLogger(logsDir: string): Promise<void> {
-  return fileWriter.init(logsDir)
+export function initFileLogger(logsDir: string, fileStem?: string) {
+  return fileWriter.init(logsDir, fileStem)
 }
 
-export function getLogFilePath(): string {
+/** The Session Host log written on the same day, beside a GUI log file. */
+export function sessionHostLogPathFor(guiLogPath: string) {
+  const name = path.basename(guiLogPath)
+  return path.join(
+    path.dirname(guiLogPath),
+    name.replace(`${DEFAULT_LOG_FILE_STEM}-`, `${SESSION_HOST_LOG_FILE_STEM}-`),
+  )
+}
+
+/** Flushes buffered log lines to the file before a process exits. */
+export function drainFileLogger() {
+  return fileWriter.drain()
+}
+
+export function getLogFilePath() {
   return fileWriter.getLogFilePath()
 }
 
-export function createLogger(namespace: string): Logger {
+export function createLogger(namespace: string) {
   const log = (level: LogLevel, message: string, data?: object) => {
     if (!isLevelEnabled(level)) {
       return
     }
 
-    const entry: LogEntry = { namespace, level, message, data }
+    const entry: LogEntry = {
+      at: new Date().toISOString(),
+      namespace,
+      level,
+      message,
+      ...(data === undefined ? {} : { data }),
+    }
     writeToConsole(entry)
     fileWriter.write(entry)
   }
 
-  return {
-    isLevelEnabled,
-    isDebugEnabled() {
-      return isLevelEnabled('debug')
-    },
-    debug(message, data) {
-      log('debug', message, data)
-    },
-    info(message, data) {
-      log('info', message, data)
-    },
-    warn(message, data) {
-      log('warn', message, data)
-    },
-    error(message, data) {
-      log('error', message, data)
-    },
-  }
+  return loggerMethods(log, isLevelEnabled)
 }

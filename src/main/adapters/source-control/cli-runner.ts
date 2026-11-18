@@ -1,0 +1,69 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { errorCode } from '@shared/utils/node-error'
+import { uncheckedFields } from '@shared/utils/object-shape'
+import { getSourceControlCliEnv } from '../../env'
+
+const execFileAsync = promisify(execFile)
+const SOURCE_CONTROL_CLI_TIMEOUT_MS = 60_000
+
+export interface CliResult {
+  readonly stdout: string
+  readonly stderr: string
+  readonly code: number
+  /** True when the executable itself was not found (ENOENT). */
+  readonly missing: boolean
+}
+
+/**
+ * Run a CLI tool (gh/glab) without throwing. Returns a normalized result;
+ * a missing executable is reported via `missing: true` rather than throwing.
+ */
+export interface CliRunOptions {
+  /** A complete child environment built by `env.ts` (for example one Provider account's token). */
+  readonly env?: Readonly<Record<string, string | undefined>>
+}
+
+export async function runCli(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  options: CliRunOptions = {},
+) {
+  try {
+    const output = await execFileAsync(command, [...args], {
+      cwd,
+      env: options.env ?? getSourceControlCliEnv(),
+      timeout: SOURCE_CONTROL_CLI_TIMEOUT_MS,
+    })
+    const result: CliResult = {
+      stdout: output.stdout ?? '',
+      stderr: output.stderr ?? '',
+      code: 0,
+      missing: false,
+    }
+    return result
+  } catch (error) {
+    return normalizeCliError(error)
+  }
+}
+
+function normalizeCliError(error: unknown) {
+  const record = uncheckedFields<{ readonly stdout: string; readonly stderr: string }>(error)
+  const code = errorCode(error)
+  // ENOENT: binary not found; EACCES: found but not executable — both mean the
+  // provider CLI is unusable, so treat them the same (surface as unavailable).
+  const missing = code === 'ENOENT' || code === 'EACCES'
+  const result: CliResult = {
+    stdout: typeof record.stdout === 'string' ? record.stdout : '',
+    stderr:
+      typeof record.stderr === 'string'
+        ? record.stderr
+        : error instanceof Error
+          ? error.message
+          : 'CLI command failed',
+    code: typeof code === 'number' ? code : 1,
+    missing,
+  }
+  return result
+}

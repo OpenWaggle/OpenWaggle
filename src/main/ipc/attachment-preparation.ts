@@ -1,0 +1,198 @@
+import { createHash, randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { match } from '@diegogbrisa/ts-match'
+import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import type { PreparedAttachment } from '@shared/types/agent'
+import { allInOrder } from '@shared/utils/all-in-order'
+import { forgetPreparedAttachment, rememberPreparedAttachment } from '../utils/attachment-registry'
+import { writeTempAttachment } from '../utils/attachment-temp-directory'
+import {
+  DOCX_MIME_TYPE,
+  extractAttachmentText,
+  ODT_MIME_TYPE,
+  RTF_MIME_TYPE,
+} from '../utils/attachment-text-extraction'
+import { convertHeicToAttachmentImage, isHeicImageMimeType } from '../utils/heic-image-conversion'
+
+function contentSha256(bytes: Uint8Array) {
+  return createHash('sha256').update(bytes).digest('hex')
+}
+
+function resolveAttachmentKind(mimeType: string) {
+  if (mimeType === 'application/pdf') return 'pdf'
+  if (mimeType.startsWith('image/')) return 'image'
+  return 'text'
+}
+
+function guessMimeType(filePath: string) {
+  const ext = path.extname(filePath).toLowerCase()
+  return match(ext)
+    .with('.pdf', () => 'application/pdf')
+    .with('.png', () => 'image/png')
+    .with('.jpg', () => 'image/jpeg')
+    .with('.jpeg', () => 'image/jpeg')
+    .with('.webp', () => 'image/webp')
+    .with('.gif', () => 'image/gif')
+    .with('.heic', () => 'image/heic')
+    .with('.heif', () => 'image/heif')
+    .with('.bmp', () => 'image/bmp')
+    .with('.svg', () => 'image/svg+xml')
+    .with('.md', () => 'text/markdown')
+    .with('.json', () => 'application/json')
+    .with('.yaml', () => 'application/yaml')
+    .with('.yml', () => 'application/yaml')
+    .with('.xml', () => 'application/xml')
+    .with('.csv', () => 'text/csv')
+    .with('.log', () => 'text/plain')
+    .with('.docx', () => DOCX_MIME_TYPE)
+    .with('.rtf', () => RTF_MIME_TYPE)
+    .with('.odt', () => ODT_MIME_TYPE)
+    .with('.ts', () => 'text/plain')
+    .with('.tsx', () => 'text/plain')
+    .with('.js', () => 'text/plain')
+    .with('.jsx', () => 'text/plain')
+    .with('.mjs', () => 'text/plain')
+    .with('.cjs', () => 'text/plain')
+    .with('.py', () => 'text/plain')
+    .with('.java', () => 'text/plain')
+    .with('.go', () => 'text/plain')
+    .with('.rs', () => 'text/plain')
+    .with('.swift', () => 'text/plain')
+    .with('.kt', () => 'text/plain')
+    .with('.css', () => 'text/plain')
+    .with('.scss', () => 'text/plain')
+    .with('.sass', () => 'text/plain')
+    .with('.less', () => 'text/plain')
+    .with('.html', () => 'text/plain')
+    .with('.htm', () => 'text/plain')
+    .with('.txt', () => 'text/plain')
+    .otherwise(() => null)
+}
+
+async function prepareAttachment(filePath: string) {
+  const stats = await fs.stat(filePath)
+  if (!stats.isFile()) {
+    throw new Error(`Not a file: ${filePath}`)
+  }
+  const mimeType = guessMimeType(filePath)
+  if (!mimeType) {
+    throw new Error(
+      `Unsupported attachment type: ${path.basename(filePath)}. Supported: text files, images (PNG, JPEG, WebP, GIF, HEIC, HEIF), and PDFs.`,
+    )
+  }
+  const kind = resolveAttachmentKind(mimeType)
+  const maxBytes = kind === 'image' ? ATTACHMENT.MAX_IMAGE_SIZE_BYTES : ATTACHMENT.MAX_SIZE_BYTES
+  if (stats.size > maxBytes) {
+    throw new Error(
+      `Attachment exceeds ${String(maxBytes / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
+    )
+  }
+  const buffer = await fs.readFile(filePath)
+  const attachmentName = path.basename(filePath)
+  const extractedText = await extractAttachmentText({ kind, mimeType, buffer, attachmentName })
+
+  return {
+    id: randomUUID(),
+    kind,
+    origin: 'user-file',
+    name: attachmentName,
+    path: filePath,
+    mimeType,
+    sizeBytes: stats.size,
+    contentSha256: contentSha256(buffer),
+    extractedText,
+  } satisfies PreparedAttachment
+}
+
+export async function prepareRegisteredAttachment(filePath: string) {
+  const attachment = await prepareAttachment(filePath)
+  await rememberPreparedAttachment(attachment, filePath)
+  return attachment
+}
+
+function imageAttachmentExtension(mimeType: string) {
+  return match(mimeType)
+    .with('image/png', () => '.png')
+    .with('image/jpeg', () => '.jpg')
+    .with('image/webp', () => '.webp')
+    .with('image/gif', () => '.gif')
+    .otherwise(() => null)
+}
+
+function compatibleImageAttachmentName(fileName: string, mimeType: string, extension: string) {
+  const candidate = path.basename(fileName)
+  if (guessMimeType(candidate) === mimeType) return candidate
+  const candidateExtension = path.extname(candidate)
+  const stem = candidate.slice(0, candidate.length - candidateExtension.length).trim()
+  return `${stem || 'image'}${extension}`
+}
+
+export async function prepareRegisteredImageAttachmentFromBytes(input: {
+  readonly bytes: Uint8Array
+  readonly fileName: string
+  readonly mimeType: string
+}) {
+  if (input.bytes.byteLength > ATTACHMENT.MAX_IMAGE_SIZE_BYTES) {
+    throw new Error(
+      `Attachment exceeds ${String(ATTACHMENT.MAX_IMAGE_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(input.fileName)}`,
+    )
+  }
+
+  // A blob the browser could not type (a pasted HEIC, for one) is typed by its name instead.
+  const mimeType =
+    input.mimeType.split(';')[0]?.trim().toLowerCase() || (guessMimeType(input.fileName) ?? '')
+
+  // A pathless HEIC arrives as bytes, so it is decoded here the way the picker path decodes a file:
+  // everything below this line sees the JPEG the decode produced (ADR 0068).
+  if (isHeicImageMimeType(mimeType)) {
+    const converted = await convertHeicToAttachmentImage({
+      bytes: input.bytes,
+      fileName: input.fileName,
+    })
+    return prepareRegisteredImageAttachmentFromBytes(converted)
+  }
+
+  const extension = imageAttachmentExtension(mimeType)
+  if (!extension) {
+    throw new Error(`Unsupported Session image type: ${mimeType || path.basename(input.fileName)}`)
+  }
+  const attachmentName = compatibleImageAttachmentName(input.fileName, mimeType, extension)
+  const buffer = Buffer.from(input.bytes)
+  const kind = 'image'
+  // Independent: the OCR read and the copy on disk do not wait for each other.
+  const [extractedText, filePath] = await allInOrder([
+    extractAttachmentText({ kind, mimeType, buffer, attachmentName }),
+    writeTempAttachment(buffer, extension, 'resource'),
+  ])
+
+  const attachment: PreparedAttachment = {
+    id: randomUUID(),
+    kind,
+    origin: 'session-resource',
+    name: attachmentName,
+    path: filePath,
+    mimeType,
+    sizeBytes: buffer.byteLength,
+    contentSha256: contentSha256(buffer),
+    extractedText,
+  }
+  try {
+    await rememberPreparedAttachment(attachment, filePath)
+    return attachment
+  } catch (cause) {
+    await fs.rm(filePath, { force: true }).catch(() => {})
+    throw cause
+  }
+}
+
+export async function discardRegisteredImageAttachment(attachment: PreparedAttachment) {
+  if (attachment.origin !== 'session-resource') {
+    throw new Error('Only an undelivered Session resource attachment can be discarded.')
+  }
+  const forgotten = await forgetPreparedAttachment(attachment)
+  if (!forgotten) return
+  await fs.rm(attachment.path, { force: true })
+}
+
+export { contentSha256 }

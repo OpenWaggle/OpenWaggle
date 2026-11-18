@@ -1,4 +1,5 @@
 import type { ExtensionContributionTargetView } from '@shared/types/extensions'
+import type { ManifestContributionTarget } from './extension-contribution-family-model'
 
 export interface ContributionTargetResolution {
   readonly target?: ExtensionContributionTargetView
@@ -7,7 +8,7 @@ export interface ContributionTargetResolution {
 }
 
 interface ResolveContributionTargetInput {
-  readonly target: ExtensionContributionTargetView | undefined
+  readonly target: ManifestContributionTarget | undefined
   readonly eligibilityProjectPaths: readonly string[]
   readonly requestedProjectPaths: readonly string[]
   readonly requestedSessionId: string | undefined
@@ -28,9 +29,7 @@ function uniqueTrimmedValues(values: readonly string[]) {
   return normalizedValues
 }
 
-function normalizeTarget(
-  target: ExtensionContributionTargetView | undefined,
-): ExtensionContributionTargetView | undefined {
+function normalizeTarget(target: ManifestContributionTarget | undefined) {
   if (target === undefined) {
     return undefined
   }
@@ -51,22 +50,22 @@ function normalizeTarget(
 }
 
 function targetSessionId(input: {
-  readonly target: ExtensionContributionTargetView | undefined
+  readonly target: ManifestContributionTarget | undefined
   readonly requestedSessionId: string | undefined
 }) {
+  const requestedSessionId = input.requestedSessionId?.trim()
   const sessionIds = input.target?.sessionIds
   if (sessionIds === undefined) {
-    return undefined
+    return requestedSessionId && requestedSessionId.length > 0 ? requestedSessionId : undefined
   }
 
-  const requestedSessionId = input.requestedSessionId?.trim()
   return requestedSessionId !== undefined && sessionIds.includes(requestedSessionId)
     ? requestedSessionId
     : null
 }
 
 function targetProjectPaths(input: {
-  readonly target: ExtensionContributionTargetView | undefined
+  readonly target: ManifestContributionTarget | undefined
   readonly eligibilityProjectPaths: readonly string[]
   readonly requestedProjectPaths: readonly string[]
 }): readonly string[] | null {
@@ -88,9 +87,7 @@ function targetProjectPaths(input: {
   return projectPaths.length > 0 ? projectPaths : null
 }
 
-export function resolveContributionTarget(
-  input: ResolveContributionTargetInput,
-): ContributionTargetResolution | null {
+export function resolveContributionTarget(input: ResolveContributionTargetInput) {
   const target = normalizeTarget(input.target)
   const sessionId = targetSessionId({ target, requestedSessionId: input.requestedSessionId })
   if (sessionId === null) {

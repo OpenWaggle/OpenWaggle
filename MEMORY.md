@@ -2,79 +2,53 @@
 
 Durable OpenWaggle project memory. Keep this compact and technical. Do not add personal/cross-repo agent preferences here.
 
-## Active Warnings
+This file is an index. Read it, then load only the topic files under `.agents/memory/` whose
+trigger matches the task. Each topic file opens with a summary of what it covers and when to
+load it. Do not load every topic.
 
-- The working tree may contain another agent's active refactor. Treat dirty files as intended future shape unless there is clear evidence otherwise.
-- Legacy vendor-specific agent configuration has been removed; keep this repository centered on `AGENTS.md` and `.agents/`.
-- Legacy agent memory files were removed. Add durable OpenWaggle memory here or to focused skills.
-- `docs/agents/` is reserved for the adapted `/setup-matt-pocock-skills` workflow. Do not manually scaffold it during unrelated work.
+## Topics
 
-## Current Architecture Direction
+Each line names a topic file and when to load it:
 
-- OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
-- Main-process architecture is hexagonal: domain, ports, adapters, application services, IPC, stores.
-- Pi SDK imports belong in `src/main/adapters/pi/` only.
-- Provider/model/auth metadata must mirror Pi through `AuthStorage`, `ModelRegistry`, project-scoped runtime services, and OpenWaggle-owned ports.
-- OpenWaggle must not maintain a parallel `src/main/providers/` registry.
-- OpenWaggle extension UI direction is ADR-0006: model visual contributions as surface/runtime/execution, default to a framework-neutral federated-module runtime with `mount(context)`, and do not expand placeholder route/content experiments as a parallel legacy runtime.
+- [`architecture-and-conventions`](.agents/memory/architecture-and-conventions.md): before any non-trivial change: process boundaries, where Pi SDK imports live, dirty-tree rule.
+- [`pi-runtime`](.agents/memory/pi-runtime.md): touching `src/main/adapters/pi/`, `packages/pi-*`, Pi upgrades, Pi extensions, Pi session files or tool schemas.
+- [`compaction`](.agents/memory/compaction.md): touching compaction (automatic, manual `/compact`, native checkpoints) or the context meter.
+- [`providers-and-models`](.agents/memory/providers-and-models.md): touching provider auth, model selection, thinking levels or provider credentials.
+- [`mcp`](.agents/memory/mcp.md): touching `src/main/adapters/mcp/`, MCP config, OAuth, approval or the MCP pool.
+- [`session-host`](.agents/memory/session-host.md): touching `src/main/session-host/`, the Local Session protocol, Host database, connections or Host performance.
+- [`sessions`](.agents/memory/sessions.md): touching Session Control, Follow-ups, steering, Run lifecycle, fork/clone, titles or notifications.
+- [`session-search-and-discovery`](.agents/memory/session-search-and-discovery.md): touching Session search, FTS/semantic discovery, archived-items search or Pi session discovery.
+- [`hive`](.agents/memory/hive.md): touching the `hive` tool, Workers, Delegations, Agent definitions, Hive wake or the Hive panel.
+- [`hive-delegation-revisions`](.agents/memory/hive-delegation-revisions.md): touching how a revision request, reopen or task change reaches the Worker (#454).
+- [`scheduled-tasks`](.agents/memory/scheduled-tasks.md): touching Heartbeats, Launch schedules or `openwaggle schedules`.
+- [`licensing`](.agents/memory/licensing.md): before changing license fields, publishing packages, accepting code PRs, adding a package, answering licensing questions, or editing `main`'s ruleset and `CODEOWNERS`: the MIT/GPL-3.0 split, the CLA, the trademark notice, and the merge gate (ADR 0067).
+- [`access-and-authorization`](.agents/memory/access-and-authorization.md): touching authorization modes, grants, approvals, caller ceilings or catalog-wide reach.
+- [`cli`](.agents/memory/cli.md): touching the `openwaggle` CLI, CLI profiles and credentials, or CLI exit and error kinds.
+- [`renderer-transcript`](.agents/memory/renderer-transcript.md): touching `features/chat` transcript rows, scrolling, streaming render or edit/fork points.
+- [`renderer`](.agents/memory/renderer.md): touching `src/renderer/src/` outside the transcript: composer, sidebar, Summary, focus, shortcuts, React Compiler.
+- [`workspace-files-and-syntax`](.agents/memory/workspace-files-and-syntax.md): touching the file panel, Focused file edit, Pierre diffs, Shiki/syntax workers or themes.
+- [`git-and-worktrees`](.agents/memory/git-and-worktrees.md): touching Git operations, managed worktrees, worktree removal, source control or change requests.
+- [`project-actions`](.agents/memory/project-actions.md): touching Project Actions, Setup/cleanup preparation, action bindings or action output.
+- [`terminals-and-browser-preview`](.agents/memory/terminals-and-browser-preview.md): touching Session-bound terminals, node-pty/xterm, or the Session-owned Browser preview.
+- [`session-resources`](.agents/memory/session-resources.md): touching Session resources, captured images, the resource protocol or extension resource contributions.
+- [`electron-shell`](.agents/memory/electron-shell.md): touching Electron main-process startup, the desktop shell ports and Electron adapters, packaging, native addons, hidden QA, visualizations or `bun run dev:debug`.
+- [`persistence-and-migrations`](.agents/memory/persistence-and-migrations.md): adding a migration or touching SQLite schemas, settings keys or `src/main/services/database-*`.
+- [`release-and-ci`](.agents/memory/release-and-ci.md): touching `.github/workflows/`, release scripts, signing, updater artifacts or the commit policy.
+- [`tooling`](.agents/memory/tooling.md): touching lint, format, TypeScript config, dependencies, repository standards or scripts.
+- [`testing`](.agents/memory/testing.md): writing or debugging tests: tiers, timeouts, fixtures, temp files, component tests.
+- [`performance`](.agents/memory/performance.md): measuring or budgeting performance: first-turn prefix, startup, benchmarks, probes.
+- [`website-and-docs`](.agents/memory/website-and-docs.md): touching `website/`, docs routing, screenshots, diagrams, schemas or SEO.
+- [`telemetry`](.agents/memory/telemetry.md): touching usage statistics, Sentry error reports, provider attribution or Usage & Cost.
+- [`product-and-ux`](.agents/memory/product-and-ux.md): making product or UX decisions: Summary default, Projects-only sidebar, naming Pi, Waggle scope.
+- [`archive`](.agents/memory/archive.md): never by default; only for history of removed code paths.
 
-## Pi Runtime Memory
+## Adding memory
 
-Load `.agents/skills/pi-integration/SKILL.md` for details.
-
-- Pi JSONL sessions are runtime state; SQLite session projection is the product read model for renderer navigation, branching, persistence, active runs, and UI state.
-- Pi-native tool events, thinking levels, compaction behavior, session ids, provider/model ids, and auth methods should stay Pi-native through the adapter boundary.
-- Missing projected Pi entries during clean-cut projection rebuilds should be treated as stale/cancelled navigation, not thrown through IPC.
-- Preserve Pi-created session ids before first prompt by opening the pre-created id correctly instead of allowing a missing JSONL path to create a different id.
-- Build runtime services through Pi's project-scoped service path so extensions/providers are registered before model resolution.
-- MCP/package extension loading must be scoped to the active project and adapter cwd so package extensions do not read Electron's process cwd or leak server processes.
-- OpenWaggle-owned Pi extension packages must be bundled/copied locally and `asarUnpack`ed for packaged apps.
-- Pi-native Waggle state belongs to `@openwaggle/pi-waggle`: runtime custom message/state types use the `pi-waggle.*` namespace, branch mode/config is stored as `pi-waggle.mode-state` custom entries, and OpenWaggle should project metadata from those entries instead of seeding a parallel metadata tree.
-- Pi TUI Waggle continuation turns should be scheduled after the current Pi run settles, then append the visible `pi-waggle.turn` custom message and call `sendUserMessage(...)` without `deliverAs`; queuing continuation prompts with `deliverAs: 'followUp'` during `turn_end` can leave them waiting for user confirmation. Accumulate tool-call turns with their `toolResults` before advancing, and use `agent_end` only as a fallback for pending tool-call-only completions.
-- User-authored input during an active Pi TUI Waggle run must stop automatic Waggle continuation and be resent with `sendUserMessage(..., { deliverAs: 'steer' })`; otherwise Pi rejects it with “Agent is already processing” because normal prompts during streaming need an explicit streaming behavior.
-- Pi custom TUI components must use `@earendil-works/pi-tui` keyboard helpers such as `matchesKey`/`parseKey` instead of raw escape-sequence comparisons; Kitty keyboard protocol encodes Enter, Esc, Space, and Ctrl+C as CSI-u sequences, so raw checks can trap users inside custom menus.
-- Pi custom TUI components must never return strings containing embedded `\n`/`\r`; normalize dynamic labels/details to single terminal lines before rendering. They must also truncate rendered lines with `truncateToWidth`/`visibleWidth`, not string length, clamp scroll windows to `items.length - visibleRows`, and reserve fixed blank slots for scrollable lists/details. Embedded newlines, overflowing lines, or shrinking terminal output can corrupt Pi TUI's differential cursor math and leave duplicated-looking rows. Prefer Pi's built-in `ctx.ui.select` for modal menus unless custom rendering is clearly needed, so the Pi footer/status remains visible and interaction steps do not visually jump.
-
-## Electron Runtime Memory
-
-Load `.agents/skills/electron-runtime/SKILL.md` for details.
-
-- Native addons have separate Node and Electron ABI targets. Rebuild with the repo scripts before blaming app code.
-- Packaged apps may not inherit a shell PATH. Pi package/resource loading and Pi-run child processes that shell out to tools need an adapter-controlled npm-compatible PATH, including common user tool dirs such as `~/Library/pnpm` on macOS.
-- `electron-builder` with pnpm can omit transitive runtime modules unless explicit dependencies are present; `ms` is intentionally explicit for `electron-updater`.
-- macOS `electron-updater` requires ZIP artifacts in GitHub release metadata; DMG-only mac releases can advertise an update but fail with "ZIP file not provided".
-- On Apple silicon, performance/package QA should use arm64 outputs, not Rosetta x64 output from a universal build folder.
-- Electron Playwright E2E requires isolated user data and single-instance lock opt-out when another OpenWaggle instance is running.
-- CDP file upload can produce `File` objects without native paths; native file-path behavior needs preload/unit coverage or real OS selection QA.
-
-## Renderer And Session Memory
-
-- Renderer state that represents chat transcripts or active runs must be keyed by concrete `SessionId`, not only the active route.
-- Switching away from a foreground run should demote it to background state, not reject the send promise as an error.
-- Active-run UI continuity needs a renderer-owned render snapshot keyed by session id; persisted run metadata alone does not prove visible reasoning/tool rows remain continuous.
-- First-message sends must bind to the concrete newly created session before async send begins; do not enqueue by current active session after users can switch projects.
-- Session tree/header refreshes for background sessions must not overwrite the active session tree/header.
-- Session-native transcript rendering reads from the active `SessionWorkspace.transcriptPath`; preserve live tails only at active branch head.
-- TanStack Router uses hash history in Electron QA; navigate to `http://localhost:5173/#/<route>`.
-- TanStack Hotkeys same-target callbacks do not stop each other via `event.stopPropagation`; independent overlays need explicit topmost ordering.
-
-## Product And UX Memory
-
-- Pi-native sidebar navigation is Projects-only. Do not add a global projectless Chats section.
-- Waggle mode must run inside Pi as extension/runtime behavior, not as an OpenWaggle application loop that calls Pi once per agent turn.
-- Waggle currently supports exactly two agents. Third-agent JSON edits must be rejected at core, Pi extension, shared schema, store schema, and application-service boundaries until N-agent turn policy, prompts, consensus, and UI are implemented first-class.
-- Waggle and standard mode share session, branch, draft, archive, transcript, active-run, composer, settings, diff, and git semantics unless Pi imposes a narrow technical constraint.
-- Composer branch/config changes are branch-scoped; child branches inherit parent config by default.
-- Manual compaction mirrors Pi TUI slash-command UX: `/compact` and `/compact <custom instructions>`, not context-meter-triggered compaction.
-- Provider auth UI is method-based. Keep provider-level availability separate from API-key configured state and OAuth connected state.
-- Compact composer interactions stay in-row unless the maintainer explicitly asks for a larger workflow.
-
-## Tooling Memory
-
-- Package manager: `pnpm`.
-- TypeScript-first tooling is preferred; do not add JavaScript configs when `.ts` is practical.
-- No TypeScript `baseUrl`; preserve aliases through explicit `paths` entries.
-- `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are the target strictness posture, but enabling them in build or lint tsconfigs requires a dedicated source-modeling pass across the active Pi/session refactor; lint-only enablement can create TypeScript `error` types that surface as noisy `@typescript-eslint/no-unsafe-*` diagnostics.
-- Unit, integration, and component tests belong in nearby `__tests__/`; E2E stays under `e2e/`.
-- Do not suppress Fallow complexity findings; refactor instead.
-- Do not add legacy compatibility for removed pre-Pi surfaces unless explicitly requested.
+- Add a finding to the topic file it belongs to, under a heading that names it. Do not add
+  findings to this index.
+- Add a topic only when no existing one fits: create `.agents/memory/<topic>.md` with a
+  title and a 3-6 line summary (what it covers, when to load it), and add one line here.
+- When an entry describes code that has been removed, move it to `archive.md` instead of
+  deleting it.
+- `bun run check:repository-standards` caps this index at 2,000 o200k tokens and each topic file
+  at 12,000. Split a topic that reaches its cap instead of trimming facts.

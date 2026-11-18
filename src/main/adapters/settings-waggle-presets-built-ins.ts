@@ -5,7 +5,7 @@ import {
 import { WagglePresetId } from '@shared/types/brand'
 import { createWaggleModelBinding, type WagglePreset } from '@shared/types/waggle'
 
-function toOpenWaggleAgentModel(model: string): WagglePreset['config']['agents'][number]['model'] {
+function toOpenWaggleAgentModel(model: string) {
   return createWaggleModelBinding(model)
 }
 

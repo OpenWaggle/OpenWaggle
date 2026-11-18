@@ -1,0 +1,301 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { isRecord } from '@shared/utils/validation'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import {
+  type CapturedImage,
+  type CapturedLink,
+  type CapturedLocalImage,
+  type CapturedResourceOrder,
+  LOCAL_FILE_MARKDOWN_IMAGES,
+  type MarkdownImageOrigin,
+  SESSION_RESOURCE_EXTRACTION_LIMITS,
+} from './session-resource-extraction-types'
+
+const HTTP_URL_PATTERN = /^https?:\/\//iu
+/** `/screenshots/x.png`, but not a protocol-relative `//host/x.png`. */
+const ROOT_RELATIVE_PATH_PATTERN = /^\/(?!\/)/u
+const markdownParser = unified().use(remarkParse)
+
+/**
+ * The mdast node members the walk reads, each still unchecked: the parser's tree is walked as
+ * plain objects, and each reader narrows the members it uses.
+ */
+interface MarkdownNodeFields {
+  readonly type?: unknown
+  readonly children?: unknown
+  readonly identifier?: unknown
+  readonly url?: unknown
+  readonly alt?: unknown
+  readonly value?: unknown
+}
+
+function markdownNode(value: unknown) {
+  const fields: MarkdownNodeFields | undefined = isRecord(value) ? value : undefined
+  return fields
+}
+
+function supportedHttpUrl(value: string) {
+  if (value.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
+      ? url.href
+      : null
+  } catch {
+    return null
+  }
+}
+
+function enqueueChildren(candidate: MarkdownNodeFields, pending: unknown[]) {
+  const children = candidate.children
+  if (!Array.isArray(children)) return
+  for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index])
+}
+
+function children(candidate: MarkdownNodeFields) {
+  const result: readonly unknown[] = Array.isArray(candidate.children) ? candidate.children : []
+  return result
+}
+
+function definitions(root: unknown) {
+  const result = new Map<string, string>()
+  const pending = [root]
+  while (pending.length > 0) {
+    const candidate = markdownNode(pending.pop())
+    if (!candidate) continue
+    if (
+      candidate.type === 'definition' &&
+      typeof candidate.identifier === 'string' &&
+      typeof candidate.url === 'string' &&
+      candidate.url.length <= SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters
+    ) {
+      result.set(candidate.identifier, candidate.url)
+    }
+    enqueueChildren(candidate, pending)
+  }
+  return result
+}
+
+function label(candidate: MarkdownNodeFields) {
+  const directAlt = typeof candidate.alt === 'string' ? candidate.alt.trim() : ''
+  if (directAlt) return directAlt.slice(0, SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters)
+
+  const pending = [...children(candidate)].reverse()
+  const fragments: string[] = []
+  let visited = 0
+  let length = 0
+  while (
+    pending.length > 0 &&
+    visited < SESSION_RESOURCE_EXTRACTION_LIMITS.maxVisitedNodes &&
+    length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters
+  ) {
+    const child = markdownNode(pending.pop())
+    visited += 1
+    if (!child) continue
+    if ((child.type === 'text' || child.type === 'inlineCode') && typeof child.value === 'string') {
+      const fragment = child.value.slice(
+        0,
+        SESSION_RESOURCE_EXTRACTION_LIMITS.maxTitleCharacters - length,
+      )
+      fragments.push(fragment)
+      length += fragment.length
+    }
+    const nested = children(child)
+    for (let index = nested.length - 1; index >= 0; index -= 1) pending.push(nested[index])
+  }
+  return fragments.join('').trim()
+}
+
+function markdownUrl(candidate: MarkdownNodeFields, knownDefinitions: ReadonlyMap<string, string>) {
+  const direct = candidate.type === 'link' || candidate.type === 'image'
+  const reference = candidate.type === 'linkReference' || candidate.type === 'imageReference'
+  const url = direct
+    ? candidate.url
+    : reference && typeof candidate.identifier === 'string'
+      ? knownDefinitions.get(candidate.identifier)
+      : null
+  return typeof url === 'string' ? url : null
+}
+
+function imageMimeType(filePath: string) {
+  const extension = path.extname(filePath).toLowerCase()
+  if (extension === '.png') return 'image/png'
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg'
+  if (extension === '.gif') return 'image/gif'
+  if (extension === '.webp') return 'image/webp'
+  return null
+}
+
+/**
+ * Resolve a Markdown image destination to a local file path, or null when it cannot name one.
+ *
+ * Agents reference screenshots as plain absolute paths (`![QA](/tmp/.../shot.png)`), the same
+ * convention the evidence-directory docs prescribe, and those are not URLs: `new URL` rejects
+ * them. `file:` URIs stay supported for transcripts that quote one, and drive-letter and UNC
+ * forms stay recognizable so a transcript written on one platform still resolves on another.
+ * Whatever comes out is still gated by the capture roots when the bytes are read.
+ */
+function localImageFilePath(url: string) {
+  if (url.includes('\0')) return null
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/u.test(url)) {
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'file:' || parsed.username || parsed.password) return null
+      const filePath = fileURLToPath(parsed)
+      const result: string | null = filePath.includes('\0') ? null : filePath
+      return result
+    } catch {
+      return null
+    }
+  }
+  const isAbsolute = path.isAbsolute(url) || /^[a-zA-Z]:[\\/]/u.test(url) || url.startsWith('\\\\')
+  const result: string | null = isAbsolute ? url : null
+  return result
+}
+
+function isImageNode(candidate: MarkdownNodeFields) {
+  return candidate.type === 'image' || candidate.type === 'imageReference'
+}
+
+function localImage(
+  candidate: MarkdownNodeFields,
+  knownDefinitions: ReadonlyMap<string, string>,
+  imageOrigin: MarkdownImageOrigin,
+) {
+  if (imageOrigin.kind !== 'local-file' || !isImageNode(candidate)) return null
+  const url = markdownUrl(candidate, knownDefinitions)
+  if (!url || url.length > SESSION_RESOURCE_EXTRACTION_LIMITS.maxUrlCharacters) return null
+  const filePath = localImageFilePath(url)
+  if (!filePath) return null
+  const mimeType = imageMimeType(filePath)
+  if (!mimeType) return null
+  const image: CapturedLocalImage | null = {
+    filePath,
+    mimeType,
+    title: label(candidate) || path.basename(filePath),
+  }
+  return image
+}
+
+/** A website image path as its absolute URL; every other destination is returned unchanged. */
+function resolvedImageUrl(
+  url: string,
+  candidate: MarkdownNodeFields,
+  imageOrigin: MarkdownImageOrigin,
+) {
+  if (imageOrigin.kind !== 'website' || !isImageNode(candidate)) return url
+  if (!ROOT_RELATIVE_PATH_PATTERN.test(url)) return url
+  try {
+    return new URL(url, imageOrigin.origin).href
+  } catch {
+    return url
+  }
+}
+
+function httpLink(
+  candidate: MarkdownNodeFields,
+  knownDefinitions: ReadonlyMap<string, string>,
+  imageOrigin: MarkdownImageOrigin,
+) {
+  const destination = markdownUrl(candidate, knownDefinitions)
+  if (!destination) return null
+  const url = resolvedImageUrl(destination, candidate, imageOrigin)
+  if (!HTTP_URL_PATTERN.test(url)) return null
+  const normalizedUrl = supportedHttpUrl(url)
+  if (!normalizedUrl) return null
+  const link: CapturedLink | null = {
+    url: normalizedUrl,
+    title: label(candidate) || normalizedUrl,
+    image: isImageNode(candidate),
+  }
+  return link
+}
+
+interface MarkdownResourceCandidate {
+  readonly image: CapturedLocalImage | null
+  readonly link: CapturedLink | null
+}
+
+/**
+ * Parsed candidates by origin and text. A Session's resource backfill reads the same messages
+ * several times per page (display metadata, occurrence ids, capture) and again on every page the
+ * renderer requests until the page is fully captured; parsing each text once instead was most of
+ * a link-heavy Session's backfill time. Bounded by the characters of the texts it keeps.
+ */
+const MARKDOWN_CANDIDATE_CACHE_CHARACTERS = 4_000_000
+const markdownCandidateCache = new Map<string, readonly MarkdownResourceCandidate[]>()
+let markdownCandidateCacheCharacters = 0
+
+function imageOriginKey(imageOrigin: MarkdownImageOrigin) {
+  return imageOrigin.kind === 'website' ? `website:${imageOrigin.origin}` : imageOrigin.kind
+}
+
+function parseMarkdownCandidates(text: string, imageOrigin: MarkdownImageOrigin) {
+  const root = markdownParser.parse(text)
+  const knownDefinitions = definitions(root)
+  const candidates: MarkdownResourceCandidate[] = []
+  const pending: unknown[] = [root]
+  while (pending.length > 0) {
+    const candidate = pending.pop()
+    if (!isRecord(candidate)) continue
+    const image = localImage(candidate, knownDefinitions, imageOrigin)
+    const link = httpLink(candidate, knownDefinitions, imageOrigin)
+    if (image || link) candidates.push({ image, link })
+    enqueueChildren(candidate, pending)
+  }
+  return candidates
+}
+
+function markdownCandidates(text: string, imageOrigin: MarkdownImageOrigin) {
+  const key = `${imageOriginKey(imageOrigin)}\u0000${text}`
+  const cached = markdownCandidateCache.get(key)
+  if (cached) {
+    // Most recently used last, so eviction drops the oldest.
+    markdownCandidateCache.delete(key)
+    markdownCandidateCache.set(key, cached)
+    return cached
+  }
+  const candidates = parseMarkdownCandidates(text, imageOrigin)
+  if (key.length > MARKDOWN_CANDIDATE_CACHE_CHARACTERS) return candidates
+  markdownCandidateCache.set(key, candidates)
+  markdownCandidateCacheCharacters += key.length
+  for (const oldest of markdownCandidateCache.keys()) {
+    if (markdownCandidateCacheCharacters <= MARKDOWN_CANDIDATE_CACHE_CHARACTERS) break
+    markdownCandidateCache.delete(oldest)
+    markdownCandidateCacheCharacters -= oldest.length
+  }
+  return candidates
+}
+
+/** Test-only: how many texts the parse cache holds. */
+export function markdownCandidateCacheSize() {
+  return markdownCandidateCache.size
+}
+
+export function collectMarkdownResources(
+  text: string,
+  images: CapturedImage[],
+  links: CapturedLink[],
+  order: CapturedResourceOrder[],
+  imageOrigin: MarkdownImageOrigin = LOCAL_FILE_MARKDOWN_IMAGES,
+) {
+  if (
+    images.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages &&
+    links.length >= SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks
+  ) {
+    return
+  }
+  for (const { image, link } of markdownCandidates(text, imageOrigin)) {
+    if (image && images.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxImages) {
+      order.push({ kind: 'image', index: images.length })
+      images.push({ ...image })
+      continue
+    }
+    if (link && links.length < SESSION_RESOURCE_EXTRACTION_LIMITS.maxLinks) {
+      order.push({ kind: 'link', index: links.length })
+      links.push({ ...link })
+    }
+  }
+}

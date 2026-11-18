@@ -1,39 +1,19 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
-import { waggleMetadataSchema } from '@shared/schemas/waggle'
+import { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
+import { toolCallRequestSchema, toolCallResultSchema } from '@shared/schemas/message'
+import { waggleInvocationMetadataSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message } from '@shared/types/agent'
-import { MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
+import { buildPiTranscriptPath } from '@shared/utils/session-entry-paths'
 import { isRecord } from '@shared/utils/validation'
 import { createLogger } from '../../logger'
-import { buildPiWorkingContextPath } from '../session-working-context'
 import { MESSAGE_ENTRY_TYPE, TOOL_RESULT_KIND } from './constants'
 import { describeError } from './errors'
-import {
-  normalizeModelId,
-  parseJsonValue,
-  sessionJsonObjectSchema,
-  sessionJsonValueSchema,
-} from './json'
+import { normalizeModelId, parseJsonValue } from './json'
 import type { SessionNodeRow, SessionRow } from './types'
 
 const logger = createLogger('session-details')
-
-const toolCallRequestSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  args: sessionJsonObjectSchema,
-  state: Schema.optional(Schema.Literal('input-complete')),
-})
-
-const toolCallResultSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  args: sessionJsonObjectSchema,
-  result: sessionJsonValueSchema,
-  isError: Schema.Boolean,
-  duration: Schema.Number,
-  details: Schema.optional(sessionJsonValueSchema),
-})
 
 const messagePartSchema = Schema.Union(
   Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }),
@@ -44,11 +24,15 @@ const messagePartSchema = Schema.Union(
     attachment: Schema.Struct({
       id: Schema.String,
       kind: Schema.Literal('text', 'image', 'pdf'),
-      origin: Schema.optional(Schema.Literal('user-file', 'auto-paste-text')),
+      origin: Schema.optionalWith(
+        Schema.Literal('user-file', 'auto-paste-text', 'browser-preview', 'session-resource'),
+        { exact: true },
+      ),
       name: Schema.String,
       path: Schema.String,
       mimeType: Schema.String,
       sizeBytes: Schema.Number,
+      contentSha256: Schema.optionalWith(Schema.String, { exact: true }),
       extractedText: Schema.String,
     }),
   }),
@@ -57,12 +41,23 @@ const messagePartSchema = Schema.Union(
 )
 
 const messageMetadataSchema = Schema.Struct({
-  waggle: Schema.optional(waggleMetadataSchema),
+  durableTextSha256: Schema.optionalWith(Schema.String.pipe(Schema.pattern(/^[a-f0-9]{64}$/)), {
+    exact: true,
+  }),
+  scheduledTask: Schema.optionalWith(messageScheduledTaskOriginSchema, { exact: true }),
+  hiveWake: Schema.optionalWith(Schema.Literal(true), { exact: true }),
+  visualizationSessionId: Schema.optionalWith(Schema.String, { exact: true }),
+  waggle: Schema.optionalWith(waggleMetadataSchema, { exact: true }),
+  waggleInvocation: Schema.optionalWith(waggleInvocationMetadataSchema, { exact: true }),
+  selectedModel: Schema.optionalWith(Schema.String, { exact: true }),
+  stopReason: Schema.optionalWith(Schema.String, { exact: true }),
+  errorMessage: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
+  omittedFromContext: Schema.optionalWith(Schema.Boolean, { exact: true }),
 })
 
 const messageNodeContentSchema = Schema.Struct({
   parts: Schema.mutable(Schema.Array(messagePartSchema)),
-  model: Schema.optional(Schema.NullOr(Schema.String)),
+  model: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
 })
 
 type ParsedPart = SchemaType<typeof messagePartSchema>
@@ -73,27 +68,8 @@ function transformPart(part: ParsedPart) {
     .with('reasoning', (value) => ({ type: 'reasoning', text: value.text }))
     .with('thinking', (value) => ({ type: 'reasoning', text: value.text }))
     .with('attachment', (value) => ({ type: 'attachment', attachment: value.attachment }))
-    .with('tool-call', (value) => ({
-      type: 'tool-call',
-      toolCall: {
-        id: ToolCallId(value.toolCall.id),
-        name: value.toolCall.name,
-        args: value.toolCall.args,
-        state: value.toolCall.state,
-      },
-    }))
-    .with('tool-result', (value) => ({
-      type: 'tool-result',
-      toolResult: {
-        id: ToolCallId(value.toolResult.id),
-        name: value.toolResult.name,
-        args: value.toolResult.args,
-        result: value.toolResult.result,
-        isError: value.toolResult.isError,
-        duration: value.toolResult.duration,
-        details: value.toolResult.details,
-      },
-    }))
+    .with('tool-call', (value) => ({ type: 'tool-call', toolCall: value.toolCall }))
+    .with('tool-result', (value) => ({ type: 'tool-result', toolResult: value.toolResult }))
     .exhaustive()
 }
 
@@ -103,16 +79,34 @@ function hydrateMessageMetadata(raw: string) {
     return undefined
   }
 
+  const {
+    stopReason,
+    errorMessage,
+    omittedFromContext,
+    visualizationSessionId,
+    selectedModel,
+    waggle,
+    ...metadata
+  } = parsedMetadata.data
+  // An attempt Pi retried and dropped from the context is not the turn's failure.
+  const failed = stopReason === 'error' && errorMessage && omittedFromContext !== true
   return {
-    ...parsedMetadata.data,
-    waggle: parsedMetadata.data.waggle
-      ? {
-          ...parsedMetadata.data.waggle,
-          agentModel: parsedMetadata.data.waggle.agentModel
-            ? SupportedModelId(parsedMetadata.data.waggle.agentModel)
-            : undefined,
-        }
-      : undefined,
+    ...metadata,
+    ...(failed ? { error: errorMessage } : {}),
+    ...(visualizationSessionId
+      ? { visualizationSessionId: SessionId(visualizationSessionId) }
+      : {}),
+    ...(selectedModel ? { selectedModel: SupportedModelId(selectedModel) } : {}),
+    ...(waggle ? { waggle: hydrateWaggleMetadata(waggle) } : {}),
+  }
+}
+
+function hydrateWaggleMetadata(waggle: SchemaType<typeof waggleMetadataSchema>) {
+  const { agentModel, sessionId, ...rest } = waggle
+  return {
+    ...rest,
+    ...(agentModel ? { agentModel: SupportedModelId(agentModel) } : {}),
+    ...(sessionId === undefined ? {} : { sessionId }),
   }
 }
 
@@ -133,8 +127,11 @@ export function hydrateSessionMessage(row: SessionNodeRow) {
     id: MessageId(row.id),
     role: row.role ?? 'assistant',
     parts: parsedContent.data.parts.map(transformPart),
-    model: modelId ? SupportedModelId(modelId) : undefined,
-    metadata: hydrateMessageMetadata(row.metadata_json),
+    ...(modelId ? { model: SupportedModelId(modelId) } : {}),
+    metadata: {
+      ...hydrateMessageMetadata(row.metadata_json),
+      sessionNodeCreatedOrder: row.created_order,
+    },
     createdAt: row.timestamp_ms,
   }
 }
@@ -157,7 +154,12 @@ function getNumberField(value: unknown, key: string) {
   return typeof field === 'number' && Number.isFinite(field) ? field : null
 }
 
-export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | null {
+function getCompactionReason(value: unknown) {
+  const reason = getStringField(value, 'reason')
+  return reason === 'manual' || reason === 'threshold' || reason === 'overflow' ? reason : undefined
+}
+
+export function hydrateStructuralSessionMessage(row: SessionNodeRow) {
   const content = parseJsonValue(row.content_json)
   const summary = getStringField(content, 'summary')
   if (!summary) {
@@ -171,20 +173,25 @@ export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | 
       parts: [{ type: 'text', text: `Branch summary\n\n${summary}` }],
       metadata: { branchSummary: { summary } },
       createdAt: row.timestamp_ms,
-    }
+    } satisfies Message
   }
 
   if (row.kind === 'compaction_summary') {
     const tokensBefore = getNumberField(content, 'tokensBefore')
+    const reason = getCompactionReason(content)
     return {
       id: MessageId(row.id),
       role: 'assistant',
       parts: [{ type: 'text', text: `Compaction summary\n\n${summary}` }],
       ...(tokensBefore !== null
-        ? { metadata: { compactionSummary: { summary, tokensBefore } } }
+        ? {
+            metadata: {
+              compactionSummary: { summary, tokensBefore, ...(reason ? { reason } : {}) },
+            },
+          }
         : {}),
       createdAt: row.timestamp_ms,
-    }
+    } satisfies Message
   }
 
   return null
@@ -219,15 +226,14 @@ export function hydrateSessionMessages(nodeRows: readonly SessionNodeRow[]) {
   return messages
 }
 
+/** The active branch the transcript shows, compacted history included (ADR 0048). */
 export function getActivePathRows(
   activeNodeId: string | null,
   nodeRows: readonly SessionNodeRow[],
 ) {
-  return buildPiWorkingContextPath(activeNodeId, nodeRows, {
+  return buildPiTranscriptPath(activeNodeId, nodeRows, {
     getId: (row) => row.id,
     getParentId: (row) => row.parent_id,
-    getKind: (row) => row.kind,
-    getContentJson: (row) => row.content_json,
   })
 }
 

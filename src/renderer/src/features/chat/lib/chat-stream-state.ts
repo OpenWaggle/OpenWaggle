@@ -8,25 +8,73 @@ import {
   startToolExecution,
   updateToolExecution,
 } from './chat-stream-tool-events'
+import { applyIncorporatedUserMessage } from './chat-stream-user-messages'
 
-export function applyAgentTransportEvent(
-  messages: readonly UIMessage[],
+/**
+ * An update (a text delta, a tool's start) starts its message when the message's start was lost:
+ * the message then takes the update's Host time, as `ensureAssistantMessage` gives a started one,
+ * not this renderer's clock.
+ */
+function stampStartedMessage(
+  before: readonly UIMessage[],
+  after: UIMessage[],
+  event: { readonly timestamp: number },
+) {
+  // Most updates change a shown message: only a longer list can hold a started one.
+  if (after.length <= before.length) return after
+  const shownIds = new Set(before.map((message) => message.id))
+  return after.map((message) =>
+    shownIds.has(message.id) ? message : { ...message, createdAt: new Date(event.timestamp) },
+  )
+}
+
+/** A failed response carries its error live, as its hydrated message does once refreshed. */
+function withMessageError(messages: readonly UIMessage[], messageId: string, error: string) {
+  return messages.map((message) =>
+    message.id === messageId ? { ...message, metadata: { ...message.metadata, error } } : message,
+  )
+}
+
+/**
+ * The messages after a transport event. An event that changes no message (lifecycle, queue,
+ * compaction, interaction) returns `messages` itself, so callers can tell nothing changed by
+ * reference instead of keeping their own list of such events.
+ */
+export function applyAgentTransportEvent<Messages extends readonly UIMessage[]>(
+  messages: Messages,
   event: AgentTransportEvent,
 ) {
-  const cloneMessages = () => messages.slice()
+  const unchanged = () => messages
 
   return matchBy(event, 'type')
-    .with('agent_start', 'agent_end', 'turn_start', 'turn_end', cloneMessages)
-    .with('message_start', (value) =>
-      value.role === 'assistant'
-        ? ensureAssistantMessage(messages, value.messageId)
-        : cloneMessages(),
+    .with('agent_start', 'agent_end', 'turn_start', 'turn_end', unchanged)
+    .with('message_start', (value) => {
+      if (value.role === 'assistant') {
+        return ensureAssistantMessage(messages, value.messageId, value.timestamp)
+      }
+      const { userMessage } = value
+      return value.role === 'user' && userMessage
+        ? applyIncorporatedUserMessage(messages, { ...value, userMessage })
+        : unchanged()
+    })
+    .with('message_update', (value) =>
+      stampStartedMessage(messages, applyAssistantMessageEvent(messages, value), value),
     )
-    .with('message_update', (value) => applyAssistantMessageEvent(messages, value))
-    .with('message_end', cloneMessages)
-    .with('tool_execution_start', (value) => startToolExecution(messages, value))
-    .with('tool_execution_update', (value) => updateToolExecution(messages, value))
-    .with('tool_execution_end', (value) => finishToolExecution(messages, value))
+    .with('message_end', (value) =>
+      value.errorMessage
+        ? withMessageError(messages, value.messageId, value.errorMessage)
+        : unchanged(),
+    )
+    .with('context_usage', unchanged)
+    .with('tool_execution_start', (value) =>
+      stampStartedMessage(messages, startToolExecution(messages, value), value),
+    )
+    .with('tool_execution_update', (value) =>
+      stampStartedMessage(messages, updateToolExecution(messages, value), value),
+    )
+    .with('tool_execution_end', (value) =>
+      stampStartedMessage(messages, finishToolExecution(messages, value), value),
+    )
     .with(
       'queue_update',
       'compaction_start',
@@ -36,7 +84,9 @@ export function applyAgentTransportEvent(
       'agent_interaction_request',
       'agent_interaction_resolved',
       'custom',
-      cloneMessages,
+      'extension_status',
+      'agent_settled',
+      unchanged,
     )
     .exhaustive()
 }

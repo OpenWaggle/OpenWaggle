@@ -39,7 +39,7 @@ function SummaryButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'h-6 rounded-md px-2 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+        'h-6 rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60',
         variant === 'primary' && 'bg-accent text-bg hover:bg-accent-dim',
         variant === 'secondary' && 'border border-border text-text-secondary hover:bg-bg-hover',
         variant === 'ghost' && 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary',
@@ -67,7 +67,7 @@ export function BranchSummaryPrompt({
   }
 
   return (
-    <div className="mb-2 rounded-[var(--radius-panel)] border border-accent/20 bg-accent/7 px-3 py-2 text-[12px] text-text-secondary">
+    <div className="mb-2 rounded-3xl border border-accent/20 bg-accent/7 px-3 py-2 text-xs text-text-secondary">
       <div className="flex min-w-0 items-center gap-2">
         <GitBranch className="size-3.5 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">

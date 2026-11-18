@@ -1,8 +1,9 @@
 import type { SessionId } from '@shared/types/brand'
+import type { SupportedModelId } from '@shared/types/llm'
 import { generateDisplayName } from '@shared/types/llm'
 import { isInheritedWaggleModelBinding, type WaggleAgentSlot } from '@shared/types/waggle'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
-import { usePreferencesStore } from '@/features/settings/state'
+import { useComposerModel } from '@/features/composer/hooks'
 import { AGENT_BG } from '@/features/waggle/lib/agent-colors'
 import { useWaggleStore } from '@/features/waggle/state/waggle-store'
 import { cn } from '@/shared/lib/cn'
@@ -20,13 +21,18 @@ function turnCountLabel(turnCount: number) {
   return `${String(turnCount)} ${turnCount === SINGLE_TURN_COUNT ? 'turn' : 'turns'}`
 }
 
-function displayModelForAgent(agent: WaggleAgentSlot, inheritedModel: string) {
+function displayModelForAgent(
+  agent: WaggleAgentSlot,
+  inheritedModel: SupportedModelId | undefined,
+) {
   if (!isInheritedWaggleModelBinding(agent.model)) return generateDisplayName(agent.model)
-  return inheritedModel.trim() ? generateDisplayName(inheritedModel) : 'Select model'
+  return inheritedModel?.trim() ? generateDisplayName(inheritedModel) : 'Select model'
 }
 
 export function WaggleCollaborationStatus({ currentSessionId, onStop }: CollaborationStatusProps) {
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const composerModel = useComposerModel()
+  // Inherited agents run with the model the Waggle Run started with, not a later mid-turn pick.
+  const selectedModel = composerModel.runningModel ?? composerModel.model
   const status = useWaggleStore((s) => s.status)
   const config = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
@@ -35,11 +41,9 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
   const currentAgentIndex = useWaggleStore((s) => s.currentAgentIndex)
   const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
   const fileConflicts = useWaggleStore((s) => s.fileConflicts)
-  const completionReason = useWaggleStore((s) => s.completionReason)
-  const clearConfig = useWaggleStore((s) => s.clearConfig)
   const reset = useWaggleStore((s) => s.reset)
 
-  if (!config) return null
+  if (!config || (status !== 'pending' && status !== 'running')) return null
 
   // Scope: only show for the session that owns the waggle state
   const owningSessionId = activeCollaborationId ?? configSessionId
@@ -48,20 +52,16 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
   const maxTurns = config.stop.maxTurnsSafety
 
   function handleDismiss() {
-    if (status === 'running') {
-      onStop()
-    }
+    onStop()
     reset()
   }
 
   return (
-    <div className="mx-auto w-full max-w-[720px] px-5 pb-2 space-y-1.5">
+    <div className="mx-auto w-full max-w-180 px-5 pb-2 space-y-1.5">
       <div
         className={cn(
           'flex items-center gap-3 rounded-lg border px-3 py-2',
-          status === 'idle'
-            ? 'border-[#f5a623]/20 bg-[#f5a623]/5'
-            : 'border-border bg-bg-secondary',
+          status === 'pending' ? 'border-accent/20 bg-accent/5' : 'border-border bg-bg-secondary',
         )}
       >
         {/* Agent dots — always visible */}
@@ -75,8 +75,8 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
                 title={`${agent.label} · ${displayModel}`}
               >
                 <div className={cn('size-2 rounded-full', AGENT_BG[agent.color])} />
-                <span className="text-[11px] font-medium text-text-secondary">{agent.label}</span>
-                <span className="hidden text-[11px] text-text-tertiary sm:inline">
+                <span className="text-xs font-medium text-text-secondary">{agent.label}</span>
+                <span className="hidden text-xs text-text-tertiary sm:inline">
                   · {displayModel}
                 </span>
               </div>
@@ -87,39 +87,28 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
         <div className="h-3 w-px bg-border shrink-0" />
 
         {/* Status-specific content */}
-        {status === 'idle' && (
-          <span className="text-[12px] text-text-tertiary truncate">
-            Waggle ready · Sequential · {turnCountLabel(maxTurns)}: send a message to start
+        {status === 'pending' && (
+          <span className="text-xs text-text-tertiary truncate">
+            Waggle starting · Sequential · {turnCountLabel(maxTurns)}
           </span>
         )}
 
         {status === 'running' && (
           <div className="flex items-center gap-2 min-w-0">
             <Loader2 className="size-3 animate-spin text-accent shrink-0" />
-            <span className="text-[12px] text-text-secondary truncate">
+            <span className="text-xs text-text-secondary truncate">
               Turn {currentTurn + SINGLE_TURN_COUNT}/{maxTurns}: {currentAgentLabel}
               {currentAgent ? ` · ${displayModelForAgent(currentAgent, selectedModel)}` : ''}
             </span>
           </div>
         )}
 
-        {status === 'completed' && (
-          <span className="text-[12px] text-text-secondary truncate">
-            Waggle complete · {completionReason ?? 'Collaboration complete'}
-          </span>
-        )}
-
-        {status === 'stopped' && (
-          <span className="text-[12px] text-text-muted truncate">Stopped by user</span>
-        )}
-
-        {/* Dismiss — always available */}
         <Button
           variant="unstyled"
           type="button"
-          onClick={status === 'idle' ? clearConfig : handleDismiss}
-          className="ml-auto shrink-0 rounded-md p-1 text-text-muted hover:text-text-primary hover:bg-[#1e2229] transition-colors"
-          title={status === 'running' ? 'Stop & dismiss waggle' : 'Dismiss waggle'}
+          onClick={handleDismiss}
+          className="ml-auto shrink-0 rounded-md p-1 text-text-muted hover:text-text-primary hover:bg-border transition-colors"
+          title="Stop & dismiss Waggle"
         >
           <X className="size-3" />
         </Button>
@@ -128,13 +117,13 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
       {/* File conflict warnings — only during/after run */}
       {fileConflicts.length > 0 && (
         <div className="space-y-1">
-          {fileConflicts.slice(SLICE_ARG_1).map((conflict, i) => (
+          {fileConflicts.slice(SLICE_ARG_1).map((conflict) => (
             <div
-              key={`${conflict.path}-${String(i)}`}
+              key={`${String(conflict.turnNumber)}-${conflict.path}-${conflict.currentAgent}`}
               className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-2.5 py-1.5"
             >
               <AlertTriangle className="size-3 shrink-0 text-warning" />
-              <span className="text-[11px] text-warning/90">
+              <span className="text-xs text-warning/90">
                 {conflict.currentAgent} edited {conflict.path} (previously by{' '}
                 {conflict.previousAgent})
               </span>

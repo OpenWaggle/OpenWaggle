@@ -9,7 +9,7 @@ import type {
 export const ARCHITECT_MODEL = SupportedModelId('claude-sonnet-4-20250514')
 export const REVIEWER_MODEL = SupportedModelId('gpt-4o')
 
-export function itemAt<TItem>(items: readonly TItem[], index: number): TItem {
+export function itemAt<TItem>(items: readonly TItem[], index: number) {
   const item = items[index]
   if (!item) {
     throw new Error(`Expected item at index ${String(index)}`)

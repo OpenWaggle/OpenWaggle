@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolCallBlock } from '../ToolCallBlock'
 
@@ -8,6 +9,16 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: {
     copyToClipboard: (...args: unknown[]) => mockCopyToClipboard(...args),
   },
+}))
+
+vi.mock('@pierre/diffs/react', () => ({
+  PatchDiff: ({ patch }: { readonly patch: string }) => (
+    <div data-testid="diffs-container">
+      <pre data-testid="patch-diff">{patch}</pre>
+    </div>
+  ),
+  useWorkerPool: () => undefined,
+  WorkerPoolContextProvider: ({ children }: { readonly children: ReactNode }) => children,
 }))
 
 describe('ToolCallBlock', () => {
@@ -44,12 +55,39 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('Reading src/index.ts...')).toBeInTheDocument()
   })
 
-  it('shows spinner when tool is running', () => {
+  it('marks a running tool with its kind icon and a shimmering label', () => {
     const { container } = render(
       <ToolCallBlock name="bash" args='{"command":"ls"}' state="running" isStreaming />,
     )
-    const spinner = container.querySelector('.animate-spin')
-    expect(spinner).toBeTruthy()
+    const running = screen.getByRole('status', { name: 'Running' })
+    expect(running.querySelector('[data-tool-kind="shell"]')).toBeTruthy()
+    expect(screen.getByText('Running `ls`')).toHaveClass('activity-shimmer')
+    expect(container.querySelector('.animate-spin')).toBeNull()
+  })
+
+  it('shows the kind icon of each tool family', () => {
+    const { container } = render(
+      <>
+        <ToolCallBlock
+          name="hive"
+          args='{"action":"spawn","objective":"Review the diff"}'
+          state="input-complete"
+          result={{ content: 'ok', state: 'success' }}
+        />
+        <ToolCallBlock
+          name="mcp__datadog__analyze_datadog_logs"
+          args="{}"
+          state="input-complete"
+          result={{ content: 'ok', state: 'success' }}
+        />
+      </>,
+    )
+    expect(screen.getByText('Spawned Worker · Review the diff')).toBeInTheDocument()
+    expect(screen.getByText('Datadog › analyze_datadog_logs')).toBeInTheDocument()
+    const kinds = [...container.querySelectorAll('[data-tool-kind]')].map((icon) =>
+      icon.getAttribute('data-tool-kind'),
+    )
+    expect(kinds).toEqual(['workers', 'mcp'])
   })
 
   it('does not render running state for historical unresolved tool calls', () => {
@@ -57,11 +95,13 @@ describe('ToolCallBlock', () => {
       <ToolCallBlock name="write" args='{"path":"out.txt"}' state="input-complete" />,
     )
 
-    expect(screen.getByText('Requested write out.txt')).toBeInTheDocument()
-    expect(container.querySelector('.animate-spin')).toBeNull()
+    expect(screen.getByText('Requested write out.txt')).not.toHaveClass('activity-shimmer')
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('img', { name: 'Failed' })).toBeNull()
+    expect(container.querySelector('[data-tool-kind="write"]')).toHaveClass('text-text-muted')
   })
 
-  it('shows check icon when completed successfully', () => {
+  it('shows only the kind icon, with no status mark, when completed successfully', () => {
     const { container } = render(
       <ToolCallBlock
         name="read"
@@ -70,14 +110,29 @@ describe('ToolCallBlock', () => {
         result={{ content: 'file content', state: 'success' }}
       />,
     )
-    // Check icon is rendered as an SVG — look for the completed action text style
-    expect(screen.getByText('Read file.ts')).toBeInTheDocument()
-    // No spinner should be present
-    expect(container.querySelector('.animate-spin')).toBeNull()
+    expect(screen.getByText('Read file.ts')).toHaveClass('text-text-muted')
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('img', { name: 'Failed' })).toBeNull()
+    expect(container.querySelector('[data-tool-kind="read"]')).toHaveClass('text-text-muted')
   })
 
-  it('shows error text when result has error', () => {
+  it('keeps a streaming call that already reported an error marked as running', () => {
     render(
+      <ToolCallBlock
+        name="bash"
+        args='{"command":"make"}'
+        state="executing"
+        isStreaming
+        result={{ content: '', state: 'error', error: 'exit 2' }}
+      />,
+    )
+    expect(screen.getByRole('status', { name: 'Running' })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'Failed' })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Running `make` — expand details$/u })).toBeVisible()
+  })
+
+  it('marks a failed call with a trailing mark and keeps its text', () => {
+    const { container } = render(
       <ToolCallBlock
         name="read"
         args='{"path":"missing.ts"}'
@@ -85,7 +140,26 @@ describe('ToolCallBlock', () => {
         result={{ content: '', state: 'error', error: 'File not found' }}
       />,
     )
-    expect(screen.getByText('Failed read missing.ts')).toBeInTheDocument()
+    expect(screen.getByText('Read missing.ts')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Failed' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Read missing.ts, failed — expand details' }),
+    ).toBeInTheDocument()
+    expect(container.querySelector('[data-tool-kind="read"]')).toHaveClass('text-error/80')
+  })
+
+  it('treats a terminal empty Pi envelope as completed rather than pending', () => {
+    render(
+      <ToolCallBlock
+        name="bash"
+        args='{"command":"true"}'
+        state="complete"
+        result={{ content: { content: [], details: null }, state: 'complete' }}
+      />,
+    )
+
+    expect(screen.getByText('Ran `true`')).toBeInTheDocument()
+    expect(screen.queryByText('Requested bash `true`')).toBeNull()
   })
 
   it('renders completed state once a concrete result exists', () => {
@@ -156,7 +230,7 @@ describe('ToolCallBlock', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button'))
-    expect(screen.getByText('$')).toBeInTheDocument()
+    expect(screen.getByText('$ npm test')).toBeInTheDocument()
   })
 
   it('shows error content when expanded and errored', () => {
@@ -199,32 +273,7 @@ describe('ToolCallBlock', () => {
     expect(screen.queryByText(/fullOutputPath/)).toBeNull()
   })
 
-  it('renders Pi edit diff details inline for small diffs', () => {
-    render(
-      <ToolCallBlock
-        name="edit"
-        args='{"path":"src/app.ts"}'
-        state="complete"
-        result={{
-          content: {
-            content: [{ type: 'text', text: 'Successfully replaced 1 block(s).' }],
-            details: {
-              diff: '@@ -1 +1 @@\n-old line\n+new line',
-              firstChangedLine: 1,
-            },
-          },
-          state: 'complete',
-        }}
-      />,
-    )
-
-    expect(screen.getByText('Edited src/app.ts')).toBeInTheDocument()
-    expect(screen.getAllByText('+1')).toHaveLength(2)
-    expect(screen.getAllByText('-1')).toHaveLength(2)
-    expect(screen.getByText('+new line')).toBeInTheDocument()
-  })
-
-  it('syntax highlights read tool file content using the existing Shiki pipeline', async () => {
+  it('routes read tool file content through the syntax surface with a safe fallback', async () => {
     const { container } = render(
       <ToolCallBlock
         name="read"
@@ -237,13 +286,11 @@ describe('ToolCallBlock', () => {
     fireEvent.click(screen.getByRole('button', { name: /Read src\/example\.ts/ }))
 
     expect(container.querySelector('code.language-typescript')).toBeTruthy()
-    await waitFor(() => {
-      expect(container.querySelector('code span[style]')).toBeTruthy()
-    })
+    expect(container.querySelector('[data-syntax-status="plain-text"]')).toBeTruthy()
   })
 
-  it('uses plain rendering for very large file previews to keep expansion responsive', () => {
-    const largeContent = `${'line\n'.repeat(1_201)}`
+  it('uses viewport rendering for very large file previews to keep expansion responsive', () => {
+    const largeContent = 'line\n'.repeat(1_201)
     const { container } = render(
       <ToolCallBlock
         name="read"
@@ -257,10 +304,11 @@ describe('ToolCallBlock', () => {
 
     expect(
       screen.getByText(
-        'Large file preview shown without syntax highlighting to keep the UI responsive.',
+        'Large file preview uses viewport-only highlighting to keep the UI responsive.',
       ),
     ).toBeInTheDocument()
-    expect(container.querySelector('code.language-typescript')).toBeNull()
+    expect(screen.getByLabelText('Large file source preview')).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-line-number]').length).toBeLessThan(100)
   })
 
   it('copies path values from expanded tool details', () => {

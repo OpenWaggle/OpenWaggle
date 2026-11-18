@@ -1,5 +1,13 @@
 node_modules/
 out/
+# pi agent harness working state (goals, session scratch) - never part of the repo. The
+# project Pi extensions in .pi/extensions are tracked.
+.pi/*
+!.pi/extensions/
+
+# tsc typecheck byproducts (declarations + build info), namespaced per target. Kept
+# out of out/ so they are never packaged by electron-builder's `out/**/*` glob.
+.typecheck/
 dist/
 dist-cjs/
 .pack/
@@ -24,9 +32,21 @@ tmp/
 .tmp/
 
 build/openwaggle-docs/
+build/session-embedding-model/
+
+# Tesseract.js otherwise caches downloaded OCR language data in the current directory.
+/eng.traineddata
 
 .playwright-mcp/
 
 .fallow
 # TypeScript incremental build artifacts
 *.tsbuildinfo
+
+# Local herdr orchestration config (machine-specific)
+.agents/skills/herdr-orchestration/.herdr-config.json
+
+# Config bundles Vite and electron-vite write next to their config while loading it; the check
+# runner's parallel steps (format, repository standards) must not see them.
+electron.vite.config.*.mjs
+*.timestamp-*.mjs

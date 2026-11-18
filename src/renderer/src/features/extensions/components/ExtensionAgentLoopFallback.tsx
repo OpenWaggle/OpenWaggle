@@ -1,8 +1,9 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { ChatToolCallPart } from '@shared/types/chat-ui'
 import { AlertTriangle, CheckCircle2, CircleDashed, MessagesSquare, Wrench } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { Button } from '@/shared/ui/Button'
+import { StructuredPayload } from '@/shared/ui/StructuredPayload'
+import { SyntaxBlock } from '@/shared/ui/SyntaxBlock'
 import type {
   ExtensionAgentLoopSurfaceInput,
   ExtensionCustomMessageView,
@@ -14,12 +15,6 @@ import type {
 } from '../lib/extension-agent-loop-surface-model'
 import { CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID } from '../lib/extension-agent-loop-surface-model'
 
-const JSON_INDENT = 2
-
-function prettyJson(value: ExtensionCustomMessageView['value']) {
-  return JSON.stringify(value, null, JSON_INDENT)
-}
-
 function renderToolFallback({
   toolCall,
   toolResult,
@@ -28,23 +23,25 @@ function renderToolFallback({
   readonly toolResult?: ExtensionToolResultView
 }) {
   return (
-    <div className="grid gap-3">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
+    <div className="grid min-w-0 grid-cols-1 gap-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
         <Wrench className="size-4 text-accent" />
         <span>{toolCall.name}</span>
-        <span className="rounded bg-bg-tertiary px-2 py-0.5 text-[10px] text-text-tertiary">
+        <span className="rounded bg-bg-tertiary px-2 py-0.5 text-xs text-text-tertiary">
           {toolCall.state}
         </span>
       </div>
-      <pre className="max-h-40 overflow-auto rounded-lg border border-border/80 bg-bg p-3 text-[11px] leading-5 text-text-tertiary">
-        {toolCall.arguments || '{}'}
-      </pre>
+      <SyntaxBlock
+        source={toolCall.arguments || '{}'}
+        language="json"
+        className="max-h-40 rounded-lg border border-border/80 bg-bg"
+      />
       {toolResult ? (
         <div className="rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
-          <div className="mb-1 text-[10px] tracking-wide text-text-muted uppercase">
+          <div className="mb-1 text-xs tracking-wide text-text-muted uppercase">
             Result · {toolResult.state}
           </div>
-          <p className="whitespace-pre-wrap text-[12px] leading-5 text-text-secondary">
+          <p className="whitespace-pre-wrap text-xs leading-5 text-text-secondary">
             {toolResult.error ?? toolResult.content}
           </p>
         </div>
@@ -55,14 +52,15 @@ function renderToolFallback({
 
 function renderCustomMessageFallback(message: ExtensionCustomMessageView) {
   return (
-    <div className="grid gap-2">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
+    <div className="grid min-w-0 grid-cols-1 gap-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
         <MessagesSquare className="size-4 text-accent" />
         <span>{message.name}</span>
       </div>
-      <pre className="max-h-48 overflow-auto rounded-lg border border-border/80 bg-bg p-3 text-[11px] leading-5 text-text-tertiary">
-        {prettyJson(message.value)}
-      </pre>
+      <StructuredPayload
+        value={message.value}
+        className="max-h-48 rounded-lg border border-border/80 bg-bg"
+      />
     </div>
   )
 }
@@ -75,6 +73,20 @@ function actionVariant(tone: ExtensionInteractionActionView['tone']) {
   return 'secondary'
 }
 
+/**
+ * User-facing wording for an interaction's lifecycle state.
+ *
+ * `pendingLabel` differs by surface. The unavailable-custom card is genuinely waiting for a renderer
+ * that does not exist, but the standard fallback is answerable right now, and captioning it "Waiting
+ * for a renderer" directly under its own enabled buttons read as "these buttons are broken" and
+ * invited the user to wait instead of act.
+ */
+function interactionStateLabel(state: ExtensionInteractionView['state'], pendingLabel: string) {
+  if (state === 'pending') return pendingLabel
+  if (state === 'submitted') return 'Answered'
+  return 'Dismissed'
+}
+
 function renderInteractionFallback({
   interaction,
   onAction,
@@ -83,28 +95,27 @@ function renderInteractionFallback({
   readonly onAction?: (interactionId: string, actionId: string) => void
 }) {
   if (interaction.kind === 'custom') {
+    // Only a pending interaction is urgent. Announcing a historical, already-resolved card
+    // interrupts a screen reader every time the transcript re-renders or a session is reopened.
+    const urgency = interaction.state === 'pending' ? { role: 'alert' } : {}
+
     return (
-      <div role="alert" className="rounded-lg border border-error/25 bg-error/5 p-3">
+      <div className="rounded-lg border border-error/25 bg-error/5 p-3" {...urgency}>
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-error" />
           <div className="min-w-0">
-            <h4 className="text-[13px] font-semibold text-text-primary">
+            <h4 className="text-sm font-semibold text-text-primary">
               Custom desktop interaction renderer unavailable
             </h4>
-            <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
-              OpenWaggle does not execute Pi TUI custom components inside Electron. This interaction
-              needs a matching extension interaction renderer.
+            <p className="mt-1 text-xs leading-5 text-text-tertiary">
+              OpenWaggle does not execute terminal UI custom components inside Electron. This
+              interaction needs a matching extension interaction renderer.
             </p>
-            <dl className="mt-3 grid gap-1 text-[11px] text-text-muted">
-              <div className="flex min-w-0 gap-2">
-                <dt className="shrink-0 text-text-tertiary">Interaction</dt>
-                <dd className="truncate">{interaction.id}</dd>
-              </div>
-              <div className="flex min-w-0 gap-2">
-                <dt className="shrink-0 text-text-tertiary">State</dt>
-                <dd>{interaction.state}</dd>
-              </div>
-            </dl>
+            {/* No raw interaction UUID and no internal state token: neither means anything to a
+                reader, and the contract keeps internal identifiers out of visible labels. */}
+            <p className="mt-2 text-xs text-text-muted">
+              {interactionStateLabel(interaction.state, 'Waiting for a renderer')}
+            </p>
             {onAction ? (
               <div className="mt-3">
                 <Button
@@ -124,11 +135,11 @@ function renderInteractionFallback({
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 grid-cols-1 gap-3">
       <div>
-        <h4 className="text-[13px] font-semibold text-text-primary">{interaction.title}</h4>
+        <h4 className="text-sm font-semibold text-text-primary">{interaction.title}</h4>
         {interaction.description ? (
-          <p className="mt-1 text-[12px] leading-5 text-text-tertiary">{interaction.description}</p>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">{interaction.description}</p>
         ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
@@ -145,7 +156,9 @@ function renderInteractionFallback({
           </Button>
         ))}
       </div>
-      <div className="text-[11px] text-text-muted">State: {interaction.state}</div>
+      <div className="text-xs text-text-muted">
+        {interactionStateLabel(interaction.state, 'Waiting for you')}
+      </div>
     </div>
   )
 }
@@ -153,9 +166,11 @@ function renderInteractionFallback({
 function renderStatusFallback(status: ExtensionStatusView) {
   const icon =
     status.tone === 'success' ? (
-      <CheckCircle2 className="size-4 text-emerald-300" />
-    ) : status.tone === 'warning' || status.tone === 'error' ? (
-      <AlertTriangle className="size-4 text-amber-300" />
+      <CheckCircle2 className="size-4 text-success" />
+    ) : status.tone === 'warning' ? (
+      <AlertTriangle className="size-4 text-warning" />
+    ) : status.tone === 'error' ? (
+      <AlertTriangle className="size-4 text-error" />
     ) : (
       <CircleDashed className="size-4 text-accent" />
     )
@@ -164,9 +179,9 @@ function renderStatusFallback(status: ExtensionStatusView) {
     <div className="flex items-start gap-3 rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
       {icon}
       <div className="min-w-0">
-        <div className="text-[13px] font-medium text-text-primary">{status.label}</div>
+        <div className="text-sm font-medium text-text-primary">{status.label}</div>
         {status.detail ? (
-          <p className="mt-1 text-[12px] leading-5 text-text-tertiary">{status.detail}</p>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">{status.detail}</p>
         ) : null}
       </div>
     </div>
@@ -176,22 +191,28 @@ function renderStatusFallback(status: ExtensionStatusView) {
 function renderTranscriptFallback(transcript: ExtensionTranscriptView) {
   return (
     <div className="rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
-      <div className="text-[13px] font-medium text-text-primary">Transcript extension card</div>
-      <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
+      <div className="text-sm font-medium text-text-primary">Transcript extension card</div>
+      <p className="mt-1 text-xs leading-5 text-text-tertiary">
         {transcript.messageCount} messages · {transcript.state}
       </p>
     </div>
   )
 }
 
-function fallbackFor(input: ExtensionAgentLoopSurfaceInput): ReactNode {
+function fallbackFor(input: ExtensionAgentLoopSurfaceInput) {
   return matchBy(input, 'surface')
     .with('tool', (value) =>
-      renderToolFallback({ toolCall: value.toolCall, toolResult: value.toolResult }),
+      renderToolFallback({
+        toolCall: value.toolCall,
+        ...(value.toolResult === undefined ? {} : { toolResult: value.toolResult }),
+      }),
     )
     .with('custom-message', (value) => renderCustomMessageFallback(value.message))
     .with('interaction', (value) =>
-      renderInteractionFallback({ interaction: value.interaction, onAction: value.onAction }),
+      renderInteractionFallback({
+        interaction: value.interaction,
+        ...(value.onAction === undefined ? {} : { onAction: value.onAction }),
+      }),
     )
     .with('transcript', (value) => renderTranscriptFallback(value.transcript))
     .with('status', (value) => renderStatusFallback(value.status))

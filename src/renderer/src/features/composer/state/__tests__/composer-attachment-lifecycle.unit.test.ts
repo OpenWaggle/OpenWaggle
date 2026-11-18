@@ -1,0 +1,118 @@
+import type { PreparedAttachment } from '@shared/types/agent'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  registerAttachmentPreviewUrls,
+  takeAttachmentPreviewUrl,
+} from '@/shared/lib/attachment-preview-urls'
+import {
+  isHostReferencedAttachment,
+  markAttachmentsSubmitted,
+  retainHostReferencedAttachments,
+} from '../composer-attachment-lifecycle'
+import { useComposerStore } from '../composer-store'
+
+const discardPreparedAttachment = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+
+vi.mock('@/shared/lib/ipc', () => ({ api: { discardPreparedAttachment } }))
+
+const viewerImage: PreparedAttachment = {
+  id: 'viewer-image',
+  kind: 'image',
+  origin: 'session-resource',
+  name: 'viewer.png',
+  path: '/temporary/resource-viewer.png',
+  mimeType: 'image/png',
+  sizeBytes: 3,
+  extractedText: '',
+}
+
+describe('composer Session resource attachment lifecycle', () => {
+  beforeEach(() => {
+    useComposerStore.getState().reset()
+    discardPreparedAttachment.mockClear()
+  })
+
+  it('discards a viewer image when its chip is removed', () => {
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().removeAttachment(viewerImage.id)
+
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(viewerImage)
+  })
+
+  it('keeps a viewer image through a draft switch and discards it when its saved draft is cleared', () => {
+    useComposerStore.getState().setActiveDraftContextKey('session:first')
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().switchScopedDraftContext('session:second')
+
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
+    useComposerStore.getState().clearScopedDraft('session:first')
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(viewerImage)
+  })
+
+  it('does not discard a sent image when submission clears the composer', () => {
+    useComposerStore.getState().addAttachments([viewerImage])
+    markAttachmentsSubmitted([viewerImage])
+    useComposerStore.getState().reset()
+
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
+  })
+
+  it('keeps a submitted file preview until first-session creation can claim it', () => {
+    const fileImage: PreparedAttachment = {
+      ...viewerImage,
+      id: 'user-image',
+      origin: 'user-file',
+    }
+    const file = new File(['image'], 'viewer.png', { type: 'image/png' })
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:user-image')
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL')
+    registerAttachmentPreviewUrls([{ attachment: fileImage, fileIndex: 0 }], [file])
+    useComposerStore.getState().addAttachments([fileImage])
+
+    markAttachmentsSubmitted([fileImage])
+    useComposerStore.getState().reset()
+
+    expect(takeAttachmentPreviewUrl(fileImage.id)).toBe('blob:user-image')
+    expect(revokeObjectUrl).not.toHaveBeenCalledWith('blob:user-image')
+    createObjectUrl.mockRestore()
+    revokeObjectUrl.mockRestore()
+  })
+
+  it('discards abandoned viewer images on replacement but never ordinary user files', () => {
+    const file: PreparedAttachment = { ...viewerImage, id: 'user-file', origin: 'user-file' }
+    useComposerStore.getState().addAttachments([viewerImage, file])
+    useComposerStore.getState().replaceAttachments([])
+
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(viewerImage)
+  })
+
+  it('does not scan or discard attachments when only the text changes', () => {
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().setInput('Describe this diagram')
+
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
+  })
+
+  it('never discards a Host-referenced chip, and lets go of it once the chip is removed', () => {
+    retainHostReferencedAttachments([viewerImage])
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().removeAttachment(viewerImage.id)
+
+    expect(discardPreparedAttachment).not.toHaveBeenCalled()
+    expect(isHostReferencedAttachment(viewerImage)).toBe(false)
+    // Once released it is an ordinary chip again.
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().removeAttachment(viewerImage.id)
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(viewerImage)
+  })
+
+  it('lets go of a sent attachment when the draft that sent it is cleared', () => {
+    useComposerStore.getState().addAttachments([viewerImage])
+    markAttachmentsSubmitted([viewerImage])
+    useComposerStore.getState().reset()
+    useComposerStore.getState().addAttachments([viewerImage])
+    useComposerStore.getState().removeAttachment(viewerImage.id)
+
+    expect(discardPreparedAttachment).toHaveBeenCalledExactlyOnceWith(viewerImage)
+  })
+})

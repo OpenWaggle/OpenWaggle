@@ -3,14 +3,18 @@ import os from 'node:os'
 import path from 'node:path'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionBrokerTransport } from '@shared/extension-sdk-core'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { discoverExtensionPackages } from '../../adapters/extensions/discovery'
+import { removeTemporaryEntries } from '../../test-support/temporary-test-directory'
 import {
   activateTrustedMainExtension,
   importTrustedMainExtensionModule,
 } from '../trusted-main-runtime'
 import type { DiscoveredExtensionPackage } from '../types'
 import { listenLocalHttpsServer } from './trusted-main-test-server'
+
+// The runtime stages trusted entries in one cache directory per process, in the temp directory.
+afterAll(() => removeTemporaryEntries('openwaggle-trusted-main-'))
 
 let tmpRoot = ''
 

@@ -1,59 +1,92 @@
-import { formatElapsed } from '@/features/chat/hooks/useStreamingPhase'
+import { TIME_UNIT } from '@shared/constants/time'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
-import { Spinner } from '@/shared/ui/Spinner'
+import { cn } from '@/shared/lib/cn'
+import { formatElapsed } from '@/shared/lib/format'
 import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
-import { RunSummary } from './RunSummary'
 
-function CorePhaseIndicator({
-  label,
-  elapsedMs,
+type StatusChatRow = Extract<ChatRow, { readonly type: 'phase-indicator' | 'retry-status' }>
+
+type StatusDetail = NonNullable<
+  Extract<ChatRow, { readonly type: 'phase-indicator' }>['details']
+>[number]
+
+const NO_DETAILS: readonly StatusDetail[] = []
+
+function CoreStatusIndicator({
+  text,
+  details,
+  separated,
 }: {
-  readonly label: string
-  readonly elapsedMs: number
+  readonly text: string
+  readonly details: readonly StatusDetail[]
+  readonly separated: boolean
 }) {
   return (
-    <div className="flex items-center gap-2 py-3">
-      <Spinner size="sm" className="text-accent" />
-      <span className="text-sm text-text-tertiary">{label}...</span>
-      {elapsedMs > 0 ? (
-        <span className="text-sm text-text-muted tabular-nums">{formatElapsed(elapsedMs)}</span>
+    <div className={cn('pb-2 pt-1', separated && 'border-b border-border')}>
+      <div className="flex h-6 min-w-0 items-baseline px-1 text-sm leading-relaxed text-text-tertiary tabular-nums">
+        <span className="truncate">{text}</span>
+      </div>
+      {details.length > 0 ? (
+        <ul aria-label="Extension status" className="grid gap-0.5 px-1">
+          {details.map((detail) => (
+            <li
+              key={detail.key}
+              className="truncate text-xs text-text-tertiary"
+              title={detail.text}
+            >
+              {detail.text}
+            </li>
+          ))}
+        </ul>
       ) : null}
     </div>
   )
+}
+
+function retryLabel(row: Extract<StatusChatRow, { readonly type: 'retry-status' }>) {
+  const seconds = Math.ceil(row.delayMs / TIME_UNIT.MILLISECONDS_PER_SECOND)
+  return `Retrying (${String(row.attempt)}/${String(row.maxAttempts)}) in ${String(seconds)}s…`
 }
 
 export function StatusRow({
   row,
   extensions,
 }: {
-  readonly row: Extract<ChatRow, { readonly type: 'phase-indicator' | 'run-summary' }>
+  readonly row: StatusChatRow
   readonly extensions: ChatRowRenderContext['extensions']
 }) {
-  if (row.type === 'run-summary') {
-    return (
-      <ExtensionAgentLoopSurface
-        fallback={<RunSummary phases={row.phases} totalMs={row.totalMs} />}
-        input={{
-          surface: 'status',
-          status: { label: 'Run complete', detail: formatElapsed(row.totalMs), tone: 'success' },
-        }}
-        projectPaths={extensions.projectPaths}
-        registry={extensions.registry}
-      />
-    )
-  }
+  const isRetry = row.type === 'retry-status'
+  const label = isRetry
+    ? retryLabel(row)
+    : row.elapsedMs > 0
+      ? `${row.label} for ${formatElapsed(row.elapsedMs)}`
+      : `${row.label}...`
 
   return (
     <ExtensionAgentLoopSurface
-      fallback={<CorePhaseIndicator elapsedMs={row.elapsedMs} label={row.label} />}
+      fallback={
+        <CoreStatusIndicator
+          text={label}
+          details={row.type === 'phase-indicator' ? (row.details ?? NO_DETAILS) : NO_DETAILS}
+          separated={
+            !isRetry &&
+            row.type === 'phase-indicator' &&
+            row.label !== 'Thinking' &&
+            row.label !== 'Finishing' &&
+            row.label !== 'Starting session'
+          }
+        />
+      }
       input={{
         surface: 'status',
-        status: {
-          label: `${row.label}...`,
-          detail: row.elapsedMs > 0 ? formatElapsed(row.elapsedMs) : undefined,
-          tone: 'running',
-        },
+        status: isRetry
+          ? { label, tone: 'warning' }
+          : {
+              label: `${row.label}...`,
+              ...(row.elapsedMs > 0 ? { detail: formatElapsed(row.elapsedMs) } : {}),
+              tone: 'running',
+            },
       }}
       projectPaths={extensions.projectPaths}
       registry={extensions.registry}

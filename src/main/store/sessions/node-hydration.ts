@@ -1,14 +1,16 @@
+import { Schema } from '@shared/schema'
 import {
   PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
   PI_WAGGLE_TURN_CUSTOM_TYPE,
 } from '@openwaggle/pi-waggle/protocol'
+import { OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE } from '@shared/constants/run-identity'
 import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import { isRecord } from '@shared/utils/validation'
 import {
   hydrateSessionMessage,
   hydrateStructuralSessionMessage,
-  type SessionNodeRow,
-} from '../session-details'
+} from '../session-details/message-hydration'
+import type { SessionNodeRow } from '../session-details/types'
 import { CUSTOM_MESSAGE_ENTRY_TYPE, MESSAGE_ENTRY_TYPE } from './constants'
 import { parseJson } from './json'
 
@@ -16,9 +18,11 @@ export function buildSessionNodes(nodeRows: readonly SessionNodeRow[]) {
   const visibleParentById = buildVisibleParentByRowId(nodeRows)
   const visibleDepthById = new Map<string, number>()
 
-  return nodeRows
-    .filter((row) => !isHiddenProjectionRow(row))
-    .map((row) => hydrateSessionNode(row, visibleParentById, visibleDepthById))
+  return nodeRows.flatMap((row) =>
+    isHiddenProjectionRow(row)
+      ? []
+      : [hydrateSessionNode(row, visibleParentById, visibleDepthById)],
+  )
 }
 
 export function visibleNodeIdForHead(
@@ -38,19 +42,35 @@ function isHiddenProjectionRow(row: SessionNodeRow) {
   return isHiddenCustomMessageRow(row) || isHiddenCustomStateRow(row)
 }
 
+const customMessageMetadataSchema = Schema.Struct({
+  display: Schema.optionalWith(Schema.Unknown, { exact: true }),
+  customType: Schema.optionalWith(Schema.Unknown, { exact: true }),
+})
+
 function isHiddenCustomMessageRow(row: SessionNodeRow) {
   if (row.pi_entry_type !== CUSTOM_MESSAGE_ENTRY_TYPE) return false
   const metadata = parseJson(row.metadata_json, `node:${row.id}:metadata`)
   return (
     isRecord(metadata) &&
+    Schema.is(customMessageMetadataSchema)(metadata) &&
     (metadata.display === false || metadata.customType === PI_WAGGLE_TURN_CUSTOM_TYPE)
   )
 }
 
+/** State entries that are never part of the conversation shown in the Session tree. */
+const HIDDEN_STATE_CUSTOM_TYPES = new Set<string>([
+  PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
+  OPENWAGGLE_RUN_IDENTITY_CUSTOM_TYPE,
+])
+
 function isHiddenCustomStateRow(row: SessionNodeRow) {
   if (row.pi_entry_type !== 'custom') return false
   const content = parseJson(row.content_json, `node:${row.id}:content`)
-  return isRecord(content) && content.customType === PI_WAGGLE_MODE_STATE_CUSTOM_TYPE
+  return (
+    isRecord(content) &&
+    Schema.is(customMessageMetadataSchema)(content) &&
+    HIDDEN_STATE_CUSTOM_TYPES.has(String(content.customType))
+  )
 }
 
 function buildVisibleParentByRowId(rows: readonly SessionNodeRow[]) {
@@ -99,24 +119,26 @@ function hydrateSessionNode(
   visibleDepthById: Map<string, number>,
 ) {
   const parentId = visibleParentById.get(row.id) ?? null
+  const message = hydrateNodeMessage(row)
   return {
     id: SessionNodeId(row.id),
     sessionId: SessionId(row.session_id),
     parentId: parentId ? SessionNodeId(parentId) : null,
     piEntryType: row.pi_entry_type,
     kind: row.kind,
-    role: row.role ?? undefined,
+    ...(row.role === null ? {} : { role: row.role }),
     timestampMs: row.timestamp_ms,
     createdOrder: row.created_order,
     pathDepth: getVisiblePathDepth(row.id, visibleParentById, visibleDepthById),
     branchId: row.branch_hint_id ? SessionBranchId(row.branch_hint_id) : null,
-    message: hydrateNodeMessage(row),
+    ...(message === undefined ? {} : { message }),
     contentJson: row.content_json,
     metadataJson: row.metadata_json,
   }
 }
 
 function hydrateNodeMessage(row: SessionNodeRow) {
+  if (row.kind === 'tool_result') return hydrateSessionMessage(row)
   if (
     row.role !== null &&
     (row.pi_entry_type === MESSAGE_ENTRY_TYPE ||

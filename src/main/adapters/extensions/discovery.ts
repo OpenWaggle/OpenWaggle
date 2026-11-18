@@ -32,7 +32,7 @@ function compareDiscoveredPackages(
   return scopeComparison !== 0 ? scopeComparison : left.id.localeCompare(right.id)
 }
 
-function getDiscoveryRoots(options: ExtensionDiscoveryOptions): readonly ExtensionDiscoveryRoot[] {
+function getDiscoveryRoots(options: ExtensionDiscoveryOptions) {
   const roots: ExtensionDiscoveryRoot[] = []
   if (options.globalRootPath) {
     roots.push({
@@ -71,16 +71,13 @@ function getManifestPath(packagePath: string) {
   return path.join(packagePath, OPENWAGGLE_EXTENSION.MANIFEST_FILE)
 }
 
-function getSdkCompatibility(
-  requiredRange: string,
-  hostSdkVersion: string,
-): ExtensionSdkCompatibility {
+function getSdkCompatibility(requiredRange: string, hostSdkVersion: string) {
   return checkExtensionSdkCompatibility(requiredRange, hostSdkVersion)
 }
 
-function sdkDiagnostics(compatibility: ExtensionSdkCompatibility): readonly ExtensionDiagnostic[] {
+function sdkDiagnostics(compatibility: ExtensionSdkCompatibility) {
   if (compatibility.compatible) {
-    return []
+    return [] satisfies readonly ExtensionDiagnostic[]
   }
   return [
     {
@@ -90,7 +87,7 @@ function sdkDiagnostics(compatibility: ExtensionSdkCompatibility): readonly Exte
         : 'sdk-incompatible',
       message: compatibility.reason ?? 'Extension SDK range is not compatible with this host.',
     },
-  ]
+  ] satisfies readonly ExtensionDiagnostic[]
 }
 
 function runtimeRequirementDiagnosticPaths(diagnostics: readonly ExtensionDiagnostic[]) {
@@ -126,14 +123,14 @@ async function discoverPackage(
   root: ExtensionDiscoveryRoot,
   packageDirectoryName: string,
   hostSdkVersion: string,
-): Promise<DiscoveredExtensionPackage> {
+) {
   const packagePath = path.join(root.rootPath, packageDirectoryName)
   const manifestPath = getManifestPath(packagePath)
   const manifestResult = await loadExtensionManifest(manifestPath)
-  const baseDiagnostics = [...manifestResult.diagnostics]
+  const baseDiagnostics: ExtensionDiagnostic[] = [...manifestResult.diagnostics]
 
   if (!manifestResult.manifest || !manifestResult.rawManifest) {
-    return {
+    const result: DiscoveredExtensionPackage = {
       id: packageDirectoryName,
       scope: root.scope,
       packagePath,
@@ -144,6 +141,7 @@ async function discoverPackage(
       sdkCompatibility: null,
       diagnostics: baseDiagnostics,
     }
+    return result
   }
 
   const { manifest, rawManifest } = manifestResult
@@ -186,7 +184,7 @@ async function discoverPackage(
     runtimeRequirementDiagnostics,
   })
 
-  return {
+  const result: DiscoveredExtensionPackage = {
     id: manifest.id,
     scope: root.scope,
     packagePath,
@@ -205,21 +203,19 @@ async function discoverPackage(
       ...sdkDiagnostics(sdkCompatibility),
     ],
   }
+  return result
 }
 
-async function discoverRoot(
-  root: ExtensionDiscoveryRoot,
-  hostSdkVersion: string,
-): Promise<readonly DiscoveredExtensionPackage[]> {
+async function discoverRoot(root: ExtensionDiscoveryRoot, hostSdkVersion: string) {
   try {
     const packageDirectoryNames = await listPackageDirectories(root.rootPath)
-    return Promise.all(
+    return await Promise.all(
       packageDirectoryNames.map((packageDirectoryName) =>
         discoverPackage(root, packageDirectoryName, hostSdkVersion),
       ),
     )
   } catch (error) {
-    return [
+    const result: readonly DiscoveredExtensionPackage[] = [
       {
         id: path.basename(root.rootPath),
         scope: root.scope,
@@ -239,12 +235,11 @@ async function discoverRoot(
         ],
       },
     ]
+    return result
   }
 }
 
-export async function discoverExtensionPackages(
-  options: ExtensionDiscoveryOptions,
-): Promise<readonly DiscoveredExtensionPackage[]> {
+export async function discoverExtensionPackages(options: ExtensionDiscoveryOptions) {
   const hostSdkVersion = options.hostSdkVersion || OPENWAGGLE_EXTENSION.SDK_VERSION
   const nestedResults = await Promise.all(
     getDiscoveryRoots(options).map((root) => discoverRoot(root, hostSdkVersion)),

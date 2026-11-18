@@ -1,0 +1,256 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { validateConventionalCommits } from '../check-conventional-commits'
+import {
+  createRepository,
+  git,
+  GIT_IDENTITY,
+  merge,
+  POLICY_SCRIPT_PATH,
+  writeAndCommit,
+} from './commit-policy.test-harness'
+
+describe('Conventional Commit merge attribution', () => {
+  it('exempts a feature branch that merges an already-released base branch', async () => {
+    const { baseline, cwd } = await createRepository()
+    try {
+      // The base branch releases a package change of its own.
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.2.0"}\n',
+        'fix(extension-sdk): update package metadata',
+      )
+      const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
+
+      // A feature branch forked earlier syncs with the base branch.
+      await git(cwd, ['checkout', '-b', 'feature', baseline])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'feat(app): add a feature')
+      const updateMerge = await merge(cwd, 'main', "Merge branch 'main' into feature")
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: baseRef,
+        to: updateMerge,
+      })
+
+      /*
+       * The merge does carry `packages/` paths relative to its first parent, but every one
+       * of them is already on the base branch with its own release commit, so this branch
+       * owes no version bump for them.
+       */
+      expect(result.violations).toEqual([])
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('keeps exempting the sync merge after the base branch has advanced', async () => {
+    /*
+     * The exemption used to be asked against the *range start* of the validation, which
+     * `resolveEffectiveFrom` collapses to the bootstrap baseline whenever the requested base is no
+     * longer an ancestor of the PR head. In CI the requested base is the base branch's current tip,
+     * so one new commit on the base after the developer's sync merge re-blocked Commit Policy on
+     * every subsequent run of the same PR - with no fix available short of re-merging before each
+     * run. Reproduced against the real validator before this was changed.
+     */
+    const { baseline, cwd } = await createRepository()
+    try {
+      const releasedBaseCommit = await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.2.0"}\n',
+        'fix(extension-sdk): update package metadata',
+      )
+
+      await git(cwd, ['checkout', '-b', 'feature', baseline])
+      await writeAndCommit(cwd, 'src/feature.ts', 'export {}\n', 'feat(app): add a feature')
+      const updateMerge = await merge(cwd, 'main', "Merge branch 'main' into feature")
+
+      // The base branch moves on AFTER the sync merge, exactly as it does between CI runs.
+      await git(cwd, ['checkout', 'main'])
+      await writeAndCommit(cwd, 'docs/notes.md', 'notes\n', 'docs: unrelated base commit')
+      const advancedBaseRef = await git(cwd, ['rev-parse', 'HEAD'])
+      await git(cwd, ['checkout', 'feature'])
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: advancedBaseRef,
+        to: updateMerge,
+      })
+
+      expect(result.violations).toEqual([])
+      const candidateBase = await git(cwd, ['merge-base', advancedBaseRef, updateMerge])
+      const dispatched = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: candidateBase,
+        to: updateMerge,
+      })
+      expect(dispatched.effectiveFrom).toBe(candidateBase)
+      expect(dispatched.commits.map((commit) => commit.hash)).not.toContain(releasedBaseCommit)
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('still rejects a merge that brings package changes not yet on the base', async () => {
+    const { baseline, cwd } = await createRepository()
+    try {
+      const baseRef = await git(cwd, ['rev-parse', 'HEAD'])
+      await git(cwd, ['checkout', '-b', 'package-change'])
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.1.0"}\n',
+        'fix(extension-sdk): update package metadata',
+      )
+      await git(cwd, ['checkout', 'main'])
+      const packageMerge = await merge(
+        cwd,
+        'package-change',
+        'Merge pull request #123 from OpenWaggle/package-change',
+      )
+
+      const result = await validateConventionalCommits({
+        baseline,
+        cwd,
+        from: baseRef,
+        to: packageMerge,
+      })
+
+      // The incoming parent is NOT contained in the base, so the exemption must not apply.
+      expect(result.violations).toContain(
+        `${packageMerge}: "Merge pull request #123 from OpenWaggle/package-change" affects a publishable package and must carry explicit Conventional Commit release intent.`,
+      )
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('attributes update-branch merges against their first parent', async () => {
+    const { baseline, cwd } = await createRepository()
+    try {
+      await git(cwd, ['checkout', '-b', 'release-please'])
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.1.0"}\n',
+        'chore(release): release packages',
+      )
+      await git(cwd, ['checkout', 'main'])
+      await writeAndCommit(
+        cwd,
+        'scripts/release-helper.ts',
+        'export {}\n',
+        'fix(release): harden release helper',
+      )
+      await git(cwd, ['checkout', 'release-please'])
+      const updateMerge = await merge(cwd, 'main', "Merge branch 'main' into release-please")
+
+      const result = await validateConventionalCommits({ baseline, cwd, to: updateMerge })
+
+      expect(result.violations).toEqual([])
+      expect(result.commits.find((item) => item.hash === updateMerge)?.changedPaths).toEqual([
+        'scripts/release-helper.ts',
+      ])
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('still rejects package changes merged into the first-parent branch', async () => {
+    const { baseline, cwd } = await createRepository()
+    try {
+      await git(cwd, ['checkout', '-b', 'package-change'])
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/package.json',
+        '{"version":"0.1.0"}\n',
+        'fix(extension-sdk): update package metadata',
+      )
+      await git(cwd, ['checkout', 'main'])
+      const packageMerge = await merge(
+        cwd,
+        'package-change',
+        'Merge pull request #123 from OpenWaggle/package-change',
+      )
+
+      const result = await validateConventionalCommits({ baseline, cwd, to: packageMerge })
+
+      expect(result.violations).toContain(
+        `${packageMerge}: "Merge pull request #123 from OpenWaggle/package-change" affects a publishable package and must carry explicit Conventional Commit release intent.`,
+      )
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('retains a package source path when a merge moves it outside packages', async () => {
+    const { baseline, cwd } = await createRepository()
+    try {
+      await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/api.ts',
+        'export {}\n',
+        'feat(extension-sdk): add public api',
+      )
+      await git(cwd, ['checkout', '-b', 'package-move'])
+      await fs.mkdir(path.join(cwd, 'src'), { recursive: true })
+      await fs.rename(path.join(cwd, 'packages/extension-sdk/api.ts'), path.join(cwd, 'src/api.ts'))
+      await git(cwd, ['add', '--all'])
+      await git(cwd, [...GIT_IDENTITY, 'commit', '-m', 'refactor: move package api'])
+      await git(cwd, ['checkout', 'main'])
+      const packageMerge = await merge(
+        cwd,
+        'package-move',
+        'Merge pull request #124 from OpenWaggle/package-move',
+      )
+
+      const result = await validateConventionalCommits({ baseline, cwd, to: packageMerge })
+      const mergeCommit = result.commits.find((item) => item.hash === packageMerge)
+
+      expect(mergeCommit?.changedPaths).toEqual(['packages/extension-sdk/api.ts', 'src/api.ts'])
+      expect(result.violations).toContain(
+        `${packageMerge}: "Merge pull request #124 from OpenWaggle/package-move" affects a publishable package and must carry explicit Conventional Commit release intent.`,
+      )
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it('captures single-parent package paths and excludes the policy root baseline', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-commit-policy-'))
+    try {
+      await git(cwd, ['init', '-b', 'main'])
+      const baseline = await writeAndCommit(
+        cwd,
+        POLICY_SCRIPT_PATH,
+        'current policy marker\n',
+        'historical root without conventional intent',
+      )
+      const packageCommit = await writeAndCommit(
+        cwd,
+        'packages/extension-sdk/api.ts',
+        'export {}\n',
+        'fix(extension-sdk): expose package api',
+      )
+
+      const result = await validateConventionalCommits({ cwd, to: packageCommit })
+
+      expect(result.effectiveFrom).toBe(baseline)
+      expect(result.commits).toHaveLength(1)
+      expect(result.commits[0]).toMatchObject({
+        changedPaths: ['packages/extension-sdk/api.ts'],
+        hash: packageCommit,
+      })
+      expect(result.violations).toEqual([])
+    } finally {
+      await fs.rm(cwd, { force: true, recursive: true })
+    }
+  })
+})

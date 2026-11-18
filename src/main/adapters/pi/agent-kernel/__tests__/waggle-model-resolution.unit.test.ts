@@ -5,6 +5,7 @@ import {
   createFakePi,
   createFakeSession,
   fakeRuntimeServices,
+  installRuntimeFactories,
   modelFromReference,
   PRIMARY_MODEL,
   payload,
@@ -21,7 +22,7 @@ const runMocks = vi.hoisted(() => ({
   createSessionManagerForSession: vi.fn(),
   disposeOpenWagglePiSession: vi.fn(),
   getPiModelAvailableThinkingLevels: vi.fn(),
-  resolveSessionProjectPath: vi.fn(),
+  resolveSessionWorkingPath: vi.fn(),
 }))
 
 vi.mock('../../pi-provider-catalog', () => ({
@@ -40,10 +41,11 @@ vi.mock('../session-listener', () => ({
 
 vi.mock('../session-manager', () => ({
   createSessionManagerForSession: runMocks.createSessionManagerForSession,
-  resolveSessionProjectPath: runMocks.resolveSessionProjectPath,
+  resolveSessionWorkingPath: runMocks.resolveSessionWorkingPath,
+  requireSessionProjectPath: runMocks.resolveSessionWorkingPath,
 }))
 
-function mixedConfig(): WaggleConfig {
+function mixedConfig() {
   const baseConfig = waggleConfig()
   return {
     ...baseConfig,
@@ -51,7 +53,7 @@ function mixedConfig(): WaggleConfig {
       { ...baseConfig.agents[0], model: SECONDARY_MODEL },
       { ...baseConfig.agents[1], model: WAGGLE_INHERIT_MODEL },
     ],
-  }
+  } satisfies WaggleConfig
 }
 
 describe('Pi Waggle runtime model resolution', () => {
@@ -62,8 +64,8 @@ describe('Pi Waggle runtime model resolution', () => {
     runMocks.createSessionManagerForSession.mockReset()
     runMocks.disposeOpenWagglePiSession.mockReset()
     runMocks.getPiModelAvailableThinkingLevels.mockReset()
-    runMocks.resolveSessionProjectPath.mockReset()
-    runMocks.resolveSessionProjectPath.mockReturnValue('/repo')
+    runMocks.resolveSessionWorkingPath.mockReset()
+    runMocks.resolveSessionWorkingPath.mockReturnValue('/repo')
     runMocks.createSessionManagerForSession.mockReturnValue({
       buildSessionContext: () => ({ messages: [] }),
     })
@@ -77,13 +79,15 @@ describe('Pi Waggle runtime model resolution', () => {
     const session = createFakeSession(fakePi.getAgentEndHandler, sessionMessages)
     const turnEvents: unknown[] = []
     runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => {
-      for (const factory of input.extensionFactories ?? []) factory(fakePi.pi)
+      installRuntimeFactories(input, fakePi.pi)
       return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
     })
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
 
     await runPiWaggle({
       session: sessionDetail(),
+      // The kernel resolves (and births) this before calling the run functions.
+      workingPath: '/repo',
       runId: 'run-waggle-pinned-first-inherited-second',
       payload: payload('Compare the design'),
       model: SECONDARY_MODEL,

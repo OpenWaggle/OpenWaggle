@@ -10,7 +10,7 @@ import { WaggleCollaborationStatus } from '../CollaborationStatus'
 const SESSION_ID = SessionId('session-1')
 const SELECTED_MODEL = SupportedModelId('openai/gpt-5.5')
 
-function inheritedConfig(): WaggleConfig {
+function inheritedConfig() {
   return {
     mode: 'sequential',
     agents: [
@@ -28,7 +28,7 @@ function inheritedConfig(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: 4 },
-  }
+  } satisfies WaggleConfig
 }
 
 describe('WaggleCollaborationStatus', () => {
@@ -43,13 +43,13 @@ describe('WaggleCollaborationStatus', () => {
 
   it('renders inherited agent models as the selected standard model without materializing config', () => {
     const config = inheritedConfig()
-    useWaggleStore.getState().setConfig(config, SESSION_ID)
+    useWaggleStore.getState().startCollaboration(SESSION_ID, config)
 
     render(<WaggleCollaborationStatus currentSessionId={SESSION_ID} onStop={vi.fn()} />)
 
     expect(screen.getAllByText(/GPT 5.5/)).toHaveLength(2)
     expect(screen.queryByText(/\$inherit/)).not.toBeInTheDocument()
-    expect(screen.getByText(/Waggle ready · Sequential · 4 turns/)).toBeInTheDocument()
+    expect(screen.getByText(/Waggle starting · Sequential · 4 turns/)).toBeInTheDocument()
     expect(useWaggleStore.getState().activeConfig).toBe(config)
   })
 

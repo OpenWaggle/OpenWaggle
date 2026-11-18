@@ -5,7 +5,7 @@ import type { PiExtensionLoadErrorRecord } from './pi-provider-catalog-types'
 
 export function getPiRuntimeExtensionLoadErrors(
   services: Pick<AgentSessionServices, 'resourceLoader'>,
-): readonly PiExtensionLoadErrorRecord[] {
+) {
   return services.resourceLoader
     .getExtensions()
     .errors.map((error) => ({ path: error.path, error: error.error }))
@@ -33,7 +33,7 @@ export function rejectMatchingOpenWaggleExtensionLoadErrors<Result>(input: {
   readonly result: Result
   readonly errors: readonly PiExtensionLoadErrorRecord[]
   readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
-}): Result {
+}) {
   const matchingErrors = matchingOpenWaggleExtensionLoadErrors(input)
 
   if (matchingErrors.length === 0) {

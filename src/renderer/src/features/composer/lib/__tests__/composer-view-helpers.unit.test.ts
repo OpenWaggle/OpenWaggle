@@ -1,7 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { describe, expect, it } from 'vitest'
-import { actionDialogHasInput, getActionDialogConfig } from '../action-dialog-config'
 import {
   buildContextMeterValue,
   buildContextUsageRequestKey,
@@ -43,23 +42,6 @@ const PROVIDER_MODELS: ProviderInfo[] = [
 ]
 
 describe('composer view helpers', () => {
-  it('builds action dialog copy and input requirements from the action kind', () => {
-    expect(getActionDialogConfig('rename-branch', 'main', '')).toMatchObject({
-      title: 'Rename "main"',
-      confirmLabel: 'Rename',
-      confirmTone: 'normal',
-      inputPlaceholder: 'feature/new-name',
-    })
-    expect(getActionDialogConfig('delete-branch', 'main', 'feature/old')).toMatchObject({
-      title: 'Delete "feature/old"',
-      confirmLabel: 'Delete',
-      confirmTone: 'danger',
-    })
-    expect(actionDialogHasInput('set-upstream')).toBe(true)
-    expect(actionDialogHasInput('delete-branch')).toBe(false)
-    expect(actionDialogHasInput(null)).toBe(false)
-  })
-
   it('resolves context usage request keys and model context windows', () => {
     expect(buildContextUsageRequestKey('session-1', MODEL_REF, 'v1')).toBe(
       'session-1:anthropic/claude-sonnet-4-5:v1',
@@ -70,6 +52,34 @@ describe('composer view helpers', () => {
   })
 
   it('builds context meter display state for loaded, fallback, and failed usage', () => {
+    expect(
+      buildContextMeterValue({
+        snapshot: {
+          tokens: 50_000,
+          contextWindow: 200_000,
+          percent: 25,
+          session: {
+            tokens: 160_000,
+            cost: 0.4321,
+            models: [
+              { model: 'openai/gpt-6-luna', tokens: 150_000, cost: 0.42 },
+              { model: null, tokens: 10_000, cost: 0.0121 },
+            ],
+          },
+        },
+        fallbackContextWindow: null,
+        hasActiveSession: true,
+        failed: false,
+      }).title,
+    ).toBe(
+      [
+        'Context: 50k / 200k tokens (25.0%)',
+        'Session: 160k tokens, $0.432',
+        '  openai/gpt-6-luna: $0.42 (150k tokens)',
+        '  Tools and summaries: $0.0121 (10k tokens)',
+      ].join('\n'),
+    )
+
     expect(
       buildContextMeterValue({
         snapshot: { tokens: 25_000, contextWindow: 100_000, percent: 25 },

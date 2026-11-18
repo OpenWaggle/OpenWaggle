@@ -9,8 +9,8 @@ interface ProcessResult {
   readonly stderr: string
 }
 
-function runNodeScript(scriptPath: string, cwd: string): Promise<ProcessResult> {
-  return new Promise((resolve, reject) => {
+function runNodeScript(scriptPath: string, cwd: string) {
+  return new Promise<ProcessResult>((resolve, reject) => {
     const child = spawn(process.execPath, [scriptPath, 'relative.tgz'], { cwd })
     let stderr = ''
     child.stderr.setEncoding('utf8')

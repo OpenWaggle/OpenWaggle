@@ -37,13 +37,11 @@ async function refreshProviderModelsAfterExtensionMutation() {
   }
 }
 
-export function useExtensionsSectionController(
-  projectPaths: readonly string[],
-): ExtensionsSectionController {
-  const extensionsQuery: UseQueryResult<ExtensionManagerView, Error> = useQuery(
+export function useExtensionsSectionController(projectPaths: readonly string[]) {
+  const extensionsQuery: UseQueryResult<ExtensionManagerView> = useQuery(
     extensionPackagesQueryOptions(projectPaths),
   )
-  const contributionsQuery: UseQueryResult<ExtensionContributionRegistryView, Error> = useQuery(
+  const contributionsQuery: UseQueryResult<ExtensionContributionRegistryView> = useQuery(
     extensionContributionsQueryOptions(projectPaths),
   )
   const trustedMutation = useSetExtensionTrustedMutation(projectPaths)
@@ -222,7 +220,7 @@ export function useExtensionsSectionController(
     })
   }
 
-  return {
+  const controller: ExtensionsSectionController = {
     view,
     contributionRegistry,
     loading: extensionsQuery.isFetching || contributionsQuery.isFetching || mutationState.pending,
@@ -237,4 +235,5 @@ export function useExtensionsSectionController(
     reload,
     remove,
   }
+  return controller
 }

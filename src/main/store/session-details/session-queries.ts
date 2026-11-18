@@ -1,9 +1,20 @@
+import { decodeSqlRows } from '../../adapters/sqlite-row-schema'
+import { sessionNodeRowSchema, sessionRowSchema, sessionSummaryRowSchema } from './types'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import { SESSION_TITLE_SOURCES } from '@shared/session-title-source'
+import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
+import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import type { SessionEnvironmentMode } from '@shared/types/git'
+import type { SessionDetail } from '@shared/types/session'
+import { THINKING_LEVELS } from '@shared/types/settings'
+import { isAgentLoopAuditNode } from '@shared/utils/agent-loop-audit-node'
 import * as Effect from 'effect/Effect'
+import { sessionAgentCallerBoundary } from '../../session-host/session-agent-run-ceiling'
+import { sessionIdsForQuery } from '../sessions/hydration'
+import { attachSessionLineage, loadSessionLineageRows } from '../sessions/session-list'
 import { runStoreEffect } from '../store-runtime'
 import { EMPTY_INDEX, MESSAGE_ENTRY_TYPE } from './constants'
+import { discoveredPiEntryNodeIdPrefix } from './discovered-pi-entry-node-ids'
 import { hydrateWaggleConfig, parseJsonValue } from './json'
 import {
   getActivePathRows,
@@ -12,32 +23,88 @@ import {
 } from './message-hydration'
 import type { SessionNodeRow, SessionRow, SessionSummaryRow } from './types'
 
-function hydrateSessionSummary(row: SessionSummaryRow) {
+/**
+ * The detail-side summary shape, which carries `messageCount` and deliberately omits the
+ * session-list fields (environment mode, worktree path, last-active ids).
+ *
+ * Named apart from `hydrateSessionSummary` in `store/sessions/hydration.ts` on purpose:
+ * when both were called the same thing, a change intended for the session list was made
+ * here instead. It typechecked, its own test passed, and the feature was simply missing
+ * until the app was opened.
+ */
+function hydrateSessionDetailSummary(row: SessionSummaryRow) {
   return {
     id: SessionId(row.id),
     title: row.title,
     projectPath: row.project_path,
     messageCount: row.message_count,
-    archived: row.archived === 1 ? true : undefined,
+    ...(row.archived === 1 ? { archived: true } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
+function resumePosition(sessionRow: SessionRow, nodeRows: readonly SessionNodeRow[]) {
+  if (!sessionRow.last_active_node_id) return null
+  const piEntryCount = nodeRows.filter(
+    (row) => !isAgentLoopAuditNode({ kind: row.kind, contentJson: row.content_json }),
+  ).length
+  return { nodeId: SessionNodeId(sessionRow.last_active_node_id), piEntryCount }
+}
+
+function sessionTitleSource(raw: string | null | undefined) {
+  const titleSource = SESSION_TITLE_SOURCES.find((source) => source === raw)
+  return titleSource ? { titleSource } : {}
+}
+
+function sessionThinkingLevel(raw: string | null) {
+  const executionThinkingLevel = THINKING_LEVELS.find((level) => level === raw)
+  return executionThinkingLevel ? { executionThinkingLevel } : {}
+}
+
+/** The Session row's fields that are left out when the row has no value for them. */
+function optionalSessionRowFields(sessionRow: SessionRow) {
+  const waggleConfig = hydrateWaggleConfig(parseJsonValue(sessionRow.waggle_config_json))
+  return {
+    ...(sessionRow.pi_session_file === null ? {} : { piSessionFile: sessionRow.pi_session_file }),
+    ...(waggleConfig === undefined ? {} : { waggleConfig }),
+    ...(sessionRow.archived === 1 ? { archived: true } : {}),
+  }
+}
+
 function hydrateSessionDetail(sessionRow: SessionRow, nodeRows: readonly SessionNodeRow[]) {
   try {
-    return {
+    const environmentMode: SessionEnvironmentMode =
+      sessionRow.environment_mode === 'worktree' ? 'worktree' : 'local'
+    const position = resumePosition(sessionRow, nodeRows)
+    const detail: SessionDetail = {
       id: SessionId(sessionRow.id),
       title: sessionRow.title,
+      ...sessionTitleSource(sessionRow.title_source),
       projectPath: sessionRow.project_path,
       piSessionId: sessionRow.pi_session_id,
-      piSessionFile: sessionRow.pi_session_file ?? undefined,
       messages: hydrateSessionMessages(getActivePathRows(sessionRow.last_active_node_id, nodeRows)),
-      waggleConfig: hydrateWaggleConfig(parseJsonValue(sessionRow.waggle_config_json)),
-      archived: sessionRow.archived === 1 ? true : undefined,
+      ...optionalSessionRowFields(sessionRow),
       createdAt: sessionRow.created_at,
       updatedAt: sessionRow.updated_at,
+      environmentMode,
+      worktreePath: sessionRow.worktree_path,
+      worktreeBaseRef: sessionRow.worktree_base_ref,
+      worktreeStartFromOrigin: sessionRow.worktree_start_from_origin === 1,
+      ...(isAgentAuthorizationMode(sessionRow.authorization_mode_override)
+        ? { authorizationMode: sessionRow.authorization_mode_override }
+        : {}),
+      ...(sessionRow.execution_model_id
+        ? { executionModel: SupportedModelId(sessionRow.execution_model_id) }
+        : {}),
+      ...sessionThinkingLevel(sessionRow.execution_thinking_level),
+      ...(position ? { resumePosition: position } : {}),
+      ...(sessionRow.pi_adopted === 1
+        ? { piEntryNodeIdPrefix: discoveredPiEntryNodeIdPrefix(sessionRow.id) }
+        : {}),
+      ...(sessionRow.pi_cwd ? { piSessionCwd: sessionRow.pi_cwd } : {}),
     }
+    return detail
   } catch (error) {
     logSessionHydrationFailure(sessionRow, error)
     return null
@@ -49,27 +116,40 @@ function isSessionDetail(session: SessionDetail | null) {
 }
 
 function selectSessionRow(sql: SqlClient.SqlClient, id: SessionId) {
-  return sql<SessionRow>`
+  return sql`
     SELECT
-      id,
-      pi_session_id,
-      pi_session_file,
-      project_path,
-      title,
-      archived,
-      waggle_config_json,
-      created_at,
-      updated_at,
-      last_active_node_id,
-      last_active_branch_id
+      sessions.id,
+      sessions.pi_session_id,
+      sessions.pi_session_file,
+      sessions.project_path,
+      sessions.title,
+      sessions.title_source,
+      sessions.archived,
+      sessions.waggle_config_json,
+      sessions.created_at,
+      sessions.updated_at,
+      sessions.last_active_node_id,
+      sessions.last_active_branch_id,
+      sessions.environment_mode,
+      sessions.worktree_path,
+      sessions.worktree_base_ref,
+      sessions.worktree_start_from_origin,
+      sessions.authorization_mode_override,
+      json_extract(session_execution_profiles.profile_json, '$.modelId') AS execution_model_id,
+      json_extract(session_execution_profiles.profile_json, '$.thinkingLevel')
+        AS execution_thinking_level,
+      EXISTS (SELECT 1 FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_adopted,
+      (SELECT cwd FROM pi_session_adoptions WHERE session_id = sessions.id) AS pi_cwd
     FROM sessions
-    WHERE id = ${id}
+    LEFT JOIN session_execution_profiles
+      ON session_execution_profiles.session_id = sessions.id
+    WHERE sessions.id = ${id}
     LIMIT 1
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionRowSchema, 'sessions')))
 }
 
 function selectSessionNodeRows(sql: SqlClient.SqlClient, id: SessionId) {
-  return sql<SessionNodeRow>`
+  return sql`
     SELECT
       id,
       session_id,
@@ -86,11 +166,16 @@ function selectSessionNodeRows(sql: SqlClient.SqlClient, id: SessionId) {
     FROM session_nodes
     WHERE session_id = ${id}
     ORDER BY created_order ASC
-  `
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionNodeRowSchema, 'session_nodes')))
 }
 
-function summaryCountSql(sql: SqlClient.SqlClient, archived: number, limit: number | null) {
-  return sql<SessionSummaryRow>`
+function summaryCountSql(
+  sql: SqlClient.SqlClient,
+  archived: number,
+  limit: number | null,
+  offset = 0,
+) {
+  return sql`
     SELECT
       s.id,
       s.title,
@@ -108,36 +193,42 @@ function summaryCountSql(sql: SqlClient.SqlClient, archived: number, limit: numb
     WHERE s.archived = ${archived}
     ORDER BY s.updated_at DESC
     LIMIT ${limit ?? -1}
-  `
+    OFFSET ${offset}
+  `.pipe(Effect.flatMap(decodeSqlRows(sessionSummaryRowSchema, 'sessions')))
 }
 
-export async function listSessionSummaries(limit?: number): Promise<SessionSummary[]> {
+export async function listSessionSummaries(limit?: number, offset = 0) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const rows = yield* summaryCountSql(sql, 0, limit ?? null)
-      return rows.map(hydrateSessionSummary)
+      const rows = yield* summaryCountSql(sql, 0, limit ?? null, offset)
+      return rows.map(hydrateSessionDetailSummary)
     }),
   )
 }
 
-export async function listArchivedSessions(): Promise<SessionSummary[]> {
+export async function listArchivedSessions() {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* summaryCountSql(sql, 1, null)
-      return rows.map(hydrateSessionSummary)
+      const sessions = rows.map(hydrateSessionDetailSummary)
+      if (sessions.length === 0) return sessions
+      return attachSessionLineage(
+        sessions,
+        yield* loadSessionLineageRows(sql, sessionIdsForQuery(sessions)),
+      )
     }),
   )
 }
 
-export async function listSessionDetails(limit?: number): Promise<SessionDetail[]> {
-  const summaries = await listSessionSummaries(limit)
+export async function listSessionDetails(limit?: number, offset = 0) {
+  const summaries = await listSessionSummaries(limit, offset)
   const sessions = await Promise.all(summaries.map((summary) => getSessionDetail(summary.id)))
   return sessions.filter(isSessionDetail)
 }
 
-export async function getSessionDetail(id: SessionId): Promise<SessionDetail | null> {
+export async function getSessionDetail(id: SessionId) {
   return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
@@ -149,6 +240,60 @@ export async function getSessionDetail(id: SessionId): Promise<SessionDetail | n
 
       const nodeRows = yield* selectSessionNodeRows(sql, id)
       return hydrateSessionDetail(sessionRow, nodeRows)
+    }),
+  )
+}
+
+export async function getSessionAuthorizationBoundary(id: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{
+        readonly execution_ceiling: 'yolo' | 'ask-for-approval'
+        readonly grant_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly grant_revoked_at: number | null
+        readonly profile_ceiling: 'yolo' | 'ask-for-approval' | null
+        readonly profile_revoked_at: number | null
+      }>`
+        SELECT
+          execution.authorization_ceiling AS execution_ceiling,
+          grants.authorization_ceiling AS grant_ceiling,
+          grants.revoked_at AS grant_revoked_at,
+          profiles.authorization_ceiling AS profile_ceiling,
+          profiles.revoked_at AS profile_revoked_at
+        FROM session_execution_profiles AS execution
+        LEFT JOIN derived_child_management_grants AS grants
+          ON grants.child_session_id = execution.session_id
+        LEFT JOIN session_client_profiles AS profiles
+          ON execution.authority_origin_caller_id = ${'profile:'} || profiles.id
+        WHERE execution.session_id = ${id}
+        LIMIT 1
+      `
+      return rows[0] ?? null
+    }),
+  )
+}
+
+export async function getSessionCallerAuthorizationBoundary(callerId: string) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      if (callerId.startsWith('profile:')) {
+        const profileId = callerId.slice('profile:'.length)
+        const rows = yield* sql<{
+          readonly authorization_ceiling: 'yolo' | 'ask-for-approval'
+          readonly revoked_at: number | null
+        }>`
+          SELECT authorization_ceiling, revoked_at
+          FROM session_client_profiles WHERE id = ${profileId} LIMIT 1
+        `
+        const row = rows[0]
+        return row
+          ? { authorizationCeiling: row.authorization_ceiling, revoked: row.revoked_at !== null }
+          : { authorizationCeiling: 'ask-for-approval' as const, revoked: true }
+      }
+
+      return (yield* sessionAgentCallerBoundary(sql, callerId)) ?? null
     }),
   )
 }

@@ -1,0 +1,297 @@
+import { matchBy } from '@diegogbrisa/ts-match'
+import type * as SqlClient from '@effect/sql/SqlClient'
+import { sessionHostRefusal } from '@shared/domain/session-host-refusals'
+import { parseJsonUnknown } from '@shared/schema'
+import { decodeSessionLifecycleOutcome } from '@shared/schemas/session-lifecycle'
+import { RunId, SessionId } from '@shared/types/brand'
+import type { SessionLifecycleOutcome } from '@shared/types/session-lifecycle'
+import * as Effect from 'effect/Effect'
+import { isPersonStartedRun } from '../domain/session-control/person-started-run'
+import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
+import { decideSpawnAdmission } from '../domain/session-control/spawn-admission'
+import { planChildLineage } from '../domain/session-control/spawn-lineage'
+import { SessionLifecycleRepositoryError } from '../errors'
+import { PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX } from '../ports/pi-session-discovery'
+import type { SessionLifecycleRepositoryShape } from '../ports/session-lifecycle-repository'
+import { loadSessionControlState } from './sqlite-session-control-state'
+import { lifecycleResponse, storeLifecycleOutcome } from './sqlite-session-lifecycle-support'
+import { withStoredRefusalKind } from './sqlite-stored-refusal-kind'
+import { countActiveWorkerRuns, hostWorkerCeilingRefusal } from './sqlite-worker-run-admission'
+
+const DEFAULT_PARENT_CONCURRENCY_LIMIT = 4
+const DEFAULT_HOST_RUN_CEILING = 16
+
+type ExecuteInput = Parameters<SessionLifecycleRepositoryShape['execute']>[0]
+type ReplayInput = Pick<ExecuteInput, 'callerId' | 'request'>
+
+interface OperationRow {
+  readonly request_json: string
+  readonly outcome_json: string | null
+  readonly status: 'pending' | 'completed'
+}
+
+interface ParentSessionRow {
+  readonly project_path: string
+}
+
+interface ParentLineageRow {
+  readonly hive_root_session_id: string
+  readonly depth: number
+}
+
+export interface LifecycleTarget {
+  readonly projectPath: string
+  readonly parentSessionId?: string
+  readonly parentRunId?: string
+  readonly hiveRootSessionId?: string
+  readonly depth?: number
+}
+
+export type LifecycleTargetResolution =
+  | { readonly kind: 'accepted'; readonly target: LifecycleTarget }
+  | { readonly kind: 'rejected'; readonly response: ReturnType<typeof lifecycleResponse> }
+
+/**
+ * Pi session discovery's create keys are its own (ADR 0051): one under its prefix is admitted only
+ * when discovery recorded it before sending, so a key someone chose cannot pass for one and be
+ * cleaned up as a Session an interrupted pass left. Nothing is stored, so the key stays free.
+ */
+export function reservedIdempotencyKeyRejection(sql: SqlClient.SqlClient, input: ReplayInput) {
+  return Effect.gen(function* () {
+    const key = input.request.idempotencyKey
+    if (input.request.command.operation !== 'create') return undefined
+    if (!key.startsWith(PI_SESSION_DISCOVERY_IDEMPOTENCY_PREFIX)) return undefined
+    const recorded = yield* sql<{ readonly found: number }>`
+      SELECT 1 AS found FROM pi_session_discovery_creates WHERE idempotency_key = ${key} LIMIT 1
+    `
+    if (recorded.length > 0) return undefined
+    return lifecycleResponse(input, false, {
+      operation: 'create',
+      effect: 'rejected',
+      ...sessionHostRefusal('reserved_idempotency_key'),
+      retryable: false,
+    })
+  })
+}
+
+function repositoryError(operation: string, cause: unknown) {
+  return new SessionLifecycleRepositoryError({ operation, cause })
+}
+
+export function findLifecycleReplay(
+  sql: SqlClient.SqlClient,
+  input: ReplayInput,
+  scope: string,
+  requestJson: string,
+) {
+  const operation = input.request.command.operation
+  return Effect.gen(function* () {
+    const rows = yield* sql<OperationRow>`
+      SELECT request_json, outcome_json, status
+      FROM session_operations
+      WHERE caller_id = ${input.callerId}
+        AND operation = ${operation}
+        AND target_scope = ${scope}
+        AND idempotency_key = ${input.request.idempotencyKey}
+      LIMIT 1
+    `
+    const existing = rows[0]
+    if (!existing) return undefined
+    if (existing.request_json !== requestJson) {
+      return yield* Effect.fail(
+        repositoryError('idempotency-key-reused', {
+          operation,
+          scope,
+          idempotencyKey: input.request.idempotencyKey,
+        }),
+      )
+    }
+    if (existing.status !== 'completed' || existing.outcome_json === null) {
+      return yield* Effect.fail(repositoryError('operation-pending', { operation, scope }))
+    }
+    const outcomeJson = existing.outcome_json
+    const outcome = yield* Effect.try({
+      try: () =>
+        decodeSessionLifecycleOutcome(withStoredRefusalKind(parseJsonUnknown(outcomeJson))),
+      catch: (cause) => repositoryError('decode-idempotent-outcome', cause),
+    })
+    return lifecycleResponse(input, true, outcome)
+  })
+}
+
+function forkTarget(
+  sql: SqlClient.SqlClient,
+  command: Extract<ExecuteInput['request']['command'], { readonly operation: 'fork' }>,
+) {
+  return Effect.gen(function* () {
+    const sourceRows = yield* sql<ParentSessionRow>`
+      SELECT project_path FROM sessions WHERE id = ${command.sourceSessionId} LIMIT 1
+    `
+    const source = sourceRows[0]
+    if (!source) {
+      return yield* Effect.fail(
+        repositoryError('fork-source-session-not-found', {
+          sourceSessionId: command.sourceSessionId,
+        }),
+      )
+    }
+    return {
+      kind: 'accepted',
+      target: { projectPath: source.project_path, parentSessionId: command.sourceSessionId },
+    } satisfies LifecycleTargetResolution
+  })
+}
+
+function spawnTarget(
+  sql: SqlClient.SqlClient,
+  input: ExecuteInput,
+  scope: string,
+  requestJson: string,
+  command: Extract<ExecuteInput['request']['command'], { readonly operation: 'spawn' }>,
+) {
+  const parentSessionId = command.parentSessionId
+  // A requested Waggle spawns for the classic Run it acts for, which is the parent's active Run.
+  const parentRunId = durableSessionRunId(command.expectedParentRunId)
+  return Effect.gen(function* () {
+    const parentRows = yield* sql<ParentSessionRow>`
+      SELECT project_path FROM sessions WHERE id = ${parentSessionId} LIMIT 1
+    `
+    const parent = parentRows[0]
+    if (!parent) {
+      return yield* Effect.fail(repositoryError('parent-session-not-found', { parentSessionId }))
+    }
+    const parentState = yield* loadSessionControlState(sql, parentSessionId)
+    const runningChildRows = yield* sql<{ readonly count: number }>`
+      SELECT COUNT(*) AS count
+      FROM session_spawn_lineage
+      JOIN session_control_states
+        ON session_control_states.session_id = session_spawn_lineage.child_session_id
+      WHERE session_spawn_lineage.parent_session_id = ${parentSessionId}
+        AND session_control_states.active_run_id IS NOT NULL
+    `
+    const admission = decideSpawnAdmission({
+      parentSessionId: SessionId(parentSessionId),
+      expectedParentRunId: RunId(parentRunId),
+      parentRun:
+        parentState.run.state === 'idle'
+          ? { state: 'idle' }
+          : { state: parentState.run.state, runId: parentState.run.runId },
+      parentRunningChildren: runningChildRows[0]?.count ?? 0,
+      parentConcurrencyLimit: input.parentConcurrencyLimit ?? DEFAULT_PARENT_CONCURRENCY_LIMIT,
+      // The Host's ceiling counts agents' work; the person's Runs in their own roots use no slot.
+      hostActiveRuns: yield* countActiveWorkerRuns(sql),
+      hostRunCeiling: input.hostRunCeiling ?? DEFAULT_HOST_RUN_CEILING,
+    })
+    if (!admission.accepted) {
+      const outcome: SessionLifecycleOutcome = {
+        operation: 'spawn',
+        effect: 'rejected',
+        ...sessionHostRefusal(admission.code),
+        retryable: admission.retryable,
+        parentConcurrencyLimit: admission.parentConcurrencyLimit,
+        parentRunningChildren: admission.parentRunningChildren,
+        hostRunCeiling: admission.hostRunCeiling,
+        hostActiveRuns: admission.hostActiveRuns,
+      }
+      yield* storeLifecycleOutcome(sql, input, scope, requestJson, outcome)
+      return {
+        kind: 'rejected',
+        response: lifecycleResponse(input, false, outcome),
+      } satisfies LifecycleTargetResolution
+    }
+    const lineageRows = yield* sql<ParentLineageRow>`
+      SELECT hive_root_session_id, depth
+      FROM session_spawn_lineage
+      WHERE child_session_id = ${parentSessionId}
+      LIMIT 1
+    `
+    const lineage = planChildLineage({
+      parentSessionId: SessionId(parentSessionId),
+      ...(lineageRows[0]
+        ? {
+            hiveRootSessionId: SessionId(lineageRows[0].hive_root_session_id),
+            depth: lineageRows[0].depth,
+          }
+        : {}),
+    })
+    return {
+      kind: 'accepted',
+      target: {
+        projectPath: parent.project_path,
+        parentSessionId,
+        parentRunId,
+        hiveRootSessionId: lineage.hiveRootSessionId,
+        depth: lineage.depth,
+      },
+    } satisfies LifecycleTargetResolution
+  })
+}
+
+/**
+ * A launch starts a root's first Run. The person's launch is never limited; an agent's, a client
+ * profile's or an agent's Scheduled task's makes an agent-made Session, so it waits for the Active
+ * Workers ceiling like a spawn (ADR 0030, amended 2026-11-09).
+ */
+function launchTarget(
+  sql: SqlClient.SqlClient,
+  input: ExecuteInput,
+  scope: string,
+  requestJson: string,
+  command: Extract<ExecuteInput['request']['command'], { readonly operation: 'launch' }>,
+) {
+  return Effect.gen(function* () {
+    const accepted = {
+      kind: 'accepted',
+      target: { projectPath: command.projectPath },
+    } satisfies LifecycleTargetResolution
+    const launcher = { callerId: input.callerId, idempotencyKey: input.request.idempotencyKey }
+    if (isPersonStartedRun(launcher)) return accepted
+    const hostRunCeiling = input.hostRunCeiling ?? DEFAULT_HOST_RUN_CEILING
+    const refusal = yield* hostWorkerCeilingRefusal(sql, { hostRunCeiling })
+    if (!refusal) return accepted
+    const outcome: SessionLifecycleOutcome = {
+      operation: 'launch',
+      effect: 'rejected',
+      ...sessionHostRefusal(refusal.code),
+      retryable: true,
+      hostRunCeiling,
+      hostActiveRuns: refusal.hostActiveRuns,
+    }
+    yield* storeLifecycleOutcome(sql, input, scope, requestJson, outcome)
+    return {
+      kind: 'rejected',
+      response: lifecycleResponse(input, false, outcome),
+    } satisfies LifecycleTargetResolution
+  })
+}
+
+function admittedSpawnTarget(
+  sql: SqlClient.SqlClient,
+  input: ExecuteInput,
+  scope: string,
+  requestJson: string,
+) {
+  return (
+    matchBy(input.request.command, 'operation')
+      .with('fork', (command) => forkTarget(sql, command))
+      .with('spawn', (command) => spawnTarget(sql, input, scope, requestJson, command))
+      // Creating starts no Run, so no capacity limit applies.
+      .with('create', (command) =>
+        Effect.succeed<LifecycleTargetResolution>({
+          kind: 'accepted',
+          target: { projectPath: command.projectPath },
+        }),
+      )
+      .with('launch', (command) => launchTarget(sql, input, scope, requestJson, command))
+      .exhaustive()
+  )
+}
+
+export function resolveLifecycleTarget(
+  sql: SqlClient.SqlClient,
+  input: ExecuteInput,
+  scope: string,
+  requestJson: string,
+) {
+  return admittedSpawnTarget(sql, input, scope, requestJson)
+}

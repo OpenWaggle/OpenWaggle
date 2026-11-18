@@ -5,20 +5,58 @@ export {
 export { persistSessionSnapshot } from './session-details/persist-snapshot'
 export { createSession } from './session-details/session-creation'
 export {
+  abandonSessionDeletion,
+  commitSessionDeletion,
+  getSessionDeletion,
+  listPendingSessionDeletions,
+  markSessionDeletionExternalCleanupComplete,
+  markSessionPiFileCleanupComplete,
+  prepareSessionCheckpointRefCleanup,
+  prepareSessionDeletion,
+  prepareSessionPiFileCleanup,
+} from './session-details/session-deletion-journal'
+export type { BoundWorkspaceResource } from './session-details/session-mutations'
+export {
   archiveSession,
+  assignProvisionalSessionTitle,
+  clearSessionWorktree,
   deleteSession,
+  getBoundWorkspaceResource,
+  listSessionWorktreeRefs,
+  setSessionAuthorizationMode,
+  setSessionWorktreePlan,
   unarchiveSession,
   updateSessionRuntime,
   updateSessionTitle,
 } from './session-details/session-mutations'
 export {
+  getSessionAuthorizationBoundary,
+  getSessionCallerAuthorizationBoundary,
   getSessionDetail,
   listArchivedSessions,
   listSessionDetails,
   listSessionSummaries,
 } from './session-details/session-queries'
+export {
+  setSessionWorktree,
+  validateSessionWorktreeBirthAuthority,
+} from './session-details/session-worktree-authority'
 export type {
-  CreateSessionInput,
-  SessionNodeRow,
-  UpdateSessionRuntimeInput,
-} from './session-details/types'
+  ClaimedSessionWorktreeSetup,
+  PendingSessionWorktreeSetup,
+} from './session-details/session-worktree-setup'
+export {
+  adoptSessionWorktreeForSetup,
+  claimSessionWorktreeSetup,
+  completeSessionWorktreeSetup,
+  getPendingSessionWorktreeSetup,
+  getSessionWorktreeSetupDispatch,
+  releaseSessionWorktreeSetupClaim,
+  resetRecordedSessionWorktreeSetup,
+  resetSessionWorktreeSetup,
+} from './session-details/session-worktree-setup'
+export {
+  MAX_NAMED_CONFLICTS,
+  SessionNodeIdConflictError,
+} from './session-details/snapshot-node-ownership'
+export type { SessionNodeRow } from './session-details/types'

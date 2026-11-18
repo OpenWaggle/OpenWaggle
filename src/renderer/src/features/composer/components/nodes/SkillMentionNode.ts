@@ -1,7 +1,7 @@
+import { skillCommandText } from '@shared/utils/skill-id'
 import {
   $applyNodeReplacement,
   DecoratorNode,
-  type DOMExportOutput,
   type EditorConfig,
   type NodeKey,
   type SerializedLexicalNode,
@@ -17,14 +17,15 @@ export type SerializedSkillMentionNode = Spread<
 >
 
 export class SkillMentionNode extends DecoratorNode<ReactNode> {
+  /** The token Pi expands after `/skill:`: the skill's `name` in SKILL.md's frontmatter. */
   __skillId: string
   __skillName: string
 
-  static getType() {
+  static override getType() {
     return 'skill-mention'
   }
 
-  static clone(node: SkillMentionNode) {
+  static override clone(node: SkillMentionNode) {
     return new SkillMentionNode(node.__skillId, node.__skillName, node.__key)
   }
 
@@ -34,31 +35,31 @@ export class SkillMentionNode extends DecoratorNode<ReactNode> {
     this.__skillName = skillName
   }
 
-  createDOM(_config: EditorConfig) {
+  override createDOM(_config: EditorConfig) {
     const span = document.createElement('span')
     span.style.display = 'inline'
     return span
   }
 
-  updateDOM() {
+  override updateDOM() {
     return false
   }
 
-  exportDOM(): DOMExportOutput {
+  override exportDOM() {
     const element = document.createElement('span')
-    element.textContent = `/${this.__skillId}`
+    element.textContent = skillCommandText(this.__skillId)
     return { element }
   }
 
-  static importDOM() {
+  static override importDOM() {
     return null
   }
 
-  static importJSON(serializedNode: SerializedSkillMentionNode) {
+  static override importJSON(serializedNode: SerializedSkillMentionNode) {
     return $createSkillMentionNode(serializedNode.skillId, serializedNode.skillName)
   }
 
-  exportJSON() {
+  override exportJSON() {
     return {
       ...super.exportJSON(),
       skillId: this.__skillId,
@@ -68,22 +69,23 @@ export class SkillMentionNode extends DecoratorNode<ReactNode> {
     }
   }
 
-  getTextContent() {
-    return `/${this.__skillId}`
+  override getTextContent() {
+    return skillCommandText(this.__skillId)
   }
 
-  isInline() {
+  override isInline() {
     return true
   }
 
-  decorate(): ReactNode {
-    return createElement(SkillMentionChip, {
+  override decorate() {
+    const node: ReactNode = createElement(SkillMentionChip, {
       skillId: this.__skillId,
       skillName: this.__skillName,
     })
+    return node
   }
 }
 
-export function $createSkillMentionNode(skillId: string, skillName: string): SkillMentionNode {
+export function $createSkillMentionNode(skillId: string, skillName: string) {
   return $applyNodeReplacement(new SkillMentionNode(skillId, skillName))
 }

@@ -1,0 +1,315 @@
+import { SessionId } from '@shared/types/brand'
+import type { GitWorktreeMutationResult } from '@shared/types/git'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DesktopOperationIndeterminateError } from '../../../../application/desktop-service-errors'
+import type {
+  ClaimedSessionWorktreeSetup,
+  PendingSessionWorktreeSetup,
+} from '../../../../store/session-details'
+import { setupSession as session } from './session-worktree-birth-test-helpers'
+
+const {
+  adoptSessionWorktreeForSetupMock,
+  claimSessionWorktreeSetupMock,
+  completeSessionWorktreeSetupMock,
+  existsSyncMock,
+  getSessionWorktreeSetupDispatchMock,
+  releaseSessionWorktreeSetupClaimMock,
+  resetSessionWorktreeSetupMock,
+  runGitMock,
+  createGitWorktreeMock,
+  setSessionWorktreeMock,
+} = vi.hoisted(() => ({
+  adoptSessionWorktreeForSetupMock: vi.fn(),
+  claimSessionWorktreeSetupMock: vi.fn(),
+  completeSessionWorktreeSetupMock: vi.fn(async () => undefined),
+  existsSyncMock: vi.fn((_candidate: string) => false),
+  getSessionWorktreeSetupDispatchMock: vi.fn(),
+  releaseSessionWorktreeSetupClaimMock: vi.fn(async () => undefined),
+  resetSessionWorktreeSetupMock: vi.fn(),
+  runGitMock: vi.fn(async (_cwd: string, _args: readonly string[]) => ({
+    code: 0,
+    stdout: 'main\n',
+    stderr: '',
+  })),
+  createGitWorktreeMock: vi.fn<() => Promise<GitWorktreeMutationResult>>(async () => ({
+    ok: true,
+    message: 'ok',
+    path: '/wt',
+  })),
+  setSessionWorktreeMock: vi.fn(async () => undefined),
+}))
+
+vi.mock('node:fs', () => ({ existsSync: existsSyncMock }))
+vi.mock('../../../git/run-git', () => ({ runGit: runGitMock }))
+vi.mock('../session-branch-freshness', () => ({
+  resolveFreshWorktreeBaseRef: vi.fn<
+    (workspace: { readonly worktreeBaseRef?: string | null }) => Promise<string | null>
+  >(
+    async (workspace: { readonly worktreeBaseRef?: string | null }) =>
+      workspace.worktreeBaseRef ?? 'main',
+  ),
+}))
+vi.mock('../../../git/worktree', () => ({ createGitWorktree: createGitWorktreeMock }))
+vi.mock('../../../../store/session-details', () => ({
+  getBoundWorkspaceResource: vi.fn(async () => null),
+  validateSessionWorktreeBirthAuthority: vi.fn(async () => undefined),
+  adoptSessionWorktreeForSetup: adoptSessionWorktreeForSetupMock,
+  claimSessionWorktreeSetup: claimSessionWorktreeSetupMock,
+  completeSessionWorktreeSetup: completeSessionWorktreeSetupMock,
+  getSessionWorktreeSetupDispatch: getSessionWorktreeSetupDispatchMock,
+  releaseSessionWorktreeSetupClaim: releaseSessionWorktreeSetupClaimMock,
+  resetSessionWorktreeSetup: resetSessionWorktreeSetupMock,
+  setSessionWorktree: setSessionWorktreeMock,
+}))
+
+const { ensureSessionWorktreeProjectPath } = await import('../session-worktree-birth')
+
+describe('new-worktree post-persistence launch hook', () => {
+  beforeEach(() => {
+    adoptSessionWorktreeForSetupMock.mockReset().mockResolvedValue(null)
+    claimSessionWorktreeSetupMock
+      .mockReset()
+      .mockImplementation(async (_id: SessionId, pending: PendingSessionWorktreeSetup) =>
+        Promise.resolve({
+          ...pending,
+          state: 'claimed',
+          claimToken: 'claim-1',
+        } satisfies ClaimedSessionWorktreeSetup),
+      )
+    completeSessionWorktreeSetupMock.mockReset().mockResolvedValue(undefined)
+    existsSyncMock.mockReset().mockReturnValue(false)
+    getSessionWorktreeSetupDispatchMock.mockReset().mockResolvedValue(null)
+    releaseSessionWorktreeSetupClaimMock.mockReset().mockResolvedValue(undefined)
+    resetSessionWorktreeSetupMock.mockReset().mockImplementation(async (_id, worktreePath) => ({
+      worktreePath,
+      generation: 'generation-1',
+      state: 'pending',
+    }))
+    runGitMock.mockReset().mockResolvedValue({ code: 0, stdout: 'main\n', stderr: '' })
+    createGitWorktreeMock.mockReset().mockResolvedValue({ ok: true, message: 'ok', path: '/wt' })
+    setSessionWorktreeMock.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('claims the generation before launch after a newly created worktree is persisted', async () => {
+    const onSetupPending = vi.fn(async () => undefined)
+
+    await ensureSessionWorktreeProjectPath(session(), { onSetupPending })
+
+    expect(onSetupPending).toHaveBeenCalledOnce()
+    expect(setSessionWorktreeMock).toHaveBeenCalledBefore(onSetupPending)
+    expect(claimSessionWorktreeSetupMock).toHaveBeenCalledBefore(onSetupPending)
+    expect(onSetupPending).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryPath: '/repo',
+        branch: 'ow/session-setup-session',
+        baseRef: 'main',
+        setupGeneration: 'generation-1',
+      }),
+    )
+    expect(completeSessionWorktreeSetupMock).toHaveBeenCalledWith(SessionId('setup-session'), {
+      worktreePath: expect.stringContaining('/.openwaggle/worktrees/repo/setup-session'),
+      generation: 'generation-1',
+      state: 'claimed',
+      claimToken: 'claim-1',
+    })
+  })
+
+  it('does not run for completed recorded, recovered, or local workspaces', async () => {
+    const onSetupPending = vi.fn(async () => undefined)
+    existsSyncMock.mockReturnValue(true)
+    runGitMock.mockResolvedValue({ code: 0, stdout: '/repo/.git\n', stderr: '' })
+
+    await ensureSessionWorktreeProjectPath(session({ worktreePath: '/recorded/worktree' }), {
+      onSetupPending,
+    })
+    await ensureSessionWorktreeProjectPath(session(), { onSetupPending })
+    await ensureSessionWorktreeProjectPath(session({ environmentMode: 'local' }), {
+      onSetupPending,
+    })
+
+    expect(onSetupPending).not.toHaveBeenCalled()
+    expect(createGitWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it('blocks the first turn after setup failure and preserves the worktree for retry', async () => {
+    const onProgress = vi.fn()
+
+    await expect(
+      ensureSessionWorktreeProjectPath(session(), {
+        onProgress,
+        onSetupPending: async () => {
+          throw new Error('setup queue unavailable')
+        },
+      }),
+    ).rejects.toThrow('setup queue unavailable')
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'worktree-created',
+        details: ['Project Setup action did not start: setup queue unavailable'],
+      }),
+    )
+    expect(completeSessionWorktreeSetupMock).not.toHaveBeenCalled()
+    expect(releaseSessionWorktreeSetupClaimMock).toHaveBeenCalledOnce()
+  })
+
+  it('retains the generation claim when GUI setup dispatch has an uncertain outcome', async () => {
+    const onProgress = vi.fn()
+    await expect(
+      ensureSessionWorktreeProjectPath(session(), {
+        onProgress,
+        onSetupPending: async () => {
+          throw new AggregateError(
+            [new DesktopOperationIndeterminateError()],
+            'Desktop transport lost',
+          )
+        },
+      }),
+    ).rejects.toThrow('Desktop transport lost')
+    expect(releaseSessionWorktreeSetupClaimMock).not.toHaveBeenCalled()
+    expect(completeSessionWorktreeSetupMock).not.toHaveBeenCalled()
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: [expect.stringContaining('interrupted')],
+      }),
+    )
+  })
+
+  it('shares concurrent birth and launch work without duplicating setup', async () => {
+    const onSetupPending = vi.fn(async () => undefined)
+    const current = session()
+
+    await Promise.all([
+      ensureSessionWorktreeProjectPath(current, { onSetupPending }),
+      ensureSessionWorktreeProjectPath(current, { onSetupPending }),
+    ])
+
+    expect(createGitWorktreeMock).toHaveBeenCalledOnce()
+    expect(onSetupPending).toHaveBeenCalledOnce()
+  })
+
+  it('retries a failed pending Setup dispatch on the next send', async () => {
+    const pending = { worktreePath: '/recorded/worktree', generation: 'recreate-1' }
+    const onSetupPending = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('terminal open failed'))
+      .mockResolvedValueOnce(undefined)
+    existsSyncMock.mockReturnValue(true)
+    runGitMock.mockResolvedValue({ code: 0, stdout: '/repo/.git\n', stderr: '' })
+    getSessionWorktreeSetupDispatchMock.mockResolvedValue({ ...pending, state: 'pending' })
+
+    const recreated = session({ worktreePath: pending.worktreePath })
+    await expect(ensureSessionWorktreeProjectPath(recreated, { onSetupPending })).rejects.toThrow(
+      'terminal open failed',
+    )
+    await ensureSessionWorktreeProjectPath(recreated, { onSetupPending })
+
+    expect(onSetupPending).toHaveBeenCalledTimes(2)
+    expect(onSetupPending).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ setupGeneration: 'recreate-1' }),
+    )
+    expect(completeSessionWorktreeSetupMock).toHaveBeenCalledOnce()
+    expect(releaseSessionWorktreeSetupClaimMock).toHaveBeenCalledOnce()
+  })
+
+  it('recovers an aborted post-Git birth and dispatches Setup during adoption', async () => {
+    const controller = new AbortController()
+    let created = false
+    existsSyncMock.mockImplementation((candidate: string) => {
+      if (candidate.includes('/.openwaggle/worktrees/')) return created
+      return true
+    })
+    createGitWorktreeMock.mockImplementation(async () => {
+      created = true
+      controller.abort(new DOMException('run cancelled', 'AbortError'))
+      return { ok: true, message: 'ok', path: '/ignored' }
+    })
+
+    await expect(
+      ensureSessionWorktreeProjectPath(session(), { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    const worktreePath = resetSessionWorktreeSetupMock.mock.calls[0]?.[1]
+    if (!worktreePath) throw new Error('worktree setup was not made pending')
+    adoptSessionWorktreeForSetupMock.mockResolvedValue({
+      worktreePath,
+      generation: 'generation-1',
+      state: 'pending',
+    })
+    const onSetupPending = vi.fn(async () => undefined)
+    await ensureSessionWorktreeProjectPath(session(), { onSetupPending })
+
+    expect(setSessionWorktreeMock).toHaveBeenCalledWith(
+      SessionId('setup-session'),
+      'worktree',
+      worktreePath,
+      undefined,
+    )
+    expect(adoptSessionWorktreeForSetupMock).toHaveBeenCalledWith(
+      SessionId('setup-session'),
+      expect.stringContaining('/.openwaggle/worktrees/repo/setup-session'),
+    )
+    expect(onSetupPending).toHaveBeenCalledWith(
+      expect.objectContaining({ setupGeneration: 'generation-1' }),
+    )
+    expect(completeSessionWorktreeSetupMock).toHaveBeenCalledWith(SessionId('setup-session'), {
+      worktreePath,
+      generation: 'generation-1',
+      state: 'claimed',
+      claimToken: 'claim-1',
+    })
+  })
+
+  it('preserves a completed generation when a stale Session copy adopts its recorded tree', async () => {
+    const onSetupPending = vi.fn(async () => undefined)
+    existsSyncMock.mockReturnValue(true)
+    runGitMock.mockResolvedValue({ code: 0, stdout: '/repo/.git\n', stderr: '' })
+    adoptSessionWorktreeForSetupMock.mockResolvedValue(null)
+
+    await ensureSessionWorktreeProjectPath(session(), { onSetupPending })
+
+    expect(onSetupPending).not.toHaveBeenCalled()
+    expect(completeSessionWorktreeSetupMock).not.toHaveBeenCalled()
+  })
+
+  it('asks the managed preparation service to reconcile a persisted claim before allowing the turn', async () => {
+    const onProgress = vi.fn()
+    const onSetupPending = vi.fn(async () => undefined)
+    existsSyncMock.mockReturnValue(true)
+    runGitMock.mockResolvedValue({ code: 0, stdout: '/repo/.git\n', stderr: '' })
+    getSessionWorktreeSetupDispatchMock.mockResolvedValue({
+      worktreePath: '/recorded/worktree',
+      generation: 'generation-before-crash',
+      state: 'claimed',
+      claimToken: 'claim-before-crash',
+    })
+
+    await ensureSessionWorktreeProjectPath(session({ worktreePath: '/recorded/worktree' }), {
+      onProgress,
+      onSetupPending,
+    })
+
+    expect(onSetupPending).toHaveBeenCalledWith(
+      expect.objectContaining({ setupGeneration: 'generation-before-crash', resumingClaim: true }),
+    )
+    expect(claimSessionWorktreeSetupMock).not.toHaveBeenCalled()
+    expect(completeSessionWorktreeSetupMock).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a durable claim when acceptance-receipt finalization fails', async () => {
+    const onProgress = vi.fn()
+    const onSetupPending = vi.fn(async () => undefined)
+    completeSessionWorktreeSetupMock.mockRejectedValueOnce(new Error('database unavailable'))
+
+    await ensureSessionWorktreeProjectPath(session(), { onProgress, onSetupPending })
+
+    expect(onSetupPending).toHaveBeenCalledOnce()
+    expect(releaseSessionWorktreeSetupClaimMock).not.toHaveBeenCalled()
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: [expect.stringContaining('will not be started again automatically')],
+      }),
+    )
+  })
+})

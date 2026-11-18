@@ -1,80 +1,26 @@
 ---
-import { docsNav } from '@/data/docs-nav';
+import { developerDocsNav, docsNav, isDeveloperDoc } from '@/data/docs-nav';
+import SidebarNav from './SidebarNav.astro';
 
 const currentPath = Astro.url.pathname.replace(/\/$/, '');
+const developerArea = isDeveloperDoc(currentPath.replace(/^\/docs\//, ''));
+const sections = developerArea ? developerDocsNav : docsNav;
+const otherArea = developerArea
+  ? { title: 'User guide', href: '/docs/getting-started/first-run/' }
+  : { title: 'Developer docs', href: '/docs/developer-guide/building-from-source/' };
 ---
 
-{/* Shared nav fragment rendered once, used in both desktop and mobile */}
+{/* The same nav renders in the desktop and the mobile sidebar */}
 <Fragment>
   {/* Desktop sidebar */}
   <aside class="docs-sidebar w-64 shrink-0 overflow-y-auto border-r border-border py-8 pr-6 hidden lg:block sticky top-16 h-[calc(100vh-4rem)]">
-    <nav aria-label="Documentation">
-      {docsNav.map((section) => (
-        <div class="mb-6">
-          <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-            {section.title}
-          </h3>
-          <ul class="flex flex-col gap-0.5">
-            {section.items.map((item) => {
-              const href = `/docs/${item.slug}`;
-              const isActive = currentPath === href || currentPath.startsWith(`${href}/`);
-              return (
-                <li>
-                  <a
-                    href={href}
-                    class:list={[
-                      'block rounded-md px-3 py-1.5 text-[13px] transition-colors',
-                      isActive
-                        ? 'bg-bg-tertiary text-accent font-medium'
-                        : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover',
-                    ]}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    {item.title}
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </nav>
+    <SidebarNav sections={sections} currentPath={currentPath} otherArea={otherArea} />
   </aside>
 
   {/* Mobile sidebar */}
   <div id="mobile-sidebar-overlay" class="fixed inset-0 z-40 hidden bg-black/50 lg:hidden"></div>
   <aside id="mobile-sidebar" class="fixed left-0 top-16 z-50 hidden h-[calc(100vh-4rem)] w-72 overflow-y-auto border-r border-border bg-bg p-6 lg:hidden" role="dialog" aria-label="Documentation navigation">
-    <nav aria-label="Documentation">
-      {docsNav.map((section) => (
-        <div class="mb-6">
-          <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-            {section.title}
-          </h3>
-          <ul class="flex flex-col gap-0.5">
-            {section.items.map((item) => {
-              const href = `/docs/${item.slug}`;
-              const isActive = currentPath === href || currentPath.startsWith(`${href}/`);
-              return (
-                <li>
-                  <a
-                    href={href}
-                    class:list={[
-                      'mobile-sidebar-link block rounded-md px-3 py-1.5 text-[13px] transition-colors',
-                      isActive
-                        ? 'bg-bg-tertiary text-accent font-medium'
-                        : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover',
-                    ]}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    {item.title}
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </nav>
+    <SidebarNav sections={sections} currentPath={currentPath} otherArea={otherArea} linkClass="mobile-sidebar-link" />
   </aside>
 </Fragment>
 

@@ -2,7 +2,6 @@ import type { AgentsInstructionStatus, SkillCatalogResult } from '@shared/types/
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import { queryKeys } from './query-keys'
-import type { OpenWaggleQueryOptions } from './query-options'
 
 export interface StandardsStatus {
   readonly agents: AgentsInstructionStatus
@@ -28,16 +27,7 @@ export async function fetchSkillPreview(projectPath: string, skillId: string) {
   return api.getSkillPreview(projectPath, skillId)
 }
 
-type SkillPreviewResult = Awaited<ReturnType<typeof fetchSkillPreview>>
-
-export function skillResourcesQueryOptions(
-  projectPath: string | null,
-): OpenWaggleQueryOptions<
-  SkillResourcesResult,
-  Error,
-  SkillResourcesResult,
-  ReturnType<typeof queryKeys.skills>
-> {
+export function skillResourcesQueryOptions(projectPath: string | null) {
   return queryOptions({
     queryKey: queryKeys.skills(projectPath),
     enabled: projectPath !== null,
@@ -55,12 +45,7 @@ export function skillPreviewQueryOptions(
   projectPath: string | null,
   skillId: string | null,
   enabled: boolean = projectPath !== null && skillId !== null,
-): OpenWaggleQueryOptions<
-  SkillPreviewResult,
-  Error,
-  SkillPreviewResult,
-  ReturnType<typeof queryKeys.skillPreview>
-> {
+) {
   return queryOptions({
     queryKey: queryKeys.skillPreview(projectPath, skillId),
     enabled,

@@ -7,7 +7,7 @@ export const PiProviderAuthLive = Layer.succeed(
   ProviderAuthService,
   ProviderAuthService.of({
     setApiKey: (providerId, apiKey) =>
-      Effect.try({
+      Effect.tryPromise({
         try: () => setPiProviderApiKey(providerId, apiKey),
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       }),

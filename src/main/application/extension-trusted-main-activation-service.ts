@@ -15,6 +15,8 @@ import type { ExtensionProjectOverridesRepository } from '../ports/extension-pro
 import type { ExtensionStorageRepository } from '../ports/extension-storage-repository'
 import type { SessionProjectionRepository } from '../ports/session-projection-repository'
 import type { SessionRepository } from '../ports/session-repository'
+import type { SessionResourceRepository } from '../ports/session-resource-repository'
+import type { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import { AppLogger } from '../services/logger-service'
 import { SettingsService } from '../services/settings-service'
 import { invokeExtensionCapability } from './extension-capability-broker-service'
@@ -48,7 +50,9 @@ export type TrustedMainActivationBaseServices =
   | ExtensionStorageRepository
   | SessionProjectionRepository
   | SessionRepository
+  | SessionResourceRepository
   | SettingsService
+  | ThinkingLevelDefaultService
 
 export type TrustedMainActivationServices =
   | TrustedMainActivationBaseServices
@@ -73,11 +77,10 @@ function currentTimestamp(dependencies: TrustedMainActivationDependencies) {
   return dependencies.now?.() ?? Date.now()
 }
 
-function makeBrokerTransport(
-  runtime: Runtime.Runtime<TrustedMainActivationServices>,
-): ExtensionBrokerTransport {
+function makeBrokerTransport(runtime: Runtime.Runtime<TrustedMainActivationServices>) {
   const runBroker = Runtime.runPromise(runtime)
-  return (invocation) => runBroker(invokeExtensionCapability(invocation))
+  return ((invocation) =>
+    runBroker(invokeExtensionCapability(invocation))) satisfies ExtensionBrokerTransport
 }
 
 function clearTrustedMainContributionRegistrations(
@@ -99,7 +102,7 @@ function deactivateTrustedMainActivationKeys(activationKeys: readonly string[]) 
 
 export function deactivateTrustedMainExtensionPackage(
   extensionPackage: DiscoveredExtensionPackage,
-): Effect.Effect<void> {
+) {
   return Effect.gen(function* () {
     const deactivatedPackages =
       yield* deactivateTrustedMainExtensionPackageInState(extensionPackage)
@@ -114,7 +117,7 @@ export function activateTrustedMainExtensionPackage(
     readonly activationProjectPath?: string | null
   },
   dependencies: TrustedMainActivationDependencies = {},
-): Effect.Effect<TrustedMainActivationResult, never, TrustedMainActivationServices> {
+) {
   return Effect.gen(function* () {
     const extensionPackage = input.extensionPackage
     const contentHash = extensionPackage.contentHash

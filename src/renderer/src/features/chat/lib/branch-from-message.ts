@@ -1,7 +1,7 @@
 import { getMessageText as getAgentMessageText } from '@shared/types/agent'
-import { SessionNodeId } from '@shared/types/brand'
+import type { SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { SessionNode, SessionWorkspace } from '@shared/types/session'
+import type { SessionTranscriptNode, SessionWorkspace } from '@shared/types/session'
 
 interface CreateBranchDraftSelectionInput {
   readonly messages: readonly UIMessage[]
@@ -16,13 +16,10 @@ export interface BranchDraftSelection {
 }
 
 function getUiMessageText(message: UIMessage) {
-  return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.content)
-    .join('\n')
+  return message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
 }
 
-function isSummarizableAbandonedNode(node: SessionNode) {
+function isSummarizableAbandonedNode(node: SessionTranscriptNode) {
   return (
     node.kind === 'user_message' ||
     node.kind === 'assistant_message' ||
@@ -32,12 +29,15 @@ function isSummarizableAbandonedNode(node: SessionNode) {
   )
 }
 
-function pathToRootIds(nodesById: ReadonlyMap<string, SessionNode>, nodeId: SessionNodeId) {
+function pathToRootIds(
+  nodesById: ReadonlyMap<string, SessionTranscriptNode>,
+  nodeId: SessionNodeId,
+) {
   const pathIds = new Set<string>()
   let currentId: SessionNodeId | null = nodeId
 
   while (currentId) {
-    const currentKey: string = String(currentId)
+    const currentKey: string = currentId
     if (pathIds.has(currentKey)) {
       break
     }
@@ -48,13 +48,63 @@ function pathToRootIds(nodesById: ReadonlyMap<string, SessionNode>, nodeId: Sess
   return pathIds
 }
 
-function findTranscriptNode(workspace: SessionWorkspace | null, messageId: string) {
-  return workspace?.transcriptPath.find((entry) => String(entry.node.id) === messageId)?.node
+function findTranscriptNode(
+  workspace: SessionWorkspace | null,
+  messageId: string,
+  message: UIMessage | undefined,
+) {
+  const createdOrder = message?.metadata?.sessionNodeCreatedOrder
+  // A reconciled user row keeps its optimistic id, so its node is the one its metadata names.
+  const recordedNodeId = message?.metadata?.sessionNodeId
+  return (
+    (recordedNodeId === undefined
+      ? undefined
+      : workspace?.tree.nodes.find(
+          (node) =>
+            node.sessionId === workspace.tree.session.id && String(node.id) === recordedNodeId,
+        )) ??
+    workspace?.transcriptPath.find(
+      (entry) =>
+        entry.node.sessionId === workspace.tree.session.id && String(entry.node.id) === messageId,
+    )?.node ??
+    workspace?.tree.nodes.find(
+      (node) => node.sessionId === workspace.tree.session.id && String(node.id) === messageId,
+    ) ??
+    (createdOrder === undefined
+      ? undefined
+      : workspace?.tree.nodes.find(
+          (node) =>
+            node.sessionId === workspace.tree.session.id &&
+            node.createdOrder === createdOrder &&
+            ((message?.role === 'user' && node.kind === 'user_message') ||
+              (message?.role === 'assistant' && node.kind === 'assistant_message')),
+        ))
+  )
 }
 
-export function createBranchDraftSelectionFromNode(node: SessionNode): BranchDraftSelection {
+/**
+ * The persisted user-message node a transcript message was saved as, or null while its projection
+ * has not arrived. A message id is not a node id: a row sent in this window keeps its optimistic id
+ * after the snapshot reconciles it, and Pi rejects that id as a fork target.
+ */
+export function findUserMessageNode(input: CreateBranchDraftSelectionInput) {
+  const message = input.messages.find((candidate) => candidate.id === input.messageId)
+  const node = findTranscriptNode(input.workspace, input.messageId, message)
+  return node?.kind === 'user_message' ? node : null
+}
+
+/** The persisted assistant-message node of a turn's reply, or null before it is projected. */
+export function findAssistantMessageNode(input: CreateBranchDraftSelectionInput) {
+  const message = input.messages.find((candidate) => candidate.id === input.messageId)
+  const node = findTranscriptNode(input.workspace, input.messageId, message)
+  return node?.kind === 'assistant_message' ? node : null
+}
+
+export function createBranchDraftSelectionFromNode(node: SessionTranscriptNode) {
   if (node.kind === 'user_message' && node.parentId) {
-    const text = node.message ? getAgentMessageText(node.message).trim() : ''
+    // A Hive wake notice is the Host's text: branching there must not send it as the user's.
+    const hiveWake = node.hiveWake || node.message?.metadata?.hiveWake
+    const text = node.message && !hiveWake ? getAgentMessageText(node.message).trim() : ''
     return {
       sourceNodeId: node.parentId,
       routeNodeId: node.parentId,
@@ -72,9 +122,9 @@ export function createBranchDraftSelection({
   messages,
   workspace,
   messageId,
-}: CreateBranchDraftSelectionInput): BranchDraftSelection {
+}: CreateBranchDraftSelectionInput) {
   const message = messages.find((candidate) => candidate.id === messageId)
-  const node = findTranscriptNode(workspace, messageId)
+  const node = findTranscriptNode(workspace, messageId, message)
 
   if (message?.role === 'user' && node?.parentId) {
     const text = getUiMessageText(message).trim()
@@ -89,17 +139,15 @@ export function createBranchDraftSelection({
     return createBranchDraftSelectionFromNode(node)
   }
 
-  const nodeId = SessionNodeId(messageId)
-  return {
-    sourceNodeId: nodeId,
-    routeNodeId: nodeId,
-  }
+  // A visible live message can precede its canonical projection. In particular,
+  // an unknown user-message parent is not the same as a real root user node.
+  return null
 }
 
 export function shouldPromptForBranchSummary(
   workspace: SessionWorkspace | null,
   targetNodeId: SessionNodeId,
-): boolean {
+) {
   if (!workspace?.activeNodeId || workspace.activeNodeId === targetNodeId) {
     return false
   }
@@ -110,7 +158,7 @@ export function shouldPromptForBranchSummary(
   const visited = new Set<string>()
 
   while (currentId) {
-    const currentKey: string = String(currentId)
+    const currentKey: string = currentId
     if (targetPathIds.has(currentKey) || visited.has(currentKey)) {
       return false
     }

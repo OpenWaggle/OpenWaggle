@@ -1,113 +1,101 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { MessagePart } from '@shared/types/agent'
-import type { ActiveRunInfo, BackgroundRunSnapshot, RunMode } from '@shared/types/background-run'
-import { type SessionId, ToolCallId } from '@shared/types/brand'
-import type { JsonObject, JsonValue } from '@shared/types/json'
-import type { SupportedModelId } from '@shared/types/llm'
+import type {
+  ActiveRunInfo,
+  BackgroundRunActivityEvent,
+  BackgroundRunSnapshot,
+  RunMode,
+  WorktreeLaunchSnapshot,
+} from '@shared/types/background-run'
+import { type SessionId, SupportedModelId } from '@shared/types/brand'
+import type { JsonValue } from '@shared/types/json'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import {
+  continuedRunContent,
+  retainFinishedAssistantMessage,
+  runHistoryBytes,
+} from './stream-buffer-history'
+import { upsertToolCallPart } from './stream-buffer-message-parts'
+import { restoreStreamBufferSnapshots } from './stream-buffer-restore'
+import {
+  type ActiveStreamBuffer,
+  emptyActiveStreamBuffer,
+  MAX_ACTIVE_STREAM_BUFFER_BYTES,
+  MAX_DEGRADED_TOOL_CALL_IDS,
+  retainedStreamBufferBytes,
+  startsAnotherRun,
+  toStreamBufferSnapshot,
+  withoutRetainedStreamContent,
+  withWorktreeLaunchSnapshot,
+} from './stream-buffer-snapshots'
+import { applyToolExecutionToParts } from './stream-buffer-tool-parts'
+import {
+  appendStreamBufferText,
+  appendStreamBufferToolCallDelta,
+  appendStreamBufferUserMessage,
+  type StreamBufferUpdate,
+  updateStreamBufferActivityEvents,
+  updateStreamBufferParts,
+} from './stream-buffer-updates'
 
-interface ActiveStreamBuffer {
-  readonly model: SupportedModelId
-  readonly mode: RunMode
-  readonly startedAt: number
-  readonly messageId?: string
-  readonly parts: readonly MessagePart[]
-}
+export { MAX_ACTIVE_STREAM_BUFFER_BYTES, MAX_DEGRADED_TOOL_CALL_IDS }
 
 const activeBuffers = new Map<SessionId, ActiveStreamBuffer>()
+// The Local Session protocol sends all active snapshots in one 8 MiB frame.
+// Keep enough headroom for JSON structure, model metadata, and frame fields.
+let totalRetainedBytes = 0
+// The Runs' finished-message history, under its own budget (`stream-buffer-history`).
+let totalHistoryBytes = 0
 
-function isJsonObject(value: JsonValue | undefined): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function jsonObjectOrEmpty(value: JsonValue | undefined): Readonly<JsonObject> {
-  return isJsonObject(value) ? value : {}
-}
-
-function appendTextPart(parts: readonly MessagePart[], delta: string): MessagePart[] {
-  const lastPart = parts[parts.length - 1]
-  if (lastPart?.type === 'text') {
-    return [...parts.slice(0, -1), { type: 'text', text: lastPart.text + delta }]
-  }
-  return [...parts, { type: 'text', text: delta }]
-}
-
-function appendReasoningPart(parts: readonly MessagePart[], delta: string): MessagePart[] {
-  const lastPart = parts[parts.length - 1]
-  if (lastPart?.type === 'reasoning') {
-    return [...parts.slice(0, -1), { type: 'reasoning', text: lastPart.text + delta }]
-  }
-  return [...parts, { type: 'reasoning', text: delta }]
-}
-
-function findToolCallPartIndex(parts: readonly MessagePart[], toolCallId: string) {
-  return parts.findIndex(
-    (part) => part.type === 'tool-call' && String(part.toolCall.id) === toolCallId,
+/** The next assistant message starts: the finished one joins the history, its parts released. */
+function startBufferedAssistantMessage(sessionId: SessionId, messageId: string, startedAt: number) {
+  const finished = activeBuffers.get(sessionId)
+  if (!finished) return
+  const retained = retainFinishedAssistantMessage(finished, totalHistoryBytes)
+  totalHistoryBytes += retained.historyDelta
+  const buffer = retained.buffer
+  totalRetainedBytes = Math.max(
+    0,
+    totalRetainedBytes - buffer.retainedBytes - buffer.degradedToolCallIdsBytes,
   )
+  activeBuffers.set(sessionId, { ...withoutRetainedStreamContent(buffer, startedAt), messageId })
 }
 
-function upsertToolCallPart(input: {
-  readonly parts: readonly MessagePart[]
-  readonly toolCallId: string
-  readonly toolName?: string
-  readonly args?: JsonValue
-}): MessagePart[] {
-  const index = findToolCallPartIndex(input.parts, input.toolCallId)
-  const existingPart = index === -1 ? null : input.parts[index]
-  const toolName =
-    input.toolName || (existingPart?.type === 'tool-call' ? existingPart.toolCall.name : '')
-  const toolCallPart: MessagePart = {
-    type: 'tool-call',
-    toolCall: {
-      id: ToolCallId(input.toolCallId),
-      name: toolName,
-      args: jsonObjectOrEmpty(input.args),
-      state: 'input-complete',
-    },
-  }
-  if (index === -1) {
-    return [...input.parts, toolCallPart]
-  }
-  return [...input.parts.slice(0, index), toolCallPart, ...input.parts.slice(index + 1)]
-}
-
-function appendToolResultPart(input: {
-  readonly parts: readonly MessagePart[]
-  readonly toolCallId: string
-  readonly toolName: string
-  readonly args?: JsonValue
-  readonly result: JsonValue
-  readonly isError: boolean
-}): MessagePart[] {
-  const withoutPreviousResult = input.parts.filter(
-    (part) => part.type !== 'tool-result' || String(part.toolResult.id) !== input.toolCallId,
-  )
-  return [
-    ...withoutPreviousResult,
-    {
-      type: 'tool-result',
-      toolResult: {
-        id: ToolCallId(input.toolCallId),
-        name: input.toolName,
-        args: jsonObjectOrEmpty(input.args),
-        result: input.result,
-        isError: input.isError,
-        duration: 0,
-      },
-    },
-  ]
+function applyBufferedUpdate(
+  sessionId: SessionId,
+  update: (buffer: ActiveStreamBuffer) => StreamBufferUpdate,
+) {
+  const buffer = activeBuffers.get(sessionId)
+  if (!buffer) return
+  const result = update(buffer)
+  totalRetainedBytes += result.retainedDelta
+  activeBuffers.set(sessionId, result.buffer)
 }
 
 function updateBufferedParts(
   sessionId: SessionId,
   update: (parts: readonly MessagePart[]) => readonly MessagePart[],
+  attemptedContentBytes?: number,
 ) {
-  const buffer = activeBuffers.get(sessionId)
-  if (!buffer) return
-  activeBuffers.set(sessionId, {
-    ...buffer,
-    parts: update(buffer.parts),
-  })
+  applyBufferedUpdate(sessionId, (buffer) =>
+    updateStreamBufferParts(buffer, update, totalRetainedBytes, attemptedContentBytes),
+  )
+}
+
+function appendBufferedToolCallDelta(
+  sessionId: SessionId,
+  input: { readonly toolCallId: string; readonly delta: string; readonly args: JsonValue },
+) {
+  applyBufferedUpdate(sessionId, (buffer) =>
+    appendStreamBufferToolCallDelta(buffer, input, totalRetainedBytes),
+  )
+}
+
+type BufferedText = Parameters<typeof appendStreamBufferText>[1]
+function appendBufferedText(sessionId: SessionId, text: BufferedText) {
+  applyBufferedUpdate(sessionId, (buffer) =>
+    appendStreamBufferText(buffer, text, totalRetainedBytes),
+  )
 }
 
 function updateBufferedAssistantMessageId(sessionId: SessionId, messageId: string) {
@@ -119,63 +107,62 @@ function updateBufferedAssistantMessageId(sessionId: SessionId, messageId: strin
   })
 }
 
+function updateBufferedActivityEvents(
+  sessionId: SessionId,
+  update: (events: readonly BackgroundRunActivityEvent[]) => readonly BackgroundRunActivityEvent[],
+) {
+  applyBufferedUpdate(sessionId, (buffer) =>
+    updateStreamBufferActivityEvents(buffer, update, totalRetainedBytes),
+  )
+}
+
+function upsertBufferedToolCall(
+  sessionId: SessionId,
+  toolCall: Omit<Parameters<typeof upsertToolCallPart>[0], 'parts'>,
+) {
+  updateBufferedParts(sessionId, (parts) => upsertToolCallPart({ parts, ...toolCall }))
+}
+
 function applyMessageUpdateToStreamBuffer(
   sessionId: SessionId,
   value: Extract<AgentTransportEvent, { type: 'message_update' }>,
 ) {
   updateBufferedAssistantMessageId(sessionId, value.messageId)
   matchBy(value.assistantMessageEvent, 'type')
-    .with('text_start', 'text_end', 'thinking_start', 'thinking_end', () => undefined)
-    .with('text_delta', (assistantEvent) => {
-      updateBufferedParts(sessionId, (parts) => appendTextPart(parts, assistantEvent.delta))
+    .with('text_start', 'text_end', 'thinking_end', () => undefined)
+    // A thinking block opens its part at its start, as the live view does: one with no text (a
+    // reasoning item with no summary, redacted thinking) still separates the texts around it.
+    .with('thinking_start', ({ contentIndex }) => {
+      appendBufferedText(sessionId, { type: 'reasoning', delta: '', contentIndex })
     })
-    .with('thinking_delta', (assistantEvent) => {
-      updateBufferedParts(sessionId, (parts) => appendReasoningPart(parts, assistantEvent.delta))
+    .with('text_delta', ({ delta, contentIndex }) => {
+      appendBufferedText(sessionId, { type: 'text', delta, contentIndex })
     })
-    .with('toolcall_start', 'toolcall_end', (assistantEvent) => {
-      updateBufferedParts(sessionId, (parts) =>
-        upsertToolCallPart({
-          parts,
-          toolCallId: assistantEvent.toolCallId,
-          toolName: assistantEvent.toolName,
-          args: assistantEvent.input,
-        }),
-      )
+    .with('thinking_delta', ({ delta, contentIndex }) => {
+      appendBufferedText(sessionId, { type: 'reasoning', delta, contentIndex })
+    })
+    .with('toolcall_start', ({ toolCallId, toolName, input }) => {
+      upsertBufferedToolCall(sessionId, {
+        toolCallId,
+        toolName,
+        ...(input === undefined ? {} : { args: input }),
+      })
+    })
+    .with('toolcall_end', ({ toolCallId, toolName, input }) => {
+      if (activeBuffers.get(sessionId)?.degradedToolCallIds.has(toolCallId)) return
+      upsertBufferedToolCall(sessionId, { toolCallId, toolName, args: input })
     })
     .with('toolcall_delta', (assistantEvent) => {
       if (assistantEvent.input !== undefined) {
-        updateBufferedParts(sessionId, (parts) =>
-          upsertToolCallPart({
-            parts,
-            toolCallId: assistantEvent.toolCallId,
-            args: assistantEvent.input,
-          }),
-        )
+        appendBufferedToolCallDelta(sessionId, {
+          toolCallId: assistantEvent.toolCallId,
+          delta: assistantEvent.delta,
+          args: assistantEvent.input,
+        })
       }
     })
     .with('done', 'error', () => undefined)
     .exhaustive()
-}
-
-function applyToolExecutionEndToStreamBuffer(
-  sessionId: SessionId,
-  value: Extract<AgentTransportEvent, { type: 'tool_execution_end' }>,
-) {
-  updateBufferedParts(sessionId, (parts) =>
-    appendToolResultPart({
-      parts: upsertToolCallPart({
-        parts,
-        toolCallId: value.toolCallId,
-        toolName: value.toolName,
-        args: value.args,
-      }),
-      toolCallId: value.toolCallId,
-      toolName: value.toolName,
-      args: value.args,
-      result: value.result,
-      isError: value.isError,
-    }),
-  )
 }
 
 export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTransportEvent) {
@@ -183,72 +170,150 @@ export function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTrans
     .with('agent_start', 'agent_end', 'turn_start', 'turn_end', () => undefined)
     .with('message_start', (value) => {
       if (value.role === 'assistant') {
-        updateBufferedAssistantMessageId(sessionId, value.messageId)
-        updateBufferedParts(sessionId, () => [])
+        startBufferedAssistantMessage(sessionId, value.messageId, value.timestamp)
+      }
+      if (value.role === 'user') {
+        applyBufferedUpdate(sessionId, (buffer) =>
+          appendStreamBufferUserMessage(buffer, value, totalRetainedBytes),
+        )
       }
     })
     .with('message_update', (value) => applyMessageUpdateToStreamBuffer(sessionId, value))
-    .with('message_end', () => undefined)
-    .with('tool_execution_start', 'tool_execution_update', (value) => {
+    .with('message_end', 'context_usage', () => undefined)
+    .with('tool_execution_start', 'tool_execution_update', 'tool_execution_end', (value) => {
+      const degraded = activeBuffers.get(sessionId)?.degradedToolCallIds.has(value.toolCallId)
       updateBufferedParts(sessionId, (parts) =>
-        upsertToolCallPart({
-          parts,
-          toolCallId: value.toolCallId,
-          toolName: value.toolName,
-          args: value.args,
-        }),
+        applyToolExecutionToParts(parts, value, degraded === true),
       )
     })
-    .with('tool_execution_end', (value) => applyToolExecutionEndToStreamBuffer(sessionId, value))
+    .with('compaction_start', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [
+        ...events.filter(
+          (event) => event.type === 'compaction_start' || event.type === 'compaction_end',
+        ),
+        value,
+      ])
+    })
+    .with('compaction_end', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [...events, value])
+    })
+    .with('auto_retry_start', (value) => {
+      updateBufferedActivityEvents(sessionId, (events) => [...events, value])
+    })
+    .with('auto_retry_end', () => {
+      updateBufferedActivityEvents(sessionId, (events) =>
+        events.filter(
+          (event) => event.type === 'compaction_start' || event.type === 'compaction_end',
+        ),
+      )
+    })
     .with(
       'queue_update',
-      'compaction_start',
-      'compaction_end',
-      'auto_retry_start',
-      'auto_retry_end',
       'custom',
       'agent_interaction_request',
       'agent_interaction_resolved',
+      'extension_status',
+      'agent_settled',
       () => undefined,
     )
     .exhaustive()
 }
 
-export function startStreamBuffer(sessionId: SessionId, model: SupportedModelId, mode: RunMode) {
+export function startStreamBuffer(
+  sessionId: SessionId,
+  model: SupportedModelId,
+  mode: RunMode,
+  runId?: string,
+) {
+  const continued = continuedRunContent(activeBuffers.get(sessionId), runId, totalHistoryBytes)
+  clearStreamBuffer(sessionId)
   activeBuffers.set(sessionId, {
-    model,
-    mode,
-    startedAt: Date.now(),
-    parts: [],
+    ...emptyActiveStreamBuffer({ model, mode, startedAt: Date.now(), runId }),
+    activityEvents: [],
+    ...continued,
   })
+  totalRetainedBytes += continued.userMessagesBytes ?? 0
+  totalHistoryBytes += runHistoryBytes(continued)
+}
+
+export function upsertStreamBufferRunIdentity(
+  sessionId: SessionId,
+  model: SupportedModelId,
+  mode: RunMode,
+) {
+  const existing = activeBuffers.get(sessionId)
+  if (!existing) {
+    startStreamBuffer(sessionId, model, mode)
+    return
+  }
+  activeBuffers.set(sessionId, { ...existing, model, mode })
+}
+
+export function startStreamBufferFromAgentStart(
+  sessionId: SessionId,
+  event: Extract<AgentTransportEvent, { type: 'agent_start' }>,
+) {
+  const previous = activeBuffers.get(sessionId)
+  if (previous && startsAnotherRun(previous, event.runId)) clearStreamBuffer(sessionId)
+  const existing = activeBuffers.get(sessionId)
+  const fallbackModel = existing?.model ?? previous?.model ?? SupportedModelId('')
+  const model = event.model ? SupportedModelId(event.model) : fallbackModel
+  const mode = existing?.mode ?? (event.runId.startsWith('waggle-') ? 'waggle' : 'classic')
+  activeBuffers.set(
+    sessionId,
+    existing
+      ? { ...existing, runId: event.runId, model, mode }
+      : emptyActiveStreamBuffer({ model, mode, startedAt: event.timestamp, runId: event.runId }),
+  )
 }
 
 export function clearStreamBuffer(sessionId: SessionId) {
+  const buffer = activeBuffers.get(sessionId)
+  if (buffer) {
+    totalRetainedBytes = Math.max(0, totalRetainedBytes - retainedStreamBufferBytes(buffer))
+    totalHistoryBytes = Math.max(0, totalHistoryBytes - runHistoryBytes(buffer))
+  }
   activeBuffers.delete(sessionId)
 }
 
-export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | null {
-  const buffer = activeBuffers.get(sessionId)
-  if (!buffer) return null
-  return {
-    sessionId,
-    model: buffer.model,
-    mode: buffer.mode,
-    startedAt: buffer.startedAt,
-    ...(buffer.messageId ? { messageId: buffer.messageId } : {}),
-    parts: [...buffer.parts],
-  }
+export function setWorktreeLaunchSnapshot(
+  sessionId: SessionId,
+  snapshot: WorktreeLaunchSnapshot | null,
+) {
+  const updated = withWorktreeLaunchSnapshot(activeBuffers.get(sessionId), snapshot)
+  if (updated) activeBuffers.set(sessionId, updated)
 }
 
-export function listStreamBuffers(): ActiveRunInfo[] {
+export function getStreamBuffer(sessionId: SessionId) {
+  return toStreamBufferSnapshot(sessionId, activeBuffers.get(sessionId))
+}
+
+export function listStreamBuffers() {
   const result: ActiveRunInfo[] = []
   for (const [sessionId, buffer] of activeBuffers) {
     result.push({
+      activity: 'agent-run',
       sessionId,
       model: buffer.model,
       mode: buffer.mode,
       startedAt: buffer.startedAt,
+      activityEvents: [...(buffer.activityEvents ?? [])],
     })
   }
   return result
+}
+
+export function listStreamBufferSnapshots() {
+  return [...activeBuffers.keys()].flatMap((sessionId) => {
+    const snapshot = getStreamBuffer(sessionId)
+    return snapshot ? [snapshot] : []
+  })
+}
+
+/** Replaces the buffers with the snapshots; returns the Run each replaced buffer held, by Session. */
+export function replaceStreamBufferSnapshots(snapshots: readonly BackgroundRunSnapshot[]) {
+  const restored = restoreStreamBufferSnapshots(activeBuffers, snapshots)
+  totalRetainedBytes = restored.totalRetainedBytes
+  totalHistoryBytes = restored.totalHistoryBytes
+  return restored.previousRunIds
 }

@@ -1,5 +1,6 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import { applyNestedToolExecution } from './chat-stream-nested-tool-calls'
 import {
   ensureToolCall,
   findAssistantMessageIdForToolCall,
@@ -13,6 +14,9 @@ export function startToolExecution(
   messages: readonly UIMessage[],
   event: Extract<AgentTransportEvent, { type: 'tool_execution_start' }>,
 ) {
+  if (event.parentToolCallId) {
+    return applyNestedToolExecution(messages, event, event.parentToolCallId)
+  }
   const targetAssistantId = event.parentMessageId ?? findLatestAssistantMessageId(messages)
   const ensuredMessages = targetAssistantId
     ? ensureToolCall(messages, targetAssistantId, event.toolCallId, event.toolName, event.args)
@@ -29,6 +33,9 @@ export function updateToolExecution(
   messages: readonly UIMessage[],
   event: Extract<AgentTransportEvent, { type: 'tool_execution_update' }>,
 ) {
+  if (event.parentToolCallId) {
+    return applyNestedToolExecution(messages, event, event.parentToolCallId)
+  }
   const targetAssistantId =
     findAssistantMessageIdForToolCall(messages, event.toolCallId) ??
     findLatestAssistantMessageId(messages)
@@ -48,6 +55,9 @@ export function finishToolExecution(
   messages: readonly UIMessage[],
   event: Extract<AgentTransportEvent, { type: 'tool_execution_end' }>,
 ) {
+  if (event.parentToolCallId) {
+    return applyNestedToolExecution(messages, event, event.parentToolCallId)
+  }
   const targetAssistantId =
     findAssistantMessageIdForToolCall(messages, event.toolCallId) ??
     findLatestAssistantMessageId(messages)

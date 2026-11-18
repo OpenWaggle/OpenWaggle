@@ -28,7 +28,7 @@ interface TestMeta {
   readonly label: string
 }
 
-function config(maxTurnsSafety = MAX_TURNS_SAFETY): WaggleConfig {
+function config(maxTurnsSafety = MAX_TURNS_SAFETY) {
   return {
     mode: 'sequential',
     agents: [
@@ -46,18 +46,16 @@ function config(maxTurnsSafety = MAX_TURNS_SAFETY): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety },
-  }
+  } satisfies WaggleConfig
 }
 
-function metadata(waggleConfig: WaggleConfig, turnNumber: number, agentIndex: number): TestMeta {
-  return {
-    turnNumber,
-    agentIndex,
-    label: waggleConfig.agents[agentIndex].label,
-  }
+function metadata(waggleConfig: WaggleConfig, turnNumber: number, agentIndex: number) {
+  const agent = waggleConfig.agents[agentIndex]
+  if (!agent) throw new Error(`Expected Waggle agent ${String(agentIndex)}`)
+  return { turnNumber, agentIndex, label: agent.label }
 }
 
-function modelFor(modelReference: string): PiWaggleModel {
+function modelFor(modelReference: string) {
   const separatorIndex = modelReference.indexOf('/')
   if (separatorIndex <= FIRST_PROVIDER_CHARACTER_INDEX) {
     throw new Error(`Expected provider/model id, received ${modelReference}`)
@@ -69,8 +67,8 @@ function modelFor(modelReference: string): PiWaggleModel {
   })
 }
 
-function agentEndEvent(messages: AgentEndEvent['messages'] = []): AgentEndEvent {
-  return { type: 'agent_end', messages }
+function agentEndEvent(messages: AgentEndEvent['messages'] = []) {
+  return { type: 'agent_end', messages } satisfies AgentEndEvent
 }
 
 function createHarness(model = modelFor(SECONDARY_MODEL)) {

@@ -1,37 +1,102 @@
-import type { HydratedAgentSendPayload, PreparedAttachment } from '@shared/types/agent'
-import type { SessionId } from '@shared/types/brand'
+import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import type { PreparedAttachment } from '@shared/types/agent'
+import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { buildDeterministicTitle } from '../agent/title-generator'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { hydrateAttachmentSources } from '../utils/attachment-hydration'
+import { requestInitialSessionTitle } from './session-title-scheduler'
+
+const MEBIBYTE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
+
+function validatePreparedAttachments(attachments: readonly PreparedAttachment[]) {
+  if (attachments.length > ATTACHMENT.MAX_COUNT) {
+    throw new Error(
+      `A maximum of ${String(ATTACHMENT.MAX_COUNT)} attachments is supported per message.`,
+    )
+  }
+
+  const capabilityIds = new Set<string>()
+  let totalSizeBytes = 0
+  for (const attachment of attachments) {
+    if (capabilityIds.has(attachment.id)) {
+      throw new Error(`Duplicate prepared attachment capability: ${attachment.name}`)
+    }
+    capabilityIds.add(attachment.id)
+    // Pi reduces every prompt image for the selected model, so an image's size never decides
+    // whether the send can succeed and images do not count towards the file total (ADR 0068).
+    const maxSizeBytes =
+      attachment.kind === 'image' ? ATTACHMENT.MAX_IMAGE_SIZE_BYTES : ATTACHMENT.MAX_SIZE_BYTES
+    if (
+      !Number.isSafeInteger(attachment.sizeBytes) ||
+      attachment.sizeBytes < 0 ||
+      attachment.sizeBytes > maxSizeBytes
+    ) {
+      throw new Error(
+        `Attachment exceeds ${String(maxSizeBytes / MEBIBYTE)} MB: ${attachment.name}`,
+      )
+    }
+    if (attachment.kind === 'image') continue
+    if (totalSizeBytes > ATTACHMENT.MAX_TOTAL_SIZE_BYTES - attachment.sizeBytes) {
+      throw new Error(
+        `Total document size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / MEBIBYTE)} MB.`,
+      )
+    }
+    totalSizeBytes += attachment.sizeBytes
+  }
+}
 
 /** Hydrate attachment binary sources from prepared attachment records. */
-export async function hydratePayloadAttachments(
-  attachments: readonly PreparedAttachment[],
-): Promise<HydratedAgentSendPayload['attachments']> {
+export async function hydratePayloadAttachments(attachments: readonly PreparedAttachment[]) {
+  validatePreparedAttachments(attachments)
   return hydrateAttachmentSources(attachments)
 }
 
-/** Persist a deterministic name for a new projected session from the first user message. */
+/**
+ * Whether a Session is still owed its title from the user's request: its title is the default
+ * one, or a Worker's Provisional title before its first message. Messages alone do not say so:
+ * an extension command can write a turn without titling the Session. Without a known source,
+ * only a Session with no messages is.
+ */
+export function sessionTitleOwed(session: SessionDetail) {
+  if (session.titleSource === 'default') return true
+  if (session.titleSource === 'provisional' || session.titleSource === undefined) {
+    return session.messages.length === 0
+  }
+  return false
+}
+
+/**
+ * On a Session's first message, writes its Provisional title and asks the Session Host to generate
+ * the real one in the background. Only the local write happens on the Run's path; returns the
+ * Provisional title when this call assigned it.
+ */
 export function assignSessionTitleFromUserText(
   sessionId: SessionId,
   session: SessionDetail,
-  text: string,
+  payload: {
+    readonly text: string
+    readonly attachments: readonly PreparedAttachment[]
+    readonly model: SupportedModelId
+  },
 ) {
   return Effect.gen(function* () {
-    if (session.title !== 'New session' || session.messages.length > 0) {
-      return null
-    }
-
-    const trimmed = text.trim()
-    if (!trimmed) {
-      return null
-    }
-
-    const title = buildDeterministicTitle(trimmed)
-    const repo = yield* SessionProjectionRepository
-    yield* repo.updateTitle(sessionId, title)
-    return title
+    if (!sessionTitleOwed(session)) return null
+    const trimmed = payload.text.trim()
+    const assigned = trimmed
+      ? yield* (yield* SessionProjectionRepository).assignProvisionalTitle(
+          sessionId,
+          buildDeterministicTitle(trimmed),
+        )
+      : false
+    // A Worker already has its Provisional title, so it is asked for a generated one as well.
+    requestInitialSessionTitle({
+      sessionId,
+      text: trimmed,
+      model: payload.model,
+      attachments: payload.attachments.map(({ id, name, mimeType }) => ({ id, name, mimeType })),
+    })
+    return assigned ? buildDeterministicTitle(trimmed) : null
   })
 }

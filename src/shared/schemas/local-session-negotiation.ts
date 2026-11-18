@@ -1,0 +1,144 @@
+import { Schema } from '@shared/schema'
+import {
+  LOCAL_SESSION_CAPABILITIES,
+  LOCAL_SESSION_PROTOCOL_NAME,
+  LOCAL_SESSION_REVISION_2_CAPABILITIES,
+  LOCAL_SESSION_REVISION_3_CAPABILITIES,
+  LOCAL_SESSION_REVISION_4_CAPABILITIES,
+  LOCAL_SESSION_REVISION_5_CAPABILITIES,
+  LOCAL_SESSION_SUPPORTED_REVISIONS,
+} from '@shared/types/local-session-protocol'
+
+const [currentRevision] = LOCAL_SESSION_SUPPORTED_REVISIONS
+const MAX_NEGOTIATION_REVISIONS = 16
+const [
+  subscribeCapability,
+  replayCapability,
+  mutateCapability,
+  queryCapability,
+  snapshotCapability,
+  accessProfilesCapability,
+  localUiMutationCapability,
+] = LOCAL_SESSION_REVISION_2_CAPABILITIES
+const [, , , , , , , waggleRunCapability, waggleCancelCapability] =
+  LOCAL_SESSION_REVISION_3_CAPABILITIES
+const [, , , , , , , , , localCompactionCapability] = LOCAL_SESSION_REVISION_4_CAPABILITIES
+const [, , , , , , , , , , hostUiCapability] = LOCAL_SESSION_REVISION_5_CAPABILITIES
+const [
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  mcpAuthCapability,
+  steerReceiptCapability,
+  workspaceAuthCapability,
+  visualizationSourceCapability,
+  authorizationGrantsCapability,
+  desktopServicesCapability,
+  projectCatalogCapability,
+  turnDiffFilesCapability,
+  updateChannelCapability,
+  worktreeLaunchCapability,
+  sessionResourcesCapability,
+  nativeActionsCapability,
+  projectModelPersistenceCapability,
+  launchStepsCapability,
+  hostStopCapability,
+  titleRegenerationCapability,
+  followUpEditCapability,
+  runSnapshotContentCapability,
+  sourceControlCapability,
+  mcpConfigurationCapability,
+  archivedItemsCapability,
+  scheduledTasksCapability,
+  hiveDefaultsCapability,
+  heartbeatEfficiencyCapability,
+  sessionDataCapability,
+  worktreeInventoryCapability,
+  desktopNotificationsCapability,
+  refusalKindsCapability,
+] = LOCAL_SESSION_CAPABILITIES
+
+const supportedRevisionListSchema = Schema.Array(
+  Schema.Number.pipe(Schema.int(), Schema.positive()),
+).pipe(Schema.minItems(1), Schema.maxItems(MAX_NEGOTIATION_REVISIONS))
+
+const currentCapabilitySchema = Schema.Tuple(
+  Schema.Literal(subscribeCapability),
+  Schema.Literal(replayCapability),
+  Schema.Literal(mutateCapability),
+  Schema.Literal(queryCapability),
+  Schema.Literal(snapshotCapability),
+  Schema.Literal(accessProfilesCapability),
+  Schema.Literal(localUiMutationCapability),
+  Schema.Literal(waggleRunCapability),
+  Schema.Literal(waggleCancelCapability),
+  Schema.Literal(localCompactionCapability),
+  Schema.Literal(hostUiCapability),
+  Schema.Literal(mcpAuthCapability),
+  Schema.Literal(steerReceiptCapability),
+  Schema.Literal(workspaceAuthCapability),
+  Schema.Literal(visualizationSourceCapability),
+  Schema.Literal(authorizationGrantsCapability),
+  Schema.Literal(desktopServicesCapability),
+  Schema.Literal(projectCatalogCapability),
+  Schema.Literal(turnDiffFilesCapability),
+  Schema.Literal(updateChannelCapability),
+  Schema.Literal(worktreeLaunchCapability),
+  Schema.Literal(sessionResourcesCapability),
+  Schema.Literal(nativeActionsCapability),
+  Schema.Literal(projectModelPersistenceCapability),
+  Schema.Literal(launchStepsCapability),
+  Schema.Literal(hostStopCapability),
+  Schema.Literal(titleRegenerationCapability),
+  Schema.Literal(followUpEditCapability),
+  Schema.Literal(runSnapshotContentCapability),
+  Schema.Literal(sourceControlCapability),
+  Schema.Literal(mcpConfigurationCapability),
+  Schema.Literal(archivedItemsCapability),
+  Schema.Literal(scheduledTasksCapability),
+  Schema.Literal(hiveDefaultsCapability),
+  Schema.Literal(heartbeatEfficiencyCapability),
+  Schema.Literal(sessionDataCapability),
+  Schema.Literal(worktreeInventoryCapability),
+  Schema.Literal(desktopNotificationsCapability),
+  Schema.Literal(refusalKindsCapability),
+)
+
+export const localSessionNegotiationResultSchema = Schema.Union(
+  Schema.Struct({
+    accepted: Schema.Literal(true),
+    protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+    revision: Schema.Literal(currentRevision),
+    hostInstanceId: Schema.String,
+    capabilities: currentCapabilitySchema,
+  }),
+  Schema.Struct({
+    accepted: Schema.Literal(false),
+    protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+    code: Schema.Literal('incompatible_protocol'),
+    supportedRevisions: supportedRevisionListSchema,
+  }),
+  Schema.Struct({
+    accepted: Schema.Literal(false),
+    protocol: Schema.Literal(LOCAL_SESSION_PROTOCOL_NAME),
+    code: Schema.Literal('host_upgrade_pending'),
+    hostInstanceId: Schema.String,
+    supportedRevisions: supportedRevisionListSchema,
+    blockingRuns: Schema.Array(Schema.Struct({ sessionId: Schema.String, runId: Schema.String })),
+    blockingOperations: Schema.Array(
+      Schema.Struct({
+        operationId: Schema.String,
+        operation: Schema.String,
+        targetScope: Schema.String,
+      }),
+    ),
+  }),
+)

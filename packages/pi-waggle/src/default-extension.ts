@@ -12,9 +12,11 @@ import {
   type DefaultPiWaggleRunState,
   setWaggleStatus,
 } from './default-run.js'
+import { onPiWaggleSettledAgentEnd } from './loop.js'
 import { latestPiWaggleModeStateFromBranch } from './mode-state.js'
 import { PI_WAGGLE_TURN_CUSTOM_TYPE, PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from './protocol.js'
 import { registerPiWaggleRenderers } from './renderers.js'
+import { registerWaggleInvokeTool } from './waggle-invoke-tool.js'
 
 function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning' | 'error') {
   if (ctx.hasUI) ctx.ui.notify(message, type)
@@ -22,20 +24,12 @@ function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning'
 
 type ContextMessage = ContextEvent['messages'][number]
 
-type ContextResult = { readonly messages?: ContextEvent['messages'] }
-
 function isWaggleDisplayMessage(message: ContextMessage) {
   return (
     message.role === 'custom' &&
     (message.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE ||
       message.customType === PI_WAGGLE_TURN_CUSTOM_TYPE)
   )
-}
-
-function buildSteeringContent(event: InputEvent) {
-  return event.images && event.images.length > 0
-    ? [{ type: 'text' as const, text: event.text }, ...event.images]
-    : event.text
 }
 
 function rewriteLatestUserMessage(input: {
@@ -76,6 +70,7 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
   const startDefaultWaggleRun = createStartDefaultWaggleRun({ getActiveRun, setActiveRun })
 
   registerPiWaggleRenderers(pi)
+  registerWaggleInvokeTool(pi, { getActiveRun })
   pi.registerCommand('waggle', {
     description: 'Enable Waggle multi-agent mode, optionally with a preset and prompt.',
     getArgumentCompletions: defaultWaggleCommandCompletions,
@@ -93,7 +88,7 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
         startRun: startDefaultWaggleRun,
       }),
   })
-  pi.on('context', (event): ContextResult => {
+  pi.on('context', (event) => {
     const messagesWithoutWaggleDisplay = event.messages.filter(
       (message) => !isWaggleDisplayMessage(message),
     )
@@ -112,14 +107,16 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
     clearRunStatus(ctx, setActiveRun)
   })
   pi.on('input', async (event: InputEvent, ctx) => {
-    if (event.source === 'extension' || event.text.trim().startsWith('/')) {
-      return { action: 'continue' }
-    }
+    if (event.source === 'extension') return { action: 'continue' }
     if (activeRun) {
       clearRunStatus(ctx, setActiveRun)
-      pi.sendUserMessage(buildSteeringContent(event), { deliverAs: 'steer' })
-      return { action: 'handled' }
+      return {
+        action: 'transform',
+        text: event.text,
+        ...(event.images ? { images: event.images } : {}),
+      }
     }
+    if (event.text.trim().startsWith('/')) return { action: 'continue' }
     if (!ctx.isIdle()) return { action: 'continue' }
 
     const state = latestPiWaggleModeStateFromBranch(ctx.sessionManager)
@@ -141,12 +138,13 @@ export default function defaultPiWaggleExtension(pi: ExtensionAPI) {
     }
     return { action: 'continue' }
   })
-  pi.on('turn_end', async (event, ctx) => {
-    const currentRun = activeRun
-    if (currentRun) await currentRun.onTurnEnd(event, ctx)
-  })
-  pi.on('agent_end', async (event, ctx) => {
-    const currentRun = activeRun
-    if (currentRun) await currentRun.onAgentEnd(event, ctx)
-  })
+  // A turn ends when Pi settles its run, not at a failed attempt Pi is about to retry.
+  onPiWaggleSettledAgentEnd(
+    pi,
+    async (event, ctx) => {
+      const currentRun = activeRun
+      if (currentRun) await currentRun.onAgentEnd(event, ctx)
+    },
+    { onAborted: async () => activeRun?.onAborted() },
+  )
 }

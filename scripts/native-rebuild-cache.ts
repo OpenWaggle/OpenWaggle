@@ -15,15 +15,15 @@ const CACHE_KEY_HASH_LENGTH = 32
 const FORCE_REBUILD_FLAG = '--force'
 const FORCE_REBUILD_ENV = 'OPENWAGGLE_NATIVE_REBUILD_FORCE'
 const FORCE_REBUILD_ENV_VALUES = new Set(['1', 'true', 'yes'])
-const NATIVE_REBUILD_CACHE_VERSION = 'electron-builder-native-rebuild-v2'
-const NATIVE_STATE_HASH_FILES = ['package.json', 'pnpm-lock.yaml']
-const SQLITE_PATCH_PREFIX = 'better-sqlite3@'
-const NODE_NATIVE_ARTIFACT_PACKAGES = ['better-sqlite3']
+const NATIVE_REBUILD_CACHE_VERSION = 'electron-builder-native-rebuild-v4'
+const NATIVE_STATE_HASH_FILES = ['package.json', 'bun.lock']
+const NATIVE_PATCH_PREFIXES = ['better-sqlite3@', 'node-pty@']
+const NODE_NATIVE_ARTIFACT_PACKAGES = ['node-pty', 'better-sqlite3']
 const ELECTRON_NATIVE_ARTIFACT_PACKAGES = ['sharp', 'node-pty', 'better-sqlite3']
 
 export type RebuildMode = 'node' | 'electron'
 
-export type NativeRebuildCacheKeyInput = {
+export interface NativeRebuildCacheKeyInput {
   readonly mode: RebuildMode
   readonly platform: string
   readonly arch: string
@@ -73,15 +73,17 @@ function hasNativeRebuildMarkerScalars(
   )
 }
 
-export function parseNativeRebuildMarker(value: unknown): NativeRebuildMarker | null {
-  if (!(
-    typeof value === 'object' &&
-    value !== null &&
-    hasNativeRebuildMarkerScalars(value) &&
-    'artifacts' in value &&
-    Array.isArray(value.artifacts) &&
-    value.artifacts.every(isNativeArtifactSignature)
-  )) {
+export function parseNativeRebuildMarker(value: unknown) {
+  if (
+    !(
+      typeof value === 'object' &&
+      value !== null &&
+      hasNativeRebuildMarkerScalars(value) &&
+      'artifacts' in value &&
+      Array.isArray(value.artifacts) &&
+      value.artifacts.every(isNativeArtifactSignature)
+    )
+  ) {
     return null
   }
 
@@ -139,8 +141,13 @@ export function isNativeRebuildMarkerFresh(
   )
 }
 
-export async function createNativeRebuildPlan(paths: NativeRebuildCachePaths, mode: RebuildMode) {
-  const runtimeVersion = mode === 'node' ? process.versions.node : await getElectronVersion(paths)
+export async function createNativeRebuildPlan(
+  paths: NativeRebuildCachePaths,
+  mode: RebuildMode,
+  /** The version of the Node.js the `node` mode builds for; the scripts themselves run on Bun. */
+  nodeVersion: string = process.versions.node,
+) {
+  const runtimeVersion = mode === 'node' ? nodeVersion : await getElectronVersion(paths)
   const input = {
     mode,
     platform: process.platform,
@@ -162,14 +169,16 @@ export async function canUseNativeRebuildCache(
   plan: NativeRebuildPlan,
 ) {
   const marker = await readNativeRebuildMarker(markerPathForKey(paths, plan.key))
-  return (
-    marker !== null &&
-    isNativeRebuildMarkerFresh(
+  if (marker === null) return false
+  try {
+    return isNativeRebuildMarkerFresh(
       marker,
       plan,
       await collectNativeArtifactSignatures(paths, plan.artifactPackages),
     )
-  )
+  } catch {
+    return false
+  }
 }
 
 export async function writeNativeRebuildMarker(
@@ -191,7 +200,10 @@ export async function writeNativeRebuildMarker(
   }
 
   await resetNativeRebuildCacheDirectory(paths)
-  await writeFile(markerPathForKey(paths, plan.key), `${JSON.stringify(marker, null, JSON_INDENT_SPACES)}\n`)
+  await writeFile(
+    markerPathForKey(paths, plan.key),
+    `${JSON.stringify(marker, null, JSON_INDENT_SPACES)}\n`,
+  )
 }
 
 async function getElectronVersion(paths: NativeRebuildCachePaths) {
@@ -214,7 +226,7 @@ async function createNativeStateHash(paths: NativeRebuildCachePaths) {
   for (const relativePath of NATIVE_STATE_HASH_FILES) {
     await hashProjectFile(paths, hash, relativePath)
   }
-  for (const patchFile of await listSqlitePatchFiles(paths)) {
+  for (const patchFile of await listNativePatchFiles(paths)) {
     await hashProjectFile(paths, hash, join('patches', patchFile))
   }
   return hash.digest('hex')
@@ -234,11 +246,11 @@ async function hashProjectFile(
   hash.update('\n')
 }
 
-async function listSqlitePatchFiles(paths: NativeRebuildCachePaths) {
+async function listNativePatchFiles(paths: NativeRebuildCachePaths) {
   return (await listDirectoryEntries(paths.patchesDirectory))
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
-    .filter((name) => name.startsWith(SQLITE_PATCH_PREFIX))
+    .filter((name) => NATIVE_PATCH_PREFIXES.some((prefix) => name.startsWith(prefix)))
     .sort()
 }
 

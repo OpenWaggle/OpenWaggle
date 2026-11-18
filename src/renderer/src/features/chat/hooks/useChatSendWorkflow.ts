@@ -1,8 +1,10 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionInvokeScope } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
+import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
 import {
   type ExtensionSlashCommand,
@@ -11,15 +13,20 @@ import {
   parseExtensionSlashCommand,
   parseSessionCopyCommand,
 } from '@/features/composer/commands'
-import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
+import { discardSessionResourceAttachments } from '@/features/composer/state'
+import { invokeBoundExtension } from '@/features/extensions'
 import { api } from '@/shared/lib/ipc'
+import { ipcErrorMessage } from '@/shared/lib/ipc-error-message'
 import { createRendererLogger } from '@/shared/lib/logger'
+import { MessageNotDelivered, wasMessageDelivered } from '../lib/message-delivery'
+import { pendingSendAfter } from '../lib/optimistic-user-message'
+import type { PendingSend } from '../model'
 import type { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import type { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
 
 const logger = createRendererLogger('chat-send-workflow')
 
-interface ChatSendWorkflowParams {
+export interface ChatSendWorkflowParams {
   readonly activeSessionId: SessionId | null
   readonly branchSummary: ReturnType<typeof useBranchSummaryWorkflow>
   readonly clearDraftBranchForSession: (sessionId: SessionId) => void
@@ -27,22 +34,23 @@ interface ChatSendWorkflowParams {
     ReturnType<typeof useBranchSummaryWorkflow>['materializeDraftBranchForSend']
   >[0]
   readonly extensionContributions: ExtensionContributionRegistryView | null
+  /** Captures the routed node at send time; the result moves the view to the branch head. */
+  readonly trackRoutedNode: (sessionId: SessionId) => () => void
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
+  readonly messages: readonly UIMessage[]
   readonly phase: { readonly reset: () => void }
   readonly projectPath: string | null
   readonly refreshSession: (sessionId: SessionId) => Promise<void>
   readonly refreshSessionWorkspace: (sessionId: SessionId) => Promise<void>
   readonly sessionCopy: ReturnType<typeof useSessionCopyWorkflow>
-  readonly setUserDidSend: (value: boolean) => void
-  readonly setWaggleConfig: (config: WaggleConfig, sessionId: SessionId | null) => void
+  readonly beginPendingSend: (send: PendingSend) => void
+  readonly clearPendingSend: (send: PendingSend) => void
   readonly showToast: (message: string) => void
   readonly startWaggleCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
   readonly stop: () => void
-  readonly stopWaggleCollaboration: () => void
-  readonly waggleConfig: WaggleConfig | null
-  readonly waggleOwningId: SessionId | null
+  readonly stopWaggleCollaboration: (sessionId?: SessionId) => void
   readonly waggleStatus: WaggleCollaborationStatus
 }
 
@@ -51,32 +59,40 @@ async function compactSession(params: ChatSendWorkflowParams, customInstructions
     params.showToast('Nothing to compact yet.')
     return
   }
+  if (!params.model) {
+    params.showToast('Select a model before compacting.')
+    return
+  }
 
   try {
+    useBackgroundRunStore.getState().setRunRenderMessages(params.activeSessionId, params.messages)
     await api.compactSession(params.activeSessionId, params.model, customInstructions)
     await Promise.all([
       params.refreshSession(params.activeSessionId),
       params.refreshSessionWorkspace(params.activeSessionId),
     ])
   } catch (error) {
-    params.showToast(error instanceof Error ? error.message : String(error))
+    params.showToast(ipcErrorMessage(error))
   }
 }
 
-function extensionSlashCommandScope(params: ChatSendWorkflowParams): ExtensionInvokeScope | null {
+function extensionSlashCommandScope(params: ChatSendWorkflowParams) {
   if (!params.projectPath) {
     return null
   }
 
   if (!params.activeSessionId) {
-    return { kind: 'project', projectPath: params.projectPath }
+    return {
+      kind: 'project',
+      projectPath: params.projectPath,
+    } satisfies ExtensionInvokeScope
   }
 
   return {
     kind: 'session',
     projectPath: params.projectPath,
     sessionId: params.activeSessionId,
-  }
+  } satisfies ExtensionInvokeScope
 }
 
 async function invokeExtensionSlashCommand(
@@ -95,7 +111,7 @@ async function invokeExtensionSlashCommand(
   }
 
   try {
-    const result = await api.invokeExtension({
+    const result = await invokeBoundExtension(entry, {
       extensionId: entry.extensionId,
       contributionId: entry.contributionId,
       capability: entry.capability,
@@ -113,8 +129,6 @@ async function invokeExtensionSlashCommand(
       params.showToast(result.error.message)
       return
     }
-
-    await refreshPreferencesAfterExtensionInvoke(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('Extension slash command failed', {
@@ -158,15 +172,8 @@ async function handleSendCommand(params: ChatSendWorkflowParams, text: string) {
   return false
 }
 
-function activeWaggleConfigForSend(params: ChatSendWorkflowParams): WaggleConfig | null {
-  if (!params.waggleConfig) return null
-  if (params.waggleStatus !== 'idle') return null
-  if (params.waggleOwningId && params.waggleOwningId !== params.activeSessionId) return null
-  return params.waggleConfig
-}
-
 async function sendThroughActiveMode(params: ChatSendWorkflowParams, payload: AgentSendPayload) {
-  const waggleConfig = activeWaggleConfigForSend(params)
+  const waggleConfig = payload.waggle?.config ?? null
   if (waggleConfig) {
     if (params.activeSessionId) {
       params.startWaggleCollaboration(params.activeSessionId, waggleConfig)
@@ -179,34 +186,53 @@ async function sendThroughActiveMode(params: ChatSendWorkflowParams, payload: Ag
 
 export function useChatSendWorkflow(params: ChatSendWorkflowParams) {
   return {
-    async sendWithWaggle(payload: AgentSendPayload) {
-      if (await handleSendCommand(params, payload.text)) return
+    sendWithWaggle: async (payload: AgentSendPayload) => {
+      const composerRetainsDraft = useBranchSummaryStore.getState().prompt?.mode === 'custom'
+      if (await handleSendCommand(params, payload.text)) {
+        if (!composerRetainsDraft) discardSessionResourceAttachments(payload.attachments)
+        return
+      }
+      const followBranchHead = params.activeSessionId
+        ? params.trackRoutedNode(params.activeSessionId)
+        : () => undefined
       const draftBranchReady = await params.branchSummary.materializeDraftBranchForSend(
         params.draftBranch,
       )
-      if (!draftBranchReady) return
+      if (!draftBranchReady) {
+        throw new MessageNotDelivered('refused', 'Branch source is unavailable.')
+      }
 
-      params.setUserDidSend(true)
+      // Cleared when the transcript holds the sent row, or below when the send throws. A send path
+      // that returns without a row and without throwing would leave it pending in this Session.
+      const pendingSend = pendingSendAfter(params.messages)
+      params.beginPendingSend(pendingSend)
       params.phase.reset()
       try {
         await sendThroughActiveMode(params, payload)
         if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
+        followBranchHead()
       } catch (error) {
-        params.setUserDidSend(false)
+        // A Run that failed after delivery still saved the message on the branch, so the draft
+        // is spent: kept, the next send would branch from the retry source again.
+        if (wasMessageDelivered(error)) {
+          if (params.activeSessionId) params.clearDraftBranchForSession(params.activeSessionId)
+          followBranchHead()
+        }
+        params.clearPendingSend(pendingSend)
+        if (payload.waggle?.config && params.activeSessionId) {
+          params.stopWaggleCollaboration(params.activeSessionId)
+        }
         throw error
       }
     },
-    cancelRun() {
+    cancelRun: () => {
       if (params.activeSessionId && params.waggleStatus !== 'idle') {
         api.cancelWaggle(params.activeSessionId)
         params.stopWaggleCollaboration()
       }
       params.stop()
     },
-    startWaggle(config: WaggleConfig) {
-      params.setWaggleConfig(config, params.activeSessionId)
-    },
-    stopCollaboration() {
+    stopCollaboration: () => {
       if (params.activeSessionId) api.cancelWaggle(params.activeSessionId)
       params.stopWaggleCollaboration()
     },

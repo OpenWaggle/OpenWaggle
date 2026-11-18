@@ -1,110 +1,78 @@
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { UIMessage } from '@shared/types/chat-ui'
+import type {
+  ChatTextPart,
+  ChatThinkingPart,
+  ChatToolCallPart,
+  ChatToolResultPart,
+  UIMessage,
+  UIMessagePart,
+} from '@shared/types/chat-ui'
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { UseMessageCollapseResult } from '../../hooks/useMessageCollapse'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 
-type MessagePart = UIMessage['parts'][number]
-
-// ---------------------------------------------------------------------------
-// Hoisted mock handles
-// ---------------------------------------------------------------------------
-const mockCollapse = vi.hoisted(() => ({
-  current: {
-    canCollapseDetails: false,
-    showDetails: false,
-    toggleDetails: vi.fn(),
-    collapseLabel: '',
-    lastRenderableTextPartIndex: -1,
-    renderAllParts: true,
-  } satisfies UseMessageCollapseResult,
-}))
-
-// ---------------------------------------------------------------------------
-// Module mocks
-// ---------------------------------------------------------------------------
-vi.mock('../../hooks/useMessageCollapse', () => ({
-  useMessageCollapse: () => mockCollapse.current,
-}))
-
-vi.mock('../StreamingText', () => ({
-  StreamingText: ({ text }: { text: string }) => <div data-testid="streaming-text">{text}</div>,
-}))
-
-vi.mock('../ToolCallRouter', () => ({
-  ToolCallRouter: ({ part }: { part: { name: string } }) => (
-    <div data-testid="tool-call-router">{part.name}</div>
-  ),
-}))
-
-vi.mock('../AgentLabel', () => ({
-  AgentLabel: ({
-    assistantModel,
-    waggle,
-  }: {
-    assistantModel?: string
-    waggle?: { agentLabel: string }
-  }) => {
-    if (!assistantModel && !waggle) return null
-    return (
-      <div data-testid="agent-label">
-        {waggle?.agentLabel}
-        {assistantModel}
-      </div>
-    )
+// The syntax service highlights in Web Workers, which jsdom lacks; it answers plain text here.
+vi.mock('@/shared/lib/syntax/syntax-service', () => ({
+  syntaxService: {
+    highlight: async (input: { source: string; language: string; theme: string }) => ({
+      status: 'plain-text' as const,
+      language: input.language,
+      theme: input.theme,
+      lines: input.source.split('\n').map((line) => [{ content: line }]),
+      elapsedMs: 0,
+    }),
   },
 }))
 
-vi.mock('../CollapsibleDetails', () => ({
-  CollapsibleDetails: ({
-    collapseLabel,
-  }: {
-    collapseLabel: string
-    showDetails: boolean
-    onToggle: () => void
-  }) => <div data-testid="collapsible-details">{collapseLabel}</div>,
-}))
-
-// ---------------------------------------------------------------------------
-// Import under test (after mocks)
-// ---------------------------------------------------------------------------
 import { AssistantMessageBubble, type WaggleInfo } from '../AssistantMessageBubble'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+/*
+ * The label, Markdown text, tool-call cards and structured payloads are the real components, so
+ * each case asserts what the transcript shows for an assistant message.
+ */
+
 function textPart(content: string) {
-  return { type: 'text', content }
+  return { type: 'text', content } satisfies ChatTextPart
 }
 
-function toolCallPart(name: string, id = 'tc-1') {
-  return { type: 'tool-call', id, name, arguments: '{}', state: 'output-available' }
+function toolCallPart(path: string, id = 'tc-1') {
+  return {
+    type: 'tool-call',
+    id,
+    name: 'read',
+    arguments: JSON.stringify({ path }),
+    state: 'output-available',
+  } satisfies ChatToolCallPart
 }
 
-function toolResultPart(toolCallId: string) {
+function toolResultPart(toolCallId: string, content: unknown = 'ok') {
   return {
     type: 'tool-result',
     toolCallId,
-    content: 'ok',
+    content,
     state: 'output-available',
-  }
+  } satisfies ChatToolResultPart
 }
 
-function thinkingPart() {
-  return { type: 'thinking', content: 'internal reasoning' }
+function thinkingPart(content = 'internal reasoning') {
+  return { type: 'thinking', content } satisfies ChatThinkingPart
 }
 
-function createMessage(id: string, parts: MessagePart[]) {
-  return { id, role: 'assistant', parts }
+function createMessage(parts: UIMessagePart[]) {
+  return { id: 'm1', role: 'assistant', parts } satisfies UIMessage
 }
 
-const defaultSessionId = SessionId('session-1')
+const ARCHITECT: WaggleInfo = { agentLabel: 'Architect', agentColor: 'blue' }
+const GPT_55 = SupportedModelId('openai/gpt-5.5')
 
 interface RenderAssistantOptions {
   readonly message: UIMessage
   readonly waggle?: WaggleInfo
   readonly assistantModel?: SupportedModelId
   readonly hideAgentLabel?: boolean
+  readonly turnFolded?: boolean
+  readonly run?: { readonly isStreaming?: boolean; readonly isRunActive?: boolean }
+  readonly onViewTurnDiff?: (messageId: string) => void
 }
 
 function renderAssistantMessage({
@@ -112,155 +80,177 @@ function renderAssistantMessage({
   waggle,
   assistantModel,
   hideAgentLabel,
+  turnFolded,
+  run,
+  onViewTurnDiff,
 }: RenderAssistantOptions) {
   return render(
     <AssistantMessageBubble
       message={message}
       runtime={{
-        sessionId: defaultSessionId,
+        sessionId: SessionId('session-1'),
         extensions: { registry: null, projectPaths: [] },
       }}
-      run={assistantModel ? { assistantModel } : undefined}
-      waggle={waggle}
-      presentation={hideAgentLabel ? { hideAgentLabel } : undefined}
+      run={{ ...run, ...(assistantModel ? { assistantModel } : {}) }}
+      {...(waggle === undefined ? {} : { waggle })}
+      presentation={{
+        ...(hideAgentLabel === undefined ? {} : { hideAgentLabel }),
+        ...(turnFolded === undefined ? {} : { turnFolded }),
+      }}
+      {...(onViewTurnDiff ? { actions: { onViewTurnDiff } } : {})}
     />,
   )
 }
 
-function setCollapse(overrides: Partial<UseMessageCollapseResult>) {
-  mockCollapse.current = { ...mockCollapse.current, ...overrides }
-}
+const readCard = (path: string) =>
+  screen.queryByRole('button', { name: new RegExp(`Read ${path}`) })
 
-function resetCollapse() {
-  mockCollapse.current = {
-    canCollapseDetails: false,
-    showDetails: false,
-    toggleDetails: vi.fn(),
-    collapseLabel: '',
-    lastRenderableTextPartIndex: -1,
-    renderAllParts: true,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 describe('AssistantMessageBubble', () => {
-  beforeEach(() => {
-    resetCollapse()
-  })
-
-  it('renders AgentLabel when waggle prop provided', () => {
-    const message = createMessage('m1', [textPart('Hello')])
-    renderAssistantMessage({
-      message,
-      waggle: { agentLabel: 'Architect', agentColor: 'blue' },
-    })
-    expect(screen.getByTestId('agent-label')).toHaveTextContent('Architect')
-  })
-
-  it('renders AgentLabel when assistantModel provided', () => {
-    const message = createMessage('m1', [textPart('Hello')])
-    renderAssistantMessage({
-      message,
-      assistantModel: SupportedModelId('claude-sonnet-4-5'),
-    })
-    expect(screen.getByTestId('agent-label')).toHaveTextContent('claude-sonnet-4-5')
-  })
-
-  it('renders StreamingText for text parts', () => {
-    const message = createMessage('m1', [textPart('Hello world')])
-    renderAssistantMessage({ message })
-    expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello world')
-  })
-
-  it('does not render empty text parts', () => {
-    const message = createMessage('m1', [textPart('   '), textPart('Visible')])
-    renderAssistantMessage({ message })
-    const texts = screen.getAllByTestId('streaming-text')
-    expect(texts).toHaveLength(1)
-    expect(texts[0]).toHaveTextContent('Visible')
-  })
-
-  it('renders ToolCallRouter for tool-call parts', () => {
-    const message = createMessage('m1', [toolCallPart('read', 'tc-1'), toolResultPart('tc-1')])
-    renderAssistantMessage({ message })
-    expect(screen.getByTestId('tool-call-router')).toHaveTextContent('read')
-  })
-
-  it('renders standalone tool-result parts while keeping matched tool-call results nested', () => {
-    const message = createMessage('m1', [textPart('Hello'), toolResultPart('tc-1'), thinkingPart()])
-    const { container } = renderAssistantMessage({ message })
-    expect(container.querySelectorAll('[data-testid="streaming-text"]')).toHaveLength(3)
-    expect(screen.getByText('internal reasoning')).toBeInTheDocument()
-    expect(screen.getByText('Tool result · output-available')).toBeInTheDocument()
-  })
-
-  it('renders all parts when canCollapseDetails=false', () => {
-    setCollapse({ canCollapseDetails: false, renderAllParts: true })
-    const message = createMessage('m1', [
-      textPart('First'),
-      toolCallPart('read', 'tc-1'),
-      textPart('Second'),
-    ])
-    renderAssistantMessage({ message })
-    expect(screen.getAllByTestId('streaming-text')).toHaveLength(2)
-    expect(screen.getByTestId('tool-call-router')).toBeInTheDocument()
-  })
-
-  it('renders only lastRenderableTextPartIndex when canCollapseDetails=true and showDetails=false', () => {
-    setCollapse({
-      canCollapseDetails: true,
-      showDetails: false,
-      renderAllParts: false,
-      lastRenderableTextPartIndex: 2,
-      collapseLabel: 'Show 1 tool call',
-    })
-    const message = createMessage('m1', [
-      textPart('Earlier text'),
-      toolCallPart('read', 'tc-1'),
-      textPart('Final answer'),
-    ])
-    renderAssistantMessage({ message })
-    const texts = screen.getAllByTestId('streaming-text')
-    expect(texts).toHaveLength(1)
-    expect(texts[0]).toHaveTextContent('Final answer')
-    expect(screen.queryByTestId('tool-call-router')).toBeNull()
-  })
-
-  it('renders CollapsibleDetails divider when canCollapseDetails=true', () => {
-    setCollapse({
-      canCollapseDetails: true,
-      showDetails: false,
-      renderAllParts: false,
-      lastRenderableTextPartIndex: 1,
-      collapseLabel: 'Show 1 tool call',
-    })
-    const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Summary')])
-    renderAssistantMessage({ message })
-    expect(screen.getByTestId('collapsible-details')).toHaveTextContent('Show 1 tool call')
-  })
-
-  it('leaves the continuous waggle rail to the turn wrapper', () => {
-    const message = createMessage('m1', [textPart('Hello')])
+  it.each([
+    { label: 'a Waggle agent', options: { waggle: ARCHITECT }, shown: 'Architect' },
+    { label: 'the assistant model', options: { assistantModel: GPT_55 }, shown: 'GPT 5.5' },
+  ])('labels the message with $label', ({ options, shown }) => {
     const { container } = renderAssistantMessage({
-      message,
-      waggle: { agentLabel: 'Architect', agentColor: 'blue' },
+      message: createMessage([textPart('Hello')]),
+      ...options,
     })
-    const outer = container.firstElementChild
-    expect(outer?.className).not.toContain('border-l-2')
-    expect(screen.getByTestId('agent-label')).toHaveTextContent('Architect')
+
+    expect(screen.getByText(shown, { exact: false })).toBeInTheDocument()
+    // The continuous Waggle rail belongs to the turn wrapper, not to each message.
+    expect(container.querySelector('.border-l-2')).toBeNull()
   })
 
-  it('hides repeated agent label when rendered inside a grouped waggle turn', () => {
-    const message = createMessage('m1', [textPart('Hello')])
-    renderAssistantMessage({
-      message,
-      waggle: { agentLabel: 'Architect', agentColor: 'blue' },
-      assistantModel: SupportedModelId('gpt-5.5'),
-      hideAgentLabel: true,
+  it.each([
+    { actions: 'its actions', onViewTurnDiff: vi.fn(), diffButtons: 1 },
+    { actions: 'no actions', onViewTurnDiff: undefined, diffButtons: 0 },
+  ])(
+    'hides a repeated agent label inside a grouped Waggle turn, with $actions',
+    ({ onViewTurnDiff, diffButtons }) => {
+      renderAssistantMessage({
+        message: createMessage([textPart('Hello')]),
+        waggle: ARCHITECT,
+        assistantModel: GPT_55,
+        hideAgentLabel: true,
+        ...(onViewTurnDiff ? { onViewTurnDiff } : {}),
+      })
+
+      expect(screen.queryByText('Architect')).toBeNull()
+      expect(screen.queryByText(/GPT 5\.5/)).toBeNull()
+      expect(screen.getByText('Hello')).toBeInTheDocument()
+      expect(screen.queryAllByRole('button', { name: 'View turn diff' })).toHaveLength(diffButtons)
+    },
+  )
+
+  it('renders text and thinking as Markdown and skips whitespace-only parts', () => {
+    const { container } = renderAssistantMessage({
+      message: createMessage([
+        textPart('   '),
+        textPart('Hello **world**'),
+        thinkingPart('  '),
+        thinkingPart(),
+      ]),
     })
-    expect(screen.queryByTestId('agent-label')).toBeNull()
-    expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello')
+
+    expect(screen.getByText('world').tagName).toBe('STRONG')
+    expect(screen.getByText('internal reasoning')).toBeInTheDocument()
+    expect(container.querySelectorAll('.prose')).toHaveLength(2)
+  })
+
+  it('nests a matched tool result in its tool-call card and shows an unmatched one on its own', () => {
+    renderAssistantMessage({
+      message: createMessage([
+        toolCallPart('a.ts', 'tc-1'),
+        toolResultPart('tc-1', 'matched output'),
+        toolResultPart('tc-2', 'orphan output'),
+      ]),
+    })
+
+    expect(readCard('a.ts')).toBeInTheDocument()
+    expect(screen.getAllByText('Tool result · output-available')).toHaveLength(1)
+    expect(screen.getByText('orphan output')).toBeInTheDocument()
+    expect(screen.queryByText('matched output')).toBeNull()
+  })
+
+  it('shows a structured standalone tool result as a structured payload', () => {
+    renderAssistantMessage({ message: createMessage([toolResultPart('tc-1', { answer: 42 })]) })
+
+    expect(screen.getByRole('region', { name: 'Structured data' })).toHaveTextContent(
+      '"answer": 42',
+    )
+  })
+
+  it.each([
+    {
+      label: 'every part when the turn is not folded',
+      turnFolded: false,
+      run: {},
+      texts: ['Earlier text', 'Final answer'],
+      card: true,
+    },
+    {
+      label: 'only the final text when the turn is folded (ADR 0034)',
+      turnFolded: true,
+      run: {},
+      texts: ['Final answer'],
+      card: false,
+    },
+    {
+      label: 'every part of a folded turn while it streams',
+      turnFolded: true,
+      run: { isStreaming: true },
+      texts: ['Earlier text', 'Final answer'],
+      card: true,
+    },
+    {
+      label: 'every part of a folded turn while its Run is active',
+      turnFolded: true,
+      run: { isRunActive: true },
+      texts: ['Earlier text', 'Final answer'],
+      card: true,
+    },
+  ])('renders $label', ({ turnFolded, run, texts, card }) => {
+    renderAssistantMessage({
+      message: createMessage([
+        textPart('Earlier text'),
+        toolCallPart('a.ts', 'tc-1'),
+        toolResultPart('tc-1'),
+        textPart('Final answer'),
+      ]),
+      turnFolded,
+      run,
+    })
+
+    for (const text of ['Earlier text', 'Final answer']) {
+      expect(screen.queryByText(text) !== null).toBe(texts.includes(text))
+    }
+    expect(readCard('a.ts') !== null).toBe(card)
+  })
+
+  it('opens the turn diff for this message from View turn diff', async () => {
+    const onViewTurnDiff = vi.fn()
+    renderAssistantMessage({
+      message: createMessage([textPart('Hello')]),
+      assistantModel: GPT_55,
+      onViewTurnDiff,
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'View turn diff' }))
+
+    expect(onViewTurnDiff).toHaveBeenCalledWith('m1')
+  })
+
+  it.each([
+    { label: 'no reveal handler is given', turnFolded: false, handler: undefined },
+    // A folded turn's changed-files card opens the diff instead.
+    { label: 'the turn is folded', turnFolded: true, handler: vi.fn() },
+  ])('omits View turn diff when $label', ({ turnFolded, handler }) => {
+    renderAssistantMessage({
+      message: createMessage([toolCallPart('a.ts'), textPart('Answer')]),
+      assistantModel: GPT_55,
+      turnFolded,
+      ...(handler ? { onViewTurnDiff: handler } : {}),
+    })
+
+    expect(screen.queryByRole('button', { name: 'View turn diff' })).toBeNull()
   })
 })

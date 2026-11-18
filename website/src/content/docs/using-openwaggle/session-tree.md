@@ -1,98 +1,100 @@
 ---
-title: "Session Tree & Branches"
-description: "Navigate Pi session branches, draft branches, and the right-side Session Tree."
-order: 2
+title: "Session tree and branches"
+description: "Return to an earlier message, try another approach, or copy a conversation into a new session."
+order: 6
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
-OpenWaggle sessions are Pi session graphs. A single session can contain multiple Pi session branches and nodes, while your repository can also have separate Git branches. Session branches are Pi runtime branches; Git branches are version-control branches.
+Use the Session Tree when you want to go back to an earlier point in a conversation and try something else. The path you leave stays saved as a branch, so you can return to it later.
 
-![OpenWaggle Session Tree showing a checkout refactor session with alternate Pi session branches](/screenshots/session-tree-panel.png)
+Conversation branches are not Git branches. Moving to another branch doesn't undo file edits or switch your repository's branch. Use the [Git controls](/docs/developer-workflow/git-integration) for files and commits.
 
-_The Session Tree keeps the selected transcript path and alternate Pi session branches visible together, so you can compare work without confusing them with Git branches._
+![The Session Tree beside a Waggle conversation, with its latest reply marked as the active point on the main branch](/screenshots/session-tree-panel.png)
 
-## Opening The Session Tree
+## Open the Session Tree
 
-Open the right-side Session Tree from:
+Click **Session Tree** on the [panel rail](/docs/using-openwaggle/right-panel), or press `Cmd+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows and Linux. You can also press `Cmd+K` or `Ctrl+K` and choose **Session Tree** under **Panels**.
 
-- The tree icon in the header.
-- The command palette action **Open Session Tree**.
+The tree opens in the right panel, which shows one panel at a time, so it takes the place of Changes or whatever else was showing.
 
-The Session Tree shares the right-side panel slot with Diff. Opening one closes the other instead of stacking sidebars.
+## Try a different approach
 
-## What The Tree Shows
+1. Find the earlier message you want to continue from.
+2. Select its row. The conversation now shows the path up to that point.
+3. If OpenWaggle asks, decide whether to bring a summary of the later work with you. See [Bring a summary of the later work](#bring-a-summary-of-the-later-work).
+4. Check the draft in the message box, write or edit your next instruction, and send it.
 
-The Session Tree is the full on-demand graph view for the active session:
+For example, go back to the message before a proposed refactor and ask the agent to compare a smaller change. Check your files first. The changes the earlier approach made are still on disk.
 
-- Node dots and connector rails show the Pi session graph.
-- Active-path rows show the currently selected transcript path.
-- Branch badges mark materialized branch heads.
-- Draft state marks a transient branch target before a new message materializes it.
-- Archived branch state remains visible in the full tree even when archived branches are hidden from normal sidebar navigation.
+Selecting an earlier point only prepares a draft branch. It doesn't save a new branch yet. Selecting one of your own messages can also put its text in the message box, ready to retry or edit. OpenWaggle saves the new branch when you send, or earlier if you choose a branch summary action that creates it. Selecting the latest point of a saved branch takes you back to that branch and drops any draft.
 
-The left sidebar stays navigation-first. It shows sessions, useful materialized branch rows, and temporary draft branch rows, but it does not render the full node graph.
+## Start from a message in the conversation
 
-## Filters And Search
+You can also start from the conversation itself. Hover over a message to see its actions. A reply's actions sit at the end of its turn, under any changed files, and the latest reply always shows them. In the table below, a reply is the one that ends a turn.
 
-The filter menu mirrors Pi tree filters:
+| On | Action | What it does |
+|----|--------|--------------|
+| Message | **Edit from here** | Goes back to just before the message in this session and puts its text in the message box. |
+| Message | **Fork from here** | Starts a new session from just before the message, with its text ready to edit and resend. |
+| Message | **Copy message** | Copies the message's text. |
+| Reply | **Continue from here** | Goes back to just after that reply in this session, so your next message continues from it. |
+| Reply | **Fork from this response** | Starts a new session with the conversation up to and including that reply, and an empty message box. |
+| Reply | **Copy response** | Copies the reply's text. |
 
-| Filter | What It Shows |
+Tool calls and the agent's notes between them have no actions of their own. Select them in the Session Tree instead. While the session is working or compacting, the conversation shows only **Copy message** and **Copy response**.
+
+## Copy a conversation into a new session
+
+To copy history into a separate session from the keyboard, type `/fork` or `/clone` in the message box, or open the command palette and choose:
+
+- **Fork to new session** to pick one of your earlier messages and start a new session with that message ready to edit and resend.
+- **Clone current session** to copy the path you are on into a new session with an empty message box.
+
+Both leave the original conversation as it was. The new session gets the original's name, marked `(fork)` when it starts before one of your messages and `(copy)` for a clone or a fork from a reply. You can rename it. A copy of a session still called New session stays New session and takes its name from its next message. Forks and clones copy the conversation, not your working files.
+
+## Read the tree
+
+Each row is a point in the saved conversation, such as a message or a tool event. Dots and lines show how the points connect.
+
+- The active path is the conversation the chat shows.
+- Branch badges mark the latest point of each saved branch.
+- A draft marks an earlier point you selected but haven't continued from yet.
+- Archived branches stay in the full tree even though the sidebar hides them.
+
+The sidebar shows sessions and their saved branches, not every point in their history. A list tree icon with a count means a session has more than one branch.
+
+## Filter and search the tree
+
+Use the filter menu to show less detail:
+
+| Filter | What it shows |
 |--------|---------------|
-| Default | The normal tree view for session navigation. |
-| No tools | Session nodes without tool-only detail. |
-| User only | User-message nodes. |
-| Labeled | Labeled nodes and branches. |
-| All | Every projected session node, including structural/tool detail. |
+| Default | Messages and tool results, without bookkeeping entries such as model changes. |
+| No tools | The default view without tool results. |
+| User only | Your messages. |
+| Labeled | Label entries in the conversation history. |
+| All | Every entry, including tool and structural detail. |
 
-The selected filter persists through Pi's `treeFilterMode` project setting.
+OpenWaggle remembers the filter in your Pi settings as `treeFilterMode`, and a project's Pi settings can set a different default. Search looks through the entries the filter shows, matching message text, details and branch names. Matches inside collapsed rows appear for the search without changing which rows you had expanded. If a filter hides the entry you need, choose **All**.
 
-Search checks the persisted session-node read model, including message content, metadata, and branch ids. When a match is under collapsed ancestors, search temporarily reveals the result path without changing the saved expanded/collapsed state.
+Use the arrow keys to move through the tree, `Enter` to select a row and `Escape` to close it. [Keyboard shortcuts](/docs/getting-started/keyboard-shortcuts) lists every key.
 
-## Navigation Behavior
+## Bring a summary of the later work
 
-Selecting a materialized branch head navigates to that branch's current head and clears any draft state.
+When you go back to an earlier message, the later messages are no longer on your path. OpenWaggle asks whether to bring some of that work along:
 
-Selecting a non-head node creates a transient draft branch context:
+- **No summary** continues without a summary of the later work.
+- **Summarize** asks the model to summarize that work.
+- **Custom** lets you write instructions for the summary in the message box, then press Send.
+- **Cancel** goes back to where you were.
 
-- The transcript refreshes to the selected path.
-- OpenWaggle does not mutate the Pi session immediately.
-- If the selected node is a user message, the composer can prefill retry text.
-- The draft becomes durable only after the next send, unless you explicitly choose a branch-summary action that materializes the branch first.
+This changes what the agent knows, not the files on disk. [Context management](/docs/using-openwaggle/context-management#branch-summaries) explains how a branch summary differs from compaction. To skip the question, set Pi's `branchSummary.skipPrompt`.
 
-Route search can preserve `branch`, `node`, and `panel=session-tree` so links can reopen the same session-tree context. Draft branches are transient UI state and are not restored from a copied URL.
+A link to a session can keep the branch, the selected point and the open Session Tree (`branch`, `node` and `panel=session-tree` in the address). A draft branch you haven't sent is not saved, so a copied link doesn't bring it back.
 
-You can also copy work into a separate session:
+## Rename, archive and restore branches
 
-- **Fork to new session** starts from a selected previous user turn and pre-fills the composer with that turn for retry/edit.
-- **Clone to new session** copies the current selected node path into a separate session with a blank composer.
+Rename a saved branch inline in the sidebar. Archive a branch other than the main one to hide it from the sidebar, and restore it from Settings when you need it. Archived branches stay visible in the full tree. You can't delete a single conversation branch.
 
-Both actions use Pi session state as the source and keep the original session unchanged.
-
-## Branch Summary Prompt
-
-When selecting an earlier node would abandon downstream context, OpenWaggle can ask how to summarize that downstream work before continuing:
-
-- **No summary** — continue from the selected node without adding a summary.
-- **Summarize** — ask Pi to summarize the abandoned branch.
-- **Summarize with custom prompt** — use the composer input as custom summary instructions.
-- **Cancel** — return to the previous selection.
-
-If Pi `branchSummary.skipPrompt` is enabled, OpenWaggle skips the prompt and follows the configured no-prompt behavior.
-
-## Branch Lifecycle
-
-Materialized branch rows can be renamed inline from the sidebar. Non-main branches can be archived and restored; branch deletion is not exposed until Pi supports native branch deletion. Archiving the main branch archives the full session.
-
-Archived branches are hidden from normal sidebar navigation, remain represented in the full Session Tree, and are managed from Settings with other archived items.
-
-## Keyboard Navigation
-
-When focus is in the Session Tree:
-
-| Action | Shortcut |
-|--------|----------|
-| Move focus | `ArrowUp` / `ArrowDown` |
-| Expand focused node or move to first child | `ArrowRight` |
-| Collapse focused node or move to parent | `ArrowLeft` |
-| Select focused node | `Enter` |
-| Close Session Tree | `Escape` |
+Archiving the main branch archives the whole session. OpenWaggle doesn't ask first, because you can undo it from **Settings > Archived items**. If you archive the session you have open, OpenWaggle opens the next session in the same part of the sidebar, or the empty home screen when none is left. A session that gets archived somewhere else while you have it open, for example by Hive cleanup, stays on screen with a notice and a **Restore** button.

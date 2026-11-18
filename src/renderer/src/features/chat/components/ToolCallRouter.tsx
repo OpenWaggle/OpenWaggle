@@ -1,8 +1,28 @@
+import { HIVE_TOOL_NAME } from '@shared/constants/hive'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import type { NestedToolCalls } from '@shared/types/tools'
+import { lazy, Suspense } from 'react'
+import { CODEMODE_TOOL_NAME } from '@/features/chat/lib/codemode-tool-view'
+import { nestedToolCallsView } from '@/features/chat/lib/nested-tool-call-view'
+import { isHiddenSessionsToolCallJson } from '@/features/chat/lib/sessions-tool-visibility'
+import { parseToolArgs } from '@/features/chat/lib/tool-args'
+import type { ToolCallResultPayload } from '@/features/chat/lib/tool-call-block'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
+import { getMcpAppLaunch } from '@/features/mcp'
+import { CommandRepairProposalCard, commandRepairProposalFrom } from '@/features/project-actions'
+import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
+import { ToolRowSessionContext } from '../hooks/ToolRowSessionContext'
+import { CodemodeToolCallBlock } from './CodemodeToolCallBlock'
+import { WithNestedToolCalls } from './NestedToolCallList'
+import { SessionsToolCallBlock } from './SessionsToolCallBlock'
 import { ToolCallBlock } from './ToolCallBlock'
+
+// The MCP Apps host brings the MCP SDK and zod, so it loads only when a result launches an app.
+const LazyMcpAppHost = lazy(() =>
+  import('@/features/mcp/McpAppHost').then((module) => ({ default: module.McpAppHost })),
+)
 
 const JSON_STRINGIFY_INDENT = 2
 const EMPTY_PROJECT_PATHS: readonly string[] = []
@@ -11,13 +31,17 @@ interface ToolCallRouterProps {
   part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>
   toolResults: Map<
     string,
-    { content: unknown; state: string; sourceMessageId?: string; error?: string }
+    {
+      content: unknown
+      state: string
+      error?: string
+      nestedCalls?: NestedToolCalls
+    }
   >
   sessionId: SessionId | null
   isStreaming: boolean
   extensionRegistry?: ExtensionContributionRegistryView | null
   extensionProjectPaths?: readonly string[]
-  onBranchFromMessage?: (messageId: string) => void
 }
 
 function stringifyToolResultContent(content: unknown) {
@@ -32,31 +56,125 @@ function stringifyToolResultContent(content: unknown) {
   }
 }
 
+/** An agent's Command repair proposal gets a Review and save card (ADR 0038). */
+function repairProposalFor(
+  toolName: string,
+  result: { readonly content: unknown; readonly state: string } | undefined,
+) {
+  if (toolName !== 'project_actions' || !result || result.state === 'error') return null
+  const proposal = commandRepairProposalFrom(result.content)
+  return proposal ? <CommandRepairProposalCard proposal={proposal} /> : null
+}
+
+/**
+ * A tool call's own card. A codemode card shows the script, its output, images and model calls;
+ * the tool calls the script made come from Pi's nested call events and record, like any other
+ * tool's. A hive-tool card names the Worker it acts on.
+ */
+function ToolCallCard({
+  part,
+  result,
+  isStreaming,
+  nestedCallsShown,
+}: {
+  readonly part: ToolCallRouterProps['part']
+  readonly result: ToolCallResultPayload | undefined
+  readonly isStreaming: boolean
+  readonly nestedCallsShown: boolean
+}) {
+  if (part.name === CODEMODE_TOOL_NAME) {
+    return (
+      <CodemodeToolCallBlock
+        args={part.arguments}
+        state={part.state}
+        {...(result === undefined ? {} : { result })}
+        isStreaming={isStreaming}
+        nestedCallsShown={nestedCallsShown}
+      />
+    )
+  }
+  const Block = part.name === HIVE_TOOL_NAME ? SessionsToolCallBlock : ToolCallBlock
+  return (
+    <Block
+      name={part.name}
+      args={part.arguments}
+      state={part.state}
+      {...(result === undefined ? {} : { result })}
+      isStreaming={isStreaming}
+    />
+  )
+}
+
 export function ToolCallRouter({
   part,
   toolResults,
-  sessionId: _sessionId,
+  sessionId,
   isStreaming,
   extensionRegistry = null,
   extensionProjectPaths = EMPTY_PROJECT_PATHS,
-  onBranchFromMessage,
 }: ToolCallRouterProps) {
   const finalResult = toolResults.get(part.id)
+  if (
+    isHiddenSessionsToolCallJson(part.name, part.arguments, part.state, finalResult !== undefined)
+  ) {
+    return null
+  }
   const visibleResult =
     finalResult ??
     (part.partialOutput === undefined
       ? undefined
       : { content: part.partialOutput, state: 'partial' })
 
-  const toolCallBlock = (
-    <ToolCallBlock
-      name={part.name}
-      args={part.arguments}
-      state={part.state}
+  const nestedCalls = nestedToolCallsView(
+    part.nestedCalls,
+    finalResult?.nestedCalls,
+    finalResult !== undefined || !isStreaming,
+  )
+  const ownCard = (
+    <ToolCallCard
+      part={part}
       result={visibleResult}
       isStreaming={isStreaming}
-      onBranchFromMessage={onBranchFromMessage}
+      nestedCallsShown={nestedCalls.calls.length > 0}
     />
+  )
+  const toolCallBlock = (
+    <ToolRowSessionContext value={sessionId}>
+      <WithNestedToolCalls
+        parentName={part.name}
+        nestedCalls={nestedCalls}
+        isStreaming={isStreaming}
+      >
+        {ownCard}
+      </WithNestedToolCalls>
+    </ToolRowSessionContext>
+  )
+  const appLaunch = finalResult
+    ? getMcpAppLaunch(finalResult.content, parseToolArgs(part.arguments))
+    : null
+  const repairProposal = repairProposalFor(part.name, finalResult)
+  const withMcpApp = repairProposal ? (
+    <div className="space-y-3">
+      {toolCallBlock}
+      {repairProposal}
+    </div>
+  ) : appLaunch ? (
+    <div className="space-y-3">
+      {toolCallBlock}
+      <PanelErrorBoundary name="MCP app">
+        <Suspense fallback={null}>
+          <LazyMcpAppHost
+            descriptor={appLaunch.descriptor}
+            projectPath={extensionProjectPaths[0] ?? null}
+            sessionId={sessionId}
+            initialArguments={appLaunch.initialArguments}
+            initialResult={appLaunch.initialResult}
+          />
+        </Suspense>
+      </PanelErrorBoundary>
+    </div>
+  ) : (
+    toolCallBlock
   )
 
   if (extensionRegistry !== null) {
@@ -75,12 +193,12 @@ export function ToolCallRouter({
               }
             : {}),
         }}
-        fallback={toolCallBlock}
+        fallback={withMcpApp}
         projectPaths={extensionProjectPaths}
         registry={extensionRegistry}
       />
     )
   }
 
-  return toolCallBlock
+  return withMcpApp
 }

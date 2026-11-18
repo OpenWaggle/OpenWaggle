@@ -1,129 +1,332 @@
-import type { GitFileDiff } from '@shared/types/git'
+import { RepositoryPath, WorkingPath } from '@shared/types/brand'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useGitStore } from '@/features/git'
 import { api } from '@/shared/lib/ipc'
+import { useUIStore } from '@/shell/ui-store'
 import { useReviewStore } from '../../state/review-store'
-import { DiffFileSection } from '../DiffFileSection'
 import { DiffPanel } from '../DiffPanel'
-import { buildDisplayItems } from '../diff-display-items'
-import { FileTree } from '../FileTree'
 
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    getGitDiff: vi.fn(),
-  },
+import { fileDiff, gitStatus } from './diff-panel.test-harness'
+
+/**
+ * CodeView is measurement-driven and does not render meaningfully under jsdom. Stub it so tests exercise OUR
+ * wiring -- items, annotations, selection plumbing -- and verify the real renderer
+ * in the Electron app instead.
+ */
+// cannot be referenced from an ordinary top-level import here.
+vi.mock('@pierre/diffs/react', async () => ({
+  CodeView: (await import('./diff-panel.test-harness')).StubCodeView,
+  WorkerPoolContextProvider: (await import('./diff-panel.test-harness'))
+    .StubWorkerPoolContextProvider,
+  useWorkerPool: () => undefined,
 }))
 
-const SAMPLE_DIFF = `diff --git a/src/app.ts b/src/app.ts
-index 111..222 100644
---- a/src/app.ts
-+++ b/src/app.ts
-@@ -1,9 +1,9 @@
- const one = 1
- const two = 2
- const three = 3
- const four = 4
- const five = 5
- const six = 6
- const seven = 7
--old line
-+new line`
+vi.mock('@/shared/lib/ipc', async () => ({
+  api: (await import('@/test-utils/preload-api')).preloadApi({
+    getGitDiff: vi.fn(),
+    getGitBranchDiff: vi.fn(),
+    getGitStatus: vi.fn(),
+    listGitBranches: vi.fn(),
+    stageAllGitChanges: vi.fn(),
+    revertAllGitChanges: vi.fn(),
+    showConfirm: vi.fn(),
+  }),
+}))
 
-function fileDiff(path = 'src/app.ts') {
-  return {
-    path,
-    diff: SAMPLE_DIFF,
-    additions: 1,
-    deletions: 1,
-  } satisfies GitFileDiff
+/** Status keyed by working path (ADR 0018). */
+function statusSliceFor(workingPath: string, status: ReturnType<typeof gitStatus>) {
+  return { [workingPath]: { status, isLoading: false, error: null } }
 }
 
 describe('Diff panel components', () => {
   beforeEach(() => {
-    vi.mocked(api.getGitDiff).mockReset()
-    useReviewStore.setState({ comments: [], activeCommentLocation: null })
+    vi.resetAllMocks()
+    vi.mocked(api.listGitBranches).mockResolvedValue({ currentBranch: 'main', branches: [] })
+    useGitStore.setState({ statusByWorkingPath: {} })
+    useReviewStore.setState({ byReviewKey: {} })
+    useUIStore.setState({ toastMessage: null, toastData: null })
   })
 
-  it('loads project diffs and sends accumulated review comments', async () => {
-    vi.mocked(api.getGitDiff).mockResolvedValue([fileDiff()])
-    const onSendMessage = vi.fn()
-
-    render(<DiffPanel projectPath="/repo" onSendMessage={onSendMessage} />)
-
-    expect(api.getGitDiff).toHaveBeenCalledWith('/repo')
-    expect(await screen.findByText('src/app.ts')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('new line'))
-    fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
-      target: { value: 'Prefer the new branch guard.' },
+  it('stages every change and refreshes the diff and Git status', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
+    /*
+     * The status changes as a result of staging, so the mock has to as well: the panel now loads the
+     * working tree's status itself, and "Stage all" is correctly disabled when nothing is unstaged.
+     * A single static answer described only the post-stage state and relied on the panel not knowing
+     * the status before the click.
+     */
+    const changedFile = (staged: boolean) => ({
+      path: 'src/app.ts',
+      status: 'modified' as const,
+      staged,
+      unstaged: !staged,
+      additions: 1,
+      deletions: 1,
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Add to review' }))
-    fireEvent.click(screen.getByRole('button', { name: /Send review/ }))
-
-    await waitFor(() => expect(onSendMessage).toHaveBeenCalledOnce())
-    expect(onSendMessage.mock.calls[0]?.[0]).toContain('Prefer the new branch guard.')
-    expect(useReviewStore.getState().comments).toEqual([])
-  })
-
-  it('renders empty and failed diff states without stale files', async () => {
-    const { rerender } = render(<DiffPanel projectPath={null} onSendMessage={vi.fn()} />)
-
-    expect(screen.getByText('No uncommitted changes')).toBeInTheDocument()
-
-    vi.mocked(api.getGitDiff).mockRejectedValue(new Error('git unavailable'))
-    rerender(<DiffPanel projectPath="/repo" onSendMessage={vi.fn()} />)
-
-    expect(await screen.findByText('No uncommitted changes')).toBeInTheDocument()
-  })
-
-  it('expands collapsed context and emits single-line comments', () => {
-    const onSetActiveComment = vi.fn()
-    const onAddSingleComment = vi.fn()
+    vi.mocked(api.getGitStatus).mockImplementation(async () =>
+      gitStatus([changedFile(vi.mocked(api.stageAllGitChanges).mock.calls.length > 0)]),
+    )
+    vi.mocked(api.stageAllGitChanges).mockResolvedValue({
+      ok: true,
+      message: 'All working-tree changes staged.',
+    })
 
     render(
-      <DiffFileSection
-        filePath="src/app.ts"
-        items={buildDisplayItems(SAMPLE_DIFF)}
-        additions={1}
-        deletions={1}
-        activeCommentLocation={{ filePath: 'src/app.ts', line: 8, lineType: 'add' }}
-        onSetActiveComment={onSetActiveComment}
-        onAddSingleComment={onAddSingleComment}
-        onAddToReview={vi.fn()}
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
       />,
     )
 
-    fireEvent.click(screen.getByText('1 unmodified line'))
-    expect(screen.getByText('const four = 4')).toBeInTheDocument()
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
+    fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
 
-    fireEvent.change(screen.getByPlaceholderText('Leave feedback on this change…'), {
-      target: { value: 'ship it' },
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledTimes(2))
+    expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo')
+    expect(api.getGitStatus).toHaveBeenCalledWith('/repo')
+    expect(screen.getByRole('button', { name: /Stage all/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Revert all' })).toBeEnabled()
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: 'All working-tree changes staged.',
+      variant: 'success',
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Add single comment' }))
-
-    expect(onAddSingleComment).toHaveBeenCalledWith('src/app.ts', 8, 8, 'ship it')
   })
 
-  it('renders nested file tree controls and bottom action state', () => {
-    const onFileClick = vi.fn()
-    const onSendReview = vi.fn()
+  it('keeps every change when main-process revert confirmation is cancelled', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
+    vi.mocked(api.revertAllGitChanges).mockResolvedValue({
+      ok: false,
+      code: 'cancelled',
+      message: 'Revert all cancelled.',
+    })
 
     render(
-      <FileTree
-        files={[fileDiff('src/app.ts'), fileDiff('src/components/Button.tsx')]}
-        reviewCount={2}
-        onFileClick={onFileClick}
-        onSendReview={onSendReview}
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
       />,
     )
 
-    fireEvent.click(screen.getByText('src'))
-    expect(screen.queryByText('app.ts')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('src'))
-    fireEvent.click(screen.getByText('app.ts'))
-    fireEvent.click(screen.getByRole('button', { name: /Send review/ }))
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Revert all' }))
 
-    expect(onFileClick).toHaveBeenCalledWith('src/app.ts')
-    expect(onSendReview).toHaveBeenCalledOnce()
+    await waitFor(() => expect(api.revertAllGitChanges).toHaveBeenCalledWith('/repo'))
+    expect(api.getGitDiff).toHaveBeenCalledOnce()
+    /*
+     * Exactly one status read: the one the panel performs on mount to know what a commit would
+     * cover. A cancelled action must not trigger a second. This assertion used to be "never called",
+     * which only held while the panel relied on someone else loading that status.
+     */
+    expect(api.getGitStatus).toHaveBeenCalledOnce()
+    expect(useUIStore.getState().toastData).toBeNull()
+  })
+
+  it('reverts confirmed changes and refreshes the diff and Git status', async () => {
+    vi.mocked(api.getGitDiff)
+      .mockResolvedValueOnce({ ok: true, files: [fileDiff()] })
+      // Every later load sees the reverted tree; a bare `Once` chain would resolve undefined.
+      .mockResolvedValue({ ok: true, files: [] })
+    // Dirty until the revert runs: the panel loads this status, and "Revert all" is correctly
+    // disabled for a clean tree, so a single clean answer described only the post-revert state.
+    vi.mocked(api.getGitStatus).mockImplementation(async () =>
+      vi.mocked(api.revertAllGitChanges).mock.calls.length > 0
+        ? gitStatus([])
+        : gitStatus([
+            {
+              path: 'src/app.ts',
+              status: 'modified',
+              staged: false,
+              unstaged: true,
+              additions: 1,
+              deletions: 1,
+            },
+          ]),
+    )
+    vi.mocked(api.revertAllGitChanges).mockResolvedValue({
+      ok: true,
+      message: 'All eligible working-tree changes reverted.',
+    })
+
+    render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Revert all' }))
+
+    // Wait for the reload the action triggers before asserting on what it rendered.
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledTimes(2))
+    await screen.findByText('No changes to review')
+    expect(api.revertAllGitChanges).toHaveBeenCalledWith('/repo')
+    expect(api.getGitStatus).toHaveBeenCalledWith('/repo')
+    expect(screen.getByRole('button', { name: 'Revert all' })).toBeDisabled()
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: 'All eligible working-tree changes reverted.',
+      variant: 'success',
+    })
+  })
+
+  it('surfaces a stage failure and still refreshes potentially changed Git state', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
+    vi.mocked(api.getGitStatus).mockResolvedValue(
+      gitStatus([
+        {
+          path: 'src/app.ts',
+          status: 'modified',
+          staged: false,
+          unstaged: true,
+          additions: 1,
+          deletions: 1,
+        },
+      ]),
+    )
+    vi.mocked(api.stageAllGitChanges).mockResolvedValue({
+      ok: false,
+      code: 'unknown',
+      message: 'Git index is locked.',
+    })
+
+    render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
+    fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
+
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledTimes(2))
+    expect(api.getGitStatus).toHaveBeenCalledWith('/repo')
+    expect(useUIStore.getState().toastData).toMatchObject({
+      message: 'Git index is locked.',
+      variant: 'error',
+    })
+  })
+
+  it('keeps Stage all enabled for files with staged and unstaged changes', async () => {
+    vi.mocked(api.getGitDiff).mockResolvedValue({ ok: true, files: [fileDiff()] })
+    useGitStore.setState({
+      statusByWorkingPath: statusSliceFor(
+        '/repo',
+        gitStatus([
+          {
+            path: 'src/app.ts',
+            status: 'modified',
+            staged: true,
+            unstaged: true,
+            additions: 1,
+            deletions: 1,
+          },
+        ]),
+      ),
+    })
+    vi.mocked(api.stageAllGitChanges).mockResolvedValue({
+      ok: true,
+      message: 'All working-tree changes staged.',
+    })
+
+    render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo')}
+        repositoryPath={RepositoryPath('/repo')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('button', { name: /select src\/app.ts/ })
+    expect(screen.getByRole('button', { name: /Stage all/ })).toBeEnabled()
+  })
+
+  it('does not refresh or toast an action result after switching projects', async () => {
+    let resolveStage: ((result: { ok: true; message: string }) => void) | undefined
+    vi.mocked(api.getGitDiff).mockImplementation(async (projectPath) => ({
+      ok: true,
+      files: [fileDiff(projectPath)],
+    }))
+    vi.mocked(api.stageAllGitChanges).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStage = resolve
+        }),
+    )
+
+    const { rerender } = render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo-a')}
+        repositoryPath={RepositoryPath('/repo-a')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-a'))
+    fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
+    rerender(
+      <DiffPanel
+        workingPath={WorkingPath('/repo-b')}
+        repositoryPath={RepositoryPath('/repo-b')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-b'))
+    resolveStage?.({ ok: true, message: 'All working-tree changes staged.' })
+
+    await waitFor(() => expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo-a'))
+    expect(api.getGitDiff).toHaveBeenCalledTimes(2)
+    /*
+     * One status read per working path the panel showed - the mount load that tells it what a commit
+     * would cover - and none attributable to the settled action. The old assertion was "never
+     * called", which only held while the panel depended on someone else loading that status.
+     */
+    expect(vi.mocked(api.getGitStatus).mock.calls.map(([path]) => path)).toEqual([
+      '/repo-a',
+      '/repo-b',
+    ])
+    expect(useUIStore.getState().toastData).toBeNull()
+  })
+
+  it('does not toast an action rejection after switching projects', async () => {
+    let rejectStage: ((error: Error) => void) | undefined
+    vi.mocked(api.getGitDiff).mockImplementation(async (projectPath) => ({
+      ok: true,
+      files: [fileDiff(projectPath)],
+    }))
+    vi.mocked(api.stageAllGitChanges).mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectStage = reject
+        }),
+    )
+
+    const { rerender } = render(
+      <DiffPanel
+        workingPath={WorkingPath('/repo-a')}
+        repositoryPath={RepositoryPath('/repo-a')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-a'))
+    fireEvent.click(screen.getByRole('button', { name: /Stage all/ }))
+    rerender(
+      <DiffPanel
+        workingPath={WorkingPath('/repo-b')}
+        repositoryPath={RepositoryPath('/repo-b')}
+        onSendMessage={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(api.getGitDiff).toHaveBeenCalledWith('/repo-b'))
+    rejectStage?.(new Error('obsolete failure'))
+
+    await waitFor(() => expect(api.stageAllGitChanges).toHaveBeenCalledWith('/repo-a'))
+    expect(useUIStore.getState().toastData).toBeNull()
   })
 })

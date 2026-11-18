@@ -17,46 +17,59 @@ export interface SafeDecodeFailure {
   readonly issues: readonly string[]
 }
 
-function formatIssuePath(path: ReadonlyArray<PropertyKey>) {
+function formatIssuePath(path: readonly PropertyKey[]) {
   const joinedPath = path.map(String).join('.')
   return joinedPath.length > 0 ? joinedPath : '(root)'
 }
 
-export function formatParseError(error: ParseResult.ParseError): readonly string[] {
+export function formatParseError(error: ParseResult.ParseError) {
   return ParseResult.ArrayFormatter.formatErrorSync(error).map(
     (issue) => `${formatIssuePath(issue.path)}: ${issue.message}`,
   )
 }
 
-export function getParseIssues(error: unknown): readonly string[] | null {
+export function getParseIssues(error: unknown) {
   return ParseResult.isParseError(error) ? formatParseError(error) : null
 }
 
-export function decodeUnknownOrThrow<A, I>(schema: Schema.Schema<A, I, never>, value: unknown): A {
+/**
+ * Where a decode failed and how (`path: Missing`, `path: Unexpected`, ...), without the issue
+ * messages: those embed the value that failed, which can be transcript or tool content.
+ */
+export function getParseIssuePaths(error: unknown) {
+  if (!ParseResult.isParseError(error)) return null
+  return ParseResult.ArrayFormatter.formatErrorSync(error).map(
+    (issue) => `${formatIssuePath(issue.path)}: ${issue._tag}`,
+  )
+}
+
+export function decodeUnknownOrThrow<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
   return ParseResult.decodeUnknownSync(schema)(value)
 }
 
-export function parseJsonUnknown(raw: string): unknown {
+/** Decode an external boundary while rejecting undeclared object properties. */
+export function decodeUnknownExactOrThrow<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
+  return ParseResult.decodeUnknownSync(schema, { onExcessProperty: 'error' })(value)
+}
+
+export function parseJsonUnknown(raw: string) {
   const parsed: unknown = JSON.parse(raw)
   return parsed
 }
 
-export function safeDecodeUnknown<A, I>(
-  schema: Schema.Schema<A, I, never>,
-  value: unknown,
-): SafeDecodeSuccess<A> | SafeDecodeFailure {
+export function safeDecodeUnknown<A, I>(schema: Schema.Schema<A, I>, value: unknown) {
   try {
     return {
       success: true,
       data: decodeUnknownOrThrow(schema, value),
-    }
+    } satisfies SafeDecodeSuccess<A> | SafeDecodeFailure
   } catch (error) {
     const issues = getParseIssues(error)
     if (issues) {
       return {
         success: false,
         issues,
-      }
+      } satisfies SafeDecodeSuccess<A> | SafeDecodeFailure
     }
     throw error
   }

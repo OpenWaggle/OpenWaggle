@@ -1,254 +1,36 @@
+import type { WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionInterruptedRun } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { StreamingPhaseState } from '@/features/chat/hooks/useStreamingPhase'
-import type { AgentInteractionEvent, ChatRow, MessageChatRow } from '../lib/types-chat-row'
-
-type ToolResultPart = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
-type SummaryRow = Extract<ChatRow, { type: 'branch-summary' | 'compaction-summary' }>
-
-function isToolResultOnlyMessage(message: UIMessage) {
-  return message.parts.length > 0 && message.parts.every((part) => part.type === 'tool-result')
-}
-
-function sameWaggleTurn(
-  current: WaggleMessageMetadata | undefined,
-  previous: WaggleMessageMetadata | undefined,
-) {
-  const bothHaveSessionId = current?.sessionId !== undefined && previous?.sessionId !== undefined
-  return (
-    current !== undefined &&
-    previous !== undefined &&
-    current.agentIndex === previous.agentIndex &&
-    current.turnNumber === previous.turnNumber &&
-    (!bothHaveSessionId || current.sessionId === previous.sessionId)
-  )
-}
-
-function getWaggleTurnId(meta: WaggleMessageMetadata, firstMessageId: string) {
-  return [
-    'waggle-turn',
-    meta.sessionId ?? 'session',
-    String(meta.turnNumber),
-    String(meta.agentIndex),
-    firstMessageId,
-  ].join(':')
-}
-
-function withoutInlineTurnDivider(row: MessageChatRow) {
-  return {
-    ...row,
-    showTurnDivider: false,
-    turnDividerProps: undefined,
-  }
-}
-
-function groupWaggleTurnRows(rows: readonly ChatRow[]) {
-  const groupedRows: ChatRow[] = []
-
-  for (const row of rows) {
-    if (row.type !== 'message' || row.message.role !== 'assistant' || !row.waggleMeta) {
-      groupedRows.push(row)
-      continue
-    }
-
-    const previousRow = groupedRows[groupedRows.length - 1]
-    if (
-      previousRow?.type === 'waggle-turn' &&
-      sameWaggleTurn(row.waggleMeta, previousRow.messages[0]?.waggleMeta)
-    ) {
-      groupedRows[groupedRows.length - 1] = {
-        ...previousRow,
-        messages: [...previousRow.messages, withoutInlineTurnDivider(row)],
-      }
-      continue
-    }
-
-    groupedRows.push({
-      type: 'waggle-turn',
-      id: getWaggleTurnId(row.waggleMeta, row.message.id),
-      agentColor: row.waggleMeta.agentColor,
-      turnDividerProps: {
-        turnNumber: row.waggleMeta.turnNumber,
-        agentLabel: row.waggleMeta.agentLabel,
-        agentColor: row.waggleMeta.agentColor,
-        agentModel: row.waggleMeta.agentModel,
-      },
-      messages: [withoutInlineTurnDivider(row)],
-    })
-  }
-
-  return groupedRows
-}
-
-function toolCallIds(message: UIMessage) {
-  const ids = new Set<string>()
-  for (const part of message.parts) {
-    if (part.type === 'tool-call') {
-      ids.add(part.id)
-    }
-  }
-  return ids
-}
-
-function canNestToolResultMessage(target: UIMessage, toolResults: readonly ToolResultPart[]) {
-  if (target.role !== 'assistant') {
-    return false
-  }
-
-  const ids = toolCallIds(target)
-  return toolResults.some((part) => ids.has(part.toolCallId))
-}
-
-function appendToolResultParts(target: UIMessage, toolResults: readonly ToolResultPart[]) {
-  const existingResultIds = new Set(
-    target.parts.filter((part) => part.type === 'tool-result').map((part) => part.toolCallId),
-  )
-  const nextResults = toolResults.filter((part) => !existingResultIds.has(part.toolCallId))
-  return nextResults.length > 0 ? { ...target, parts: [...target.parts, ...nextResults] } : target
-}
-
-function attachToolResultSource(toolResults: readonly ToolResultPart[], sourceMessageId: string) {
-  return toolResults.map((part) => ({ ...part, sourceMessageId }))
-}
-
-function getSummaryRow(message: UIMessage): SummaryRow | null {
-  const branchSummary = message.metadata?.branchSummary
-  if (branchSummary) {
-    return {
-      type: 'branch-summary',
-      id: message.id,
-      summary: branchSummary.summary,
-    }
-  }
-
-  const compactionSummary = message.metadata?.compactionSummary
-  if (compactionSummary) {
-    return {
-      type: 'compaction-summary',
-      id: message.id,
-      summary: compactionSummary.summary,
-      tokensBefore: compactionSummary.tokensBefore,
-    }
-  }
-
-  return null
-}
-
-function tryNestToolResultMessage(rows: ChatRow[], message: UIMessage) {
-  if (!isToolResultOnlyMessage(message)) {
-    return false
-  }
-
-  const previousRow = rows[rows.length - 1]
-  const toolResults = message.parts.filter((part) => part.type === 'tool-result')
-  const sourcedToolResults = attachToolResultSource(toolResults, message.id)
-  if (
-    previousRow?.type !== 'message' ||
-    !canNestToolResultMessage(previousRow.message, sourcedToolResults)
-  ) {
-    return false
-  }
-
-  rows[rows.length - 1] = {
-    ...previousRow,
-    message: appendToolResultParts(previousRow.message, sourcedToolResults),
-  }
-  return true
-}
-
-function createMessageRow({
-  message,
-  meta,
-  previousVisibleWaggleMeta,
-  isStreaming,
-  isLoading,
-}: {
-  readonly message: UIMessage
-  readonly meta: WaggleMessageMetadata | undefined
-  readonly previousVisibleWaggleMeta: WaggleMessageMetadata | undefined
-  readonly isStreaming: boolean
-  readonly isLoading: boolean
-}): MessageChatRow {
-  const showTurnDivider =
-    !!meta && message.role === 'assistant' && !sameWaggleTurn(meta, previousVisibleWaggleMeta)
-  return {
-    type: 'message',
-    message,
-    isStreaming,
-    isRunActive: isLoading,
-    showTurnDivider,
-    turnDividerProps: showTurnDivider
-      ? {
-          turnNumber: meta.turnNumber,
-          agentLabel: meta.agentLabel,
-          agentColor: meta.agentColor,
-          agentModel: meta.agentModel,
-        }
-      : undefined,
-    assistantModel: message.role === 'assistant' ? meta?.agentModel : undefined,
-    waggle: meta ? { agentLabel: meta.agentLabel, agentColor: meta.agentColor } : undefined,
-    waggleMeta: meta,
-  }
-}
-
-function appendStatusRows(rows: ChatRow[], params: BuildChatRowsParams) {
-  if (params.phase.current) {
-    rows.push({
-      type: 'phase-indicator',
-      label: params.phase.current.label,
-      elapsedMs: params.phase.current.elapsedMs,
-    })
-  }
-  if (!params.phase.current && params.isLoading) {
-    rows.push({
-      type: 'phase-indicator',
-      label: 'Thinking',
-      elapsedMs: params.phase.totalElapsedMs,
-    })
-  }
-  if (!params.isLoading && !params.phase.current && params.phase.completed.length > 0) {
-    rows.push({
-      type: 'run-summary',
-      phases: params.phase.completed,
-      totalMs: params.phase.totalElapsedMs,
-    })
-  }
-  if (params.error && !params.isLoading) {
-    rows.push({
-      type: 'error',
-      error: params.error,
-      lastUserMessage: params.lastUserMessage,
-      dismissedError: params.dismissedError,
-      sessionId: params.sessionId ? String(params.sessionId) : null,
-    })
-  }
-}
-
-function appendCustomMessageRows(
-  rows: ChatRow[],
-  customMessages: readonly AgentTransportCustomEvent[],
-) {
-  for (const event of customMessages) {
-    rows.push({ type: 'agent-loop-custom-message', event })
-  }
-}
-
-function appendInteractionEventRows(
-  rows: ChatRow[],
-  interactionEvents: readonly AgentInteractionEvent[],
-) {
-  for (const event of interactionEvents) {
-    rows.push({ type: 'agent-loop-interaction-event', event })
-  }
-}
+import { BEFORE_FIRST_MESSAGE, placeAgentLoopCards } from '../lib/agent-loop-card-placement'
+import {
+  createMessageRow,
+  getSummaryRow,
+  tryNestToolResultMessage,
+} from '../lib/chat-message-row-model'
+import { appendStatusRows, type ExtensionStatusRowInput } from '../lib/chat-status-row-model'
+import {
+  createCompactionRowAppender,
+  createCompactionStatusRows,
+} from '../lib/compaction-chat-row-model'
+import { showsOnlyHiddenSessionsToolCalls } from '../lib/sessions-tool-visibility'
+import { applyTurnFolds, type TurnFoldInput } from '../lib/turn-fold'
+import { markTurnReplies } from '../lib/turn-reply-actions'
+import type { AgentInteractionEvent, ChatRow } from '../lib/types-chat-row'
+import { groupWaggleTurnRows, withWaggleTurnFailures } from '../lib/waggle-turn-rows'
+import { createWorktreeLaunchRows, isWorktreeCreatedEvent } from '../lib/worktree-launch-row-model'
+import type { AgentCompactionStatus } from './useAgentChat.types'
 
 interface BuildChatRowsParams {
   messages: UIMessage[]
   customMessages?: readonly AgentTransportCustomEvent[]
   interactionEvents?: readonly AgentInteractionEvent[]
+  /** The message each persisted agent-loop event follows (`readAgentLoopEventsFromWorkspace`). */
+  agentLoopAnchorMessageIds?: ReadonlyMap<string, string>
   isLoading: boolean
+  isFinishing?: boolean
   error: Error | undefined
   lastUserMessage: string | null
   dismissedError: string | null
@@ -256,12 +38,31 @@ interface BuildChatRowsParams {
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: StreamingPhaseState
   interruptedRun?: SessionInterruptedRun
+  worktreeLaunch?: WorktreeLaunchSnapshot | null
+  /** A first send is on its way to a Session that has not started running yet. */
+  firstSendPending?: boolean
+  compactionStatus?: AgentCompactionStatus | null
+  /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
+  turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
+  /** Turn keys the user expanded in this session (fold state is in-memory). */
+  expandedTurnKeys?: ReadonlySet<string>
+  /** What the Run's Pi extensions say they are doing, shown on its status row. */
+  extensionStatus?: ExtensionStatusRowInput
 }
 
+/** A first send that nothing (no launch step, no run, no reply) has answered yet. */
+function isAwaitingFirstRun(params: BuildChatRowsParams, launchRows: readonly ChatRow[]) {
+  return (
+    params.firstSendPending === true &&
+    params.interruptedRun === undefined &&
+    launchRows.length === 0 &&
+    !params.messages.some((message) => message.role === 'assistant')
+  )
+}
+
+/** ADR 0034 fold inputs derived from the run's settled/active state. */
 function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
-  if (!params.interruptedRun || params.isLoading) {
-    return
-  }
+  if (!params.interruptedRun || params.isLoading) return
   rows.push({
     type: 'interrupted-run',
     runId: params.interruptedRun.runId,
@@ -272,24 +73,71 @@ function appendInterruptedRunRow(rows: ChatRow[], params: BuildChatRowsParams) {
   })
 }
 
-export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
-  const rows: ChatRow[] = []
-  appendInterruptedRunRow(rows, params)
+function toTurnFoldInput(params: BuildChatRowsParams) {
+  const input: TurnFoldInput = {
+    isLoading: params.isLoading,
+    // A reset phase timer (0 on session load) is "unknown", not a zero-second run.
+    settledRunDurationMs:
+      params.isLoading || params.phase.totalElapsedMs <= 0 ? null : params.phase.totalElapsedMs,
+    turnDurationsByAnchorMessageId: params.turnDurationsByAnchorMessageId ?? new Map(),
+    interrupted: !params.isLoading && params.interruptedRun !== undefined,
+    expandedTurnKeys: params.expandedTurnKeys ?? new Set(),
+  }
+  return input
+}
 
+function placeCards(params: BuildChatRowsParams) {
+  return placeAgentLoopCards({
+    messages: params.messages,
+    customMessages: (params.customMessages ?? []).filter((event) => !isWorktreeCreatedEvent(event)),
+    interactionEvents: params.interactionEvents ?? [],
+    ...(params.agentLoopAnchorMessageIds === undefined
+      ? {}
+      : { anchorMessageIdByEventKey: params.agentLoopAnchorMessageIds }),
+  })
+}
+
+export function buildChatRows(params: BuildChatRowsParams) {
+  const rows: ChatRow[] = []
+  const compactionRows = createCompactionStatusRows(
+    params.compactionStatus,
+    params.messages.flatMap((message) =>
+      message.metadata?.compactionSummary === undefined ? [] : [message.id],
+    ),
+  )
+  const appendCompactionRowsAt = createCompactionRowAppender(rows, compactionRows)
+  const launchRows = createWorktreeLaunchRows({
+    sessionId: params.sessionId,
+    ...(params.worktreeLaunch === undefined ? {} : { liveLaunch: params.worktreeLaunch }),
+    customMessages: params.customMessages ?? [],
+  })
+  let didAppendLaunchRows = false
+  const appendLaunchRows = () => {
+    if (didAppendLaunchRows) return
+    rows.push(...launchRows)
+    didAppendLaunchRows = true
+  }
+  const cards = placeCards(params)
+  const hasPlacedCards = cards.afterMessageIndex.size > 0
+  const appendCardsAfter = (index: number) => {
+    if (!hasPlacedCards) return
+    const placed = cards.afterMessageIndex.get(index)
+    if (placed) rows.push(...placed)
+  }
   const lastMessage = params.messages[params.messages.length - 1]
-  const lastIsStreaming = params.isLoading && lastMessage?.role === 'assistant'
+  const lastIsStreaming =
+    params.isLoading &&
+    params.compactionStatus?.type !== 'retrying' &&
+    lastMessage?.role === 'assistant'
   let previousVisibleWaggleMeta: WaggleMessageMetadata | undefined
 
-  for (let index = 0; index < params.messages.length; index += 1) {
-    const message = params.messages[index]
+  const appendMessage = (message: UIMessage, index: number) => {
     const summaryRow = getSummaryRow(message)
     if (summaryRow) {
       rows.push(summaryRow)
-      continue
+      return
     }
-    if (tryNestToolResultMessage(rows, message)) {
-      continue
-    }
+    if (tryNestToolResultMessage(rows, message)) return
 
     const meta = params.waggleMetadataLookup[message.id]
     rows.push(
@@ -301,14 +149,35 @@ export function buildChatRows(params: BuildChatRowsParams): ChatRow[] {
         isLoading: params.isLoading,
       }),
     )
-
-    if (meta && message.role === 'assistant') {
-      previousVisibleWaggleMeta = meta
-    }
+    if (meta && message.role === 'assistant') previousVisibleWaggleMeta = meta
   }
 
-  appendCustomMessageRows(rows, params.customMessages ?? [])
-  appendInteractionEventRows(rows, params.interactionEvents ?? [])
-  appendStatusRows(rows, params)
-  return groupWaggleTurnRows(rows)
+  appendCardsAfter(BEFORE_FIRST_MESSAGE)
+  for (const [index, message] of params.messages.entries()) {
+    appendCompactionRowsAt(index)
+    if (message.role === 'assistant') appendLaunchRows()
+    appendMessage(message, index)
+    appendCardsAfter(index)
+  }
+  appendCompactionRowsAt(params.messages.length)
+
+  appendLaunchRows()
+  rows.push(...cards.withoutMessages)
+  appendStatusRows(rows, { ...params, awaitingFirstRun: isAwaitingFirstRun(params, launchRows) })
+  appendInterruptedRunRow(rows, params)
+  // After results nest into their calls: a message of hidden Worker waits leaves no row.
+  // A failed Waggle response keeps its row, so its turn can still show the failure.
+  const shownRows = rows.filter(
+    (row) =>
+      row.type !== 'message' ||
+      (row.waggleMeta !== undefined && row.message.metadata?.error !== undefined) ||
+      !showsOnlyHiddenSessionsToolCalls(row.message.parts),
+  )
+  return markTurnReplies(
+    applyTurnFolds(
+      withWaggleTurnFailures(groupWaggleTurnRows(shownRows), { isLoading: params.isLoading }),
+      toTurnFoldInput(params),
+    ),
+    { isLoading: params.isLoading },
+  )
 }

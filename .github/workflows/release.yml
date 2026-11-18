@@ -3,21 +3,29 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: Exact forward semver to prepare through the protected release PR
+        required: true
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 concurrency:
-  group: release
+  group: "${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('release-{0}', github.sha) || 'release-prepare' }}"
   cancel-in-progress: false
 
 permissions:
   contents: read
 
+# No job here restores Bun's package cache: Bun does not check cached package files against the
+# integrity in bun.lock, and these jobs sign, notarize and publish what they install
+# (.github/actions/bun-install).
 jobs:
   version:
-    name: Prepare Protected Version
-    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+    name: Prepare or Publish Protected Version
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -29,20 +37,32 @@ jobs:
       new_tag: ${{ steps.release.outputs.new_tag }}
       should_release: ${{ steps.release.outputs.should_release }}
     steps:
+      - name: Validate manual release dispatch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_TARGET_VERSION: ${{ inputs.target_version }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test -n "$RELEASE_TARGET_VERSION"
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Determine bump from conventional commits
+        if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')"
         id: bump
         run: |
           set -euo pipefail
@@ -91,12 +111,14 @@ jobs:
           fi
 
           CURRENT=$(node -p "require('./package.json').version")
-          if grep -qE 'alpha|beta' <<<"$CURRENT"; then
-            BASE_VERSION="${CURRENT%%-*}"
-            PRERELEASE_TAG=$(sed 's/.*-\(alpha\|beta\)\..*/\1/' <<<"$CURRENT")
-            PRERELEASE_NUM=$(sed 's/.*\(alpha\|beta\)\.\([0-9]*\).*/\2/' <<<"$CURRENT")
+          # Bash regexes instead of GNU sed alternation, so the release harness runs this step on
+          # macOS too (scripts/__tests__/app-release-train.test-harness.ts).
+          if [[ "$CURRENT" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-(alpha|beta|rc)\.([0-9]+)$ ]]; then
+            BASE_VERSION="${BASH_REMATCH[1]}"
+            PRERELEASE_TAG="${BASH_REMATCH[2]}"
+            PRERELEASE_NUM="${BASH_REMATCH[3]}"
             NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"
-          else
+          elif [[ "$CURRENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             IFS='.' read -r MAJOR MINOR PATCH <<<"$CURRENT"
             case "$BUMP" in
               major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
@@ -104,33 +126,156 @@ jobs:
               patch) PATCH=$((PATCH + 1)) ;;
             esac
             NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          else
+            echo "Unrecognized desktop app version ${CURRENT}." >&2
+            exit 1
           fi
 
           echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
           echo "should_release=true" >> "$GITHUB_OUTPUT"
 
-      - name: Create, validate, and merge release PR
-        if: steps.bump.outputs.should_release == 'true'
+      - name: Prepare release PR or publish its protected merge
         id: release
         env:
+          BUMP_SHOULD_RELEASE: ${{ steps.bump.outputs.should_release }}
+          BUMP_VERSION: ${{ steps.bump.outputs.new_version }}
+          RELEASE_TARGET_VERSION: ${{ inputs.target_version }}
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.bump.outputs.new_version }}
+          MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' && secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
         run: |
           set -euo pipefail
+
+          HEAD_SUBJECT=$(git show -s --format=%s HEAD)
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          RELEASE_SUBJECT_VERSION=$(bun scripts/app-release-state.ts release-subject-version \
+            --subject "$HEAD_SUBJECT" 2>/dev/null || true)
+
+          write_no_release_output() {
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          }
+
+          # A maintainer closing the release PR mid-validation is a deliberate "not this
+          # version", not a workflow failure: report it and end without preparing a release.
+          exit_if_release_pr_closed() {
+            if [ "$1" = "CLOSED" ]; then
+              echo "::notice::Release PR ${PR_URL} was closed during validation; nothing to prepare."
+              write_no_release_output
+              exit 0
+            fi
+          }
+
+          if [ -n "$RELEASE_TARGET_VERSION" ]; then
+            bun scripts/app-release-state.ts validate-transition \
+              --current "$CURRENT_VERSION" \
+              --target "$RELEASE_TARGET_VERSION"
+            VERSION="$RELEASE_TARGET_VERSION"
+          elif [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]; then
+            VERSION="$CURRENT_VERSION"
+          elif [[ "$HEAD_SUBJECT" == "chore(release):"* ]]; then
+            write_no_release_output
+            exit 0
+          elif [ "$BUMP_SHOULD_RELEASE" = "true" ]; then
+            VERSION="$BUMP_VERSION"
+          else
+            write_no_release_output
+            exit 0
+          fi
+
+          # The promotion guard compares Stable with the newest RC that has a published GitHub
+          # release, not the newest rc tag: the tag is pushed before the builds run, so a tag can
+          # exist for a build that never shipped. A failed release list read fails the step.
+          verify_promotion() {
+            local candidate_ref="$1"
+            local releases_path="$RUNNER_TEMP/app-releases.jsonl"
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | {tag_name, draft}' > "$releases_path"
+            bun scripts/app-release-state.ts verify-promotion \
+              --target "$VERSION" \
+              --candidate "$candidate_ref" \
+              --releases "$releases_path"
+          }
+
+          # Stable gates run before any branch, PR, or tag exists. The release PR writes every
+          # version's CHANGELOG.md entry, and a Stable entry starts with the hand-written notes
+          # under "## [Unreleased]". Only a new major version needs those notes: an ordinary merge
+          # without them waits with a notice, while a dispatch or a merged release commit fails.
+          # The promotion guard requires an RC before a new major and RC-identical content after one.
+          if [[ "$VERSION" != *-* ]]; then
+            if ! bun scripts/app-release-notes.ts check --version "$VERSION"; then
+              if [ -z "$RELEASE_TARGET_VERSION" ] && [ "$RELEASE_SUBJECT_VERSION" != "$VERSION" ]; then
+                echo "::notice::Stable ${VERSION} waits for its CHANGELOG.md notes (see the error above); no release PR was prepared."
+                write_no_release_output
+                exit 0
+              fi
+              exit 1
+            fi
+            verify_promotion HEAD
+          fi
+
+          # RC and Stable macOS builds must be signed and notarized. Check the secrets before any
+          # branch, PR, or tag exists: build-macos runs after the tag push, so failing there would
+          # leave a tag without a release. build-macos checks again before it builds.
+          if [[ "$VERSION" == *-rc.* || "$VERSION" != *-* ]]; then
+            if [ "$MACOS_SIGNING_CONFIGURED" != "true" ] || [ "$MACOS_NOTARIZATION_CONFIGURED" != "true" ]; then
+              echo "::error::${VERSION} needs signed and notarized macOS builds; configure the macOS signing secrets before releasing it." >&2
+              exit 1
+            fi
+          fi
+
           RELEASE_BRANCH="app-release-v${VERSION}"
           TAG="v${VERSION}"
 
-          verify_version_only_tree() {
+          # A release PR's head is main plus exactly the files the workflow generates: package.json
+          # with the new version and CHANGELOG.md with the version's entry, written from the
+          # Conventional Commits since the previous release tag. Verification builds that tree
+          # again from the base and compares, so a hand edit or a stale entry fails.
+          verify_release_tree() {
             local base_ref="$1"
             local candidate_ref="$2"
-            test "$(git diff --name-only "${base_ref}...${candidate_ref}")" = "package.json"
-            git show "${base_ref}:package.json" > "$RUNNER_TEMP/base-package.json"
-            git show "${candidate_ref}:package.json" > "$RUNNER_TEMP/candidate-package.json"
-            pnpm exec tsx scripts/app-release-state.ts expected-manifest \
-              --base "$RUNNER_TEMP/base-package.json" \
-              --output "$RUNNER_TEMP/expected-package.json" \
+            bun scripts/app-release-state.ts verify-release-tree \
+              --base "$base_ref" \
+              --candidate "$candidate_ref" \
               --version "$VERSION"
-            cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"
+          }
+
+          # Before the release files are written again, a branch may carry any CHANGELOG.md (a
+          # stale entry, or none on a version-only branch from before CHANGELOG.md was generated)
+          # but must not change anything else.
+          verify_release_branch_base() {
+            local base_ref="$1"
+            local candidate_ref="$2"
+            local common_base
+            common_base=$(git merge-base --all "$base_ref" "$candidate_ref")
+            [[ "$common_base" =~ ^[0-9a-f]{40}$ ]]
+            bun scripts/app-release-state.ts verify-release-tree \
+              --base "$common_base" \
+              --candidate "$candidate_ref" \
+              --version "$VERSION" \
+              --release-files-only "$base_ref"
+          }
+
+          configure_release_committer() {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          }
+
+          # Pushes a commit the workflow built on top of the release PR's head; the push fails unless
+          # it fast-forwards that head. Waits until the PR shows it, then makes it HEAD_SHA.
+          push_release_head() {
+            local commit_sha="$1"
+            [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
+            git push origin "${commit_sha}:refs/heads/${RELEASE_BRANCH}"
+            for PUSH_ATTEMPT in $(seq 1 30); do
+              if [ "$(gh pr view "$PR_URL" --json headRefOid --jq '.headRefOid')" = "$commit_sha" ]; then
+                HEAD_SHA="$commit_sha"
+                return 0
+              fi
+              echo "Waiting for the release PR to show ${commit_sha} (${PUSH_ATTEMPT}/30)."
+              sleep 2
+            done
+            echo "The release PR did not show ${commit_sha}." >&2
+            exit 1
           }
 
           verify_release_commit() {
@@ -139,10 +284,16 @@ jobs:
             git fetch origin \
               "+refs/heads/main:refs/remotes/origin/main"
             git merge-base --is-ancestor "$commit_sha" origin/main
-            test "$(git show -s --format=%s "$commit_sha")" = "chore(release): v${VERSION}"
+            local commit_subject
+            commit_subject=$(git show -s --format=%s "$commit_sha")
+            test "$(bun scripts/app-release-state.ts release-subject-version \
+              --subject "$commit_subject")" = "$VERSION"
             local parent_sha
             parent_sha=$(git rev-parse "${commit_sha}^")
-            verify_version_only_tree "$parent_sha" "$commit_sha"
+            verify_release_tree "$parent_sha" "$commit_sha"
+            if [[ "$VERSION" != *-* ]]; then
+              verify_promotion "$commit_sha"
+            fi
           }
 
           write_release_outputs() {
@@ -151,17 +302,128 @@ jobs:
             echo "should_release=true" >> "$GITHUB_OUTPUT"
           }
 
-          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
-            TAG_COMMIT=$(git rev-list -n 1 "$TAG")
-            verify_release_commit "$TAG_COMMIT"
+          if [ "$RELEASE_SUBJECT_VERSION" = "$VERSION" ]; then
+            MERGE_SHA="$GITHUB_SHA"
+            verify_release_commit "$MERGE_SHA"
+
+            MATCHING_PRS='[]'
+            for PR_ASSOCIATION_ATTEMPT in $(seq 1 12); do
+              ASSOCIATED_PRS=""
+              if ASSOCIATED_PRS=$(gh api \
+                "repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}/pulls"); then
+                MATCHING_PRS=$(jq -c \
+                  --arg branch "$RELEASE_BRANCH" \
+                  --arg repository "$GITHUB_REPOSITORY" \
+                  --arg sha "$MERGE_SHA" \
+                  --arg title "chore(release): v${VERSION}" \
+                  '[.[] | select(
+                    .state == "closed" and
+                    .merged_at != null and
+                    .merge_commit_sha == $sha and
+                    .base.ref == "main" and
+                    .head.ref == $branch and
+                    .head.repo.full_name == $repository and
+                    .title == $title
+                  )]' <<<"$ASSOCIATED_PRS")
+                MATCHING_PR_COUNT=$(jq -er 'length' <<<"$MATCHING_PRS")
+                if [ "$MATCHING_PR_COUNT" -eq 1 ]; then
+                  break
+                fi
+                if [ "$MATCHING_PR_COUNT" -gt 1 ]; then
+                  echo "More than one merged release PR matched ${MERGE_SHA}." >&2
+                  exit 1
+                fi
+              else
+                echo "GitHub merged release PR query failed (${PR_ASSOCIATION_ATTEMPT}/12)." >&2
+              fi
+
+              if [ "$PR_ASSOCIATION_ATTEMPT" -eq 12 ]; then
+                echo "GitHub did not expose the merged release PR for ${MERGE_SHA} after ${PR_ASSOCIATION_ATTEMPT} attempts." >&2
+                exit 1
+              fi
+              echo "Waiting for GitHub to expose the merged release PR (${PR_ASSOCIATION_ATTEMPT}/12)."
+              sleep 5
+            done
+            MATCHING_PR_NUMBER=$(jq -er '.[0].number' <<<"$MATCHING_PRS")
+            MATCHING_PR=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/pulls/${MATCHING_PR_NUMBER}")
+            test "$(jq -er '.number' <<<"$MATCHING_PR")" = "$MATCHING_PR_NUMBER"
+            test "$(jq -er '.state' <<<"$MATCHING_PR")" = "closed"
+            test "$(jq -er '.merge_commit_sha' <<<"$MATCHING_PR")" = "$MERGE_SHA"
+            test "$(jq -er '.base.ref' <<<"$MATCHING_PR")" = "main"
+            test "$(jq -er '.head.ref' <<<"$MATCHING_PR")" = "$RELEASE_BRANCH"
+            test "$(jq -er '.head.repo.full_name' <<<"$MATCHING_PR")" = "$GITHUB_REPOSITORY"
+            test "$(jq -er '.title' <<<"$MATCHING_PR")" = "chore(release): v${VERSION}"
+            test "$(jq -er '.merged_by.type' <<<"$MATCHING_PR")" = "User"
+            test "$(jq -er '.merged_by.login' <<<"$MATCHING_PR")" != "github-actions[bot]"
+
+            RELEASE_PR_HEAD_SHA=$(jq -er '.head.sha' <<<"$MATCHING_PR")
+            [[ "$RELEASE_PR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+            for RELEASE_CI_ATTEMPT in $(seq 1 12); do
+              RELEASE_PR_RUNS=""
+              SUCCESSFUL_RELEASE_CI_COUNT=0
+              if RELEASE_PR_RUNS=$(gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=pull_request&branch=${RELEASE_BRANCH}&per_page=20"); then
+                SUCCESSFUL_RELEASE_CI_COUNT=$(jq -er --arg sha "$RELEASE_PR_HEAD_SHA" \
+                  '[.workflow_runs[] | select(
+                    .head_sha == $sha and
+                    .event == "pull_request" and
+                    .status == "completed" and
+                    .conclusion == "success"
+                  )] | length' <<<"$RELEASE_PR_RUNS")
+                if [ "$SUCCESSFUL_RELEASE_CI_COUNT" -ge 1 ]; then
+                  break
+                fi
+              else
+                echo "GitHub exact-head CI query failed (${RELEASE_CI_ATTEMPT}/12)." >&2
+              fi
+
+              if [ "$RELEASE_CI_ATTEMPT" -eq 12 ]; then
+                echo "GitHub did not expose successful exact-head CI for ${RELEASE_PR_HEAD_SHA} after ${RELEASE_CI_ATTEMPT} attempts." >&2
+                exit 1
+              fi
+              echo "Waiting for GitHub to expose successful exact-head CI (${RELEASE_CI_ATTEMPT}/12)."
+              sleep 5
+            done
+
+            if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
+              test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"
+            else
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag -a "$TAG" "$MERGE_SHA" -m "Release ${TAG}"
+              git push origin "refs/tags/${TAG}"
+            fi
             write_release_outputs
+            exit 0
+          fi
+
+          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "${TAG} is already published; no release PR is needed."
+            write_no_release_output
+            exit 0
+          fi
+
+          # A release PR's CHANGELOG.md entry starts at the previous release tag, which the merged
+          # release's own publication run pushes. The tag must have been in this checkout: the bump
+          # step read its range from these tags, and an entry or bump computed before the tag existed
+          # would repeat that release's changes. An ordinary push waits for the next one to main; a
+          # dispatch fails, since it was asked to open the PR now.
+          CURRENT_TAG="v${CURRENT_VERSION}"
+          if ! git rev-parse -q --verify "refs/tags/${CURRENT_TAG}" >/dev/null; then
+            if [ -n "$RELEASE_TARGET_VERSION" ]; then
+              echo "::error::${CURRENT_TAG} is not tagged yet; dispatch ${VERSION} again once its publication run finishes." >&2
+              exit 1
+            fi
+            echo "::notice::${CURRENT_TAG} is not tagged yet; the ${VERSION} release PR waits for its publication run."
+            write_no_release_output
             exit 0
           fi
 
           ALL_PRS=$(gh pr list --state all --head "$RELEASE_BRANCH" --limit 100 \
             --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url)
-          PRS=$(pnpm exec tsx scripts/app-release-state.ts filter-prs \
+          PRS=$(bun scripts/app-release-state.ts filter-prs \
             --branch "$RELEASE_BRANCH" \
             --owner "$GITHUB_REPOSITORY_OWNER" \
             --repository "${GITHUB_REPOSITORY#*/}" \
@@ -174,7 +436,6 @@ jobs:
 
           PR_URL=""
           PR_STATE=""
-          MERGE_SHA=""
           if [ "$PR_COUNT" -eq 1 ]; then
             PR_URL=$(jq -er '.[0].url' <<<"$PRS")
             PR_STATE=$(jq -er '.[0].state' <<<"$PRS")
@@ -182,7 +443,9 @@ jobs:
             test "$(jq -er '.[0].headRefName' <<<"$PRS")" = "$RELEASE_BRANCH"
             test "$(jq -er '.[0].title' <<<"$PRS")" = "chore(release): v${VERSION}"
             if [ "$PR_STATE" = "MERGED" ]; then
-              MERGE_SHA=$(jq -er '.[0].mergeCommit.oid' <<<"$PRS")
+              echo "Release PR is already merged; its protected-merge run owns publication."
+              write_no_release_output
+              exit 0
             elif [ "$PR_STATE" != "OPEN" ]; then
               echo "Release PR is closed without being merged: ${PR_URL}"
               exit 1
@@ -191,47 +454,111 @@ jobs:
 
           if [ -z "$PR_URL" ]; then
             if git ls-remote --exit-code origin "refs/heads/${RELEASE_BRANCH}" >/dev/null 2>&1; then
+              # Adopt the branch without checking it out: the release scripts keep running from main.
               git fetch origin "refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
-              git switch --detach "origin/${RELEASE_BRANCH}"
             else
-              pnpm exec tsx scripts/app-release-state.ts expected-manifest \
-                --base package.json \
-                --output package.json \
-                --version "$VERSION"
-              git config user.name "github-actions[bot]"
-              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git switch -c "$RELEASE_BRANCH"
-              git add package.json
-              git commit -m "chore(release): v${VERSION}"
-              git push origin "$RELEASE_BRANCH"
+              configure_release_committer
+              RELEASE_COMMIT_SHA=$(bun scripts/app-release-state.ts release-commit \
+                --base HEAD \
+                --version "$VERSION" \
+                --parent HEAD \
+                --message "chore(release): v${VERSION}")
+              [[ "$RELEASE_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+              git push origin "${RELEASE_COMMIT_SHA}:refs/heads/${RELEASE_BRANCH}"
             fi
 
             git fetch origin \
               "+refs/heads/main:refs/remotes/origin/main" \
               "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
-            verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
-            PR_URL=$(gh pr create \
-              --base main \
-              --head "$RELEASE_BRANCH" \
-              --title "chore(release): v${VERSION}" \
-              --body "Automated desktop app version release. CI must pass for this exact commit before merge.")
+            verify_release_branch_base "origin/main" "origin/${RELEASE_BRANCH}"
+            PR_CREATE_ERROR="$RUNNER_TEMP/release-pr-create-error.log"
+            for PR_CREATE_ATTEMPT in $(seq 1 4); do
+              if PR_URL=$(gh pr create \
+                --base main \
+                --head "$RELEASE_BRANCH" \
+                --title "chore(release): v${VERSION}" \
+                --body "Automated desktop app version release. CI must pass for this exact commit. A maintainer must merge this PR manually to publish the release." \
+                2>"$PR_CREATE_ERROR"); then
+                break
+              fi
+
+              cat "$PR_CREATE_ERROR" >&2
+              PR_URL=""
+              RECOVERY_ALL_PRS=""
+              if RECOVERY_ALL_PRS=$(gh pr list --state open --head "$RELEASE_BRANCH" --limit 100 \
+                --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeCommit,number,state,title,url); then
+                RECOVERY_PRS=$(bun scripts/app-release-state.ts filter-prs \
+                  --branch "$RELEASE_BRANCH" \
+                  --owner "$GITHUB_REPOSITORY_OWNER" \
+                  --repository "${GITHUB_REPOSITORY#*/}" \
+                  <<<"$RECOVERY_ALL_PRS")
+                RECOVERY_PR_COUNT=$(jq -er 'length' <<<"$RECOVERY_PRS")
+                if [ "$RECOVERY_PR_COUNT" -gt 1 ]; then
+                  echo "Multiple release PRs appeared after creation failed for ${RELEASE_BRANCH}." >&2
+                  exit 1
+                fi
+                if [ "$RECOVERY_PR_COUNT" -eq 1 ]; then
+                  test "$(jq -er '.[0].baseRefName' <<<"$RECOVERY_PRS")" = "main"
+                  test "$(jq -er '.[0].headRefName' <<<"$RECOVERY_PRS")" = "$RELEASE_BRANCH"
+                  test "$(jq -er '.[0].state' <<<"$RECOVERY_PRS")" = "OPEN"
+                  test "$(jq -er '.[0].title' <<<"$RECOVERY_PRS")" = "chore(release): v${VERSION}"
+                  PR_URL=$(jq -er '.[0].url' <<<"$RECOVERY_PRS")
+                  echo "Adopted release PR after an ambiguous creation failure: ${PR_URL}" >&2
+                  break
+                fi
+              fi
+
+              if [ "$PR_CREATE_ATTEMPT" -eq 4 ]; then
+                echo "GitHub did not create the release PR after ${PR_CREATE_ATTEMPT} attempts." >&2
+                exit 1
+              fi
+              echo "GitHub PR creation failed; retrying (${PR_CREATE_ATTEMPT}/4)." >&2
+              sleep $((PR_CREATE_ATTEMPT * 5))
+            done
+            test -n "$PR_URL"
             PR_STATE="OPEN"
           fi
 
           if [ "$PR_STATE" = "OPEN" ]; then
             PR_NUMBER=$(gh pr view "$PR_URL" --json number --jq '.number')
-            for MERGE_ATTEMPT in $(seq 1 3); do
+            for VALIDATION_ATTEMPT in $(seq 1 3); do
               PR_DETAILS=$(gh pr view "$PR_URL" \
-                --json baseRefName,headRefName,headRefOid,mergeStateStatus,state,title)
-              test "$(jq -er '.state' <<<"$PR_DETAILS")" = "OPEN"
+                --json baseRefName,headRefName,headRefOid,state,title)
+              CURRENT_PR_STATE=$(jq -er '.state' <<<"$PR_DETAILS")
+              if [ "$CURRENT_PR_STATE" = "MERGED" ]; then
+                echo "Release PR merged after validation; its protected-merge run owns publication."
+                write_no_release_output
+                exit 0
+              fi
+              exit_if_release_pr_closed "$CURRENT_PR_STATE"
+              test "$CURRENT_PR_STATE" = "OPEN"
               test "$(jq -er '.baseRefName' <<<"$PR_DETAILS")" = "main"
               test "$(jq -er '.headRefName' <<<"$PR_DETAILS")" = "$RELEASE_BRANCH"
               test "$(jq -er '.title' <<<"$PR_DETAILS")" = "chore(release): v${VERSION}"
               HEAD_SHA=$(jq -er '.headRefOid' <<<"$PR_DETAILS")
-              MERGE_STATE=$(jq -er '.mergeStateStatus' <<<"$PR_DETAILS")
               [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
 
-              if [ "$MERGE_STATE" = "BEHIND" ]; then
+              git fetch origin \
+                "+refs/heads/main:refs/remotes/origin/main" \
+                "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
+              test "$(git rev-parse "origin/${RELEASE_BRANCH}")" = "$HEAD_SHA"
+              MAIN_SHA=$(git rev-parse origin/main)
+              verify_release_branch_base "$MAIN_SHA" "$HEAD_SHA"
+
+              if ! git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"; then
+                # GitHub's merge of main would conflict where main also changed a release file (notes
+                # under "## [Unreleased]", a dependency in package.json). Taking main's copies first
+                # makes both sides change them the same way; they are written again below.
+                SYNC_BASE=$(git merge-base "$MAIN_SHA" "$HEAD_SHA")
+                if ! git diff --quiet "$SYNC_BASE" "$MAIN_SHA" -- package.json CHANGELOG.md; then
+                  configure_release_committer
+                  RESTORE_SHA=$(bun scripts/app-release-state.ts restore-release-files \
+                    --from "$MAIN_SHA" \
+                    --onto "$HEAD_SHA" \
+                    --message "chore(release): take main's release files before syncing v${VERSION}")
+                  push_release_head "$RESTORE_SHA"
+                fi
+                UPDATE_BASE_SHA="$HEAD_SHA"
                 gh api --method PUT \
                   "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" \
                   -f "expected_head_sha=${HEAD_SHA}" >/dev/null
@@ -244,14 +571,38 @@ jobs:
                   echo "Waiting for release branch update (${UPDATE_ATTEMPT}/30)."
                   sleep 2
                 done
-                test "$HEAD_SHA" != "$(jq -er '.headRefOid' <<<"$PR_DETAILS")"
+                test "$HEAD_SHA" != "$UPDATE_BASE_SHA"
               fi
 
               git fetch origin \
                 "+refs/heads/main:refs/remotes/origin/main" \
                 "+refs/heads/${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}"
               test "$(git rev-parse "origin/${RELEASE_BRANCH}")" = "$HEAD_SHA"
-              verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"
+              MAIN_SHA=$(git rev-parse origin/main)
+              if ! git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"; then
+                if [ "$VALIDATION_ATTEMPT" -eq 3 ]; then
+                  echo "Release PR remained behind main after branch update retries."
+                  exit 1
+                fi
+                echo "Main advanced during release branch synchronization; retrying."
+                continue
+              fi
+              verify_release_branch_base "$MAIN_SHA" "$HEAD_SHA"
+              # After a merge of main, and on a version-only branch from before CHANGELOG.md was
+              # generated, write the release files again so the entry lists every commit since the
+              # previous release. The commit changes only package.json and CHANGELOG.md, which the
+              # workflow token may push, unlike a merge that brings workflow changes from main.
+              if ! verify_release_tree "$MAIN_SHA" "$HEAD_SHA"; then
+                echo "Writing the ${VERSION} release files for main ${MAIN_SHA}."
+                configure_release_committer
+                RELEASE_COMMIT_SHA=$(bun scripts/app-release-state.ts release-commit \
+                  --base "$MAIN_SHA" \
+                  --version "$VERSION" \
+                  --parent "$HEAD_SHA" \
+                  --message "chore(release): v${VERSION}")
+                push_release_head "$RELEASE_COMMIT_SHA"
+              fi
+              verify_release_tree "$MAIN_SHA" "$HEAD_SHA"
 
               RUN_ID=""
               for RUN_ATTEMPT in $(seq 1 60); do
@@ -288,134 +639,256 @@ jobs:
               fi
               gh run watch "$RUN_ID" --exit-status
 
-              if gh pr merge "$PR_URL" \
-                --squash \
-                --delete-branch \
-                --match-head-commit "$HEAD_SHA" \
-                --subject "chore(release): v${VERSION}" \
-                --body ""; then
+              AFTER_VALIDATION=$(gh pr view "$PR_URL" \
+                --json headRefOid,state)
+              test "$(jq -er '.headRefOid' <<<"$AFTER_VALIDATION")" = "$HEAD_SHA"
+              AFTER_VALIDATION_STATE=$(jq -er '.state' <<<"$AFTER_VALIDATION")
+              if [ "$AFTER_VALIDATION_STATE" = "MERGED" ]; then
+                echo "Release PR merged after validation; its protected-merge run owns publication."
+                write_no_release_output
+                exit 0
+              fi
+              exit_if_release_pr_closed "$AFTER_VALIDATION_STATE"
+              test "$AFTER_VALIDATION_STATE" = "OPEN"
+              git fetch origin "+refs/heads/main:refs/remotes/origin/main"
+              MAIN_SHA=$(git rev-parse origin/main)
+              if git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"; then
                 break
               fi
-              RETRY_STATE=""
-              for STATE_ATTEMPT in $(seq 1 30); do
-                AFTER_MERGE=$(gh pr view "$PR_URL" --json mergeCommit,mergeStateStatus,state)
-                AFTER_STATE=$(jq -er '.state' <<<"$AFTER_MERGE")
-                AFTER_MERGE_STATE=$(jq -er '.mergeStateStatus' <<<"$AFTER_MERGE")
-                RECOVERY_ACTION=$(pnpm exec tsx scripts/app-release-state.ts merge-action \
-                  --state "$AFTER_STATE" \
-                  --merge-state "$AFTER_MERGE_STATE")
-                case "$RECOVERY_ACTION" in
-                  complete)
-                    MERGE_SHA=$(jq -er '.mergeCommit.oid' <<<"$AFTER_MERGE")
-                    RETRY_STATE="MERGED"
-                    break
-                    ;;
-                  retry)
-                    RETRY_STATE="BEHIND"
-                    break
-                    ;;
-                  poll)
-                    echo "Waiting for merge state (${STATE_ATTEMPT}/30): ${AFTER_MERGE_STATE}."
-                    sleep 2
-                    ;;
-                  conflict)
-                    echo "Release PR merge failed in terminal state: ${AFTER_STATE}/${AFTER_MERGE_STATE}."
-                    exit 1
-                    ;;
-                esac
-              done
-              if [ "$RETRY_STATE" = "MERGED" ]; then
-                break
-              fi
-              if [ "$MERGE_ATTEMPT" -eq 3 ] || [ "$RETRY_STATE" != "BEHIND" ]; then
-                echo "Release PR did not merge after strict-base retries."
+              if [ "$VALIDATION_ATTEMPT" -eq 3 ]; then
+                echo "Release PR remained behind main after strict-base validation retries."
                 exit 1
               fi
             done
-
-            if [ -z "$MERGE_SHA" ]; then
-              MERGE_SHA=$(gh pr view "$PR_URL" --json mergeCommit,mergedAt \
-                --jq 'select(.mergedAt != null) | .mergeCommit.oid')
-            fi
           fi
 
-          verify_release_commit "$MERGE_SHA"
-          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
-            test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" "$MERGE_SHA" -m "Release ${TAG}"
-            git push origin "refs/tags/${TAG}"
-          fi
-          write_release_outputs
+          echo "Release PR ready for maintainer review: ${PR_URL}"
+          write_no_release_output
 
   build-macos:
     name: Build macOS
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    runs-on: macos-14
+    # GitHub retired the macos-14 image; jobs on it are cancelled before any step runs.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
+      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
+      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
 
-      - run: pnpm build
+      - name: Stamp release Build channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*) channel=beta ;;
+            *-rc.*) channel=rc ;;
+            *-*) echo "Unrecognized prerelease id in $version" >&2; exit 1 ;;
+            *) channel=stable ;;
+          esac
+          echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
 
-      - name: Build macOS artifacts (arm64 + x64)
-        run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
+      - name: Require macOS signing for release candidates and Stable
+        shell: bash
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' && secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          set -euo pipefail
+          case "$OPENWAGGLE_RELEASE_CHANNEL" in
+            rc|stable)
+              if [ "$MACOS_SIGNING_CONFIGURED" != "true" ] || [ "$MACOS_NOTARIZATION_CONFIGURED" != "true" ]; then
+                echo "::error::${OPENWAGGLE_RELEASE_CHANNEL} macOS builds must be signed and notarized; configure the macOS signing secrets." >&2
+                exit 1
+              fi
+              ;;
+          esac
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - run: bun run build
+
+      # A runner blip must not fail the release. Three are known: notarytool losing Apple while it
+      # polls (1.0.0-beta.1, run 36695614844), stapler losing Apple's ticket service after a
+      # successful notarization (1.0.0-beta.36, run 42493633669), and hdiutil failing a dmgbuild
+      # call with a device error (1.0.0-beta.8, run 37285929256, all three attempts). Only those failures rebuild,
+      # at most twice. A rejection or any other failure still fails the first attempt. hdiutil
+      # breaks under concurrent disk activity on hosted runners (actions/runner-images#7522), so
+      # Spotlight indexing is turned off once and XProtect is stopped before every attempt. The
+      # dmg-builder patch (patches/dmg-builder@*.patch) first retries only the failed DMG, so a
+      # full rebuild with fresh notarization is the last resort.
+      - name: Build macOS artifacts (arm64 + x64)
+        shell: bash
+        run: |
+          set -uo pipefail
+          BUILD_LOG="$RUNNER_TEMP/electron-builder-mac.log"
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          for BUILD_ATTEMPT in 1 2 3; do
+            sudo pkill -9 XProtect >/dev/null 2>&1 || true
+            if bunx electron-builder --mac --arm64 --x64 --publish never 2>&1 | tee "$BUILD_LOG"; then
+              exit 0
+            fi
+            if [ "$BUILD_ATTEMPT" -eq 3 ] || ! FAILURE_REASON="$(node scripts/macos-build-failure.ts "$BUILD_LOG")"; then
+              exit 1
+            fi
+            echo "::warning::${FAILURE_REASON}; rebuilding macOS artifacts (attempt $((BUILD_ATTEMPT + 1)) of 3)."
+            # A failed dmgbuild can leave its read-write image attached; detach it before rebuilding.
+            for volume in /Volumes/OpenWaggle*; do
+              [ -d "$volume" ] && hdiutil detach "$volume" -force >/dev/null 2>&1 || true
+            done
+            sync
+          done
+        env:
+          # Unset secrets keep Alpha/Beta builds unsigned; RC and Stable fail closed without them.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Check macOS native platform floor
+        run: bun scripts/check-native-platform-floor.ts
+
+      - name: Verify macOS signing and notarization
+        shell: bash
+        env:
+          MACOS_SIGNING_CONFIGURED: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
+          MACOS_NOTARIZATION_CONFIGURED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          set -euo pipefail
+          if [ "$MACOS_SIGNING_CONFIGURED" != "true" ]; then
+            echo "macOS signing is not configured; this ${OPENWAGGLE_RELEASE_CHANNEL} build is unsigned."
+            exit 0
+          fi
+          shopt -s nullglob
+          apps=(dist/mac*/*.app)
+          [ "${#apps[@]}" -gt 0 ]
+          for app in "${apps[@]}"; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+            if [ "$MACOS_NOTARIZATION_CONFIGURED" = "true" ]; then
+              xcrun stapler validate "$app"
+              spctl --assess --type execute --verbose "$app"
+            fi
+          done
+          # The DMG users download is signed, notarized and stapled itself, not only the app inside.
+          dmgs=(dist/*.dmg)
+          [ "${#dmgs[@]}" -eq 2 ]
+          for dmg in "${dmgs[@]}"; do
+            codesign --verify --strict --verbose=2 "$dmg"
+            if [ "$MACOS_NOTARIZATION_CONFIGURED" = "true" ]; then
+              xcrun stapler validate "$dmg"
+              spctl --assess --type open --context context:primary-signature --verbose "$dmg"
+            fi
+          done
+
+      - name: Prepare macOS update channels
+        run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac
+
+      - name: Smoke packaged macOS PTY runtime
+        run: bun run packaged-app:smoke
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: macos-artifacts
           path: |
             dist/*.dmg
             dist/*.zip
+            dist/*.blockmap
             dist/*.yml
+          if-no-files-found: error
+
+      # The minified bundles' hidden source maps (electron.vite.config.ts), to map field stack
+      # traces back to source. Never in the app, and not release assets (the publish job downloads
+      # only *-artifacts).
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: macos-source-maps
+          path: out/**/*.map
+          retention-days: 90
           if-no-files-found: error
 
   build-linux:
     name: Build Linux
     needs: version
     if: needs.version.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
+    # Native modules link against the build host's glibc and libstdc++. Ubuntu 22.04 (glibc 2.35)
+    # is the supported Linux floor (scripts/supported-platform-floor.ts); ubuntu-latest (24.04)
+    # made node-pty need glibc 2.38 in 1.0.0-beta.25.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
+      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
+      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
 
-      - run: pnpm build
+      - name: Stamp release Build channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*) channel=beta ;;
+            *-rc.*) channel=rc ;;
+            *-*) echo "Unrecognized prerelease id in $version" >&2; exit 1 ;;
+            *) channel=stable ;;
+          esac
+          echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
+
+      - run: bun run build
 
       - name: Build Linux AppImage
-        run: pnpm exec electron-builder --linux --publish never
+        run: bunx electron-builder --linux --publish never
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Check Linux native platform floor
+        run: bun scripts/check-native-platform-floor.ts
+
+      - name: Prepare Linux update channels
+        run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux
+
+      - name: Smoke packaged Linux PTY runtime
+        run: bun run packaged-app:smoke
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: linux-artifacts
           path: |
             dist/*.AppImage
             dist/*.yml
+          if-no-files-found: error
+
+      # The minified bundles' hidden source maps (electron.vite.config.ts), to map field stack
+      # traces back to source. Never in the app, and not release assets (the publish job downloads
+      # only *-artifacts).
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: linux-source-maps
+          path: out/**/*.map
+          retention-days: 90
           if-no-files-found: error
 
   build-windows:
@@ -428,26 +901,64 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
+      # Both CPU architectures: the macOS job packages the arm64 and the x64 app (#349).
+      - run: bun install --frozen-lockfile --cpu=arm64 --cpu=x64
 
-      - run: pnpm build
+      - name: Stamp release Build channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.version.outputs.new_version }}'
+          case "$version" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*) channel=beta ;;
+            *-rc.*) channel=rc ;;
+            *-*) echo "Unrecognized prerelease id in $version" >&2; exit 1 ;;
+            *) channel=stable ;;
+          esac
+          echo "OPENWAGGLE_RELEASE_CHANNEL=$channel" >> "$GITHUB_ENV"
+
+      - run: bun run build
 
       - name: Build Windows NSIS installer
-        run: pnpm exec electron-builder --win --publish never
+        run: bunx electron-builder --win --publish never
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Check Windows native platform floor
+        run: bun scripts/check-native-platform-floor.ts
+
+      - name: Prepare Windows update channels
+        shell: bash
+        run: bun scripts/prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows
+
+      - name: Smoke packaged Windows PTY runtimes
+        run: bun run packaged-app:smoke
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: windows-artifacts
           path: |
             dist/*.exe
+            dist/*.blockmap
             dist/*.yml
+          if-no-files-found: error
+
+      # The minified bundles' hidden source maps (electron.vite.config.ts), to map field stack
+      # traces back to source. Never in the app, and not release assets (the publish job downloads
+      # only *-artifacts).
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-source-maps
+          path: out/**/*.map
+          retention-days: 90
           if-no-files-found: error
 
   verify-installers:
@@ -473,15 +984,25 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: matrix.platform == 'windows'
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         if: matrix.platform == 'windows'
         with:
           node-version: 24.14.0
+          package-manager-cache: false
+
+      - name: Install Windows verifier dependencies
+        if: matrix.platform == 'windows'
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Verify Linux installer
         if: matrix.platform == 'linux'
@@ -556,7 +1077,7 @@ jobs:
         shell: pwsh
         env:
           INSTALLER_PATH: ${{ runner.temp }}\release\windows\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe
-        run: node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
+        run: bun scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"
 
   release:
     name: Create GitHub Release
@@ -570,21 +1091,85 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.new_tag }}
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
+          pattern: '*-artifacts'
           path: artifacts
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+
+      # Every release publishes its CHANGELOG.md entry, which its release PR wrote.
+      - name: Prepare release notes
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.new_version }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/app-release-notes.ts write \
+            --version "$RELEASE_VERSION" --output "$RUNNER_TEMP/release-notes.md"
 
       - name: Collect release assets
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.yml' \) -exec cp {} release/ \;
+          # Blockmaps let electron-updater download only the changed blocks of an update (the
+          # AppImage embeds its own). builder-debug.yml is a local build dump, not a release asset.
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' \
+            -o -name '*.blockmap' -o \( -name '*.yml' ! -name 'builder-debug.yml' \) \) -exec cp {} release/ \;
           cd release && sha256sum * > SHA256SUMS.txt
 
-      - name: Create draft release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      # softprops publishes a prerelease before it uploads, so beta.25's update checks briefly got a
+      # 404 for beta-mac.yml. Upload to a draft, verify it, then publish. A rerun after publication
+      # leaves the published release alone and only verifies it.
+      - name: Find an already published release
+        id: existing-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || true)" = "false" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload GitHub Release as a draft
+        if: steps.existing-release.outputs.published != 'true'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ needs.version.outputs.new_tag }}
           name: ${{ needs.version.outputs.new_tag }}
-          draft: false
-          generate_release_notes: true
+          draft: true
+          prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}
+          make_latest: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
+          body_path: ${{ format('{0}/release-notes.md', runner.temp) }}
           files: release/*
+
+      - name: Verify draft release assets
+        if: steps.existing-release.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-release-assets.ts \
+            --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --dir release
+
+      - name: Publish GitHub Release
+        if: steps.existing-release.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+          RELEASE_PRERELEASE: ${{ contains(needs.version.outputs.new_version, '-') }}
+          # Only Stable app releases become the repository's Latest release.
+          RELEASE_LATEST: ${{ contains(needs.version.outputs.new_version, '-') && 'false' || 'true' }}
+        run: |
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false \
+            --prerelease="$RELEASE_PRERELEASE" --latest="$RELEASE_LATEST"
+
+      - name: Verify published release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.new_tag }}
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-release-assets.ts \
+            --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --dir release --published

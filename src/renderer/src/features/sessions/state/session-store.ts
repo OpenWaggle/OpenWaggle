@@ -6,18 +6,41 @@ import type {
   SessionWorkspaceSelection,
 } from '@shared/types/session'
 import { create } from 'zustand'
-import { api } from '@/shared/lib/ipc'
-import { createRendererLogger } from '@/shared/lib/logger'
+import {
+  createSessionCatalogState,
+  type SessionCatalogState,
+} from './session-catalog-store-actions'
+import { createSessionWorkspaceReads } from './session-workspace-reads'
 
-const logger = createRendererLogger('session-store')
+function retitleSummaries(
+  summaries: readonly SessionSummary[],
+  sessionId: SessionId,
+  title: string,
+) {
+  if (!summaries.some((summary) => summary.id === sessionId && summary.title !== title)) {
+    return summaries
+  }
+  return summaries.map((summary) => (summary.id === sessionId ? { ...summary, title } : summary))
+}
 
-let latestTreeRequestId = 0
-let latestWorkspaceRequestId = 0
+function retitleTree(tree: SessionTree | null, sessionId: SessionId, title: string) {
+  if (tree?.session.id !== sessionId || tree.session.title === title) return tree
+  return { ...tree, session: { ...tree.session, title } }
+}
 
-function handleStoreError(err: unknown, action: string, setError: (message: string) => void) {
-  const message = err instanceof Error ? err.message : String(err)
-  logger.error(`Failed to ${action}`, { message })
-  setError(`Failed to ${action}: ${message}`)
+function applySessionTitleToState(state: SessionState, sessionId: SessionId, title: string) {
+  const activeWorkspace = state.activeWorkspace
+  const workspaceTree = activeWorkspace ? retitleTree(activeWorkspace.tree, sessionId, title) : null
+  return {
+    sessions: retitleSummaries(state.sessions, sessionId, title),
+    archivedSessions: retitleSummaries(state.archivedSessions, sessionId, title),
+    hiveSessions: retitleSummaries(state.hiveSessions, sessionId, title),
+    activeSessionTree: retitleTree(state.activeSessionTree, sessionId, title),
+    activeWorkspace:
+      activeWorkspace && workspaceTree && workspaceTree !== activeWorkspace.tree
+        ? { ...activeWorkspace, tree: workspaceTree }
+        : activeWorkspace,
+  }
 }
 
 export interface DraftBranchState {
@@ -25,22 +48,37 @@ export interface DraftBranchState {
   readonly sourceNodeId: SessionNodeId
 }
 
-interface SessionState {
-  sessions: readonly SessionSummary[]
+export interface SessionState extends SessionCatalogState {
   activeSessionTree: SessionTree | null
   activeWorkspace: SessionWorkspace | null
   draftBranch: DraftBranchState | null
   error: string | null
-  loadSessions: () => Promise<void>
   refreshSessionTree: (sessionId: SessionId | null) => Promise<void>
   refreshSessionWorkspace: (
     sessionId: SessionId | null,
     selection?: SessionWorkspaceSelection,
   ) => Promise<void>
+  /**
+   * The workspace a view shows: read unless this window already shows it or is reading it. A
+   * refresh after a change uses `refreshSessionWorkspace`, which always reads.
+   */
+  showSessionWorkspace: (
+    sessionId: SessionId | null,
+    selection?: SessionWorkspaceSelection,
+  ) => Promise<void>
+  /** Reads the next older page of the shown transcript window from the Host (ADR 0036). */
+  loadEarlierTranscript: (sessionId: SessionId) => Promise<void>
+  /** Reads the shown transcript window back to `nodeId`, for a saved reading position. */
+  loadTranscriptThrough: (sessionId: SessionId, nodeId: SessionNodeId) => Promise<void>
   setActiveSessionTree: (tree: SessionTree | null) => void
   setActiveWorkspace: (workspace: SessionWorkspace | null) => void
   setDraftBranch: (draftBranch: DraftBranchState | null) => void
   clearDraftBranchForSession: (sessionId: SessionId) => void
+  /**
+   * Patch one Session's title wherever this store holds it, without reloading or touching
+   * `updatedAt`, so a title change never moves the Session in the sidebar.
+   */
+  applySessionTitle: (sessionId: SessionId, title: string) => void
   refreshSessionsAndTree: (sessionId: SessionId | null) => Promise<void>
   refreshSessionsAndWorkspace: (
     sessionId: SessionId | null,
@@ -50,70 +88,13 @@ interface SessionState {
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
-  sessions: [],
+  ...createSessionCatalogState(set, get),
   activeSessionTree: null,
   activeWorkspace: null,
   draftBranch: null,
   error: null,
 
-  async loadSessions() {
-    try {
-      const sessions = await api.listSessions()
-      set({ sessions, error: null })
-    } catch (err) {
-      handleStoreError(err, 'load sessions', (error) => set({ error }))
-    }
-  },
-
-  async refreshSessionTree(sessionId) {
-    latestTreeRequestId += 1
-    const requestId = latestTreeRequestId
-    if (!sessionId) {
-      latestWorkspaceRequestId += 1
-      set({ activeSessionTree: null, activeWorkspace: null })
-      return
-    }
-
-    try {
-      const activeSessionTree = await api.getSessionTree(sessionId)
-      if (requestId !== latestTreeRequestId) {
-        return
-      }
-      if (activeSessionTree && activeSessionTree.session.id !== sessionId) {
-        return
-      }
-      set({ activeSessionTree, error: null })
-    } catch (err) {
-      handleStoreError(err, 'refresh session tree', (error) => set({ error }))
-    }
-  },
-
-  async refreshSessionWorkspace(sessionId, selection) {
-    latestWorkspaceRequestId += 1
-    const requestId = latestWorkspaceRequestId
-    if (!sessionId) {
-      latestTreeRequestId += 1
-      set({ activeSessionTree: null, activeWorkspace: null })
-      return
-    }
-
-    try {
-      const activeWorkspace = await api.getSessionWorkspace(sessionId, selection)
-      if (requestId !== latestWorkspaceRequestId) {
-        return
-      }
-      if (activeWorkspace && activeWorkspace.tree.session.id !== sessionId) {
-        return
-      }
-      set({
-        activeWorkspace,
-        activeSessionTree: activeWorkspace?.tree ?? null,
-        error: null,
-      })
-    } catch (err) {
-      handleStoreError(err, 'refresh session workspace', (error) => set({ error }))
-    }
-  },
+  ...createSessionWorkspaceReads(set, get),
 
   setActiveSessionTree(tree) {
     set({ activeSessionTree: tree })
@@ -131,6 +112,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((state) => ({
       draftBranch: state.draftBranch?.sessionId === sessionId ? null : state.draftBranch,
     }))
+  },
+
+  applySessionTitle(sessionId, title) {
+    set((state) => applySessionTitleToState(state, sessionId, title))
   },
 
   async refreshSessionsAndTree(sessionId) {

@@ -8,5 +8,14 @@ export type UpdateStatus =
   | { readonly type: 'available'; readonly version: string }
   | { readonly type: 'not-available' }
   | { readonly type: 'downloading'; readonly version: string; readonly percent: number }
-  | { readonly type: 'downloaded'; readonly version: string }
+  | {
+      readonly type: 'downloaded'
+      readonly version: string
+      /** Set while Restart when idle waits for this many active agent runs to finish. */
+      readonly waitingForRuns?: number
+      /** Why the previous Restart to update did not install this version, if it did not. */
+      readonly installFailure?: string
+    }
+  /** Restart to update is quitting the app; the installer reopens it on the new version. */
+  | { readonly type: 'installing'; readonly version: string }
   | { readonly type: 'error'; readonly message: string }

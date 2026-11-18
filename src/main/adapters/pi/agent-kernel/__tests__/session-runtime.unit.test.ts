@@ -21,7 +21,7 @@ const runtimeMocks = vi.hoisted(() => ({
   createSessionManagerForSession: vi.fn(),
   disposeOpenWagglePiSession: vi.fn(),
   getPiAgentDir: vi.fn(),
-  resolveSessionProjectPath: vi.fn(),
+  resolveSessionWorkingPath: vi.fn(),
   sessionManagerCreate: vi.fn(),
 }))
 
@@ -30,6 +30,9 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
   SessionManager: { create: runtimeMocks.sessionManagerCreate },
 }))
 
+vi.mock('../../pi-session-directory', () => ({
+  resolvePiSessionDirectory: (cwd: string) => `${cwd}/.pi-sessions`,
+}))
 vi.mock('../../pi-provider-catalog', () => ({
   createPiProjectModelRuntime: runtimeMocks.createPiProjectModelRuntime,
   getPiAgentDir: runtimeMocks.getPiAgentDir,
@@ -42,7 +45,8 @@ vi.mock('../../pi-session-lifecycle', () => ({
 
 vi.mock('../session-manager', () => ({
   createSessionManagerForSession: runtimeMocks.createSessionManagerForSession,
-  resolveSessionProjectPath: runtimeMocks.resolveSessionProjectPath,
+  resolveSessionWorkingPath: runtimeMocks.resolveSessionWorkingPath,
+  requireSessionProjectPath: runtimeMocks.resolveSessionWorkingPath,
 }))
 
 const SESSION_ID = SessionId('session-runtime')
@@ -82,9 +86,9 @@ describe('Pi session runtime', () => {
     runtimeMocks.createSessionManagerForSession.mockReset()
     runtimeMocks.disposeOpenWagglePiSession.mockReset()
     runtimeMocks.getPiAgentDir.mockReset()
-    runtimeMocks.resolveSessionProjectPath.mockReset()
+    runtimeMocks.resolveSessionWorkingPath.mockReset()
     runtimeMocks.sessionManagerCreate.mockReset()
-    runtimeMocks.resolveSessionProjectPath.mockReturnValue('/repo')
+    runtimeMocks.resolveSessionWorkingPath.mockReturnValue('/repo')
     runtimeMocks.createSessionManagerForSession.mockReturnValue(sessionManager)
     runtimeMocks.createPiProjectModelRuntime.mockResolvedValue({ model, services })
     runtimeMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
@@ -100,6 +104,7 @@ describe('Pi session runtime', () => {
     expect(runtimeMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
       projectPath: '/repo',
       modelReference: MODEL,
+      compactionThresholdPercent: 80,
       skillToggles: { audit: true },
     })
     expect(runtimeMocks.createOpenWaggleAgentSessionFromServices).toHaveBeenCalledWith({
@@ -143,6 +148,7 @@ describe('Pi session runtime', () => {
       piSessionId: 'new-pi-session',
       piSessionFile: '/repo/new-pi-session.jsonl',
     })
-    expect(runtimeMocks.sessionManagerCreate).toHaveBeenCalledWith('/repo')
+    // In the directory `pi` keeps this folder's sessions in, so `pi --resume` finds it.
+    expect(runtimeMocks.sessionManagerCreate).toHaveBeenCalledWith('/repo', '/repo/.pi-sessions')
   })
 })

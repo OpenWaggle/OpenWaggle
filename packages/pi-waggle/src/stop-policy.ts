@@ -22,6 +22,19 @@ export interface PiWaggleTurnSummary {
   readonly unresolvedToolCalls: readonly UnresolvedToolCall[]
   readonly aborted: boolean
   readonly terminalError?: string
+  /**
+   * Whether the turn's error can recover on a later turn. False for an error that would fail
+   * every turn, such as a rejected sign-in or a missing model; absent means recoverable.
+   */
+  readonly terminalErrorRecoverable?: boolean
+}
+
+export interface PiWaggleTurnSummaryOptions {
+  /**
+   * Classifies a turn's final error. A host decides with its provider's error rules, such as
+   * Pi's retryable-error check; without it every error counts as recoverable.
+   */
+  readonly isRecoverableError?: (message: PiAssistantMessage) => boolean
 }
 
 export interface PiWaggleStopPolicyState {
@@ -98,31 +111,27 @@ function assistantTurnWasAborted(assistantMessages: readonly PiAssistantMessage[
   return assistantMessages.some((message) => message.stopReason === 'aborted')
 }
 
-function terminalErrorMessage(assistantMessages: readonly PiAssistantMessage[]) {
+function terminalErrorAssistantMessage(assistantMessages: readonly PiAssistantMessage[]) {
   for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
     const message = assistantMessages[index]
-    if (!message) {
-      continue
-    }
-
-    if (message.stopReason === 'error') {
-      return message.errorMessage ?? 'Pi assistant run ended with error.'
-    }
+    if (message?.stopReason === 'error') return message
   }
   return undefined
 }
 
-export function createPiWaggleStopPolicyState(): PiWaggleStopPolicyState {
-  return {
+export function createPiWaggleStopPolicyState() {
+  const state: PiWaggleStopPolicyState = {
     consecutiveErrorTurns: 0,
     successfulTurnCount: 0,
     lastAssistantTexts: ['', ''],
   }
+  return state
 }
 
 export function summarizePiWaggleTurnMessages(
   messages: readonly AgentEndEvent['messages'][number][],
-): PiWaggleTurnSummary {
+  options: PiWaggleTurnSummaryOptions = {},
+) {
   const assistantMessages = messages.filter(isAssistantMessage)
   const responseText = assistantMessages.map(assistantText).join('\n\n').trim()
   const hasToolCalls = assistantMessages.some((message) =>
@@ -130,21 +139,26 @@ export function summarizePiWaggleTurnMessages(
   )
 
   const unresolved = unresolvedToolCalls(messages)
-  const terminalError = terminalErrorMessage(assistantMessages)
+  const errorMessage = terminalErrorAssistantMessage(assistantMessages)
 
-  return {
+  const summary: PiWaggleTurnSummary = {
     responseText,
     hasToolCalls,
     unresolvedToolCalls: unresolved,
     aborted: assistantTurnWasAborted(assistantMessages),
-    ...(terminalError ? { terminalError } : {}),
+    ...(errorMessage
+      ? {
+          terminalError: errorMessage.errorMessage ?? 'Pi assistant run ended with error.',
+          ...(options.isRecoverableError
+            ? { terminalErrorRecoverable: options.isRecoverableError(errorMessage) }
+            : {}),
+        }
+      : {}),
   }
+  return summary
 }
 
-function recoverableErrorDecision(
-  state: PiWaggleStopPolicyState,
-  reason: string,
-): PiWaggleStopPolicyDecision {
+function recoverableErrorDecision(state: PiWaggleStopPolicyState, reason: string) {
   const nextConsecutiveErrorTurns = state.consecutiveErrorTurns + 1
   const nextState: PiWaggleStopPolicyState = {
     ...state,
@@ -152,19 +166,21 @@ function recoverableErrorDecision(
   }
 
   if (nextConsecutiveErrorTurns >= MAX_RECOVERABLE_ERROR_TURNS) {
-    return {
+    const decision: PiWaggleStopPolicyDecision = {
       continue: false,
       state: nextState,
       turnSucceeded: false,
       stop: { classification: 'stopped', reason },
     }
+    return decision
   }
 
-  return {
+  const decision: PiWaggleStopPolicyDecision = {
     continue: true,
     state: nextState,
     turnSucceeded: false,
   }
+  return decision
 }
 
 export function evaluatePiWaggleStopPolicy(input: {
@@ -173,9 +189,9 @@ export function evaluatePiWaggleStopPolicy(input: {
   readonly summary: PiWaggleTurnSummary
   readonly state: PiWaggleStopPolicyState
   readonly agentLabel: string
-}): PiWaggleStopPolicyDecision {
+}) {
   if (input.summary.aborted) {
-    return {
+    const decision: PiWaggleStopPolicyDecision = {
       continue: false,
       state: input.state,
       turnSucceeded: false,
@@ -184,6 +200,20 @@ export function evaluatePiWaggleStopPolicy(input: {
         reason: 'Waggle stopped because the assistant turn was aborted.',
       },
     }
+    return decision
+  }
+
+  if (input.summary.terminalError && input.summary.terminalErrorRecoverable === false) {
+    const decision: PiWaggleStopPolicyDecision = {
+      continue: false,
+      state: input.state,
+      turnSucceeded: false,
+      stop: {
+        classification: 'stopped',
+        reason: `Waggle stopped because ${input.agentLabel} failed: ${input.summary.terminalError}`,
+      },
+    }
+    return decision
   }
 
   if (input.summary.terminalError) {
@@ -192,7 +222,7 @@ export function evaluatePiWaggleStopPolicy(input: {
 
   if (input.summary.unresolvedToolCalls.length > 0) {
     const tools = summarizeToolNames(input.summary.unresolvedToolCalls)
-    return {
+    const decision: PiWaggleStopPolicyDecision = {
       continue: false,
       state: input.state,
       turnSucceeded: false,
@@ -201,6 +231,7 @@ export function evaluatePiWaggleStopPolicy(input: {
         reason: `Waggle stopped because ${input.agentLabel} has unresolved tool calls (${tools}).`,
       },
     }
+    return decision
   }
 
   if (input.summary.responseText.length === 0 && !input.summary.hasToolCalls) {
@@ -220,7 +251,7 @@ export function evaluatePiWaggleStopPolicy(input: {
       input.config.stop.maxTurnsSafety,
     )
     if (consensus.reached) {
-      return {
+      const decision: PiWaggleStopPolicyDecision = {
         continue: false,
         state: nextState,
         turnSucceeded: true,
@@ -230,12 +261,13 @@ export function evaluatePiWaggleStopPolicy(input: {
           reason: `Consensus reached: ${consensus.reason}`,
         },
       }
+      return decision
     }
   }
 
   const turnDecision = decideNextWaggleTurn(input.config, { turnNumber: input.turnNumber })
   if (!turnDecision.continue) {
-    return {
+    const decision: PiWaggleStopPolicyDecision = {
       continue: false,
       state: nextState,
       turnSucceeded: true,
@@ -244,11 +276,13 @@ export function evaluatePiWaggleStopPolicy(input: {
         reason: `Reached maximum turns (${String(nextState.successfulTurnCount)})`,
       },
     }
+    return decision
   }
 
-  return {
+  const decision: PiWaggleStopPolicyDecision = {
     continue: true,
     state: nextState,
     turnSucceeded: true,
   }
+  return decision
 }

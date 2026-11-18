@@ -4,7 +4,7 @@ import type { MoveSessionTreeFocusInput, SessionTreeRow } from '../model'
 export function findFirstVisibleChildIndex(
   visibleRows: readonly SessionTreeRow[],
   currentIndex: number,
-): number {
+) {
   const currentRow = visibleRows[currentIndex]
   if (!currentRow) {
     return currentIndex
@@ -16,7 +16,7 @@ export function findFirstVisibleChildIndex(
 export function findVisibleParentIndex(
   visibleRows: readonly SessionTreeRow[],
   currentIndex: number,
-): number {
+) {
   const currentRow = visibleRows[currentIndex]
   if (!currentRow?.visibleParentId) {
     return currentIndex
@@ -25,7 +25,7 @@ export function findVisibleParentIndex(
   return parentIndex >= SESSION_TREE.TRAVERSAL.FIRST_INDEX ? parentIndex : currentIndex
 }
 
-export function clampSessionTreeFocusIndex(currentIndex: number, visibleCount: number): number {
+export function clampSessionTreeFocusIndex(currentIndex: number, visibleCount: number) {
   if (visibleCount <= SESSION_TREE.TRAVERSAL.FIRST_INDEX) {
     return SESSION_TREE.TRAVERSAL.FIRST_INDEX
   }
@@ -42,7 +42,7 @@ export function moveSessionTreeFocus({
   currentIndex,
   visibleCount,
   direction,
-}: MoveSessionTreeFocusInput): number {
+}: MoveSessionTreeFocusInput) {
   if (visibleCount <= SESSION_TREE.TRAVERSAL.FIRST_INDEX) {
     return SESSION_TREE.TRAVERSAL.FIRST_INDEX
   }

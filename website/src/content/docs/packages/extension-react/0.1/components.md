@@ -1,11 +1,12 @@
 ---
 title: "Extension React component catalogue"
-description: "Visual reference for every @openwaggle/extension-react 0.1 primitive, variant, tone, and form state."
+description: "Visual reference for every @openwaggle/extension-react 0.1 component, variant, tone, and form state."
 order: 2
 section: "Packages"
+kind: "reference"
 ---
 
-This catalogue renders the same class names, attributes, and stylesheet shipped by `@openwaggle/extension-react`. The examples are interactive HTML equivalents of the React primitives so you can inspect focus, disabled, validation, and control states directly.
+This catalogue renders the same class names, attributes, and stylesheet shipped by `@openwaggle/extension-react`. The examples are interactive HTML equivalents of the React components so you can inspect focus, disabled, validation, and control states directly.
 
 ```tsx
 import '@openwaggle/extension-react/styles.css'
@@ -86,7 +87,7 @@ import { Button, Field, Input, Panel, Stack } from '@openwaggle/extension-react'
 
 ## Input, Textarea, Select, Checkbox, and Field
 
-`Field` associates a label, optional description, control, and error. Inputs forward their native React props, so browser validation and accessible attributes remain available.
+`Field` groups a label, optional description, control, and error. Set its `htmlFor` to the control's `id` to connect the label. It does not assign IDs or connect descriptions and errors automatically. Add `aria-describedby` and `aria-invalid` to the control when needed, and give the referenced description or error element an ID. Inputs forward native React props.
 
 <div class="ow-extension-root ow-extension-panel">
   <div class="ow-extension-stack">
@@ -117,4 +118,4 @@ import { Button, Field, Input, Panel, Stack } from '@openwaggle/extension-react'
 
 `Stack` owns vertical spacing and accepts any CSS `gap`. `Panel` creates the bounded host-aligned surface. Use them together for extension-owned composition rather than importing private OpenWaggle renderer layouts.
 
-See the [API reference](../api-reference) for complete props and exported types.
+See the [API reference](../api-reference) for the exported components and prop type names.

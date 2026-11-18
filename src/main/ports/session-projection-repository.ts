@@ -4,10 +4,27 @@
  * Exposes the session detail UI projection over the canonical session/node/branch tables.
  * Runtime writes still go through SessionRepository.
  */
+
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
 import type { SessionId } from '@shared/types/brand'
-import type { SessionDetail, SessionSummary } from '@shared/types/session'
+import type { SessionEnvironmentMode } from '@shared/types/git'
+import type {
+  PinnedSession,
+  PinnedSessionMove,
+  SessionDeleteOptions,
+  SessionDetail,
+  SessionSummary,
+  SessionWorktreePlan,
+} from '@shared/types/session'
+import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from '@shared/types/turn-diff'
 import { Context, type Effect } from 'effect'
 import type { SessionProjectionRepositoryError } from '../errors'
+
+/**
+ * `removingProject` keeps a discovered Pi session's file without dismissing it, so it is listed
+ * again if the folder is added back (ADR 0051).
+ */
+export type SessionDeletionOptions = SessionDeleteOptions
 
 export interface SessionProjectionRepositoryShape {
   readonly get: (id: SessionId) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
@@ -19,22 +36,91 @@ export interface SessionProjectionRepositoryShape {
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
   readonly listDetails: (
     limit?: number,
+    offset?: number,
   ) => Effect.Effect<readonly SessionDetail[], SessionProjectionRepositoryError>
   readonly create: (input: {
     readonly projectPath: string
     readonly piSessionId: string
     readonly piSessionFile?: string
+    readonly environmentMode?: SessionEnvironmentMode
+    readonly authorizationMode?: AgentAuthorizationMode
+    /** The Session a fork or clone copies; it keeps that Session's MCP off when it was off. */
+    readonly copyMcpSwitchFrom?: SessionId
   }) => Effect.Effect<SessionDetail, SessionProjectionRepositoryError>
-  readonly delete: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly delete: (
+    id: SessionId,
+    options?: SessionDeletionOptions,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Resume crash-interrupted Session deletions before the Host starts accepting clients. */
+  readonly recoverPendingDeletions?: () => Effect.Effect<void>
   readonly archive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly unarchive: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly listArchived: () => Effect.Effect<
     readonly SessionSummary[],
     SessionProjectionRepositoryError
   >
+  /** A manual rename: generation never replaces it, and it leaves sidebar recency alone. */
   readonly updateTitle: (
     id: SessionId,
     title: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /**
+   * Turns a still-default title into the Provisional title, without touching recency. Resolves
+   * `false` when the title is no longer the default one.
+   */
+  readonly assignProvisionalTitle: (
+    id: SessionId,
+    title: string,
+  ) => Effect.Effect<boolean, SessionProjectionRepositoryError>
+  readonly setWorktreePlan: (
+    id: SessionId,
+    plan: SessionWorktreePlan,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Mark a recorded Session worktree recreation as needing Setup action dispatch. */
+  readonly resetWorktreeSetup: (
+    id: SessionId,
+    worktreePath: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** `null` clears the session override so the session inherits its project and global default. */
+  readonly setAuthorizationMode: (
+    id: SessionId,
+    mode: AgentAuthorizationMode | null,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly listTurnCheckpoints: (
+    id: SessionId,
+  ) => Effect.Effect<readonly TurnCheckpointSummary[], SessionProjectionRepositoryError>
+  readonly getTurnDiff: (
+    id: SessionId,
+    turnId: string,
+  ) => Effect.Effect<TurnDiff | null, SessionProjectionRepositoryError>
+  readonly getTurnDiffFiles: (
+    id: SessionId,
+    turnId: string,
+  ) => Effect.Effect<readonly TurnDiffFileSummary[], SessionProjectionRepositoryError>
+  readonly listTurnDiffFiles: (
+    id: SessionId,
+    turnIds: readonly string[],
+  ) => Effect.Effect<
+    Readonly<Record<string, readonly TurnDiffFileSummary[]>>,
+    SessionProjectionRepositoryError
+  >
+  readonly setTurnCheckpointAnchor: (
+    id: SessionId,
+    turnId: string,
+    anchorNodeId: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Every Pinned session in Manual order, archived ones included (issue #97). */
+  readonly listPinnedSessions: () => Effect.Effect<
+    readonly PinnedSession[],
+    SessionProjectionRepositoryError
+  >
+  /** Pin a session, appended to the end of Manual order. Idempotent. */
+  readonly pinSession: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Remove a pin. Idempotent. */
+  readonly unpinSession: (id: SessionId) => Effect.Effect<void, SessionProjectionRepositoryError>
+  /** Reposition one pin between two neighbours, writing only that pin. */
+  readonly movePinnedSession: (
+    move: PinnedSessionMove,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
 }
 

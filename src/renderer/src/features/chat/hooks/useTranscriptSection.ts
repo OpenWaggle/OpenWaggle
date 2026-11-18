@@ -2,42 +2,63 @@ import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { SessionDetail } from '@shared/types/session'
+import type { SessionDetail, SessionWorkspace } from '@shared/types/session'
 import type { AgentTransportCustomEvent } from '@shared/types/stream'
+import type { TurnCheckpointSummary } from '@shared/types/turn-diff'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
 import { useState } from 'react'
 import type { useStreamingPhase } from '@/features/chat/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/features/chat/hooks/useWaggleMetadataLookup'
+import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
+import { useRunExtensionStatus } from '@/features/chat/state/extension-status-store'
+import { useFirstSendPendingStore } from '@/features/chat/state/first-send-pending-store'
+import { useIsRunFinishing } from '@/features/chat/state/run-finishing-store'
+import { selectExpandedTurnKeys, useTurnFoldStore } from '@/features/chat/state/turn-fold-store'
 import { useSessionStore } from '@/features/sessions/state'
 import {
   mergeCustomMessages,
   mergeInteractionEvents,
   readAgentLoopEventsFromWorkspace,
 } from '../lib/agent-loop-transcript-events'
+import { areCopiesBlocked } from '../lib/copies-blocked'
+import { isHiveWakeRunError } from '../lib/hive-wake-run-error'
+import { retryableLastUserMessage } from '../lib/retryable-last-user-message'
 import { resolveTranscriptMessages } from '../lib/session-workspace-transcript'
+import { remoteTranscriptHistory, workspacePathNodeIds } from '../lib/transcript-remote-history'
+import { expandedTurnKeysWithAliases, persistedUserMessageAliases } from '../lib/turn-fold-aliases'
 import type { AgentInteractionEvent } from '../lib/types-chat-row'
-import type { ChatTranscriptSectionState } from '../model'
+import type { PendingSend } from '../model'
+import type { AgentCompactionStatus } from './useAgentChat.types'
 import { useChatRows } from './useChatRows'
+import { useReplacedTranscriptRefresh } from './useReplacedTranscriptRefresh'
 
-function resolveLastUserMessage(messages: UIMessage[]) {
-  let lastUserMessage: UIMessage | undefined
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i]
-    if (message && message.role === 'user') {
-      lastUserMessage = message
-      break
-    }
+/**
+ * A selected Session is loading until its detail arrived and, when it has messages, until they
+ * reached the transcript: hydration runs in an effect one render after the detail lands.
+ */
+function resolveTranscriptState(
+  sessionId: SessionId | null,
+  session: SessionDetail | null,
+  transcriptMessages: readonly UIMessage[],
+) {
+  if (!sessionId) return 'no-session' as const
+  if (!session || String(session.id) !== String(sessionId)) return 'loading' as const
+  if (session.messages.length > 0 && transcriptMessages.length === 0) return 'loading' as const
+  return 'ready' as const
+}
+
+function displayedWorkspaceSelection(
+  workspace: SessionWorkspace | null,
+  sessionId: SessionId | null,
+) {
+  if (!workspace || workspace.tree.session.id !== sessionId) {
+    return { branchId: null, pathNodeIds: [] }
   }
-  if (!lastUserMessage) {
-    return null
+  return {
+    branchId: workspace.activeBranchId,
+    pathNodeIds: workspacePathNodeIds(workspace),
   }
-
-  const content = lastUserMessage.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.content)
-    .join('\n')
-
-  return content || null
 }
 
 export interface TranscriptSectionParams {
@@ -52,7 +73,7 @@ export interface TranscriptSectionParams {
   readonly recentProjects: readonly string[]
   readonly activeSessionId: SessionId | null
   readonly activeSession: SessionDetail | null
-  readonly model: SupportedModelId
+  readonly model: SupportedModelId | undefined
   readonly waggleStatus: WaggleCollaborationStatus
   readonly phase: ReturnType<typeof useStreamingPhase>
   readonly extensionRegistry: ExtensionContributionRegistryView | null
@@ -64,11 +85,27 @@ export interface TranscriptSectionParams {
   readonly handleDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   readonly handleBranchFromMessage: (messageId: string) => void
   readonly handleForkFromMessage: (messageId: string) => void
-  readonly userDidSend: boolean
-  readonly onUserDidSendConsumed: () => void
+  readonly handleForkFromResponse: (messageId: string) => void
+  readonly handleViewTurnDiff: (messageId: string, filePath?: string) => void
+  readonly turnAnchorMessageIds: ReadonlySet<string>
+  readonly turnsByAnchorNodeId: ReadonlyMap<string, TurnCheckpointSummary>
+  /** Durable per-turn durations keyed by terminal assistant message id (turn checkpoints). */
+  readonly turnDurationsByAnchorMessageId?: ReadonlyMap<string, number>
+  readonly pendingSend: PendingSend | null
+  readonly onPendingSendConsumed: () => void
+  readonly compactionStatus: AgentCompactionStatus | null
 }
 
-export function useTranscriptSection(params: TranscriptSectionParams): ChatTranscriptSectionState {
+function isTranscriptLoading(flags: {
+  readonly isLoading: boolean
+  readonly isFinishing: boolean
+  readonly isSteering: boolean
+}) {
+  if (flags.isSteering) return true
+  return flags.isLoading && !flags.isFinishing
+}
+
+export function useTranscriptSection(params: TranscriptSectionParams) {
   const {
     messages,
     customMessages,
@@ -92,13 +129,23 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     handleDismissInterruptedRun,
     handleBranchFromMessage,
     handleForkFromMessage,
-    userDidSend,
-    onUserDidSendConsumed,
+    handleForkFromResponse,
+    pendingSend,
+    onPendingSendConsumed,
+    compactionStatus,
   } = params
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
+  const worktreeLaunch = useBackgroundRunStore((state) =>
+    activeSessionId ? (state.worktreeLaunchBySessionId.get(activeSessionId) ?? null) : null,
+  )
+  const firstSendPending = useFirstSendPendingStore((state) =>
+    activeSessionId ? state.ids.has(activeSessionId) : false,
+  )
   const draftBranch = useSessionStore((state) => state.draftBranch)
+  const loadEarlierTranscript = useSessionStore((state) => state.loadEarlierTranscript)
+  const loadTranscriptThrough = useSessionStore((state) => state.loadTranscriptThrough)
   const draftBranchSourceNodeId =
     activeSessionId &&
     draftBranch?.sessionId &&
@@ -106,16 +153,21 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
       ? draftBranch.sourceNodeId
       : null
 
-  const transcriptLoading = isLoading || isSteering
+  // The agent is done while the Host settles its Run: the reply is not streaming any more.
+  const isFinishing = useIsRunFinishing(activeSessionId)
+  const extensionStatus = useRunExtensionStatus(activeSessionId)
+  const transcriptLoading = isTranscriptLoading({ isLoading, isFinishing, isSteering })
+  useReplacedTranscriptRefresh({ activeSessionId, activeSession, activeWorkspace, isLoading })
   const transcriptMessages = resolveTranscriptMessages({
     activeSessionId,
+    ...(activeSession ? { activeSessionUpdatedAt: activeSession.updatedAt } : {}),
     activeWorkspace,
     messages,
     draftBranchSourceNodeId,
   })
   const persistedAgentLoopEvents = activeWorkspace
     ? readAgentLoopEventsFromWorkspace(activeWorkspace)
-    : { customMessages: [], interactionEvents: [] }
+    : { customMessages: [], interactionEvents: [], anchorMessageIdByEventKey: undefined }
   const mergedCustomMessages = mergeCustomMessages(
     persistedAgentLoopEvents.customMessages,
     customMessages,
@@ -124,9 +176,23 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     persistedAgentLoopEvents.interactionEvents,
     interactionEvents,
   )
-  const waggleMetadataLookup = useWaggleMetadataLookup(activeSession, transcriptMessages)
+  const waggleMetadataLookup = useWaggleMetadataLookup(
+    activeSession,
+    transcriptMessages,
+    activeWorkspace,
+  )
+  const storedExpandedTurnKeys = useTurnFoldStore(selectExpandedTurnKeys(activeSessionId))
+  // A completed turn's optimistic user id is replaced by its persisted one; keep its fold state.
+  const expandedTurnKeys = expandedTurnKeysWithAliases(
+    storedExpandedTurnKeys,
+    persistedUserMessageAliases(messages, transcriptMessages),
+  )
+  const toggleTurnFold = useTurnFoldStore((state) => state.toggleTurnFold)
+  const displayedSelection = displayedWorkspaceSelection(activeWorkspace, activeSessionId)
 
-  const lastUserMessage = resolveLastUserMessage(transcriptMessages)
+  const lastUserMessage = isHiveWakeRunError(error)
+    ? null
+    : retryableLastUserMessage(transcriptMessages)
   const interruptedRun =
     activeWorkspace?.tree.session.id === activeSessionId
       ? activeWorkspace.tree.branches.find((branch) => branch.id === activeWorkspace.activeBranchId)
@@ -137,7 +203,9 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     messages: transcriptMessages,
     customMessages: mergedCustomMessages,
     interactionEvents: mergedInteractionEvents,
+    agentLoopAnchorMessageIds: persistedAgentLoopEvents.anchorMessageIdByEventKey,
     isLoading: transcriptLoading,
+    isFinishing,
     error,
     lastUserMessage,
     dismissedError,
@@ -146,9 +214,19 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     waggleMetadataLookup,
     phase,
     interruptedRun,
+    worktreeLaunch,
+    firstSendPending,
+    compactionStatus,
+    expandedTurnKeys,
+    turnDurationsByAnchorMessageId: params.turnDurationsByAnchorMessageId,
+    extensionStatus,
   })
 
-  // Compute lastUserMessageId for session-restore identity gating, not send anchoring.
+  function handleToggleTurnFold(turnKey: string) {
+    toggleTurnFold(activeSessionId, turnKey)
+  }
+
+  // The latest user message: session-restore identity gating, and the row a pending send holds.
   const lastUserMessageId = (() => {
     for (let i = transcriptMessages.length - 1; i >= 0; i -= 1) {
       if (transcriptMessages[i]?.role === 'user') return transcriptMessages[i]?.id ?? null
@@ -157,11 +235,23 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   })()
 
   return {
+    transcriptState: resolveTranscriptState(activeSessionId, activeSession, transcriptMessages),
+    sessionCreatedAt: activeSession?.createdAt ?? null,
+    remoteHistory: remoteTranscriptHistory({
+      workspace: activeWorkspace,
+      sessionId: activeSessionId,
+      loadEarlier: loadEarlierTranscript,
+      loadThrough: loadTranscriptThrough,
+    }),
     messages: transcriptMessages,
     isLoading: transcriptLoading,
     projectPath,
+    worktreePath: activeSession?.worktreePath ?? null,
+    workingPath: resolveSessionWorkingDir(activeSession, projectPath),
     recentProjects,
     activeSessionId,
+    activeBranchId: displayedSelection.branchId,
+    activePathNodeIds: displayedSelection.pathNodeIds,
     chatRows,
     extensionRegistry,
     extensionProjectPaths,
@@ -173,9 +263,15 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     onDismissInterruptedRun: handleDismissInterruptedRun,
     onBranchFromMessage: handleBranchFromMessage,
     onForkFromMessage: handleForkFromMessage,
+    onForkFromResponse: handleForkFromResponse,
+    copiesBlocked: areCopiesBlocked({ isLoading, isFinishing, compactionStatus }),
+    onViewTurnDiff: params.handleViewTurnDiff,
+    turnAnchorMessageIds: params.turnAnchorMessageIds,
+    turnsByAnchorNodeId: params.turnsByAnchorNodeId,
+    onToggleTurnFold: handleToggleTurnFold,
     lastUserMessageId,
     streamSignalVersion,
-    userDidSend,
-    onUserDidSendConsumed,
+    pendingSend,
+    onPendingSendConsumed,
   }
 }

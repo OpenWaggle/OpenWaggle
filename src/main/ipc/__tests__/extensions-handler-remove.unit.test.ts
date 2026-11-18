@@ -22,14 +22,18 @@ const { typedHandleMock, listPackagesMock, removePackageMock, deleteLifecycleMoc
   }),
 )
 
-vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 import { registerExtensionsHandlers } from '../extensions-handler'
 
-function makeDiscoveredPackage(projectPath: string): DiscoveredExtensionPackage {
-  return {
+function makeDiscoveredPackage(projectPath: string) {
+  const result: DiscoveredExtensionPackage = {
     id: 'sample-extension',
     scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
     packagePath: `${projectPath}/.openwaggle/extensions/sample-extension`,
@@ -53,10 +57,11 @@ function makeDiscoveredPackage(projectPath: string): DiscoveredExtensionPackage 
     },
     diagnostics: [],
   }
+  return result
 }
 
-function makeLifecycleState(extensionPackage: DiscoveredExtensionPackage): ExtensionLifecycleState {
-  return {
+function makeLifecycleState(extensionPackage: DiscoveredExtensionPackage) {
+  const state: ExtensionLifecycleState = {
     extensionId: extensionPackage.id,
     scope: extensionPackage.scope,
     enabled: true,
@@ -75,6 +80,7 @@ function makeLifecycleState(extensionPackage: DiscoveredExtensionPackage): Exten
     installedAt: 1000,
     updatedAt: 2000,
   }
+  return state
 }
 
 function makeTestLayer(extensionPackage: DiscoveredExtensionPackage) {

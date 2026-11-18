@@ -4,14 +4,11 @@ import path from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  assertPackageReleaseAttestationIdentity,
-  packageReleaseAttestationVerificationArgs,
-  releaseAssetRepairPlan,
-} from '../package-release-artifact-contract'
+import { releaseAssetRepairPlan } from '../package-release-artifact-contract'
 import {
   promoteVerifiedPackageRelease,
   readPackageReleasePlan,
+  verifyPackageReleasePublicationEnvironment,
 } from '../package-release-promotion'
 import type { PackageReleaseArtifactManifest } from '../package-release-promotion'
 import type { PackageReleasePlan } from '../package-release-promotion'
@@ -105,63 +102,43 @@ const manifest: PackageReleaseArtifactManifest = {
 }
 
 describe('package release promotion', () => {
-  it('binds provenance to the CI signer workflow and selected source run', () => {
-    expect(
-      packageReleaseAttestationVerificationArgs(
-        '/artifacts/package.tgz',
-        'OpenWaggle/OpenWaggle',
-        'release-head',
-      ),
-    ).toEqual([
-      'attestation',
-      'verify',
-      '/artifacts/package.tgz',
-      '--repo',
-      'OpenWaggle/OpenWaggle',
-      '--signer-workflow',
-      'OpenWaggle/OpenWaggle/.github/workflows/ci.yml',
-      '--source-digest',
-      'release-head',
-      '--deny-self-hosted-runners',
-      '--format',
-      'json',
-    ])
+  it('accepts an explicit recovery only for the exact planned release SHA on main', () => {
+    expect(() =>
+      verifyPackageReleasePublicationEnvironment(plan, {
+        actionsIdTokenRequestToken: 'token',
+        actionsIdTokenRequestUrl: 'https://token.actions.githubusercontent.com',
+        eventName: 'workflow_dispatch',
+        recoveryReleaseSha: 'source-sha',
+        ref: 'refs/heads/main',
+        sha: 'workflow-definition-sha',
+      }),
+    ).not.toThrow()
 
-    const verified = [{
-      verificationResult: {
-        signature: {
-          certificate: {
-            buildConfigURI: 'https://github.com/OpenWaggle/OpenWaggle/.github/workflows/ci.yml@refs/pull/135/merge',
-            runInvocationURI: 'https://github.com/OpenWaggle/OpenWaggle/actions/runs/123/attempts/2',
-            runnerEnvironment: 'github-hosted',
-            sourceRepositoryDigest: 'release-head',
-          },
-        },
-      },
-    }]
-
-    expect(() => assertPackageReleaseAttestationIdentity(verified, {
-      repository: 'OpenWaggle/OpenWaggle',
-      runId: '123',
-      sourceSha: 'release-head',
-    })).not.toThrow()
-    expect(() => assertPackageReleaseAttestationIdentity(verified, {
-      repository: 'OpenWaggle/OpenWaggle',
-      runId: '124',
-      sourceSha: 'release-head',
-    })).toThrow('selected CI run')
+    expect(() =>
+      verifyPackageReleasePublicationEnvironment(plan, {
+        actionsIdTokenRequestToken: 'token',
+        actionsIdTokenRequestUrl: 'https://token.actions.githubusercontent.com',
+        eventName: 'workflow_dispatch',
+        recoveryReleaseSha: 'different-release-sha',
+        ref: 'refs/heads/main',
+        sha: 'workflow-definition-sha',
+      }),
+    ).toThrow('does not match the triggering main commit')
   })
 
   it('rejects a base-only promotion plan loaded from disk', async () => {
     const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'openwaggle-promotion-plan-'))
     const planPath = path.join(temporaryDirectory, 'plan.json')
     try {
-      await writeFile(planPath, JSON.stringify({
-        packages: [plan.packages[0]],
-        schemaVersion: 1,
-        sourceSha: 'source-sha',
-        sourceTree: 'source-tree',
-      }))
+      await writeFile(
+        planPath,
+        JSON.stringify({
+          packages: [plan.packages[0]],
+          schemaVersion: 1,
+          sourceSha: 'source-sha',
+          sourceTree: 'source-tree',
+        }),
+      )
 
       await expect(readPackageReleasePlan(planPath)).rejects.toThrow(
         '@openwaggle/extension-sdk requires a coordinated @openwaggle/extension-react release',
@@ -197,13 +174,17 @@ describe('package release promotion', () => {
     const registry = new Map([['@openwaggle/waggle-core@0.1.1', 'sha512-core']])
     let sdkPublishAttempts = 0
     const dependencies = {
-      ensureGitHubRelease: vi.fn(async ({ artifact }: {
-        readonly artifact: { readonly tag: string }
-        readonly artifactRoot: string
-        readonly sourceSha: string
-      }) => {
-        events.push(`release:${artifact.tag}`)
-      }),
+      ensureGitHubRelease: vi.fn(
+        async ({
+          artifact,
+        }: {
+          readonly artifact: { readonly tag: string }
+          readonly artifactRoot: string
+          readonly sourceSha: string
+        }) => {
+          events.push(`release:${artifact.tag}`)
+        },
+      ),
       ensureTag: vi.fn(async (tag: string) => {
         events.push(`tag:${tag}`)
       }),
@@ -215,8 +196,8 @@ describe('package release promotion', () => {
         }
         registry.set(`${artifact.name}@0.1.1`, artifact.integrity)
       }),
-      readRegistryIntegrity: vi.fn(async (name: string, version: string) =>
-        registry.get(`${name}@${version}`) ?? null,
+      readRegistryIntegrity: vi.fn(
+        async (name: string, version: string) => registry.get(`${name}@${version}`) ?? null,
       ),
       sleep: vi.fn(async () => undefined),
     }

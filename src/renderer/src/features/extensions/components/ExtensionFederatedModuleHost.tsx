@@ -1,12 +1,17 @@
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
 import { RefreshCw, ShieldAlert } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useId, useRef, useState } from 'react'
+import { useAppearanceName } from '@/shared/hooks/useAppearanceName'
+import { useSyntaxTheme } from '@/shared/hooks/useSyntaxTheme'
+import { useAppearancePreferencesRuntimeStore } from '@/shared/lib/appearance-preferences-runtime'
 import { cn } from '@/shared/lib/cn'
+import { formatDisplayPathsInText } from '@/shared/lib/display-path'
 import {
   federatedModuleMountKey,
   federatedModuleSurfacePayloadJson,
   initialMountStatus,
+  type MountStatus,
   mountExtensionFrame,
   type ReportedMountStatus,
   supportsExtensionExecutionPlacement,
@@ -22,6 +27,20 @@ const DEFAULT_FRAME_AUTO_MAX_HEIGHT = 520
 interface ReportedFrameHeight {
   readonly mountKey: string
   readonly height: number
+}
+
+/** Records a frame's reported height for this mount, keeping the same state when unchanged. */
+function heightReporter(
+  mountKey: string,
+  setReportedHeight: Dispatch<SetStateAction<ReportedFrameHeight | null>>,
+) {
+  return (height: number) => {
+    setReportedHeight((previous) =>
+      previous?.mountKey === mountKey && previous.height === height
+        ? previous
+        : { height, mountKey },
+    )
+  }
 }
 
 function clampFrameHeight(input: {
@@ -49,7 +68,7 @@ function hostLayout(input: {
     ? 'flex size-full min-h-0 flex-col'
     : input.shouldAutoHeight
       ? 'flex min-h-0 flex-col'
-      : 'flex min-h-[220px] flex-col'
+      : 'flex min-h-55 flex-col'
   const containerChrome =
     input.chrome === 'card'
       ? 'rounded-md border border-border/70 bg-bg-secondary/30 p-3'
@@ -58,7 +77,7 @@ function hostLayout(input: {
     ? 'min-h-0 w-full flex-1 bg-transparent'
     : input.shouldAutoHeight
       ? 'w-full shrink-0 bg-transparent'
-      : 'min-h-[220px] w-full flex-1 bg-transparent'
+      : 'min-h-55 w-full flex-1 bg-transparent'
 
   return { containerChrome, containerLayout, iframeClassName }
 }
@@ -77,10 +96,14 @@ function statusFor(input: {
       })
 }
 
-function sameMountStatus(
-  left: ReturnType<typeof initialMountStatus>,
-  right: ReturnType<typeof initialMountStatus>,
-) {
+function useAppearanceMountKey(mountKey: string) {
+  const appearance = useAppearanceName()
+  const syntaxTheme = useSyntaxTheme()
+  const appearancePreferences = useAppearancePreferencesRuntimeStore((state) => state.preferences)
+  return JSON.stringify([mountKey, appearance, syntaxTheme.themeId, appearancePreferences])
+}
+
+function sameMountStatus(left: MountStatus, right: MountStatus) {
   if (left.kind !== right.kind) {
     return false
   }
@@ -92,10 +115,16 @@ function sameMountStatus(
   return true
 }
 
-function MountStatusBanner({ status }: { readonly status: ReturnType<typeof initialMountStatus> }) {
+function MountStatusBanner({
+  status,
+  displayRoots,
+}: {
+  readonly status: MountStatus
+  readonly displayRoots: readonly string[]
+}) {
   if (status.kind === 'loading') {
     return (
-      <div className="mb-3 flex items-center gap-2 text-[12px] text-text-tertiary">
+      <div className="mb-3 flex items-center gap-2 text-xs text-text-tertiary">
         <RefreshCw className="size-3 animate-spin text-accent" />
         Mounting extension module...
       </div>
@@ -104,9 +133,9 @@ function MountStatusBanner({ status }: { readonly status: ReturnType<typeof init
 
   if (status.kind === 'error') {
     return (
-      <div role="alert" className="mb-3 flex items-start gap-2 text-[12px] text-error">
+      <div role="alert" className="mb-3 flex items-start gap-2 text-xs text-error">
         <ShieldAlert className="mt-0.5 size-3 shrink-0" />
-        <span>{status.message}</span>
+        <span>{formatDisplayPathsInText(status.message, displayRoots)}</span>
       </div>
     )
   }
@@ -144,7 +173,9 @@ export function ExtensionFederatedModuleHost({
   const moduleUrl = createExtensionModuleUrl(entry)
   const frameRuntimeSupported = supportsExtensionFrameRuntime(entry)
   const surfacePayloadJson = federatedModuleSurfacePayloadJson(surfacePayload)
-  const mountKey = federatedModuleMountKey(entry, moduleUrl, surfacePayloadJson)
+  const mountKey = useAppearanceMountKey(
+    federatedModuleMountKey(entry, moduleUrl, surfacePayloadJson),
+  )
   const shouldAutoHeight = autoHeight && !fill
   const layout = hostLayout({ chrome, fill, shouldAutoHeight })
   const resolvedAutoHeight = clampFrameHeight({
@@ -173,15 +204,7 @@ export function ExtensionFederatedModuleHost({
       moduleUrl,
       mountKey,
       onSurfaceAction: (actionId, payload) => onSurfaceActionRef.current?.(actionId, payload),
-      reportHeight: shouldAutoHeight
-        ? (height) => {
-            setReportedHeight((previous) =>
-              previous?.mountKey === mountKey && previous.height === height
-                ? previous
-                : { height, mountKey },
-            )
-          }
-        : undefined,
+      ...(shouldAutoHeight ? { reportHeight: heightReporter(mountKey, setReportedHeight) } : {}),
       reportStatus: (status) => {
         setReportedStatus((previous) =>
           previous?.mountKey === status.mountKey && sameMountStatus(previous.status, status.status)
@@ -189,7 +212,7 @@ export function ExtensionFederatedModuleHost({
             : status,
         )
       },
-      surfacePayloadJson,
+      ...(surfacePayloadJson === undefined ? {} : { surfacePayloadJson }),
     })
   }, [frameId, frameRuntimeSupported, moduleUrl, mountKey, shouldAutoHeight, surfacePayloadJson])
 
@@ -198,7 +221,7 @@ export function ExtensionFederatedModuleHost({
       <div
         role="alert"
         className={cn(
-          'rounded-md border border-error/25 bg-error/5 p-3 text-[12px] text-error',
+          'rounded-md border border-error/25 bg-error/5 p-3 text-xs text-error',
           className,
         )}
       >
@@ -212,7 +235,7 @@ export function ExtensionFederatedModuleHost({
       <div
         role="alert"
         className={cn(
-          'rounded-md border border-border/70 bg-bg-secondary/40 p-3 text-[12px] text-text-tertiary',
+          'rounded-md border border-border/70 bg-bg-secondary/40 p-3 text-xs text-text-tertiary',
           className,
         )}
       >
@@ -225,7 +248,7 @@ export function ExtensionFederatedModuleHost({
 
   return (
     <div className={cn(layout.containerLayout, layout.containerChrome, className)}>
-      <MountStatusBanner status={status} />
+      <MountStatusBanner status={status} displayRoots={entry.projectPaths} />
       <iframe
         className={layout.iframeClassName}
         data-extension-frame-id={frameId}

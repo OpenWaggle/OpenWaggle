@@ -1,0 +1,146 @@
+import type { FollowUpId, RunId, SessionId } from '@shared/types/brand'
+import type { SessionRunTerminalStatus } from '@shared/types/session-host-event'
+import { Context, type Effect } from 'effect'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
+import type { UndeliveredSteer } from '../domain/session-control/undelivered-steering'
+import type { SessionControlRepositoryError } from '../errors'
+
+export type SessionControlTerminalRunStatus = SessionRunTerminalStatus
+
+/**
+ * A Delegation whose Host-set `needs_attention` a new Run cleared (ADR 0059): the Worker's parent
+ * and the Worker publish a list change so every Hive view refreshes.
+ */
+export interface SessionControlDelegationAttentionCleared {
+  readonly delegationId: string
+  readonly parentSessionId: SessionId
+  readonly workerSessionId: SessionId
+  readonly state: 'working' | 'revision_requested'
+}
+
+/**
+ * An accepted Delegation that a Run its parent's agent started reopened as `working`
+ * (`sqlite-delegation-attention.ts`): the parent and the Worker publish a list change too.
+ */
+export interface SessionControlDelegationReopened {
+  readonly delegationId: string
+  readonly parentSessionId: SessionId
+  readonly workerSessionId: SessionId
+  readonly state: 'working'
+}
+
+export type SessionControlRunActivationResult =
+  | {
+      readonly accepted: true
+      readonly stateRevision: number
+      readonly intent: SessionControlRunIntent
+      readonly attentionCleared?: SessionControlDelegationAttentionCleared
+      readonly delegationReopened?: SessionControlDelegationReopened
+    }
+  | {
+      readonly accepted: false
+      readonly code:
+        | 'run_not_starting'
+        | 'run_not_active'
+        | 'run_changed'
+        | 'parent_concurrency_limit_reached'
+        | 'host_run_ceiling_reached'
+        /** A promotion of a queued Follow-up into the Run is waiting for delivery. */
+        | 'follow_up_reserved'
+    }
+
+export type SessionControlRunSettlementResult =
+  | {
+      readonly accepted: true
+      readonly stateRevision: number
+      readonly delegationUpdate?: {
+        readonly delegationId: string
+        readonly parentSessionId: SessionId
+        readonly state: 'ready_for_review' | 'needs_attention'
+        readonly submissionRevision?: number
+      }
+      readonly orchestrationUpdate?: {
+        readonly updateId: string
+        readonly parentSessionId: SessionId
+        readonly workerSessionId: SessionId
+        readonly delegationId: string
+        readonly sourceRunId: RunId
+        readonly state: 'ready_for_review' | 'needs_attention'
+      }
+      readonly scheduled?: {
+        readonly followUpId: FollowUpId
+        readonly runId: RunId
+        readonly intent: SessionControlRunIntent
+      }
+    }
+  | {
+      readonly accepted: false
+      readonly code: 'run_not_starting' | 'run_not_active' | 'run_changed'
+      /**
+       * Set when this Run no longer owned the Session (a replacement took over) but settlement
+       * still returned its Undelivered steering messages to the queue, at this state revision.
+       */
+      readonly stateRevision?: number
+    }
+
+export type SessionControlWorkerSettlementUpdate = Pick<
+  Extract<SessionControlRunSettlementResult, { readonly accepted: true }>,
+  'delegationUpdate' | 'orchestrationUpdate'
+>
+
+export interface SessionControlRunLifecycleRepositoryShape {
+  readonly startExternal?: (input: {
+    readonly sessionId: SessionId
+    readonly runId: RunId
+    readonly intent: SessionControlRunIntent
+    readonly hostRunCeiling?: number
+  }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
+  readonly replaceWithExternal?: (input: {
+    readonly sessionId: SessionId
+    readonly previousRunId?: RunId
+    readonly runId: RunId
+    readonly intent: SessionControlRunIntent
+    readonly hostRunCeiling?: number
+  }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
+  readonly activate: (input: {
+    readonly sessionId: SessionId
+    readonly runId: RunId
+  }) => Effect.Effect<SessionControlRunActivationResult, SessionControlRepositoryError>
+  readonly settle: (input: {
+    readonly sessionId: SessionId
+    readonly runId: RunId
+    readonly nextRunId: RunId
+    readonly terminalStatus: SessionControlTerminalRunStatus
+    /**
+     * When the Run's terminal event reached clients (Session Control clock). A failed or interrupted
+     * Run pauses only the Follow-ups accepted by then; later ones were sent after the Run was seen
+     * to end and start normally. Omitted when unknown: every Follow-up is treated as earlier.
+     */
+    readonly terminalEventAt?: number
+    readonly finalResponse?: string
+    readonly suppressFollowUpScheduling?: boolean
+    /**
+     * Steering messages the Run ended without incorporating, in steering order. Settlement
+     * returns them to the front of the Follow-up queue before it pauses or schedules the queue.
+     */
+    readonly undeliveredSteers?: readonly UndeliveredSteer[]
+  }) => Effect.Effect<SessionControlRunSettlementResult, SessionControlRepositoryError>
+  /**
+   * Settles a Worker's Delegation that a held Follow-up deferred, once the Session is idle and its
+   * queue no longer waits on that edit. Resolves to the updates to publish, if any.
+   */
+  readonly settleDeferredWorkerDelegation?: (input: {
+    readonly sessionId: SessionId
+  }) => Effect.Effect<
+    SessionControlWorkerSettlementUpdate | undefined,
+    SessionControlRepositoryError
+  >
+  readonly recoverHostLoss: Effect.Effect<
+    readonly { readonly sessionId: SessionId; readonly runId: RunId }[],
+    SessionControlRepositoryError
+  >
+}
+
+export class SessionControlRunLifecycleRepository extends Context.Tag(
+  '@openwaggle/SessionControlRunLifecycleRepository',
+)<SessionControlRunLifecycleRepository, SessionControlRunLifecycleRepositoryShape>() {}

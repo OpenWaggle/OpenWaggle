@@ -52,9 +52,9 @@ const PRIVILEGED_PACKAGE = {
       },
       {
         kind: 'privileged-network',
-        id: 'network',
+        id: 'openwaggle.privilege.network',
         label: 'Network access',
-        grantId: 'network',
+        grantId: 'openwaggle.privilege.network',
         consentRequired: true,
         granted: false,
         origins: ['https://api.github.com'],
@@ -62,18 +62,18 @@ const PRIVILEGED_PACKAGE = {
       },
       {
         kind: 'privileged-trusted-main',
-        id: 'trusted-main',
+        id: 'openwaggle.privilege.trusted-main',
         label: 'Trusted main-process runtime',
-        grantId: 'trusted-main',
+        grantId: 'openwaggle.privilege.trusted-main',
         consentRequired: true,
         granted: false,
         path: 'dist/main.js',
       },
       {
         kind: 'privileged-local-build',
-        id: 'local-build',
+        id: 'openwaggle.privilege.local-build',
         label: 'Local build step',
-        grantId: 'local-build',
+        grantId: 'openwaggle.privilege.local-build',
         consentRequired: true,
         granted: false,
         command: 'pnpm build',
@@ -120,6 +120,7 @@ describe('ExtensionPackageCard requirements', () => {
           onAcceptUpdate: vi.fn(),
           onApproveBuild: vi.fn(),
           onReload: vi.fn(),
+          onRemove: vi.fn(),
         }}
       />,
     )

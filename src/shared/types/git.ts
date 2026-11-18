@@ -1,3 +1,14 @@
+import type { SchemaType } from '@shared/schema'
+import type {
+  gitBranchCheckoutPayloadSchema,
+  gitBranchCreatePayloadSchema,
+  gitCommitPayloadSchema,
+  gitWorktreeCreatePayloadSchema,
+  gitWorktreeRemovePayloadSchema,
+} from '@shared/schemas/git-requests'
+import type { GitOutputRecordingResult } from './vcs'
+import type { WorkspacePreparation } from './workspace-preparation'
+
 export type GitFileStatus =
   | 'modified'
   | 'added'
@@ -11,6 +22,21 @@ export interface GitChangedFile {
   readonly path: string
   readonly status: GitFileStatus
   readonly staged: boolean
+  readonly unstaged: boolean
+  readonly additions: number
+  readonly deletions: number
+  /**
+   * The path a rename came from, when this entry is one.
+   *
+   * Needed because a pathspec commit only covers the paths it is given: committing a rename with
+   * just the target left the staged deletion of the source behind, so the commit contained *both*
+   * files - silent content duplication - and a deletion the user never asked for stayed staged.
+   */
+  readonly renamedFrom?: string
+}
+
+export interface GitChangeStats {
+  readonly filesChanged: number
   readonly additions: number
   readonly deletions: number
 }
@@ -21,22 +47,23 @@ export interface GitStatusSummary {
   readonly deletions: number
   readonly filesChanged: number
   readonly changedFiles: readonly GitChangedFile[]
+  /** Exact index-only totals from `git diff --cached --numstat`. */
+  readonly stagedChanges?: GitChangeStats
+  /** Exact working-tree-only totals from `git diff --numstat`. */
+  readonly unstagedChanges?: GitChangeStats
   readonly clean: boolean
   readonly ahead: number
   readonly behind: number
 }
 
-export interface GitCommitPayload {
-  readonly message: string
-  readonly amend: boolean
-  readonly paths: readonly string[]
-}
+export type GitCommitPayload = SchemaType<typeof gitCommitPayloadSchema>
 
 export const GIT_COMMIT_ERROR_CODES = [
   'not-git-repo',
   'nothing-to-commit',
   'merge-in-progress',
   'empty-message',
+  'case-only-rename',
   'unknown',
 ] as const
 
@@ -44,8 +71,11 @@ export type GitCommitErrorCode = (typeof GIT_COMMIT_ERROR_CODES)[number]
 
 export interface GitCommitSuccess {
   readonly ok: true
-  readonly commitHash: string
+  /** Full object id, or null when the commit succeeded but Git could not resolve HEAD afterward. */
+  readonly commitHash: string | null
   readonly summary: string
+  /** Session Output readiness/projection outcome. A missing hash suppresses Output creation. */
+  readonly commitOutput?: GitOutputRecordingResult
 }
 
 export interface GitCommitFailure {
@@ -63,8 +93,36 @@ export interface GitFileDiff {
   readonly deletions: number
 }
 
+export const GIT_WORKING_TREE_ERROR_CODES = [
+  'cancelled',
+  'not-git-repo',
+  'no-head',
+  'partial-revert',
+  'unsafe-revert',
+  'unknown',
+] as const
+
+export type GitWorkingTreeErrorCode = (typeof GIT_WORKING_TREE_ERROR_CODES)[number]
+
+export interface GitWorkingTreeMutationSuccess {
+  readonly ok: true
+  readonly message: string
+}
+
+export interface GitWorkingTreeMutationFailure {
+  readonly ok: false
+  readonly code: GitWorkingTreeErrorCode
+  readonly message: string
+}
+
+export type GitWorkingTreeMutationResult =
+  | GitWorkingTreeMutationSuccess
+  | GitWorkingTreeMutationFailure
+
 export interface GitBranchInfo {
   readonly name: string
+  /** The local branch component, with any configured remote-name prefix removed. */
+  readonly localName: string
   readonly fullName: string
   readonly isCurrent: boolean
   readonly isRemote: boolean
@@ -78,36 +136,63 @@ export interface GitBranchListResult {
   readonly branches: readonly GitBranchInfo[]
 }
 
-export interface GitBranchCheckoutPayload {
-  readonly name: string
+export type GitBranchCheckoutPayload = SchemaType<typeof gitBranchCheckoutPayloadSchema>
+
+export type GitBranchCreatePayload = SchemaType<typeof gitBranchCreatePayloadSchema>
+
+export const GIT_DIFF_ERROR_CODES = [
+  'not-git-repo',
+  'bad-revision',
+  /**
+   * The diff was larger than the buffer allowed for it. Distinct from `unknown` because the
+   * user can act on it (commit or stage in smaller pieces, exclude generated files) and because
+   * nothing is actually wrong with the repository.
+   */
+  'diff-too-large',
+  'unknown',
+] as const
+
+export type GitDiffErrorCode = (typeof GIT_DIFF_ERROR_CODES)[number]
+
+export interface GitDiffSuccess {
+  readonly ok: true
+  readonly files: readonly GitFileDiff[]
+  /**
+   * The base ref the diff was actually taken against, when one was resolved rather than given.
+   *
+   * "Automatic" promises a decision, so the user has to be able to audit which branch it picked -
+   * `origin/develop` and a stale local `main` are very different answers. Absent for the
+   * working-tree diff, which has no base, and for an explicitly requested ref, which the caller
+   * already knows.
+   */
+  readonly resolvedBaseRef?: string
+  /**
+   * True when "Automatic" could not resolve any default branch and fell back to the working-tree
+   * diff. Without this the panel silently showed a different scope than the one it advertised.
+   */
+  readonly automaticFellBackToWorkingTree?: boolean
 }
 
-export interface GitBranchCreatePayload {
-  readonly name: string
-  readonly startPoint?: string
-  readonly checkout?: boolean
+export interface GitDiffFailure {
+  readonly ok: false
+  readonly code: GitDiffErrorCode
+  readonly message: string
 }
 
-export interface GitBranchRenamePayload {
-  readonly from: string
-  readonly to: string
-}
-
-export interface GitBranchDeletePayload {
-  readonly name: string
-  readonly force?: boolean
-}
-
-export interface GitBranchSetUpstreamPayload {
-  readonly name: string
-  readonly upstream: string
-}
+/**
+ * Loading a diff fails for ordinary, expected reasons -- a folder that is not a
+ * repository, a base ref the user typed that no longer resolves. Those are results,
+ * not exceptions, so callers branch on `ok` instead of wrapping every call in
+ * try/catch (see ADR-less standard in .agents/standards.md).
+ */
+export type GitDiffResult = GitDiffSuccess | GitDiffFailure
 
 export const GIT_BRANCH_ERROR_CODES = [
   'not-git-repo',
   'branch-not-found',
   'branch-exists',
   'dirty-worktree',
+  'cleanup-failed',
   'invalid-name',
   'upstream-not-found',
   'unknown',
@@ -127,3 +212,96 @@ export interface GitBranchMutationFailure {
 }
 
 export type GitBranchMutationResult = GitBranchMutationSuccess | GitBranchMutationFailure
+
+/** Read-only validation used before a branch-creating command is submitted. */
+export type GitBranchValidationResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false
+      readonly code: 'required' | 'invalid-name' | 'branch-exists' | 'not-git-repo'
+      readonly message: string
+    }
+
+// --- Session worktrees (ADR 0010) ---
+
+/**
+ * How a session's git work is isolated.
+ * `local` edits the opened checkout; `worktree` uses a dedicated Session worktree.
+ */
+export type SessionEnvironmentMode = 'local' | 'worktree'
+
+export const SESSION_ENVIRONMENT_MODES = ['local', 'worktree'] as const
+
+export interface GitWorktreeInfo {
+  /** Absolute path of the worktree checkout. */
+  readonly path: string
+  /** Branch checked out in the worktree, or null when detached. */
+  readonly branch: string | null
+  /** Commit the worktree points at. */
+  readonly head: string
+  /** True for the repository's primary (main) worktree. */
+  readonly isMain: boolean
+  /** Git refuses normal removal while this checkout is locked. */
+  readonly locked?: boolean
+}
+
+export interface GitWorktreeListResult {
+  readonly worktrees: readonly GitWorktreeInfo[]
+}
+
+export type GitWorktreeCreatePayload = SchemaType<typeof gitWorktreeCreatePayloadSchema>
+
+/**
+ * Whether a session's recorded Session worktree still exists on disk.
+ *
+ * A worktree can vanish out-of-band: removed by hand, pruned, or recorded on another
+ * machine. The send must be blocked when that happens rather than the agent silently
+ * getting a fresh empty worktree, so the renderer needs to ask before sending.
+ */
+export interface SessionWorktreeCheck {
+  readonly exists: boolean
+  /** True when a worktree path is recorded at all (local-mode sessions have none). */
+  readonly recorded: boolean
+}
+
+export type GitWorktreeRemovePayload = SchemaType<typeof gitWorktreeRemovePayloadSchema>
+
+export const GIT_WORKTREE_ERROR_CODES = [
+  'not-git-repo',
+  'base-ref-not-found',
+  'worktree-exists',
+  'branch-exists',
+  /**
+   * The branch is already checked out in a different worktree. Distinct from `branch-exists`
+   * because attaching would hand this session another session's commits, so the caller must
+   * not retry or silently adopt it.
+   */
+  'branch-checked-out-elsewhere',
+  'workspace-bound',
+  /** A Session, Project Action, terminal, the open project, or the running app uses it. */
+  'worktree-in-use',
+  'dirty-worktree',
+  'cleanup-failed',
+  'not-found',
+  'unknown',
+] as const
+
+export type GitWorktreeErrorCode = (typeof GIT_WORKTREE_ERROR_CODES)[number]
+
+export interface GitWorktreeMutationSuccess {
+  readonly ok: true
+  readonly message: string
+  readonly path: string
+}
+
+export interface GitWorktreeMutationFailure {
+  readonly preparation?: WorkspacePreparation
+  readonly ok: false
+  readonly code: GitWorktreeErrorCode
+  readonly message: string
+}
+
+export type GitWorktreeMutationResult = GitWorktreeMutationSuccess | GitWorktreeMutationFailure
+
+// VCS status / source control / stacked action types live in ./vcs (kept separate for module size).
+export * from './vcs'

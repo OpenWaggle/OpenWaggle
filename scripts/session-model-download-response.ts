@@ -1,0 +1,104 @@
+import { setTimeout } from 'node:timers/promises'
+import { fetch, type Response } from 'undici'
+
+const MAX_ATTEMPTS = 5
+const RETRY_BUDGET_MS = 6 * 60 * 1_000
+const INITIAL_BACKOFF_MS = 1_000
+const MAX_BACKOFF_MS = 30_000
+const BACKOFF_MULTIPLIER = 2
+const HTTP_SUCCESS_MINIMUM = 200
+const HTTP_SUCCESS_MAXIMUM = 300
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+const MILLISECONDS_PER_SECOND = 1_000
+const HTTP_DATE_PATTERN =
+  /^(?:[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT|[A-Za-z]+, \d{2}-[A-Za-z]{3}-\d{2} \d{2}:\d{2}:\d{2} GMT|[A-Za-z]{3} [A-Za-z]{3} [ \d]\d \d{2}:\d{2}:\d{2} \d{4})$/u
+const HUGGING_FACE_RATE_LIMIT_PATTERN = /^"(?:api|pages|resolvers)"\s*;\s*r=\d+\s*;\s*t=(\d+)$/u
+
+interface ModelDownloadDependencies {
+  readonly fetch?: (url: string) => Promise<Response>
+  readonly wait?: (milliseconds: number) => Promise<void>
+  readonly now?: () => number
+}
+
+function retryAfterDelay(value: string | null, now: number) {
+  if (value === null) return undefined
+  const normalized = value.trim()
+  // Overflow is an unserviceable server delay, not a reason to retry earlier.
+  if (/^\d+$/u.test(normalized)) return Number(normalized) * MILLISECONDS_PER_SECOND
+  if (!HTTP_DATE_PATTERN.test(normalized)) return undefined
+  const retryAt = Date.parse(normalized)
+  return Number.isNaN(retryAt) ? undefined : Math.max(0, retryAt - now)
+}
+
+function responseRetryDelay(response: Response, attempt: number, now: number) {
+  const retryAfter = retryAfterDelay(response.headers.get('retry-after'), now)
+  const rateLimit = response.headers.get('ratelimit')?.trim()
+  const resetSeconds = rateLimit?.match(HUGGING_FACE_RATE_LIMIT_PATTERN)?.[1]
+  const resetDelay =
+    resetSeconds === undefined ? undefined : Number(resetSeconds) * MILLISECONDS_PER_SECOND
+  const fallback = retryBackoffDelay(attempt)
+  return Math.max(INITIAL_BACKOFF_MS, retryAfter ?? resetDelay ?? fallback)
+}
+
+function retryBackoffDelay(attempt: number) {
+  return Math.min(INITIAL_BACKOFF_MS * BACKOFF_MULTIPLIER ** (attempt - 1), MAX_BACKOFF_MS)
+}
+
+async function waitBeforeRetry(input: {
+  readonly attempt: number
+  readonly delay: number
+  readonly failure: unknown
+  readonly now: () => number
+  readonly startedAt: number
+  readonly waitedMs: number
+  readonly wait: (milliseconds: number) => Promise<void>
+}) {
+  const remainingMs = RETRY_BUDGET_MS - Math.max(input.waitedMs, input.now() - input.startedAt)
+  if (input.attempt === MAX_ATTEMPTS || input.delay >= remainingMs) throw input.failure
+  await input.wait(input.delay)
+  const waitedMs = input.waitedMs + input.delay
+  if (Math.max(waitedMs, input.now() - input.startedAt) >= RETRY_BUDGET_MS) throw input.failure
+  return waitedMs
+}
+
+/** Bounds retry admission and waiting, not successful model transfer duration. */
+export async function fetchModelDownloadResponse(
+  url: string,
+  dependencies: ModelDownloadDependencies = {},
+) {
+  const fetchResponse = dependencies.fetch ?? fetch
+  const wait = dependencies.wait ?? setTimeout
+  const now = dependencies.now ?? Date.now
+  const startedAt = now()
+  let waitedMs = 0
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    let response: Response
+    try {
+      response = await fetchResponse(url)
+    } catch (failure) {
+      waitedMs = await waitBeforeRetry({
+        attempt,
+        delay: retryBackoffDelay(attempt),
+        failure,
+        now,
+        startedAt,
+        waitedMs,
+        wait,
+      })
+      continue
+    }
+    if (response.status >= HTTP_SUCCESS_MINIMUM && response.status < HTTP_SUCCESS_MAXIMUM) {
+      return response
+    }
+    // A failed response stream can reject cancellation after headers arrive. Cleanup is
+    // best-effort; the HTTP status still determines whether this attempt may be retried.
+    await response.body?.cancel().catch(() => undefined)
+    const failure = new Error(
+      `Model download failed with HTTP ${String(response.status)} for ${url}.`,
+    )
+    const delay = responseRetryDelay(response, attempt, now())
+    if (!RETRYABLE_STATUSES.has(response.status)) throw failure
+    waitedMs = await waitBeforeRetry({ attempt, delay, failure, now, startedAt, waitedMs, wait })
+  }
+  throw new Error('Model download exhausted its HTTP attempts.')
+}

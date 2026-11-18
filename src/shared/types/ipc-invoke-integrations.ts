@@ -1,7 +1,9 @@
-import type { AgentSendPayload, PreparedAttachment } from './agent'
+import type { UsageStatisticsEnvironmentBlock } from '../usage-statistics/enablement'
+import type { AgentSendPayload, AgentSendReport, PreparedAttachment } from './agent'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { SessionId, WagglePresetId } from './brand'
+import type { ClipboardImageBytes } from './clipboard'
 import type { FileSuggestion } from './composer'
 import type {
   DiagnosticsInfo,
@@ -9,26 +11,20 @@ import type {
   FeedbackSubmitResult,
   GhCliStatus,
 } from './feedback'
-import type {
-  GitBranchCheckoutPayload,
-  GitBranchCreatePayload,
-  GitBranchDeletePayload,
-  GitBranchListResult,
-  GitBranchMutationResult,
-  GitBranchRenamePayload,
-  GitBranchSetUpstreamPayload,
-  GitCommitPayload,
-  GitCommitResult,
-  GitFileDiff,
-  GitStatusSummary,
-} from './git'
+import type { GuiStartupStatus } from './gui-startup'
+import type { IpcGitInvokeChannelMap } from './ipc-invoke-git'
+import type { IpcTerminalInvokeChannelMap } from './ipc-invoke-terminal'
+import type { IpcWorkspaceFileInvokeChannelMap } from './ipc-invoke-workspace-files'
 import type { SupportedModelId } from './llm'
+import type { DesktopNativeRecoveryOutcome } from './openwaggle-desktop-api'
 import type { AgentPhaseState } from './phase'
 import type {
   AgentsInstructionStatus,
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
+import type { TurnCheckpointSummary, TurnDiff, TurnDiffFileSummary } from './turn-diff'
+import type { UpdateChannel } from './update-channel'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type { WaggleConfig, WagglePreset } from './waggle'
@@ -37,66 +33,34 @@ import type { WaggleConfig, WagglePreset } from './waggle'
 // Single source of truth for every IPC channel.
 // Each entry defines: [channel name, args tuple, return type]
 
-export interface IpcIntegrationInvokeChannelMap {
-  'terminal:create': {
-    args: [projectPath: string]
-    return: string
-  }
-  'terminal:close': {
-    args: [terminalId: string]
-    return: undefined
-  }
-  'terminal:resize': {
-    args: [terminalId: string, cols: number, rows: number]
-    return: undefined
-  }
-  'git:status': {
-    args: [projectPath: string]
-    return: GitStatusSummary
-  }
-  'git:commit': {
-    args: [projectPath: string, payload: GitCommitPayload]
-    return: GitCommitResult
-  }
-  'git:diff': {
-    args: [projectPath: string]
-    return: GitFileDiff[]
-  }
-  'git:branches:list': {
-    args: [projectPath: string]
-    return: GitBranchListResult
-  }
-  'git:branches:checkout': {
-    args: [projectPath: string, payload: GitBranchCheckoutPayload]
-    return: GitBranchMutationResult
-  }
-  'git:branches:create': {
-    args: [projectPath: string, payload: GitBranchCreatePayload]
-    return: GitBranchMutationResult
-  }
-  'git:branches:rename': {
-    args: [projectPath: string, payload: GitBranchRenamePayload]
-    return: GitBranchMutationResult
-  }
-  'git:branches:delete': {
-    args: [projectPath: string, payload: GitBranchDeletePayload]
-    return: GitBranchMutationResult
-  }
-  'git:branches:set-upstream': {
-    args: [projectPath: string, payload: GitBranchSetUpstreamPayload]
-    return: GitBranchMutationResult
-  }
+export interface IpcIntegrationInvokeChannelMap
+  extends IpcWorkspaceFileInvokeChannelMap, IpcGitInvokeChannelMap, IpcTerminalInvokeChannelMap {
   'attachments:prepare': {
     args: [projectPath: string, paths: string[]]
     return: PreparedAttachment[]
   }
   'attachments:prepare-from-text': {
-    args: [text: string, operationId: string]
+    /** `name`: the composer's label; the prompt file is named after it, and so is the attachment. */
+    args: [text: string, operationId: string, name?: string]
     return: PreparedAttachment
+  }
+  /** A pasted image has no file on disk, so its bytes are the attachment (ADR 0068). */
+  'attachments:prepare-image-from-bytes': {
+    args: [bytes: Uint8Array, fileName: string, mimeType: string]
+    return: PreparedAttachment
+  }
+  'attachments:discard': {
+    args: [attachment: PreparedAttachment]
+    return: undefined
   }
   'agent:get-phase': {
     args: [sessionId: SessionId]
     return: AgentPhaseState | null
+  }
+  /** The Sessions the calling window shows, whose streamed deltas it gets about 30 times a second. */
+  'agent:set-shown-sessions': {
+    args: [sessionIds: readonly SessionId[]]
+    return: undefined
   }
   'agent:get-background-run': {
     args: [sessionId: SessionId]
@@ -134,13 +98,42 @@ export interface IpcIntegrationInvokeChannelMap {
     args: [message: string, detail?: string]
     return: boolean
   }
+  'clipboard:read-text': {
+    args: []
+    return: string
+  }
+  'clipboard:read-image': {
+    args: []
+    return: ClipboardImageBytes | null
+  }
   'app:open-logs-dir': {
+    args: []
+    return: undefined
+  }
+  /** Answered before the Session Host is ready, like `app:retry-startup` and the logs folder. */
+  'app:get-startup-status': {
+    args: []
+    return: GuiStartupStatus
+  }
+  'app:retry-startup': {
     args: []
     return: undefined
   }
   'app:get-logs-path': {
     args: []
     return: string
+  }
+  'app:get-native-admission-issue': {
+    args: []
+    return: string | null
+  }
+  'app:get-usage-statistics-block': {
+    args: []
+    return: UsageStatisticsEnvironmentBlock | null
+  }
+  'app:recover-native-admission': {
+    args: []
+    return: DesktopNativeRecoveryOutcome
   }
   // Waggle mode
   'agent:send-waggle-message': {
@@ -150,7 +143,7 @@ export interface IpcIntegrationInvokeChannelMap {
       model: SupportedModelId,
       config: WaggleConfig,
     ]
-    return: undefined
+    return: AgentSendReport
   }
   // Auth
   'auth:start-oauth': {
@@ -164,6 +157,11 @@ export interface IpcIntegrationInvokeChannelMap {
   'auth:get-account-info': {
     args: [provider: OAuthProvider]
     return: OAuthAccountInfo
+  }
+  /** Every listed provider's account in one call; the settings gate read them one by one. */
+  'auth:get-account-infos': {
+    args: [providers: readonly OAuthProvider[]]
+    return: Readonly<Partial<Record<OAuthProvider, OAuthAccountInfo>>>
   }
   'auth:submit-code': {
     args: [provider: OAuthProvider, code: string]
@@ -219,6 +217,10 @@ export interface IpcIntegrationInvokeChannelMap {
     args: [path: string]
     return: undefined
   }
+  'shell:reveal-path': {
+    args: [path: string]
+    return: undefined
+  }
   // Composer
   'composer:file-suggest': {
     args: [projectPath: string, query: string]
@@ -226,10 +228,14 @@ export interface IpcIntegrationInvokeChannelMap {
   }
   // Auto-updater
   'updater:check': {
-    args: []
+    args: [channel?: UpdateChannel]
     return: undefined
   }
   'updater:install': {
+    args: []
+    return: undefined
+  }
+  'updater:install-now': {
     args: []
     return: undefined
   }
@@ -240,5 +246,22 @@ export interface IpcIntegrationInvokeChannelMap {
   'app:get-version': {
     args: []
     return: string
+  }
+  'sessions:turn-checkpoints:list': {
+    args: [id: SessionId]
+    return: TurnCheckpointSummary[]
+  }
+  'sessions:turn-diff:get': {
+    args: [id: SessionId, turnId: string]
+    return: TurnDiff | null
+  }
+  'sessions:turn-diff-files:get': {
+    args: [id: SessionId, turnId: string]
+    return: readonly TurnDiffFileSummary[]
+  }
+  /** Every listed turn's changed files in one read, keyed by turn id (one call per Session open). */
+  'sessions:turn-diff-files:list': {
+    args: [id: SessionId, turnIds: readonly string[]]
+    return: Readonly<Record<string, readonly TurnDiffFileSummary[]>>
   }
 }

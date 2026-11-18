@@ -37,7 +37,7 @@ function canApproveUpdate(extensionPackage: ExtensionPackageSummary) {
 function canApproveBuild(extensionPackage: ExtensionPackageSummary) {
   return (
     extensionPackage.buildPlan?.approvalRequired === true &&
-    extensionPackage.buildPlan.approved === false &&
+    !extensionPackage.buildPlan.approved &&
     extensionPackage.buildPlan.inputHash !== null
   )
 }

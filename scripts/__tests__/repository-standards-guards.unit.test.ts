@@ -1,0 +1,331 @@
+import { describe, expect, it } from 'vitest'
+import {
+  collectScriptedElectronLaunchViolations,
+  collectSessionSummaryColumnViolations,
+  collectUnguardedDesktopUiViolations,
+  containsSessionBranchPrefix,
+} from '../check-repository-standards'
+import { withoutCommentLines } from '../standards/comment-stripping'
+import { collectExactDependencyVersionViolations } from '../standards/exact-dependency-versions'
+import { collectSyntaxRenderingViolations } from '../standards/syntax-rendering'
+
+describe('session branch prefix detection', () => {
+  it('matches the prefix wherever it appears, not only after a quote', () => {
+    /*
+     * Two rounds of review narrowed this guard. Template-literal-only missed
+     * `const p = 'ow/session-x'`; requiring a quote immediately before the prefix still missed every
+     * use where it is not at the start of the string, which is the most natural way to write it.
+     */
+    expect(containsSessionBranchPrefix('const a = `refs/heads/ow/session-${id}`')).toBe(true)
+    expect(containsSessionBranchPrefix("const b = 'ow/session-' + id")).toBe(true)
+    expect(containsSessionBranchPrefix('const c = "ow/session-probe"')).toBe(true)
+    expect(containsSessionBranchPrefix('const d = sessionWorktreeBranch(id)')).toBe(false)
+  })
+
+  it('ignores the convention when it only appears in comments', () => {
+    const source = [
+      '// branches are named ow/session-<id>',
+      '/* also ow/session- in a block */',
+      'const branch = sessionWorktreeBranch(id) // and ow/session- in a trailing comment',
+      'const url = "https://example.com/ow/session-docs"',
+    ].join('\n')
+
+    // The trailing-comment case regressed when the match was widened to the whole line.
+    expect(containsSessionBranchPrefix(withoutCommentLines(source))).toBe(true)
+    expect(
+      containsSessionBranchPrefix(
+        withoutCommentLines(
+          ['// ow/session-<id>', 'const branch = sessionWorktreeBranch(id) // ow/session-x'].join(
+            '\n',
+          ),
+        ),
+      ),
+    ).toBe(false)
+  })
+})
+
+const DESKTOP_UI_POLICY_OWNER = 'src/main/adapters/electron/electron-window-policy.ts'
+
+describe('non-disruptive Electron automation boundary', () => {
+  it('keeps native context-menu presentation inside the desktop UI policy', () => {
+    expect(
+      collectUnguardedDesktopUiViolations('src/main/preview.ts', 'menu.popup({ window })'),
+    ).toHaveLength(1)
+    expect(
+      collectUnguardedDesktopUiViolations(DESKTOP_UI_POLICY_OWNER, 'menu.popup({ window })'),
+    ).toEqual([])
+  })
+  it('rejects native dialogs, external applications, and window activation in main code', () => {
+    const source = [
+      'dialog.showMessageBox({ message: "Continue?" })',
+      'shell.openExternal("https://example.com")',
+      'shell.trashItem("/tmp/openwaggle")',
+      'mainWindow.show()',
+      'mainWindow.focus()',
+    ].join('\n')
+
+    expect(collectUnguardedDesktopUiViolations('src/main/feature.ts', source)).toHaveLength(3)
+  })
+
+  it('keeps detached external-application processes inside the desktop UI policy owner', () => {
+    const unsafe = [
+      "import { spawn } from 'node:child_process'",
+      "spawn('code', ['/tmp/example.ts'], { detached: true })",
+    ].join('\n')
+    const safe = "launchExternalApplication('code', ['/tmp/example.ts'])"
+
+    expect(collectUnguardedDesktopUiViolations('src/main/feature.ts', unsafe)).toHaveLength(1)
+    expect(collectUnguardedDesktopUiViolations('src/main/feature.ts', safe)).toEqual([])
+  })
+
+  it('allows only the detached spawn in the primitive the boot shim launches the Host with', () => {
+    const primitive = 'src/main/detached-process.ts'
+    const detached = [
+      "import { spawn } from 'node:child_process'",
+      "spawn(command, args, { detached: true, stdio: 'ignore' })",
+    ].join('\n')
+
+    expect(collectUnguardedDesktopUiViolations(primitive, detached)).toEqual([])
+    expect(collectUnguardedDesktopUiViolations(primitive, 'mainWindow.show()')).toHaveLength(1)
+  })
+
+  it('rejects scripted Electron launches that omit explicit automation mode', () => {
+    const unsafe = "const app = await electron.launch({ args: ['.'], env: {} })"
+    const misleading =
+      "const marker = 'OPENWAGGLE_AUTOMATION'; electron.launch({ args: ['.'], env: {} })"
+    const aliased =
+      "import { _electron as appDriver } from '@playwright/test'; appDriver.launch({ env: {} })"
+    const safe = 'launchOpenWaggleElectron({ userDataDir, hidden: true })'
+
+    expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', unsafe)).toHaveLength(1)
+    expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', misleading)).toHaveLength(1)
+    expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', aliased)).toHaveLength(1)
+    expect(collectScriptedElectronLaunchViolations('scripts/qa.ts', safe)).toEqual([])
+  })
+
+  it('rejects aliased Electron desktop UI imports and visible window construction', () => {
+    const source = [
+      "import { shell as osShell, BrowserWindow as BW } from 'electron'",
+      "osShell.openExternal('https://example.com')",
+      'new BW({ show: true })',
+    ].join('\n')
+
+    expect(collectUnguardedDesktopUiViolations('src/main/unsafe.ts', source)).toHaveLength(2)
+    expect(
+      collectUnguardedDesktopUiViolations('src/main/unsafe.ts', 'new BrowserWindow()'),
+    ).toHaveLength(1)
+    expect(
+      collectUnguardedDesktopUiViolations('src/main/unsafe.ts', 'new BaseWindow()'),
+    ).toHaveLength(1)
+  })
+
+  it('rejects local aliases and broad imports of native window constructors', () => {
+    const localAlias = [
+      "import { BrowserWindow } from 'electron'",
+      'const WindowCtor = BrowserWindow',
+      'new WindowCtor()',
+    ].join('\n')
+
+    expect(collectUnguardedDesktopUiViolations('src/main/unsafe.ts', localAlias)).toHaveLength(1)
+    expect(
+      collectUnguardedDesktopUiViolations(
+        'src/main/unsafe.ts',
+        "import * as Electron from 'electron'; const WindowCtor = Electron.BaseWindow",
+      ),
+    ).toHaveLength(1)
+    expect(
+      collectUnguardedDesktopUiViolations(
+        'src/main/unsafe.ts',
+        "import Electron, { app } from 'electron'; new Electron.BrowserWindow()",
+      ),
+    ).toHaveLength(1)
+    expect(
+      collectUnguardedDesktopUiViolations(
+        'src/main/safe-types.ts',
+        "import { type BrowserWindow } from 'electron'",
+      ),
+    ).toEqual([])
+  })
+
+  it('allows the audited policy owner and test stubs', () => {
+    const source = 'dialog.showMessageBox({ message: "Continue?" }); mainWindow.show()'
+
+    expect(collectUnguardedDesktopUiViolations(DESKTOP_UI_POLICY_OWNER, source)).toEqual([])
+    expect(
+      collectUnguardedDesktopUiViolations('src/main/__tests__/desktop-ui.unit.test.ts', source),
+    ).toEqual([])
+  })
+})
+
+describe('SessionSummaryRow column detection', () => {
+  const file = 'src/main/store/sessions/queries.ts'
+
+  it('rejects an inline column list even when it omits the columns the row promises', () => {
+    /*
+     * The guard used to fire only when the list mentioned `created_at`, which let through exactly
+     * the defect it exists for: three queries omitted `environment_mode` and `worktree_path`, so
+     * every session reported local mode with no worktree and nothing failed.
+     */
+    const contents = 'sql<SessionSummaryRow>`SELECT id, title, project_path FROM sessions`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toHaveLength(1)
+  })
+
+  it('accepts a query that interpolates the shared column fragment', () => {
+    const contents = 'sql<SessionSummaryRow>`SELECT ${sessionSummaryColumns(sql)} FROM sessions`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toEqual([])
+  })
+
+  it('ignores a count query, which selects no columns', () => {
+    const contents = 'sql<SessionSummaryRow>`SELECT COUNT(*) AS total FROM sessions`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toEqual([])
+  })
+
+  it('still rejects an inline list that merely carries a COUNT subquery', () => {
+    /*
+     * The rule briefly skipped any query containing `count(` anywhere, which exempted exactly the
+     * shape the detail-side row uses - so a list missing `environment_mode` and `worktree_path`, the
+     * original production bug, went unreported again.
+     */
+    const contents =
+      'sql<SessionSummaryRow>`SELECT id, title, project_path, ' +
+      '(SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) AS message_count FROM sessions s`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toHaveLength(1)
+  })
+
+  it('rejects an inline list that merely begins with an aggregate', () => {
+    /*
+     * The exemption matched any projection whose *first* term was an aggregate, so the column list
+     * behind a leading COUNT(*) was skipped - the same hole as the version that skipped any query
+     * containing `count(` at all, in a different disguise.
+     */
+    const contents =
+      'sql<SessionSummaryRow>`SELECT COUNT(*) AS total, id, title, project_path FROM sessions`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toHaveLength(1)
+  })
+
+  it('still ignores a projection of aggregates only', () => {
+    const contents =
+      'sql<SessionSummaryRow>`SELECT COUNT(*) AS total, MAX(created_at) FROM sessions`'
+
+    expect(collectSessionSummaryColumnViolations(file, contents)).toEqual([])
+  })
+
+  it('does not truncate code inside a multi-line template literal', () => {
+    /*
+     * Trailing-comment stripping tracked quotes within a line, so a line *inside* a template literal opened
+     * earlier was scanned as code: a `//` in it - a URL, most obviously - deleted the rest of a real line
+     * before the convention checks ever saw it.
+     */
+    const source = ['const help = `', '  See https://example.com/docs for details', '`'].join('\n')
+
+    expect(withoutCommentLines(source)).toContain('https://example.com/docs for details')
+  })
+})
+
+describe('syntax rendering architecture', () => {
+  it('rejects Monaco dependencies and renderer imports', () => {
+    expect(
+      collectSyntaxRenderingViolations(
+        'package.json',
+        JSON.stringify({ dependencies: { 'monaco-editor': '0.55.1' } }),
+      ),
+    ).toHaveLength(1)
+    expect(
+      collectSyntaxRenderingViolations(
+        'src/renderer/src/features/workspace-files/WorkspaceEditor.tsx',
+        "import { editor } from 'monaco-editor'",
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('keeps renderer workers module-split instead of inlining every grammar', () => {
+    expect(
+      collectSyntaxRenderingViolations(
+        'electron.vite.config.ts',
+        "export default { renderer: { worker: { format: 'es' } } }",
+      ),
+    ).toEqual([])
+    expect(
+      collectSyntaxRenderingViolations(
+        'electron.vite.config.ts',
+        "export default { renderer: { worker: { format: 'iife' } } }",
+      ),
+    ).toHaveLength(1)
+  })
+})
+
+describe('exact dependency versions', () => {
+  const manifest = (sections: Record<string, Record<string, string>>) => JSON.stringify(sections)
+
+  it('accepts exact versions, prereleases, catalogs, and workspace links', () => {
+    const contents = manifest({
+      dependencies: {
+        effect: '3.19.0',
+        '@earendil-works/pi-ai': 'catalog:pi-runtime',
+        '@openwaggle/waggle-core': 'workspace:^',
+      },
+      devDependencies: { electron: '39.0.0-beta.3' },
+    })
+
+    expect(collectExactDependencyVersionViolations('package.json', contents)).toEqual([])
+    expect(
+      collectExactDependencyVersionViolations('packages/pi-waggle/package.json', contents),
+    ).toEqual([])
+  })
+
+  it('reports caret, tilde, and open ranges in every installed section', () => {
+    const contents = manifest({
+      dependencies: { lexical: '^0.30.0' },
+      devDependencies: { vitest: '~4.1.0' },
+      optionalDependencies: { 'dmg-license': '*' },
+    })
+
+    expect(
+      collectExactDependencyVersionViolations('website/package.json', contents).map(
+        (violation) => violation.detail,
+      ),
+    ).toEqual(['lexical: ^0.30.0', 'vitest: ~4.1.0', 'dmg-license: *'])
+  })
+
+  it('requires exact versions in the default and named workspace catalogs', () => {
+    const rootManifest = JSON.stringify({
+      workspaces: {
+        packages: ['packages/*'],
+        catalog: { zod: '^4.0.0' },
+        catalogs: {
+          'pi-runtime': { '@earendil-works/pi-ai': '1.4.0', '@earendil-works/pi-tui': '~1.4.0' },
+        },
+      },
+      overrides: { qs: '^6.16.0' },
+    })
+
+    expect(
+      collectExactDependencyVersionViolations('package.json', rootManifest).map(
+        (violation) => violation.detail,
+      ),
+    ).toEqual(['zod: ^4.0.0', '@earendil-works/pi-tui: ~1.4.0'])
+    expect(
+      collectExactDependencyVersionViolations('packages/pi-waggle/package.json', rootManifest),
+    ).toEqual([])
+  })
+
+  it('leaves peer ranges and fixture packages alone', () => {
+    expect(
+      collectExactDependencyVersionViolations(
+        'packages/extension-react/package.json',
+        manifest({ peerDependencies: { react: '^19.0.0' } }),
+      ),
+    ).toEqual([])
+    expect(
+      collectExactDependencyVersionViolations(
+        'fixtures/extensions/openwaggle-reload-qa/package.json',
+        manifest({ dependencies: { react: '^19.0.0' } }),
+      ),
+    ).toEqual([])
+  })
+})

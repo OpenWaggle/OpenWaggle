@@ -73,81 +73,79 @@ describe('extension project overrides', () => {
     })
   })
 
-  it('excludes project-disabled packages from the Pi runtime allowlist', async () => {
-    const harness = makeProjectOverridesHarness({
-      packages: [discoveredPackage],
+  const disabledInProject = (
+    extensionId: string,
+    scope:
+      | { kind: typeof OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND }
+      | {
+          kind: typeof OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
+          projectPath: string
+        },
+  ) => ({
+    extensionId,
+    scope,
+    projectPath: PROJECT_PATH,
+    disabled: true,
+    createdAt: 3000,
+    updatedAt: 4000,
+  })
+
+  it.each([
+    {
+      label: 'includes trusted and enabled project packages',
+      extensionPackage: discoveredPackage,
       lifecycle: lifecycleState,
-      projectOverride: {
-        extensionId: 'sample-extension',
-        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-        projectPath: PROJECT_PATH,
-        disabled: true,
-        createdAt: 3000,
-        updatedAt: 4000,
-      },
-    })
-
-    const enabledPackagePaths = await Effect.runPromise(
-      listRuntimeEnabledOpenWaggleExtensionPackagePaths(PROJECT_PATH).pipe(
-        Effect.provide(harness.layer),
-      ),
-    )
-
-    expect(enabledPackagePaths).toEqual([])
-  })
-
-  it('includes trusted and enabled project packages in the Pi runtime allowlist', async () => {
-    const harness = makeProjectOverridesHarness({
-      packages: [discoveredPackage],
+      override: {},
+      included: true,
+    },
+    {
+      label: 'excludes project-disabled packages',
+      extensionPackage: discoveredPackage,
       lifecycle: lifecycleState,
-    })
-
-    const enabledPackagePaths = await Effect.runPromise(
-      listRuntimeEnabledOpenWaggleExtensionPackagePaths(PROJECT_PATH).pipe(
-        Effect.provide(harness.layer),
-      ),
-    )
-
-    expect(enabledPackagePaths).toEqual([discoveredPackage.packagePath])
-  })
-
-  it('includes trusted global packages in the Pi runtime allowlist for a project', async () => {
-    const harness = makeProjectOverridesHarness({
-      packages: [globalPackage],
-      lifecycle: globalLifecycleState,
-    })
-
-    const enabledPackagePaths = await Effect.runPromise(
-      listRuntimeEnabledOpenWaggleExtensionPackagePaths(PROJECT_PATH).pipe(
-        Effect.provide(harness.layer),
-      ),
-    )
-
-    expect(enabledPackagePaths).toEqual([globalPackage.packagePath])
-  })
-
-  it('excludes project-disabled global packages from the Pi runtime allowlist', async () => {
-    const harness = makeProjectOverridesHarness({
-      packages: [globalPackage],
-      lifecycle: globalLifecycleState,
-      projectOverride: {
-        extensionId: 'global-extension',
-        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
-        projectPath: PROJECT_PATH,
-        disabled: true,
-        createdAt: 3000,
-        updatedAt: 4000,
+      override: {
+        projectOverride: disabledInProject('sample-extension', {
+          kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
+          projectPath: PROJECT_PATH,
+        }),
       },
-    })
+      included: false,
+    },
+    {
+      label: 'includes trusted global packages for a project',
+      extensionPackage: globalPackage,
+      lifecycle: globalLifecycleState,
+      override: {},
+      included: true,
+    },
+    {
+      label: 'excludes project-disabled global packages',
+      extensionPackage: globalPackage,
+      lifecycle: globalLifecycleState,
+      override: {
+        projectOverride: disabledInProject('global-extension', {
+          kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
+        }),
+      },
+      included: false,
+    },
+  ])(
+    '$label in the Pi runtime allowlist',
+    async ({ extensionPackage, lifecycle, override, included }) => {
+      const harness = makeProjectOverridesHarness({
+        packages: [extensionPackage],
+        lifecycle,
+        ...override,
+      })
 
-    const enabledPackagePaths = await Effect.runPromise(
-      listRuntimeEnabledOpenWaggleExtensionPackagePaths(PROJECT_PATH).pipe(
-        Effect.provide(harness.layer),
-      ),
-    )
+      const enabledPackagePaths = await Effect.runPromise(
+        listRuntimeEnabledOpenWaggleExtensionPackagePaths(PROJECT_PATH).pipe(
+          Effect.provide(harness.layer),
+        ),
+      )
 
-    expect(enabledPackagePaths).toEqual([])
-  })
+      expect(enabledPackagePaths).toEqual(included ? [extensionPackage.packagePath] : [])
+    },
+  )
 
   it('fails closed when extension state cannot be read while building the runtime allowlist', async () => {
     const layer = Layer.mergeAll(

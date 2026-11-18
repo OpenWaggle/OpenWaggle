@@ -50,7 +50,7 @@ const runtimeMocks = vi.hoisted(() => ({
   createPiProjectModelRuntime: vi.fn<ProjectRuntimeLoader>(),
   createSessionManagerForSession: vi.fn(),
   disposeOpenWagglePiSession: vi.fn(),
-  resolveSessionProjectPath: vi.fn(),
+  resolveSessionWorkingPath: vi.fn(),
 }))
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
@@ -70,7 +70,8 @@ vi.mock('../../pi-session-lifecycle', () => ({
 
 vi.mock('../session-manager', () => ({
   createSessionManagerForSession: runtimeMocks.createSessionManagerForSession,
-  resolveSessionProjectPath: runtimeMocks.resolveSessionProjectPath,
+  resolveSessionWorkingPath: runtimeMocks.resolveSessionWorkingPath,
+  requireSessionProjectPath: runtimeMocks.resolveSessionWorkingPath,
 }))
 
 const MODEL = SupportedModelId('openai/gpt-5.5')
@@ -95,11 +96,11 @@ function input() {
   }
 }
 
-function enabledExtensionPackage(): RuntimeEnabledOpenWaggleExtensionPackage {
+function enabledExtensionPackage() {
   const packagePath = '/repo/.openwaggle/extensions/broken-extension'
   const scope = { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: '/repo' } as const
 
-  return {
+  const result: RuntimeEnabledOpenWaggleExtensionPackage = {
     extensionPackage: {
       id: 'broken-extension',
       scope,
@@ -144,19 +145,21 @@ function enabledExtensionPackage(): RuntimeEnabledOpenWaggleExtensionPackage {
     },
     packagePath,
   }
+  return result
 }
 
 function runtimeServices(
   enabledOpenWaggleExtensionPackagePaths: readonly string[],
   errors: readonly PiExtensionLoadErrorFixture[] = [],
-): TestRuntimeServices {
-  return {
+) {
+  const services: TestRuntimeServices = {
     diagnostics: { records: [] },
     enabledOpenWaggleExtensionPackagePaths,
     resourceLoader: {
       getExtensions: () => ({ errors }),
     },
   }
+  return services
 }
 
 describe('Pi session runtime extension failure isolation', () => {
@@ -165,8 +168,8 @@ describe('Pi session runtime extension failure isolation', () => {
     runtimeMocks.createPiProjectModelRuntime.mockReset()
     runtimeMocks.createSessionManagerForSession.mockReset()
     runtimeMocks.disposeOpenWagglePiSession.mockReset()
-    runtimeMocks.resolveSessionProjectPath.mockReset()
-    runtimeMocks.resolveSessionProjectPath.mockReturnValue('/repo')
+    runtimeMocks.resolveSessionWorkingPath.mockReset()
+    runtimeMocks.resolveSessionWorkingPath.mockReturnValue('/repo')
     runtimeMocks.createSessionManagerForSession.mockReturnValue(sessionManager)
     runtimeMocks.createPiProjectModelRuntime.mockResolvedValue({
       model,

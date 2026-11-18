@@ -23,14 +23,16 @@ function reportNavigationError(
 
 export function useChatPanelEnvironment() {
   const navigate = useNavigate()
-  const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen)
+  const slashCommandMenuOpen = useUIStore((s) => s.slashCommandMenuOpen)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const showToast = useUIStore((s) => s.showToast)
-  const model = usePreferencesStore((s) => s.settings.selectedModel)
-  const thinkingLevel = usePreferencesStore((s) => s.settings.thinkingLevel)
+  const preferredModel = usePreferencesStore((s) => s.settings.selectedModel)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const project = useProject()
   const chat = useChat()
+  const model = chat.activeSessionId
+    ? chat.activeSession?.executionModel
+    : (chat.draftSession?.selectedModel ?? preferredModel)
   const git = useGit()
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const loadSessions = useSessionStore((state) => state.loadSessions)
@@ -71,10 +73,6 @@ export function useChatPanelEnvironment() {
   function handleDismissInterruptedRun(runId: string, branchId: SessionBranchId) {
     const sessionId = chat.activeSessionId
     if (!sessionId) return
-    if (typeof api.dismissInterruptedSessionRun !== 'function') {
-      showToast('Update OpenWaggle to dismiss interrupted run notices.')
-      return
-    }
     void api
       .dismissInterruptedSessionRun(sessionId, runId)
       .then(() =>
@@ -93,7 +91,7 @@ export function useChatPanelEnvironment() {
     activeWorkspace,
     chat,
     clearDraftBranchForSession,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     draftBranch,
     handleDismissInterruptedRun,
     handleOpenProject,
@@ -101,7 +99,7 @@ export function useChatPanelEnvironment() {
     loadSessions,
     model,
     navigate,
-    openSettings() {
+    openSettings: () => {
       void navigate({ to: '/settings' })
     },
     projectPath: project.projectPath,
@@ -109,6 +107,5 @@ export function useChatPanelEnvironment() {
     refreshSessionWorkspace,
     setDraftBranch,
     showToast,
-    thinkingLevel,
   }
 }

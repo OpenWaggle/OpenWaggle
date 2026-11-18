@@ -21,21 +21,18 @@ describe('useAgentChat background reconnect', () => {
   it('reconnects to an active background run snapshot', async () => {
     hasActiveRunMock.mockReturnValue(true)
     apiMock.getBackgroundRun.mockResolvedValue({
+      activity: 'agent-run',
       sessionId: SessionId('session-1'),
       model: SupportedModelId('claude-sonnet-4-5'),
-      mode: 'agent',
+      mode: 'classic',
       startedAt: 1,
+      activityEvents: [],
       parts: [{ type: 'text', text: 'Partial answer' }],
     })
 
     const session = createSession()
     const { result } = renderHook(() =>
-      useAgentChat(
-        SessionId('session-1'),
-        session,
-        SupportedModelId('claude-sonnet-4-5'),
-        'medium',
-      ),
+      useAgentChat(SessionId('session-1'), session, SupportedModelId('claude-sonnet-4-5')),
     )
 
     await waitFor(() => {
@@ -46,6 +43,62 @@ describe('useAgentChat background reconnect', () => {
           parts: [{ type: 'text', content: 'Partial answer' }],
         }),
       )
+    })
+  })
+
+  it('shows the user messages the reconnected Run already incorporated before its answer', async () => {
+    hasActiveRunMock.mockReturnValue(true)
+    const persisted = createSessionWithMessages(1, [
+      {
+        id: MessageId('user-1'),
+        role: 'user',
+        createdAt: 1,
+        parts: [{ type: 'text', text: 'First question' }],
+        metadata: { sessionNodeCreatedOrder: 0 },
+      },
+      {
+        id: MessageId('assistant-1'),
+        role: 'assistant',
+        createdAt: 2,
+        parts: [{ type: 'text', text: 'First answer' }],
+        metadata: { sessionNodeCreatedOrder: 1 },
+      },
+    ])
+    apiMock.getSessionDetail.mockResolvedValue(persisted)
+    apiMock.getBackgroundRun.mockResolvedValue({
+      activity: 'agent-run',
+      sessionId: SessionId('session-1'),
+      model: SupportedModelId('claude-sonnet-4-5'),
+      mode: 'classic',
+      startedAt: 3,
+      activityEvents: [],
+      userMessages: [
+        {
+          messageId: 'live-user-2',
+          parts: [{ type: 'text', text: 'Queued question' }],
+          sessionNodeCreatedOrder: 2,
+          timestamp: 3,
+        },
+      ],
+      parts: [{ type: 'text', text: 'Partial answer' }],
+    })
+
+    const { result } = renderHook(() =>
+      useAgentChat(SessionId('session-1'), persisted, SupportedModelId('claude-sonnet-4-5')),
+    )
+
+    await waitFor(() => {
+      expect(
+        result.current.messages.map((message) => [
+          message.role,
+          message.parts.map((part) => (part.type === 'text' ? part.content : part.type)).join(''),
+        ]),
+      ).toEqual([
+        ['user', 'First question'],
+        ['assistant', 'First answer'],
+        ['user', 'Queued question'],
+        ['assistant', 'Partial answer'],
+      ])
     })
   })
 
@@ -76,7 +129,6 @@ describe('useAgentChat background reconnect', () => {
           },
         ]),
         SupportedModelId('claude-sonnet-4-5'),
-        'medium',
       ),
     )
 
@@ -103,10 +155,12 @@ describe('useAgentChat background reconnect', () => {
 
     await act(async () => {
       backgroundRun.resolve({
+        activity: 'agent-run',
         sessionId: SessionId('session-1'),
         model: SupportedModelId('claude-sonnet-4-5'),
         mode: 'classic',
         startedAt: 1,
+        activityEvents: [],
         messageId: 'assistant-1',
         parts: [
           {
@@ -118,9 +172,10 @@ describe('useAgentChat background reconnect', () => {
               state: 'input-complete',
             },
           },
+          // The main process buffered the delta it sent before answering the read.
           {
             type: 'text',
-            text: 'Earlier',
+            text: 'Earlier later',
           },
         ],
       })

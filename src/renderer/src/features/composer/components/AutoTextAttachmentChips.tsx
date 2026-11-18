@@ -4,6 +4,7 @@ import { Check, FileDown, FileText, ImageIcon, Loader2, X } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { PendingTextAttachmentChip } from '../hooks/useAutoTextAttachment'
+import { BrowserPreviewAttachmentChip } from './BrowserPreviewAttachmentChip'
 
 const KIND_ICON: Record<AttachmentKind, typeof FileText> = {
   image: ImageIcon,
@@ -43,17 +44,17 @@ function AttachmentFileChip({
     <div
       className={cn(
         'group/chip relative inline-flex items-center gap-2 rounded-lg border border-border',
-        'bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary',
+        'bg-bg px-2.5 py-1.5 text-xs text-text-secondary',
       )}
     >
       <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-tertiary">
         <Icon className="size-4 text-text-tertiary" />
       </div>
       <div className="flex flex-col gap-0 overflow-hidden">
-        <span className="max-w-[180px] truncate text-[12px] font-medium leading-tight text-text-primary">
+        <span className="max-w-45 truncate text-xs font-medium leading-tight text-text-primary">
           {attachment.name}
         </span>
-        <span className="text-[10px] leading-tight text-text-tertiary">
+        <span className="text-xs leading-tight text-text-tertiary">
           {ext && `${ext} \u00B7 `}
           {formatSize(attachment.sizeBytes)}
         </span>
@@ -105,7 +106,7 @@ export function AutoTextAttachmentChips({
       {pendingTextAttachmentChips.map((chip) => (
         <span
           key={chip.operationId}
-          className="inline-flex min-w-[210px] flex-col rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary"
+          className="inline-flex min-w-52.5 flex-col rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-text-secondary"
         >
           <span className="inline-flex items-center gap-1.5">
             {chip.status === 'ready' ? (
@@ -113,8 +114,8 @@ export function AutoTextAttachmentChips({
             ) : (
               <Loader2 className="size-3 animate-spin text-text-tertiary" />
             )}
-            <span className="max-w-[120px] truncate">{chip.name}</span>
-            <span className="text-[11px] text-text-tertiary">{String(chip.progressPercent)}%</span>
+            <span className="max-w-30 truncate">{chip.name}</span>
+            <span className="text-xs text-text-tertiary">{String(chip.progressPercent)}%</span>
             {chip.status === 'ready' && chip.attachmentId ? (
               <Button
                 variant="unstyled"
@@ -144,13 +145,21 @@ export function AutoTextAttachmentChips({
           </span>
         </span>
       ))}
-      {visibleAttachments.map((attachment) => (
-        <AttachmentFileChip
-          key={attachment.id}
-          attachment={attachment}
-          onRemove={() => onRemoveAttachment(attachment.id)}
-        />
-      ))}
+      {visibleAttachments.map((attachment) =>
+        attachment.browserPreview ? (
+          <BrowserPreviewAttachmentChip
+            key={attachment.id}
+            attachment={{ ...attachment, browserPreview: attachment.browserPreview }}
+            onRemove={() => onRemoveAttachment(attachment.id)}
+          />
+        ) : (
+          <AttachmentFileChip
+            key={attachment.id}
+            attachment={attachment}
+            onRemove={() => onRemoveAttachment(attachment.id)}
+          />
+        ),
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { usePreferences, useProviders } from '@/features/settings/hooks/useSettings'
 import { useWaggleForm } from '../../hooks/useWaggleForm'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { WaggleAgentSlotCard } from './WaggleAgentSlotCard'
 import { CollaborationSettingsCard } from './WaggleCollaborationSettingsCard'
 import { WagglePresetsPanel } from './WagglePresetsPanel'
@@ -23,12 +24,12 @@ export function WaggleSection() {
   const [agentA, agentB] = formState.agents
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-[20px] font-semibold text-text-primary">Waggle Mode</h2>
+    <SettingsSectionContainer className="space-y-6">
+      <h2 className="text-xl font-semibold text-text-primary">Waggle Mode</h2>
       {displayedError && (
         <p
           role="alert"
-          className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error"
+          className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error-text"
         >
           {displayedError}
         </p>
@@ -66,6 +67,6 @@ export function WaggleSection() {
         }
         onMaxTurnsChange={(maxTurns) => dispatchForm({ type: 'set-max-turns', maxTurns })}
       />
-    </div>
+    </SettingsSectionContainer>
   )
 }

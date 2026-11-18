@@ -9,11 +9,16 @@ import {
   ENTRY_FAMILY_DESCRIPTORS,
   type ManifestCommandContribution,
   type ManifestEntryContribution,
+  type ManifestSessionSummaryContribution,
+  SESSION_SUMMARY_FAMILY_DESCRIPTOR,
 } from './extension-contribution-family-model'
 
 export interface ContributionRegistrationEntry {
   readonly family: ExtensionContributionFamily
-  readonly contribution: ManifestCommandContribution | ManifestEntryContribution
+  readonly contribution:
+    | ManifestCommandContribution
+    | ManifestEntryContribution
+    | ManifestSessionSummaryContribution
 }
 
 export interface ContributionRegistrationResult {
@@ -38,7 +43,7 @@ function contributionRegistrationFailureDiagnostic(input: {
   readonly family: ExtensionContributionFamily
   readonly error: unknown
   readonly index?: number
-}): ExtensionDiagnostic {
+}) {
   const suffix =
     input.index === undefined
       ? `contributions.${input.family}`
@@ -76,14 +81,15 @@ function listDescriptorContributionsSafely<Contribution>(input: {
   }
 }
 
-function registerContributionSafely<
-  Contribution extends ManifestCommandContribution | ManifestEntryContribution,
->(input: {
+function registerContributionSafely(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
-  readonly contribution: Contribution
+  readonly contribution:
+    | ManifestCommandContribution
+    | ManifestEntryContribution
+    | ManifestSessionSummaryContribution
   readonly index: number
-}): ContributionRegistrationAttempt {
+}) {
   try {
     const authorization = authorizeContributionRegistration({
       extensionPackage: input.extensionPackage,
@@ -92,15 +98,20 @@ function registerContributionSafely<
       index: input.index,
     })
     if (authorization._tag === 'rejected') {
-      return { registration: null, diagnostics: authorization.diagnostics }
+      const attempt: ContributionRegistrationAttempt = {
+        registration: null,
+        diagnostics: authorization.diagnostics,
+      }
+      return attempt
     }
 
-    return {
+    const attempt: ContributionRegistrationAttempt = {
       registration: { family: input.family, contribution: input.contribution },
       diagnostics: [],
     }
+    return attempt
   } catch (error) {
-    return {
+    const attempt: ContributionRegistrationAttempt = {
       registration: null,
       diagnostics: [
         contributionRegistrationFailureDiagnostic({
@@ -111,11 +122,15 @@ function registerContributionSafely<
         }),
       ],
     }
+    return attempt
   }
 }
 
 function registerDescriptorContributions<
-  Contribution extends ManifestCommandContribution | ManifestEntryContribution,
+  Contribution extends
+    | ManifestCommandContribution
+    | ManifestEntryContribution
+    | ManifestSessionSummaryContribution,
 >(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly descriptors: readonly ContributionFamilyDescriptor<Contribution>[]
@@ -146,12 +161,11 @@ function registerDescriptorContributions<
   }
 }
 
-export function packageContributionRegistrations(
-  extensionPackage: DiscoveredExtensionPackage,
-): ContributionRegistrationResult {
+export function packageContributionRegistrations(extensionPackage: DiscoveredExtensionPackage) {
   const contributions = extensionPackage.manifest?.contributions
   if (!contributions) {
-    return { registrations: [], diagnostics: [] }
+    const result: ContributionRegistrationResult = { registrations: [], diagnostics: [] }
+    return result
   }
 
   const registrations: ContributionRegistrationEntry[] = []
@@ -171,6 +185,14 @@ export function packageContributionRegistrations(
     registrations,
     diagnostics,
   })
+  registerDescriptorContributions({
+    extensionPackage,
+    descriptors: [SESSION_SUMMARY_FAMILY_DESCRIPTOR],
+    contributions,
+    registrations,
+    diagnostics,
+  })
 
-  return { registrations, diagnostics }
+  const result: ContributionRegistrationResult = { registrations, diagnostics }
+  return result
 }

@@ -1,0 +1,159 @@
+import { FollowUpId, RunId, SessionId } from '@shared/types/brand'
+import { describe, expect, it } from 'vitest'
+import { applyQueueMutation } from '../queue-aggregate'
+
+describe('Session Control queue aggregate', () => {
+  it('reorders the complete queue under its expected revision', () => {
+    const first = {
+      id: FollowUpId('follow-up-first'),
+      intent: {
+        text: 'First',
+        attachmentIds: [],
+        callerId: 'local-user',
+        acceptedAt: 1000,
+        idempotencyKey: 'first',
+      },
+      deliveryState: 'pending',
+    } as const
+    const second = {
+      id: FollowUpId('follow-up-second'),
+      intent: {
+        text: 'Second',
+        attachmentIds: [],
+        callerId: 'local-user',
+        acceptedAt: 2000,
+        idempotencyKey: 'second',
+      },
+      deliveryState: 'pending',
+    } as const
+    const sessionId = SessionId('session-target')
+
+    const result = applyQueueMutation({
+      nextRunId: RunId('run-unused'),
+      state: {
+        sessionId,
+        revision: 10,
+        run: { state: 'idle' },
+        followUpQueue: { state: 'running', revision: 5, items: [first, second] },
+      },
+      mutation: {
+        type: 'reorder',
+        expectedRevision: 5,
+        orderedFollowUpIds: [second.id, first.id],
+      },
+    })
+
+    expect(result).toEqual({
+      accepted: true,
+      state: {
+        sessionId,
+        revision: 11,
+        run: { state: 'idle' },
+        followUpQueue: { state: 'running', revision: 6, items: [second, first] },
+      },
+      outcome: {
+        operation: 'queue-reorder',
+        effect: 'queue-updated',
+        sessionId,
+        queueState: 'running',
+        queueRevision: 6,
+        remainingFollowUpIds: [second.id, first.id],
+        stateRevision: 11,
+      },
+    })
+  })
+
+  it('names the withdrawn Follow-ups apart from the ones that remain queued', () => {
+    const intent = (text: string) => ({
+      text,
+      attachmentIds: [],
+      callerId: 'local-user',
+      acceptedAt: 1000,
+      idempotencyKey: text,
+    })
+    const first = {
+      id: FollowUpId('first'),
+      intent: intent('First'),
+      deliveryState: 'pending',
+    } as const
+    const second = {
+      id: FollowUpId('second'),
+      intent: intent('Second'),
+      deliveryState: 'pending',
+    } as const
+    const third = {
+      id: FollowUpId('third'),
+      intent: intent('Third'),
+      deliveryState: 'pending',
+    } as const
+    const sessionId = SessionId('session-target')
+
+    const result = applyQueueMutation({
+      nextRunId: RunId('run-unused'),
+      state: {
+        sessionId,
+        revision: 3,
+        run: { state: 'active', runId: RunId('run-active') },
+        followUpQueue: { state: 'running', revision: 2, items: [first, second, third] },
+      },
+      mutation: { type: 'withdraw', followUpIds: [first.id, third.id] },
+    })
+
+    expect(result).toMatchObject({
+      accepted: true,
+      outcome: {
+        operation: 'queue-withdraw',
+        effect: 'queue-updated',
+        withdrawnFollowUpIds: [first.id, third.id],
+        remainingFollowUpIds: [second.id],
+      },
+    })
+    expect(result.accepted && 'followUpIds' in result.outcome).toBe(false)
+  })
+
+  it('atomically starts the pending head when an idle recovered queue resumes', () => {
+    const sessionId = SessionId('session-target')
+    const followUpId = FollowUpId('follow-up-recovered')
+    const intent = {
+      text: 'Continue after recovery.',
+      attachmentIds: [],
+      callerId: 'local-user',
+      acceptedAt: 1000,
+      idempotencyKey: 'recovered',
+    }
+
+    const result = applyQueueMutation({
+      nextRunId: RunId('run-resumed'),
+      state: {
+        sessionId,
+        revision: 4,
+        run: { state: 'idle' },
+        followUpQueue: {
+          state: 'paused',
+          revision: 8,
+          items: [{ id: followUpId, deliveryState: 'pending', intent }],
+        },
+      },
+      mutation: { type: 'resume', expectedRevision: 8 },
+    })
+
+    expect(result).toEqual({
+      accepted: true,
+      state: {
+        sessionId,
+        revision: 5,
+        run: { state: 'starting', runId: RunId('run-resumed'), intent },
+        followUpQueue: { state: 'running', revision: 10, items: [] },
+      },
+      outcome: {
+        operation: 'queue-resume',
+        effect: 'started-run',
+        sessionId,
+        runId: RunId('run-resumed'),
+        followUpId,
+        queueRevision: 10,
+        stateRevision: 5,
+      },
+    })
+  })
+})

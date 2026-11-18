@@ -1,5 +1,7 @@
 import type { AgentSendPayload, AttachmentRecord } from '@shared/types/agent'
 import type { UIMessage } from '@shared/types/chat-ui'
+import { takeAttachmentPreviewUrl } from '@/shared/lib/attachment-preview-urls'
+import { OPTIMISTIC_USER_MESSAGE_ID_PREFIX } from './optimistic-user-message'
 
 const MAX_ATTACHMENT_PREVIEW_CHARS = 320
 let optimisticUserMessageCounter = 0
@@ -24,30 +26,55 @@ export function formatAttachmentPreview(
   return `${ATTACHMENT_TEXT_PREFIX}${attachment.name}\n${clipped}`
 }
 
-export function buildClientUserMessage(payload: AgentSendPayload) {
-  const chunks: string[] = []
+function buildClientUserMessageParts(payload: AgentSendPayload) {
   const text = payload.text.trim()
-  if (text) {
-    chunks.push(text)
-  }
-  for (const attachment of payload.attachments) {
-    chunks.push(formatAttachmentPreview(attachment))
-  }
-  return chunks.join('\n\n')
+  const extract: Extract<UIMessage['parts'][number], { type: 'text' }>[] = [
+    ...(text ? [{ type: 'text' as const, content: text }] : []),
+    ...payload.attachments.map((attachment) => ({
+      type: 'text' as const,
+      content: formatAttachmentPreview(attachment),
+    })),
+  ]
+  return extract
 }
 
-export function createOptimisticUserMessage(payload: AgentSendPayload): UIMessage {
+export function buildClientUserMessage(payload: AgentSendPayload) {
+  return buildClientUserMessageParts(payload)
+    .map((part) => part.content)
+    .join('\n\n')
+}
+
+export function createOptimisticUserMessage(payload: AgentSendPayload) {
   optimisticUserMessageCounter += 1
+  const imageParts: UIMessage['parts'] = payload.attachments.flatMap((attachment, index) => {
+    const previewUrl = takeAttachmentPreviewUrl(attachment.id)
+    return attachment.kind === 'image' && previewUrl
+      ? [
+          {
+            type: 'image' as const,
+            source: { value: previewUrl },
+            name: attachment.name,
+            attachmentIndex: index,
+          },
+        ]
+      : []
+  })
 
   return {
-    id: `optimistic-user-${Date.now()}-${String(optimisticUserMessageCounter)}`,
+    id: `${OPTIMISTIC_USER_MESSAGE_ID_PREFIX}${Date.now()}-${String(optimisticUserMessageCounter)}`,
     role: 'user',
-    parts: [
-      {
-        type: 'text',
-        content: buildClientUserMessage(payload),
-      },
-    ],
+    parts: [...imageParts, ...buildClientUserMessageParts(payload)],
     createdAt: new Date(),
-  }
+    ...(payload.waggle
+      ? {
+          metadata: {
+            waggleInvocation: {
+              presetId: payload.waggle.presetId,
+              presetName: payload.waggle.presetName,
+              source: payload.waggle.source,
+            },
+          },
+        }
+      : {}),
+  } satisfies UIMessage
 }

@@ -1,3 +1,21 @@
+export { reconcileQueuedRunStarts } from './queued-run-start-reconcile'
+export {
+  heldEdit,
+  isLostFollowUpEdit,
+  SessionControlRejectedError,
+  type SessionFollowUpEdit,
+  type SessionFollowUpQueueItem,
+  type SessionFollowUpQueueSnapshot,
+} from './session-follow-up-queue-model'
 export { useChatPanelSections } from './use-chat-panel-controller'
 export { useBackgroundRunMonitor } from './useBackgroundRunMonitor'
 export { useChat } from './useChat'
+export { useNavigateBackToApp } from './useNavigateBackToApp'
+export { sessionFollowUpQueueOptions, useSessionFollowUpQueue } from './useSessionFollowUpQueue'
+export {
+  defaultThinkingLevelQueryOptions,
+  invalidateDefaultThinkingLevel,
+  useSessionSettingsChangeable,
+  useSessionThinkingLevel,
+} from './useSessionThinkingLevel'
+export { useSetupActionTerminalReconciliation } from './useSetupActionTerminalReconciliation'

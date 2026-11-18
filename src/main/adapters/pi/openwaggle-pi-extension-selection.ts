@@ -6,7 +6,6 @@ import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../
 import type { ExtensionLifecycleRepositoryShape } from '../../ports/extension-lifecycle-repository'
 import type { ExtensionManagerServiceShape } from '../../ports/extension-manager-service'
 import type { ExtensionProjectOverridesRepositoryShape } from '../../ports/extension-project-overrides-repository'
-import type { OpenWaggleExtensionPiResourceRoot } from './openwaggle-pi-settings-resources'
 
 export interface OpenWagglePiExtensionSelectionServices {
   readonly manager: ExtensionManagerServiceShape
@@ -89,7 +88,7 @@ export function listRuntimeEnabledPackagePaths(
 
 export function getRuntimeEnabledPackagePiResourceRoots(
   selection: RuntimeEnabledOpenWaggleExtensionPackage,
-): readonly OpenWaggleExtensionPiResourceRoot[] {
+) {
   return (selection.extensionPackage.manifest?.pi?.resourceRoots ?? []).map((resourceRoot) => ({
     packagePath: selection.packagePath,
     resourceRoot,

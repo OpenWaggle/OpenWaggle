@@ -22,40 +22,38 @@ function StatusPill({
   readonly tone: StatusPillTone
 }) {
   const toneClassName = match(tone)
-    .with('good', () => 'bg-emerald-500/10 text-emerald-300')
-    .with('warning', () => 'bg-amber-500/10 text-amber-300')
-    .with('error', () => 'bg-error/10 text-error')
+    .with('good', () => 'bg-success/10 text-success')
+    .with('warning', () => 'bg-warning/10 text-warning')
+    .with('error', () => 'bg-error/10 text-error-text')
     .with('neutral', () => 'bg-bg-tertiary text-text-tertiary')
     .exhaustive()
 
   return (
-    <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', toneClassName)}>
+    <span className={cn('rounded px-1.5 py-0.5 text-xs font-medium', toneClassName)}>
       {children}
     </span>
   )
 }
 
-function projectOverridePill(
-  projectOverride: ExtensionProjectOverrideView | null,
-): { readonly tone: StatusPillTone; readonly label: string } | null {
+function projectOverridePill(projectOverride: ExtensionProjectOverrideView | null) {
   if (!projectOverride) {
     return null
   }
 
-  return projectOverride.disabled
-    ? {
-        tone: 'warning',
-        label: OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.DISABLED_LABEL,
-      }
-    : {
-        tone: 'neutral',
-        label: OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.ACTIVE_LABEL,
-      }
+  return (
+    projectOverride.disabled
+      ? {
+          tone: 'warning',
+          label: OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.DISABLED_LABEL,
+        }
+      : {
+          tone: 'neutral',
+          label: OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.ACTIVE_LABEL,
+        }
+  ) satisfies { readonly tone: StatusPillTone; readonly label: string } | null
 }
 
-function projectOverridesSummaryPill(
-  extensionPackage: ExtensionPackageSummary,
-): { readonly tone: StatusPillTone; readonly label: string } | null {
+function projectOverridesSummaryPill(extensionPackage: ExtensionPackageSummary) {
   if (extensionPackage.projectOverride || extensionPackage.projectOverrides.length === 0) {
     return null
   }
@@ -64,26 +62,35 @@ function projectOverridesSummaryPill(
     (projectOverride) => projectOverride.disabled,
   ).length
   if (disabledCount === 0) {
-    return { tone: 'neutral', label: 'All projects active' }
+    return { tone: 'neutral', label: 'All projects active' } satisfies {
+      readonly tone: StatusPillTone
+      readonly label: string
+    }
   }
 
   return {
     tone: 'warning',
     label: `${disabledCount} project opt-out${disabledCount === 1 ? '' : 's'}`,
-  }
+  } satisfies { readonly tone: StatusPillTone; readonly label: string }
 }
 
-function sdkStatusPill(extensionPackage: ExtensionPackageSummary): {
-  readonly tone: StatusPillTone
-  readonly label: string
-} {
+function sdkStatusPill(extensionPackage: ExtensionPackageSummary) {
   if (hasErrorDiagnostics(extensionPackage)) {
-    return { tone: 'error', label: 'Invalid' }
+    return { tone: 'error', label: 'Invalid' } satisfies {
+      readonly tone: StatusPillTone
+      readonly label: string
+    }
   }
   if (isSdkCompatible(extensionPackage)) {
-    return { tone: 'good', label: 'SDK compatible' }
+    return { tone: 'good', label: 'SDK compatible' } satisfies {
+      readonly tone: StatusPillTone
+      readonly label: string
+    }
   }
-  return { tone: 'warning', label: 'SDK blocked' }
+  return { tone: 'warning', label: 'SDK blocked' } satisfies {
+    readonly tone: StatusPillTone
+    readonly label: string
+  }
 }
 
 function ProjectStatusPills({
@@ -205,8 +212,8 @@ export function PackageTrustIcon({
   readonly extensionPackage: ExtensionPackageSummary
 }) {
   return extensionPackage.lifecycle?.trusted ? (
-    <ShieldCheck className="size-4 shrink-0 text-emerald-300" />
+    <ShieldCheck className="size-4 shrink-0 text-success" />
   ) : (
-    <AlertTriangle className="size-4 shrink-0 text-amber-300" />
+    <AlertTriangle className="size-4 shrink-0 text-warning" />
   )
 }

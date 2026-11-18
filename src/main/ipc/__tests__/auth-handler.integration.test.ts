@@ -33,6 +33,29 @@ vi.mock('../../runtime', () => ({
       ),
     ),
 }))
+vi.mock('../../gui-runtime', () => ({
+  runGuiEffectExit: (effect: Effect.Effect<unknown, unknown, ProviderOAuthService>) =>
+    Effect.runPromiseExit(
+      Effect.provide(
+        effect,
+        Layer.succeed(
+          ProviderOAuthService,
+          ProviderOAuthService.of({
+            listProviders: () => Effect.succeed(['openrouter', 'openai']),
+            login: () => Effect.void,
+            logout: () => Effect.void,
+            isConnected: () => Effect.succeed(false),
+            getAccountInfo: (provider) =>
+              Effect.succeed({
+                provider,
+                connected: false,
+                label: 'Not connected',
+              }),
+          }),
+        ),
+      ),
+    ),
+}))
 
 vi.mock('../../logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn() }),
@@ -63,16 +86,14 @@ describe('auth-handler', () => {
     vi.clearAllMocks()
   })
 
-  it('registers all auth IPC channels', async () => {
+  it('registers the auth channels no other case invokes', async () => {
     const { registerAuthHandlers } = await import('../auth-handler')
     registerAuthHandlers()
 
     const registeredChannels = mockHandle.mock.calls.map((call: unknown[]) => call[0])
-    expect(registeredChannels).toContain('auth:start-oauth')
-    expect(registeredChannels).toContain('auth:submit-code')
-    expect(registeredChannels).toContain('auth:cancel-oauth')
-    expect(registeredChannels).toContain('auth:disconnect')
-    expect(registeredChannels).toContain('auth:get-account-info')
+    expect(registeredChannels).toEqual(
+      expect.arrayContaining(['auth:start-oauth', 'auth:submit-code']),
+    )
   })
 
   it('auth:get-account-info handler returns account info', async () => {

@@ -7,15 +7,7 @@ interface UsePopoverOptions {
   isActive?: boolean
 }
 
-interface UsePopoverReturn {
-  isOpen: boolean
-  open: () => void
-  close: () => void
-  toggle: () => void
-  containerRef: React.RefObject<HTMLDivElement | null>
-}
-
-export function usePopover(options: UsePopoverOptions = {}): UsePopoverReturn {
+export function usePopover(options: UsePopoverOptions = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 

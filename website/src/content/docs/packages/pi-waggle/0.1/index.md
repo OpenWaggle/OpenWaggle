@@ -1,21 +1,52 @@
 ---
 title: "@openwaggle/pi-waggle"
-description: "Pi-native Waggle package that installs Waggle mode on top of @openwaggle/waggle-core."
+description: "Run two configurable Pi agents in alternating turns until they reach consensus or a safety limit."
 order: 5
 section: "Packages"
+kind: "guide"
 ---
 
-`@openwaggle/pi-waggle` is the Pi-native Waggle package.
+`@openwaggle/pi-waggle` adds a structured two-agent collaboration loop to Pi.
 
-Use it when you want Waggle mode inside a Pi runtime. It includes the reusable `@openwaggle/waggle-core` policy dependency, registers the default `/waggle` and `/standard` commands, renders Pi-native Waggle messages, and stores Waggle mode state with Pi custom messages.
+## What Waggle mode does
 
-<package-install packages="@openwaggle/pi-waggle @earendil-works/pi-coding-agent @earendil-works/pi-tui"></package-install>
+Waggle mode gives the same task to two configurable agents and lets them alternate turns in one Pi session. Each agent sees the work already produced, can use Pi's normal tools, and contributes from a different role. The loop stops when the agents reach consensus, the configured turn safety limit is reached, the user stops it, or an error prevents another turn.
 
-`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` are peer dependencies. Install versions compatible with the range in the package manifest.
+For example, one agent can implement a change while another reviews it, an attacker can probe a design while a defender hardens it, or an advocate and critic can test competing approaches. Use Waggle mode when a task benefits from iteration and opposing viewpoints. Standard Pi mode is usually faster and cheaper for simple questions or one-step edits.
+
+The package includes `@openwaggle/waggle-core`, registers `/waggle` and `/standard`, renders each turn with Pi-native UI, and persists mode state as Pi custom entries.
+
+## Install in Pi
+
+Install the extension for your user:
+
+```bash
+pi install npm:@openwaggle/pi-waggle
+```
+
+Install it only for the current project:
+
+```bash
+pi install npm:@openwaggle/pi-waggle -l
+```
+
+Try it for one run without keeping it installed:
+
+```bash
+pi -e npm:@openwaggle/pi-waggle
+```
+
+Pi installs the package and provides its Pi SDK and `typebox` peer dependencies. After installation, run `/waggle` to choose or configure a preset.
+
+If you are importing the package APIs into another project instead of installing the Pi extension, use your package manager:
+
+<package-install packages="@openwaggle/pi-waggle @earendil-works/pi-ai @earendil-works/pi-coding-agent @earendil-works/pi-tui typebox"></package-install>
+
+`@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox` are host-provided peer dependencies. Application developers should install the versions their Pi host uses.
 
 Pi users normally install `@openwaggle/pi-waggle` alone for Waggle mode. Install `@openwaggle/waggle-core` directly only when your code imports core helpers itself.
 
-## Pi Extension Entry
+## Pi extension entry
 
 The `./extension` subpath exposes the default Pi extension factory:
 
@@ -46,9 +77,9 @@ import { parsePiWaggleCommandArgs } from '@openwaggle/pi-waggle/commands'
 const intent = parsePiWaggleCommandArgs('code-review review this diff')
 ```
 
-## Runtime State And Messages
+## Runtime state and messages
 
-Pi Waggle uses Pi custom message types under the `pi-waggle.*` namespace:
+Pi Waggle persists branch mode state in a `pi-waggle.mode-state` custom entry. Turn and user-request content use custom messages. Both use identifiers under the `pi-waggle.*` namespace:
 
 ```ts
 import {
@@ -62,7 +93,7 @@ import {
 
 Use these helpers when projecting or rendering Pi Waggle state. Do not seed a parallel metadata tree outside Pi session data.
 
-## Custom Loop Integration
+## Custom loop integration
 
 Advanced Pi integrations can use the loop helpers directly when they need custom metadata, message creation, or completion handling:
 
@@ -85,9 +116,11 @@ export function createCustomWaggle(config: WaggleConfig) {
 }
 ```
 
-Most users should start with the default extension export. Reach for loop helpers only when you are embedding Waggle into a custom Pi package.
+The helper returns a controller. Register its `factory` as a Pi extension factory and await `done` for loop completion. The default turn-model resolver requires an explicit provider-qualified model. To handle `$inherit`, provide your own `resolveTurnModel` callback.
 
-## Boundary Rules
+Most users should start with the default extension export, which handles inherited model selection. Use loop helpers when embedding Waggle into a custom Pi package.
+
+## Boundary rules
 
 `@openwaggle/pi-waggle` is Pi-specific. It may import Pi SDK packages and `@openwaggle/waggle-core`, but it should not be used as an OpenWaggle renderer dependency or browser-only extension UI package.
 
@@ -98,12 +131,15 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](/docs/packages/waggl
 | Requirement | Supported line |
 |-------------|----------------|
 | Node.js | 22.19 and newer |
-| Pi coding agent | Compatible `0.80.x` peer range from the package manifest |
-| Pi TUI | Compatible `0.80.x` peer range from the package manifest |
+| Pi coding agent | Host-provided peer. Match your host's SDK version |
+| Pi TUI | Host-provided peer. Match your host's TUI version |
+| TypeBox (`typebox`) | Host-provided peer. Match the version your Pi host supplies |
 | Module format | ESM and CommonJS |
 | Pi Waggle documentation | 0.1 |
 
-## Reference And Support
+The peer declarations accept any version, but that is not a guarantee of compatibility with every Pi release. The [repository dependency catalog](https://github.com/OpenWaggle/OpenWaggle/blob/main/pnpm-workspace.yaml) records the versions used by the current source integration.
+
+## Reference and support
 
 - [Complete API reference](./api-reference)
 - [npm package](https://www.npmjs.com/package/@openwaggle/pi-waggle)
@@ -114,8 +150,8 @@ For runtime-neutral policy, use [`@openwaggle/waggle-core`](/docs/packages/waggl
 
 **Pi does not discover the extension.** Install the package in the Pi package environment and confirm the package manifest exposes `./dist/extension.js` through its `pi.extensions` entry.
 
-**Commands render but state does not persist.** Preserve the `pi-waggle.*` custom messages in Pi session data and avoid a parallel host-owned state tree.
+**Commands render but state does not persist.** Preserve `pi-waggle.mode-state` custom entries as well as turn and user-request custom messages in Pi session data. Saving only messages loses the persisted mode state.
 
-**Peer dependency warnings appear.** Install Pi coding-agent and TUI versions compatible with the exact peer ranges in the package manifest.
+**Peer dependency warnings appear.** Install the Pi coding-agent, TUI and `typebox` versions used by your host. The package's wildcard peer declarations do not select those versions for you.
 
 There are no migrations within the `0.1` documentation line. Future incompatible changes will receive a new versioned documentation line and migration guide.

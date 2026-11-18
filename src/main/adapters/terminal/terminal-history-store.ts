@@ -1,0 +1,329 @@
+import { TERMINAL } from '@shared/constants/resource-limits'
+import type { TerminalKey, TerminalOwnerKey } from '@shared/types/terminal'
+import { createLogger } from '../../logger'
+import {
+  appendWithCursor,
+  recoverHistoryCursor,
+  replaceWithCursor,
+} from './terminal-history-cursor'
+import {
+  makeTerminalHistoryFiles,
+  ownerKeyFromTerminalKey,
+  type TerminalHistoryFiles,
+} from './terminal-history-files'
+import {
+  discardHistoryFailures,
+  discardKeyFailure,
+  type PendingHistoryBatch,
+  persistHistoryBatches,
+} from './terminal-history-flush'
+import { makeTerminalHistoryMover, type TerminalHistoryMover } from './terminal-history-moves'
+import { removeTerminalHistoryForPath } from './terminal-history-path-cleanup'
+import {
+  HISTORY_COMPACT_TARGET_BYTES,
+  HISTORY_COMPACT_TARGET_LINES,
+  measureTerminalHistoryText,
+  retainPendingHistoryBatch,
+  retainTerminalHistorySuffix,
+  type TerminalHistoryCounts,
+} from './terminal-history-retention'
+import { stripTerminalReplaySequences } from './terminal-history-sanitizer'
+import type { TerminalHistoryStore } from './terminal-history-store-types'
+
+export type { TerminalHistoryStore }
+
+const logger = createLogger('terminal-history')
+
+const logMutationFailure = (error: unknown) =>
+  logger.warn('Terminal history mutation failed', {
+    error: error instanceof Error ? error.message : String(error),
+  })
+
+class TerminalHistoryStoreImpl implements TerminalHistoryStore {
+  private flushTimer: NodeJS.Timeout | null = null
+  private mutationTail: Promise<void> = Promise.resolve()
+  private readonly pending = new Map<TerminalKey, PendingHistoryBatch>()
+  private readonly retryBatches: [TerminalKey, PendingHistoryBatch][] = []
+  private readonly failedFlushes = new Map<TerminalKey, unknown>()
+  private readonly states = new Map<TerminalKey, TerminalHistoryCounts>()
+  private readonly workingDirectories = new Map<TerminalKey, string>()
+  private readonly files: TerminalHistoryFiles
+  private readonly mover: TerminalHistoryMover
+
+  constructor(logsDir: string) {
+    this.files = makeTerminalHistoryFiles(logsDir)
+    this.mover = makeTerminalHistoryMover(this.files, this.states, this.workingDirectories)
+  }
+
+  async read(key: TerminalKey) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier
+      await this.recoverCursor(key)
+      return stripTerminalReplaySequences(await this.readPersistedRaw(key))
+    }).catch(() => '')
+  }
+
+  async readWithCursor(key: TerminalKey) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier
+      const endOffset = await this.recoverCursor(key)
+      // Action cursors count the persisted bytes, including C0 controls that
+      // replay scrubbing would remove from the ordinary terminal read path.
+      const text = await this.readPersistedRaw(key)
+      return { text, endOffset }
+    })
+  }
+
+  registerWorkingDirectory(key: TerminalKey, cwd: string) {
+    this.workingDirectories.set(key, cwd)
+    return this.enqueueMutation(async () => {
+      await this.files.ensureDirectory()
+      await this.files.ensureWorkingDirectory(key, cwd)
+    })
+  }
+
+  append = (key: TerminalKey, chunk: string) => this.queueAppend(key, chunk, null)
+
+  appendWithCursor(key: TerminalKey, chunk: string, endOffset: number) {
+    if (!Number.isSafeInteger(endOffset) || endOffset < 0) {
+      throw new Error('Invalid terminal history cursor.')
+    }
+    this.queueAppend(key, chunk, endOffset)
+  }
+
+  private queueAppend(key: TerminalKey, chunk: string, endOffset: number | null) {
+    if (chunk.length === 0) return
+    const measured = measureTerminalHistoryText(chunk)
+    const batch = this.pending.get(key) ?? { parts: [], bytes: 0, lines: 0, endOffset: null }
+    batch.parts.push(chunk)
+    batch.bytes += measured.bytes
+    batch.lines += measured.lines
+    if (endOffset !== null) batch.endOffset = endOffset
+    retainPendingHistoryBatch(batch)
+    this.pending.set(key, batch)
+    this.scheduleFlush()
+  }
+
+  truncate(key: TerminalKey) {
+    this.forgetPendingKey(key)
+    return this.enqueueMutation(async () => {
+      discardKeyFailure(key, this.retryBatches, this.failedFlushes)
+      await this.files.ensureDirectory()
+      const files = await this.ensureHistoryFiles(key)
+      await this.files.writePrivate(files.logFile, '')
+      await this.files.remove([files.cursorFile])
+      this.states.set(key, { bytes: 0, lines: 0 })
+    })
+  }
+
+  remove(key: TerminalKey) {
+    this.forgetPendingKey(key)
+    return this.enqueueMutation(async () => {
+      discardKeyFailure(key, this.retryBatches, this.failedFlushes)
+      const files = this.files.describe(key)
+      await this.files.remove([
+        files.logFile,
+        files.metadataFile,
+        files.workingDirectoryFile,
+        files.cursorFile,
+      ])
+      this.states.delete(key)
+      this.workingDirectories.delete(key)
+    })
+  }
+
+  removeForOwner(ownerKey: TerminalOwnerKey) {
+    const matches = (key: TerminalKey) => ownerKeyFromTerminalKey(key) === ownerKey
+    for (const key of this.pending.keys()) if (matches(key)) this.pending.delete(key)
+    discardHistoryFailures(matches, this.retryBatches, this.failedFlushes)
+    return this.enqueueMutation(async () => {
+      discardHistoryFailures(matches, this.retryBatches, this.failedFlushes)
+      await this.files.ensureDirectory()
+      const entries = await this.files.listOwnerEntries(ownerKey)
+      await this.files.remove(entries.map((entry) => this.files.pathForEntry(entry)))
+      for (const cache of [this.states, this.workingDirectories]) {
+        for (const key of cache.keys()) if (matches(key)) cache.delete(key)
+      }
+    })
+  }
+
+  removeForPath(directoryPath: string) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier
+      await removeTerminalHistoryForPath(this.files, directoryPath, (key) => {
+        this.forgetPendingKey(key)
+        this.states.delete(key)
+        this.workingDirectories.delete(key)
+      })
+    })
+  }
+
+  move(fromKey: TerminalKey, toKey: TerminalKey) {
+    if (fromKey === toKey) return Promise.resolve()
+    return this.moveKeys(
+      (key) => key === fromKey || key === toKey,
+      () => this.mover.move(fromKey, toKey),
+    )
+  }
+
+  moveOwner(fromOwnerKey: TerminalOwnerKey, toOwnerKey: TerminalOwnerKey) {
+    if (fromOwnerKey === toOwnerKey) return Promise.resolve()
+    return this.moveKeys(
+      (key) => [fromOwnerKey, toOwnerKey].includes(ownerKeyFromTerminalKey(key)),
+      () => this.mover.moveOwner(fromOwnerKey, toOwnerKey),
+    )
+  }
+
+  release(key: TerminalKey) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier.catch(() => undefined)
+      this.states.delete(key)
+      this.workingDirectories.delete(key)
+    })
+  }
+
+  async flush(key?: TerminalKey) {
+    if (this.flushTimer !== null) clearTimeout(this.flushTimer)
+    this.flushTimer = null
+    await this.queuePendingBatches()
+    if (key !== undefined && this.failedFlushes.has(key)) throw this.failedFlushes.get(key)
+    if (key === undefined && this.failedFlushes.size > 0) {
+      throw this.failedFlushes.values().next().value
+    }
+  }
+
+  cacheSnapshotForTests = () => ({
+    states: [...this.states].map(([key, state]) => ({ key, ...state })),
+    workingDirectories: [...this.workingDirectories].map(([key, cwd]) => ({ key, cwd })),
+  })
+  private enqueueMutation<Result>(mutation: () => Promise<Result>) {
+    const result = this.mutationTail.then(mutation)
+    this.mutationTail = result.then(
+      () => undefined,
+      (error: unknown) => logMutationFailure(error),
+    )
+    return result
+  }
+
+  private async readPersistedRaw(key: TerminalKey) {
+    await this.files.ensureDirectory()
+    const files = this.files.describe(key)
+    const metadata = await this.files.readIfPresent(files.metadataFile)
+    if (metadata === null) return ''
+    if (metadata !== key) throw new Error('Terminal history digest collision')
+    const raw = (await this.files.readIfPresent(files.logFile)) ?? ''
+    const retained = retainTerminalHistorySuffix(
+      raw,
+      TERMINAL.MAX_SCROLLBACK_LINES,
+      TERMINAL.MAX_SCROLLBACK_BYTES,
+    )
+    if (retained.text !== raw) await this.files.writePrivate(files.logFile, retained.text)
+    this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
+    return retained.text
+  }
+
+  private async loadState(key: TerminalKey) {
+    const cached = this.states.get(key)
+    if (cached !== undefined) return cached
+    const files = await this.ensureHistoryFiles(key)
+    const raw = (await this.files.readIfPresent(files.logFile)) ?? ''
+    const retained = retainTerminalHistorySuffix(
+      raw,
+      TERMINAL.MAX_SCROLLBACK_LINES,
+      TERMINAL.MAX_SCROLLBACK_BYTES,
+    )
+    if (retained.text !== raw) await this.files.writePrivate(files.logFile, retained.text)
+    if (retained.text === raw && raw.length > 0) await this.files.makePrivate(files.logFile)
+    this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
+    return retained
+  }
+
+  private async appendBatch(key: TerminalKey, batch: PendingHistoryBatch) {
+    const chunk = batch.parts.join('')
+    if (chunk.length === 0) return
+    await this.files.ensureDirectory()
+    const files = await this.ensureHistoryFiles(key)
+    const committedEnd = await this.recoverCursor(key)
+    if (batch.endOffset !== null && committedEnd === batch.endOffset) return
+    const state = await this.loadState(key)
+    batch.endOffset ??= (committedEnd ?? state.bytes) + batch.bytes
+    if (
+      state.lines + batch.lines <= TERMINAL.MAX_SCROLLBACK_LINES &&
+      state.bytes + batch.bytes <= TERMINAL.MAX_SCROLLBACK_BYTES
+    ) {
+      await appendWithCursor(this.files, files, state.bytes, chunk, batch.endOffset)
+      this.states.set(key, {
+        bytes: state.bytes + batch.bytes,
+        lines: state.lines + batch.lines,
+      })
+      return
+    }
+
+    const existing = (await this.files.readIfPresent(files.logFile)) ?? ''
+    const retained = retainTerminalHistorySuffix(
+      existing + chunk,
+      HISTORY_COMPACT_TARGET_LINES,
+      HISTORY_COMPACT_TARGET_BYTES,
+    )
+    await replaceWithCursor(this.files, files, retained.text, batch.endOffset)
+    this.states.set(key, { bytes: retained.bytes, lines: retained.lines })
+  }
+
+  private ensureHistoryFiles(key: TerminalKey) {
+    const cwd = this.workingDirectories.get(key)
+    return cwd === undefined
+      ? this.files.ensureMetadata(key)
+      : this.files.ensureWorkingDirectory(key, cwd)
+  }
+
+  private forgetPendingKey(key: TerminalKey) {
+    this.pending.delete(key)
+    discardKeyFailure(key, this.retryBatches, this.failedFlushes)
+  }
+
+  private queuePendingBatches() {
+    const batches = [...this.pending.entries()]
+    this.pending.clear()
+    if (batches.length === 0 && this.retryBatches.length === 0) return this.mutationTail
+    return this.enqueueMutation(() =>
+      persistHistoryBatches(
+        [...this.retryBatches.splice(0), ...batches],
+        this.retryBatches,
+        this.failedFlushes,
+        (key, batch) => this.appendBatch(key, batch),
+      ),
+    )
+  }
+
+  private async recoverCursor(key: TerminalKey) {
+    const result = await recoverHistoryCursor(this.files, this.files.describe(key))
+    if (result.recovered) this.states.delete(key)
+    return result.endOffset
+  }
+
+  private scheduleFlush() {
+    if (this.flushTimer !== null) return
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null
+      void this.flush().catch(logMutationFailure)
+    }, TERMINAL.HISTORY_FLUSH_MS)
+  }
+
+  private moveKeys(matches: (key: TerminalKey) => boolean, move: () => Promise<void>) {
+    const pendingBarrier = this.queuePendingBatches()
+    return this.enqueueMutation(async () => {
+      await pendingBarrier
+      for (const [key, error] of this.failedFlushes) if (matches(key)) throw error
+      await move()
+    })
+  }
+}
+
+export const makeTerminalHistoryStore = (logsDir: string) => {
+  const store: TerminalHistoryStore = new TerminalHistoryStoreImpl(logsDir)
+  return store
+}

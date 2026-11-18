@@ -1,11 +1,25 @@
-import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type {
+  AgentSteerDeliveryResult,
+  HydratedAgentSendPayload,
+  Message,
+  MessageScheduledTaskOrigin,
+} from '@shared/types/agent'
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
+import type { WorktreeLaunchProgress } from '@shared/types/background-run'
 import type { ContextCompactionResult, ContextUsageSnapshot } from '@shared/types/context-usage'
+import type { AgentExtensionCommand } from '@shared/types/extension-command'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
+import type { SessionCapability } from '@shared/types/session-capability'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleConfig, WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import { Context, type Effect } from 'effect'
-import type { ProjectedSessionNodeInput } from './session-repository'
+import type { PreparedEnvironment } from '../domain/prepared-environment'
+import type {
+  PendingDelegationSpecificationUpdate,
+  PendingSessionOrchestrationUpdate,
+} from './session-orchestration-update-repository'
+import type { PiSnapshotProjection, ProjectedSessionNodeInput } from './session-repository'
 
 export class AgentKernelMissingEntryError extends Error {
   readonly entryId: string
@@ -26,18 +40,62 @@ export function isAgentKernelMissingEntryError(
 export interface AgentKernelSessionSnapshot {
   readonly nodes: readonly ProjectedSessionNodeInput[]
   readonly activeNodeId: string | null
+  /** Pass it on to `persistSnapshot` with the nodes (D6). */
+  readonly piProjection?: PiSnapshotProjection
+}
+
+export interface AgentKernelRunControl {
+  readonly steer: (payload: HydratedAgentSendPayload) => Promise<AgentSteerDeliveryResult>
 }
 
 export interface AgentKernelRunInput {
+  readonly preparedEnvironment?: PreparedEnvironment
   readonly session: SessionDetail
   readonly runId: string
   readonly payload: HydratedAgentSendPayload
   readonly model: SupportedModelId
+  readonly runAuthorizationOverride?: AgentAuthorizationMode
+  readonly authorityCallerId?: string
+  readonly agentInstructions?: string
+  readonly sessionIdentityContext?: string
+  /** Run-scoped Host identity, delivered per Run outside the cacheable system prompt. */
+  readonly runIdentityContext?: string
+  /** The Scheduled task whose run sent this Run's request, recorded with its prompt message. */
+  readonly scheduledTask?: MessageScheduledTaskOrigin
+  /** Prompt with the Host's Hive wake message instead of a user message (`hive-wake-prompt.ts`). */
+  readonly hiveWake?: true
+  readonly peerAgentReports?: readonly PeerAgentReportContext[]
+  readonly onPeerAgentReportsDelivered?: (reportIds: readonly string[]) => void
+  readonly orchestrationUpdates?: readonly PendingSessionOrchestrationUpdate[]
+  readonly onOrchestrationUpdatesDelivered?: (updateIds: readonly string[]) => void
+  readonly delegationSpecificationUpdates?: readonly PendingDelegationSpecificationUpdate[]
+  readonly onDelegationSpecificationUpdatesDelivered?: (updateIds: readonly string[]) => void
+  readonly toolAllowlist?: readonly string[]
+  readonly skillAllowlist?: readonly string[]
+  readonly mcpServerAllowlist?: readonly string[]
+  readonly sessionCapabilities?: readonly SessionCapability[]
+  readonly modelMultiAgentEnabled?: boolean
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly agentDefinitionToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onControlAvailable?: (control: AgentKernelRunControl) => void
+  readonly onWorktreeLaunch?: (progress: WorktreeLaunchProgress) => void
   readonly waggle?: AgentKernelWaggleRunOptions
+}
+
+export interface PeerAgentReportContext {
+  readonly reportId: string
+  readonly correlationId: string
+  readonly replyToReportId?: string
+  readonly sourceSessionId: string
+  readonly sourceRunId?: string
+  readonly authoredBy: string
+  readonly content: string
+  readonly requestReply: boolean
+  readonly createdAt: number
 }
 
 export interface AgentKernelWaggleRunOptions {
@@ -80,6 +138,7 @@ export interface CreateAgentKernelSessionResult {
 export interface AgentKernelSessionInput {
   readonly session: SessionDetail
   readonly model: SupportedModelId
+  readonly compactionThresholdPercent?: number
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }
@@ -101,6 +160,13 @@ export type AgentKernelForkPosition = 'before' | 'at'
 export interface ForkAgentKernelSessionInput extends AgentKernelSessionInput {
   readonly targetNodeId: string
   readonly position: AgentKernelForkPosition
+  /** What the caller asked for, as a refusal names it: a fork, or a clone of the Session. */
+  readonly copy?: 'fork' | 'clone'
+  /**
+   * Runs once the fork's file is named and before it is written, so a caller can record the file
+   * first: a stop between the two then leaves a file the caller knows of, never an orphan.
+   */
+  readonly beforeWritingFork?: (piSessionFile: string) => Effect.Effect<void, Error>
 }
 
 export interface AgentKernelNavigateTreeResult {
@@ -117,6 +183,11 @@ export interface AgentKernelForkSessionResult {
   readonly sessionSnapshot: AgentKernelSessionSnapshot
   readonly editorText?: string
   readonly cancelled: boolean
+  /**
+   * The source node each fork node was copied from. A fork's nodes get ids of their own, so
+   * per-node data kept outside the Pi file follows its source through this map.
+   */
+  readonly sourceNodeIdByNodeId?: ReadonlyMap<string, string>
 }
 
 export interface AgentKernelServiceShape {
@@ -127,6 +198,10 @@ export interface AgentKernelServiceShape {
   readonly getContextUsage: (
     input: AgentKernelSessionInput,
   ) => Effect.Effect<ContextUsageSnapshot | null, Error>
+  /** The commands the Session's Pi extensions register (`pi.registerCommand`). */
+  readonly listExtensionCommands: (
+    input: AgentKernelSessionInput,
+  ) => Effect.Effect<readonly AgentExtensionCommand[], Error>
   readonly compact: (
     input: CompactAgentKernelSessionInput,
   ) => Effect.Effect<AgentKernelCompactResult, Error>

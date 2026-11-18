@@ -9,6 +9,8 @@ interface SelectedModelThinkingLevelInput {
     readonly models: readonly ModelDisplayInfo[]
   }[]
   readonly selectedModel: SupportedModelId
+  /** The model a selection the catalog lacks runs on: the Session's last answering model. */
+  readonly fallbackModel?: SupportedModelId
   readonly requestedThinkingLevel: ThinkingLevel
 }
 
@@ -39,18 +41,19 @@ function findSelectedModel(
   return null
 }
 
-export function resolveSelectedModelThinkingLevel(
-  input: SelectedModelThinkingLevelInput,
-): SelectedModelThinkingLevel {
-  const model = findSelectedModel(input.providerModels, input.selectedModel)
+export function resolveSelectedModelThinkingLevel(input: SelectedModelThinkingLevelInput) {
+  const model =
+    findSelectedModel(input.providerModels, input.selectedModel) ??
+    (input.fallbackModel ? findSelectedModel(input.providerModels, input.fallbackModel) : null)
   if (!model) {
-    return {
+    const level: SelectedModelThinkingLevel = {
       requestedThinkingLevel: input.requestedThinkingLevel,
       effectiveThinkingLevel: input.requestedThinkingLevel,
       availableThinkingLevels: [],
       capabilitiesKnown: false,
       isAdjustedForModel: false,
     }
+    return level
   }
 
   const effectiveThinkingLevel = clampThinkingLevel(
@@ -58,23 +61,43 @@ export function resolveSelectedModelThinkingLevel(
     model.availableThinkingLevels,
   )
 
-  return {
+  const level: SelectedModelThinkingLevel = {
     requestedThinkingLevel: input.requestedThinkingLevel,
     effectiveThinkingLevel,
     availableThinkingLevels: model.availableThinkingLevels,
     capabilitiesKnown: true,
     isAdjustedForModel: effectiveThinkingLevel !== input.requestedThinkingLevel,
   }
+  return level
 }
 
-export function useSelectedModelThinkingLevel(): SelectedModelThinkingLevel {
-  const selectedModel = usePreferencesStore((state) => state.settings.selectedModel)
-  const requestedThinkingLevel = usePreferencesStore((state) => state.settings.thinkingLevel)
+/**
+ * How `requestedThinkingLevel` (the Session thinking level) applies to the selected model: Pi
+ * clamps it to the levels the model supports when a Run starts.
+ */
+export function useSelectedModelThinkingLevel(
+  selectedModelOverride: SupportedModelId | null | undefined,
+  requestedThinkingLevel: ThinkingLevel,
+  fallbackModel?: SupportedModelId,
+) {
+  const preferredModel = usePreferencesStore((state) => state.settings.selectedModel)
   const providerModels = useProviderStore((state) => state.providerModels)
+  if (selectedModelOverride === null) {
+    const level: SelectedModelThinkingLevel = {
+      requestedThinkingLevel,
+      effectiveThinkingLevel: requestedThinkingLevel,
+      availableThinkingLevels: [],
+      capabilitiesKnown: false,
+      isAdjustedForModel: false,
+    }
+    return level
+  }
+  const selectedModel = selectedModelOverride ?? preferredModel
 
   return resolveSelectedModelThinkingLevel({
     providerModels,
     selectedModel,
+    ...(fallbackModel === undefined ? {} : { fallbackModel }),
     requestedThinkingLevel,
   })
 }

@@ -15,7 +15,7 @@ export function SettingsContributionPill({
   return (
     <span
       className={cn(
-        'rounded px-1.5 py-0.5 text-[10px] font-medium',
+        'rounded px-1.5 py-0.5 text-xs font-medium',
         contributionPillToneClassName(tone),
       )}
     >

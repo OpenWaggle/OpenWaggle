@@ -1,23 +1,32 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type {
   AgentLoopInteraction,
   AgentLoopInteractionResponse,
 } from '@shared/types/agent-loop-interaction'
+import type { SessionId } from '@shared/types/brand'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import { useMessageQueueStore } from '@/features/chat/state'
+import { useSessionFollowUpQueue } from '@/features/chat/hooks/useSessionFollowUpQueue'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
-import { CommandPalette } from '@/features/command-palette/components'
-import {
-  ActionDialog,
-  BranchSummaryPrompt,
-  CompactionStatusStrip,
-  Composer,
-  ComposerBranchRow,
-  QueuedMessages,
-} from '@/features/composer/components'
+import { useIsFinishingRunStoppable } from '@/features/chat/state/run-finishing-store'
+import { BranchSummaryPrompt, Composer, QueuedMessages } from '@/features/composer/components'
 import { useScopedComposerDrafts } from '@/features/composer/hooks'
+import { ExtensionAgentLoopStatusWidgets } from '@/features/extensions'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/features/waggle/components'
+import { projectName } from '@/shared/lib/format'
+import { composerSendFailureDisposition } from '../hooks/composer-send-failure'
+import { useComposerSendGate } from '../hooks/useComposerSendGate'
+import { usePiSessionContinuationGate } from '../hooks/usePiSessionContinuationGate'
+import { CHAT_CONTENT_FRAME_CLASS } from '../lib/chat-content-layout'
+import { getTimelineCompactionStatus, isCompactionRunning } from '../lib/compaction-lifecycle'
 import type { ChatComposerSectionState } from '../model'
+import { withInlineVisualizationContext } from '../state/inline-visualization-state'
+import { AgentCustomInteractionComposerFallback } from './AgentCustomInteractionComposerFallback'
+import { AgentInteractionComposerPrompt } from './AgentInteractionComposerPrompt'
+import { ChatComposerCommandPalette } from './ChatComposerCommandPalette'
 import { ChatComposerExtensionDialogs } from './ChatComposerExtensionDialogs'
+import { ComposerSessionSetupDock } from './ComposerSessionSetupDock'
+import { PiSessionContinuationPrompt } from './PiSessionContinuationPrompt'
+import { SessionAuthorizationModeMenu } from './SessionAuthorizationModeMenu'
 import { SessionForkSelector } from './SessionForkSelector'
 
 interface ChatComposerStackProps {
@@ -37,49 +46,84 @@ const EMPTY_EXTENSION_PROJECT_PATHS: readonly string[] = []
 
 function noOp() {}
 
-export function ChatComposerStack({
+function runStatusTone(status: ChatComposerSectionState['status']) {
+  if (status === 'streaming' || status === 'submitted') return 'running' as const
+  if (status === 'compacting' || status === 'retrying') return 'running' as const
+  return 'neutral' as const
+}
+
+/** A finishing Run offers Stop while its agent still works on, such as an extension's check. */
+function useComposerRunFinishing(
+  status: ChatComposerSectionState['status'],
+  sessionId: SessionId | null,
+) {
+  const stoppable = useIsFinishingRunStoppable(sessionId)
+  if (status !== 'finishing') return undefined
+  return stoppable ? ('stoppable' as const) : ('settling' as const)
+}
+
+function canSteerQueuedMessages(section: ChatComposerSectionState) {
+  const timelineCompactionStatus = getTimelineCompactionStatus(section.compactionStatus)
+  const isStandaloneManualCompaction =
+    timelineCompactionStatus?.reason === 'manual' && isCompactionRunning(section.compactionStatus)
+  // A finishing Run has nothing left to steer into.
+  return (
+    section.status !== 'ready' &&
+    section.status !== 'error' &&
+    section.status !== 'finishing' &&
+    !isStandaloneManualCompaction
+  )
+}
+
+/** Last path segment, so a project-scoped approval names somewhere the user recognises. */
+function projectDisplayName(projectPath: string | null) {
+  if (!projectPath) return null
+  return projectName(projectPath)
+}
+
+function branchSummaryComposerMode(
+  branchSummaryMode: 'choice' | 'summarizing' | 'custom' | null,
+  sessionDetailPending: boolean,
+) {
+  const placeholder = sessionDetailPending
+    ? 'Loading session draft…'
+    : branchSummaryMode === 'custom'
+      ? 'Custom instructions for the branch summary'
+      : undefined
+  return {
+    disabled:
+      sessionDetailPending || branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing',
+    ...(placeholder === undefined ? {} : { placeholder }),
+    requiresText: branchSummaryMode === 'custom',
+    clearOnSubmit: branchSummaryMode !== 'custom',
+    recordHistory: branchSummaryMode !== 'custom',
+    allowEnqueue: branchSummaryMode !== 'custom',
+    ...(branchSummaryMode === 'custom' ? { sendTitle: 'Summarize branch' } : {}),
+  }
+}
+
+function ComposerOverlays({
   section,
-  agentInteractions = EMPTY_AGENT_INTERACTIONS,
-  extensionRegistry = null,
-  extensionProjectPaths = EMPTY_EXTENSION_PROJECT_PATHS,
-  onRespondAgentInteraction,
   onOpenSessionTree,
-}: ChatComposerStackProps) {
+}: {
+  readonly section: ChatComposerSectionState
+  readonly onOpenSessionTree?: () => void
+}) {
   const {
     activeSessionId,
     waggleStatus,
-    commandPaletteOpen,
+    slashCommandMenuOpen,
     slashSkills,
     forkSelectorOpen,
     forkTargets,
-    isLoading,
-    status,
-    compactionStatus,
     onStopCollaboration,
     onSelectSkill,
     onStartWaggle,
-    onSendWithWaggle,
-    onSteer,
-    onCancel,
-    onToast,
-    onSkipBranchSummary,
-    onSummarizeBranch,
-    onStartCustomBranchSummary,
-    onCancelBranchSummary,
     onOpenForkSelector,
     onCloseForkSelector,
     onSelectForkTarget,
     onCloneToNewSession,
   } = section
-
-  useScopedComposerDrafts(activeSessionId)
-
-  const enqueue = useMessageQueueStore((s) => s.enqueue)
-  const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
-  const composerDisabledForBranchSummary =
-    branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing'
-  const composerPlaceholder =
-    branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined
 
   return (
     <>
@@ -87,36 +131,109 @@ export function ChatComposerStack({
         currentSessionId={activeSessionId}
         onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
       />
-
-      {commandPaletteOpen && (
-        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
-          <CommandPalette
-            slashSkills={slashSkills}
-            onSelectSkill={onSelectSkill}
-            onStartWaggle={onStartWaggle}
-            onOpenSessionTree={onOpenSessionTree}
-            onForkToNewSession={onOpenForkSelector}
-            onCloneToNewSession={onCloneToNewSession}
-          />
-        </div>
-      )}
-
+      <ChatComposerCommandPalette
+        open={slashCommandMenuOpen}
+        slashSkills={slashSkills}
+        onSelectSkill={onSelectSkill}
+        onStartWaggle={onStartWaggle}
+        {...(onOpenSessionTree === undefined ? {} : { onOpenSessionTree })}
+        onForkToNewSession={onOpenForkSelector}
+        onCloneToNewSession={onCloneToNewSession}
+      />
       <SessionForkSelector
         open={forkSelectorOpen}
         targets={forkTargets}
         onSelect={onSelectForkTarget}
         onClose={onCloseForkSelector}
       />
+      <PiSessionContinuationPrompt />
+    </>
+  )
+}
 
-      <div className="mx-auto w-full max-w-[720px] px-5 pb-5" data-chat-composer-form="true">
-        {compactionStatus ? (
-          <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
-        ) : null}
+/**
+ * The composer stack.
+ *
+ * The control row below the input uses `min-h-7` with `flex-wrap` rather than a fixed
+ * height. The compact controls are shorter than 28px so the envelope is unchanged, but the
+ * vanished-worktree notice needs room for its message and actions: inside a fixed-height
+ * row flex shrank it to zero width and left its buttons underneath the run-target picker,
+ * unclickable in the app while component tests passed.
+ */
+/**
+ * Queueing runs the same gate as sending.
+ *
+ * A queued message is dispatched later with the raw send, so queueing was a way straight past the
+ * gate: main rejected it with a bare thrown error - its own comment says reaching there means
+ * something bypassed the gate - and the message was silently re-enqueued instead of the user
+ * seeing the recover-or-switch notice.
+ */
+export async function enqueueIfAllowed(input: {
+  readonly payload: AgentSendPayload
+  readonly activeSessionId: SessionId | null
+  readonly sendBlockedReason: string | null
+  readonly enqueue: (payload: AgentSendPayload) => Promise<void>
+  readonly onToast: (message: string) => void
+}) {
+  if (input.sendBlockedReason !== null) {
+    input.onToast(input.sendBlockedReason)
+    return false
+  }
+  if (!input.activeSessionId) return false
+  try {
+    await input.enqueue(withInlineVisualizationContext(input.activeSessionId, input.payload))
+    return true
+  } catch (error) {
+    input.onToast(error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+export function ChatComposerStack({
+  section,
+  agentInteractions = EMPTY_AGENT_INTERACTIONS,
+  extensionRegistry = null,
+  extensionProjectPaths = EMPTY_EXTENSION_PROJECT_PATHS,
+  onRespondAgentInteraction,
+  ...sessionTree
+}: ChatComposerStackProps) {
+  const {
+    activeSessionId,
+    isLoading,
+    onSendWithWaggle,
+    onSteer,
+    onToast,
+    onSkipBranchSummary,
+    onSummarizeBranch,
+    onStartCustomBranchSummary,
+    onCancelBranchSummary,
+  } = section
+  const draftContextReady = useScopedComposerDrafts(activeSessionId)
+  const { strip, guardedSend, sendBlockedReason } = useComposerSendGate({
+    activeSessionId,
+    session: section.session,
+    isFirstMessage: section.isFirstMessage,
+    onSend: onSendWithWaggle,
+    onToast,
+  })
+  const continuationSend = usePiSessionContinuationGate({
+    activeSessionId,
+    session: section.session,
+    send: guardedSend,
+  })
+  const followUpQueue = useSessionFollowUpQueue(activeSessionId)
+  const finishing = useComposerRunFinishing(section.status, activeSessionId)
+  const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
+  return (
+    <>
+      <ComposerOverlays section={section} {...sessionTree} />
+
+      <div className={`${CHAT_CONTENT_FRAME_CLASS} pb-5`} data-chat-composer-form="true">
         <QueuedMessages
           sessionId={activeSessionId}
           onSteer={onSteer}
-          isStreaming={status === 'streaming' || status === 'submitted'}
-          isCompacting={status === 'compacting' || status === 'retrying'}
+          isStreaming={canSteerQueuedMessages(section)}
+          onToast={onToast}
         />
         <BranchSummaryPrompt
           onNoSummary={onSkipBranchSummary}
@@ -124,34 +241,71 @@ export function ChatComposerStack({
           onCustomSummary={onStartCustomBranchSummary}
           onCancel={onCancelBranchSummary}
         />
+        <AgentInteractionComposerPrompt
+          interactions={agentInteractions}
+          onRespond={onRespondAgentInteraction}
+          projectName={projectDisplayName(section.session?.projectPath ?? null)}
+        />
+        <AgentCustomInteractionComposerFallback
+          extensionProjectPaths={extensionProjectPaths}
+          extensionRegistry={extensionRegistry}
+          interactions={agentInteractions}
+          onRespond={onRespondAgentInteraction}
+        />
         <ChatComposerExtensionDialogs
           agentInteractions={agentInteractions}
           extensionProjectPaths={extensionProjectPaths}
           extensionRegistry={extensionRegistry}
           onRespond={onRespondAgentInteraction}
         />
-        <Composer
-          onSend={onSendWithWaggle}
-          onEnqueue={(payload) => {
-            if (activeSessionId) {
-              enqueue(activeSessionId, payload)
+        <div className="contents" data-extension-run-status-host="true">
+          <ExtensionAgentLoopStatusWidgets
+            input={{
+              surface: 'status',
+              status: {
+                label: 'Run status',
+                tone: runStatusTone(section.status),
+              },
+            }}
+            projectPaths={extensionProjectPaths}
+            registry={extensionRegistry}
+          />
+        </div>
+        <div>
+          <ComposerSessionSetupDock section={section} strip={strip} />
+          <Composer
+            accessControl={
+              <SessionAuthorizationModeMenu
+                disabled={section.sessionDetailPending}
+                projectPath={section.projectPath ?? null}
+                session={section.session}
+                onSetAuthorizationMode={section.onSetAuthorizationMode}
+              />
             }
-          }}
-          onCancel={onCancel}
-          isLoading={isLoading}
-          mode={{
-            disabled: composerDisabledForBranchSummary,
-            placeholder: composerPlaceholder,
-            requiresText: branchSummaryMode === 'custom',
-            clearOnSubmit: branchSummaryMode !== 'custom',
-            recordHistory: branchSummaryMode !== 'custom',
-            allowEnqueue: branchSummaryMode !== 'custom',
-            sendTitle: branchSummaryMode === 'custom' ? 'Summarize branch' : undefined,
-          }}
-          onToast={onToast}
-        />
-        <ComposerBranchRow onToast={onToast} />
-        <ActionDialog onToast={onToast} />
+            onSend={continuationSend}
+            onEnqueue={(payload) =>
+              enqueueIfAllowed({
+                payload,
+                activeSessionId,
+                sendBlockedReason,
+                enqueue: followUpQueue.enqueue,
+                onToast,
+              })
+            }
+            onCancel={section.onCancel}
+            isLoading={isLoading}
+            {...(finishing === undefined ? {} : { finishing })}
+            mode={{
+              ...branchSummaryComposerMode(
+                branchSummaryMode,
+                section.sessionDetailPending || !draftContextReady,
+              ),
+              queuedMessagesSessionId: activeSessionId,
+              onSendFailure: (cause) => composerSendFailureDisposition(cause, activeSessionId),
+            }}
+            onToast={onToast}
+          />
+        </div>
       </div>
     </>
   )

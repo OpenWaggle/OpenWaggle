@@ -1,5 +1,5 @@
 import { SESSION_TREE } from '../constants'
-import type { SessionTreeRow, SessionTreeRowGeometry, SessionTreeVerticalConnector } from '../model'
+import type { SessionTreeRow, SessionTreeVerticalConnector } from '../model'
 
 function nodeCenterXPx(depth: number) {
   return SESSION_TREE.LAYOUT.GUTTER_START_PX + depth * SESSION_TREE.LAYOUT.DEPTH_STEP_PX
@@ -62,18 +62,21 @@ function branchElbow(nodeCenter: number, parentCenter: number | null) {
   }
 }
 
-export function getSessionTreeRowGeometry(row: SessionTreeRow): SessionTreeRowGeometry {
+export function getSessionTreeRowGeometry(row: SessionTreeRow) {
   const nodeCenter = nodeCenterXPx(row.visualDepth)
   const parentCenter = row.parentVisualDepth === null ? null : nodeCenterXPx(row.parentVisualDepth)
-  const ancestorLines = row.gutterDepths
-    .filter((depth) => depth !== row.visualDepth)
-    .map((depth) =>
-      verticalConnector({
-        xPx: nodeCenterXPx(depth),
-        yStartPx: -SESSION_TREE.LAYOUT.CONNECTOR_ROW_OVERLAP_PX,
-        yEndPx: SESSION_TREE.LAYOUT.ROW_HEIGHT_PX + SESSION_TREE.LAYOUT.CONNECTOR_ROW_OVERLAP_PX,
-      }),
-    )
+  const ancestorLines = row.gutterDepths.flatMap((depth) =>
+    depth === row.visualDepth
+      ? []
+      : [
+          verticalConnector({
+            xPx: nodeCenterXPx(depth),
+            yStartPx: -SESSION_TREE.LAYOUT.CONNECTOR_ROW_OVERLAP_PX,
+            yEndPx:
+              SESSION_TREE.LAYOUT.ROW_HEIGHT_PX + SESSION_TREE.LAYOUT.CONNECTOR_ROW_OVERLAP_PX,
+          }),
+        ],
+  )
 
   return {
     gutterWidthPx: nodeCenter + SESSION_TREE.LAYOUT.GUTTER_END_PADDING_PX,

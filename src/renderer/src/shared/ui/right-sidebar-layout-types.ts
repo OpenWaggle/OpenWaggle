@@ -9,6 +9,8 @@ export interface WidthAcceptanceContext {
 
 export interface RightSidebarLayoutProps {
   readonly children: ReactNode
+  /** Docked-only full-width mode. The main surface stays mounted and inert. */
+  readonly maximized?: boolean
   readonly open: boolean
   readonly sidebar: ReactNode
   readonly sizing: RightSidebarSizing

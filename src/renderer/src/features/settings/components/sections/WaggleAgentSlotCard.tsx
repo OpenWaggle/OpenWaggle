@@ -37,25 +37,25 @@ export function WaggleAgentSlotCard({
     : agent.model
 
   return (
-    <div className={cn('rounded-lg border bg-[#111418] p-5 space-y-4', AGENT_BORDER[agent.color])}>
+    <div className={cn('rounded-lg border bg-bg p-5 space-y-4', AGENT_BORDER[agent.color])}>
       <div className="flex items-center gap-2">
         <div className={cn('size-2.5 rounded-full', AGENT_BG[agent.color])} />
         <h3 className="text-sm font-medium text-text-secondary">Agent {dotLabel}</h3>
       </div>
 
-      <div className="flex items-center justify-between h-[40px]">
-        <span className="text-[13px] text-text-primary">Label</span>
+      <div className="flex items-center justify-between h-10">
+        <span className="text-xs text-text-primary">Label</span>
         <TextInput
           type="text"
           value={agent.label}
           onChange={(e) => dispatchForm({ type: 'set-agent-label', index, label: e.target.value })}
           inputSize="sm"
-          className="w-[200px] border-border focus:border-border-light"
+          className="w-50 border-border focus:border-border-light"
         />
       </div>
 
-      <div className="flex items-center justify-between h-[40px]">
-        <span className="text-[13px] text-text-primary">Model</span>
+      <div className="flex items-center justify-between h-10">
+        <span className="text-xs text-text-primary">Model</span>
         <ModelSelector
           value={selectedAgentModel}
           onChange={(model) => dispatchForm({ type: 'set-agent-model', index, model })}
@@ -65,7 +65,7 @@ export function WaggleAgentSlotCard({
       </div>
 
       <div className="space-y-1.5">
-        <span className="text-[13px] text-text-primary">Role description</span>
+        <span className="text-xs text-text-primary">Role description</span>
         <Textarea
           value={agent.roleDescription}
           onChange={(e) =>
@@ -78,8 +78,8 @@ export function WaggleAgentSlotCard({
         />
       </div>
 
-      <div className="flex items-center justify-between h-[40px]">
-        <span className="text-[13px] text-text-primary">Color</span>
+      <div className="flex items-center justify-between h-10">
+        <span className="text-xs text-text-primary">Color</span>
         <div className="flex items-center gap-2">
           {WAGGLE_AGENT_COLORS.map((color) => (
             <Button
@@ -91,7 +91,7 @@ export function WaggleAgentSlotCard({
                 'size-6 rounded-full transition-all',
                 AGENT_BG[color],
                 agent.color === color
-                  ? 'ring-2 ring-white/40 ring-offset-1 ring-offset-[#111418]'
+                  ? 'ring-2 ring-text-primary/40 ring-offset-1 ring-offset-bg'
                   : 'opacity-50 hover:opacity-75',
               )}
             />

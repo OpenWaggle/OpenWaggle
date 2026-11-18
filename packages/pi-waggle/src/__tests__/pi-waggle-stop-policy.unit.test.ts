@@ -1,6 +1,6 @@
 import type { AgentEndEvent } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   createPiWaggleStopPolicyState,
   evaluatePiWaggleStopPolicy,
@@ -9,7 +9,7 @@ import {
 
 const MAX_TURNS = 2
 
-function config(): WaggleConfig {
+function config() {
   return {
     mode: 'sequential',
     agents: [
@@ -27,7 +27,7 @@ function config(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: MAX_TURNS },
-  }
+  } satisfies WaggleConfig
 }
 
 function assistantMessage(input: {
@@ -36,11 +36,11 @@ function assistantMessage(input: {
   readonly errorMessage?: string
   readonly toolCallId?: string
   readonly toolCallName?: string
-}): AgentEndEvent['messages'][number] {
-  const content: Array<
+}) {
+  const content: (
     | { type: 'text'; text: string }
-    | { type: 'toolCall'; id: string; name: string; arguments: Record<string, unknown> }
-  > = []
+    | { type: 'toolCall'; id: string; name: string; arguments: Record<string, never> }
+  )[] = []
   if (input.text) content.push({ type: 'text', text: input.text })
   if (input.toolCallId && input.toolCallName) {
     content.push({
@@ -68,10 +68,10 @@ function assistantMessage(input: {
     stopReason: input.stopReason ?? 'stop',
     ...(input.errorMessage ? { errorMessage: input.errorMessage } : {}),
     timestamp: Date.now(),
-  }
+  } satisfies AgentEndEvent['messages'][number]
 }
 
-function toolResultMessage(toolCallId: string): AgentEndEvent['messages'][number] {
+function toolResultMessage(toolCallId: string) {
   return {
     role: 'toolResult',
     toolCallId,
@@ -79,7 +79,7 @@ function toolResultMessage(toolCallId: string): AgentEndEvent['messages'][number
     content: [{ type: 'text', text: 'ok' }],
     isError: false,
     timestamp: Date.now(),
-  }
+  } satisfies AgentEndEvent['messages'][number]
 }
 
 describe('pi-waggle stop policy', () => {
@@ -110,6 +110,47 @@ describe('pi-waggle stop policy', () => {
       classification: 'stopped',
       reason: 'Provider timeout',
     })
+  })
+
+  it("stops at once, with the agent's error, when the host says the error cannot recover", () => {
+    const unauthorized = assistantMessage({
+      stopReason: 'error',
+      errorMessage: '401 Unauthorized: invalid API key',
+    })
+    const isRecoverableError = vi.fn(() => false)
+
+    const decision = evaluatePiWaggleStopPolicy({
+      config: config(),
+      turnNumber: 1,
+      summary: summarizePiWaggleTurnMessages([unauthorized], { isRecoverableError }),
+      state: createPiWaggleStopPolicyState(),
+      agentLabel: 'Reviewer',
+    })
+
+    expect(isRecoverableError).toHaveBeenCalledWith(unauthorized)
+    expect(decision).toMatchObject({
+      continue: false,
+      turnSucceeded: false,
+      stop: {
+        classification: 'stopped',
+        reason: 'Waggle stopped because Reviewer failed: 401 Unauthorized: invalid API key',
+      },
+    })
+  })
+
+  it('keeps a recoverable error recoverable', () => {
+    const decision = evaluatePiWaggleStopPolicy({
+      config: config(),
+      turnNumber: 0,
+      summary: summarizePiWaggleTurnMessages(
+        [assistantMessage({ stopReason: 'error', errorMessage: '503 Service Unavailable' })],
+        { isRecoverableError: () => true },
+      ),
+      state: createPiWaggleStopPolicyState(),
+      agentLabel: 'Architect',
+    })
+
+    expect(decision).toMatchObject({ continue: true, turnSucceeded: false })
   })
 
   it('stops immediately when an assistant turn is aborted', () => {

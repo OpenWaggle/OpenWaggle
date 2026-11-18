@@ -2,11 +2,14 @@ import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
+import { registerAttachmentPreviewUrls } from '@/shared/lib/attachment-preview-urls'
 import {
   appendMissingOptimisticUserMessages,
   appendUnpersistedAssistantTail,
+  createOptimisticUserMessage,
   formatAttachmentPreview,
   mergeBackgroundReconnectMessages,
+  reconcileSnapshotUserMessages,
   sessionToUIMessages,
 } from '../useAgentChat.utils'
 
@@ -20,7 +23,7 @@ function userMessage(id: string, content: string) {
     role: 'user',
     parts: [{ type: 'text', content }],
     createdAt: new Date(1),
-  }
+  } satisfies UIMessage
 }
 
 describe('formatAttachmentPreview', () => {
@@ -82,6 +85,85 @@ describe('appendMissingOptimisticUserMessages', () => {
       optimisticMessages[2],
     ])
   })
+
+  it('reconciles an image send as one user row while retaining its immediate preview', () => {
+    const attachment = {
+      id: 'image-1',
+      kind: 'image' as const,
+      origin: 'user-file' as const,
+      name: 'screenshot.png',
+      path: '/tmp/screenshot.png',
+      mimeType: 'image/png',
+      sizeBytes: 4,
+      extractedText: '',
+    }
+    registerAttachmentPreviewUrls(
+      [{ attachment, fileIndex: 0 }],
+      [new File(['test'], attachment.name, { type: attachment.mimeType })],
+    )
+    const optimistic = createOptimisticUserMessage({
+      text: 'Fix this layout',
+      attachments: [attachment],
+    })
+    const persisted = sessionToUIMessages({
+      id: SessionId('session-image'),
+      title: 'Image',
+      projectPath: '/repo',
+      createdAt: 1,
+      updatedAt: 2,
+      messages: [
+        {
+          id: MessageId('durable-image-message'),
+          role: 'user',
+          // The Host saves the send after the renderer sent it.
+          createdAt: (optimistic.createdAt?.getTime() ?? 0) + 1,
+          parts: [
+            { type: 'text', text: 'Fix this layout' },
+            { type: 'attachment', attachment },
+          ],
+        },
+      ],
+    })
+
+    const snapshot = appendMissingOptimisticUserMessages(persisted, [optimistic])
+    const reconciled = reconcileSnapshotUserMessages(snapshot, [optimistic])
+
+    expect(snapshot).toHaveLength(1)
+    expect(reconciled).toHaveLength(1)
+    expect(reconciled[0]?.id).toBe(optimistic.id)
+    expect(reconciled[0]?.metadata?.sessionNodeId).toBe('durable-image-message')
+    expect(reconciled[0]?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'image', name: 'screenshot.png' }),
+        { type: 'text', content: 'Fix this layout' },
+        { type: 'text', content: '[Attachment] screenshot.png' },
+      ]),
+    )
+  })
+
+  it('inserts an older missing optimistic turn before a newer replacement snapshot', () => {
+    const olderOptimistic = {
+      ...userMessage('optimistic-older', 'Explain the visualization'),
+      createdAt: new Date(10),
+    }
+    const replacementMessages: UIMessage[] = [
+      {
+        ...userMessage('replacement-user', 'What did I select?'),
+        createdAt: new Date(20),
+      },
+      {
+        id: 'replacement-assistant',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'You selected sandbox.' }],
+        createdAt: new Date(21),
+      },
+    ]
+
+    expect(appendMissingOptimisticUserMessages(replacementMessages, [olderOptimistic])).toEqual([
+      olderOptimistic,
+      ...replacementMessages,
+    ])
+  })
 })
 
 describe('appendUnpersistedAssistantTail', () => {
@@ -141,7 +223,13 @@ describe('mergeBackgroundReconnectMessages', () => {
 
     expect(
       mergeBackgroundReconnectMessages([persistedUser], [optimisticUser, cachedAssistant]),
-    ).toEqual([persistedUser, cachedAssistant])
+    ).toEqual([
+      {
+        ...optimisticUser,
+        metadata: { sessionNodeId: persistedUser.id },
+      },
+      cachedAssistant,
+    ])
   })
 })
 

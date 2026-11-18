@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
-import { ProviderModelIcon, resolveIconColor } from './provider-icon'
+import { ProviderModelIcon } from './provider-icon'
 import type { FlatModel } from './types'
 
 interface ModelSelectorRowProps {
@@ -10,8 +10,6 @@ interface ModelSelectorRowProps {
 }
 
 export function ModelSelectorRow({ model, isSelected, onSelect }: ModelSelectorRowProps) {
-  const iconColor = resolveIconColor(model.provider)
-
   function handleSelect() {
     onSelect(model)
   }
@@ -32,23 +30,17 @@ export function ModelSelectorRow({ model, isSelected, onSelect }: ModelSelectorR
       title={model.id}
       className={cn(
         'group flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left transition-colors',
-        'cursor-pointer text-[#e7e9ee] hover:bg-[#171b21]',
-        isSelected && 'bg-[#1a1f28]',
+        'cursor-pointer text-text-primary hover:bg-bg-hover',
+        isSelected && 'bg-bg-active',
       )}
     >
-      <ProviderModelIcon
-        provider={model.provider}
-        className="size-4 shrink-0 flex-none"
-        style={{ color: iconColor }}
-      />
-      <div className="min-w-0 flex-1 truncate text-[13px] font-medium">
+      <ProviderModelIcon provider={model.provider} className="size-4 shrink-0 flex-none" />
+      <div className="min-w-0 flex-1 truncate text-sm font-medium">
         {model.name}
-        <span className="ml-1.5 text-[11px] font-normal text-text-tertiary">
-          {model.providerName}
-        </span>
+        <span className="ml-1.5 text-xs font-normal text-text-tertiary">{model.providerName}</span>
       </div>
       {model.contextWindowLabel && (
-        <span className="shrink-0 text-[10px] text-text-tertiary">{model.contextWindowLabel}</span>
+        <span className="shrink-0 text-xs text-text-tertiary">{model.contextWindowLabel}</span>
       )}
       {isSelected && <Check className="size-3 shrink-0 text-accent" />}
     </div>

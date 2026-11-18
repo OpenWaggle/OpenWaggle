@@ -1,0 +1,327 @@
+import { isRecord } from '@shared/utils/validation'
+import { McpClientRequestLedger } from './mcp-client-request-ledger'
+import { McpConnectionHandshake } from './mcp-connection-handshake'
+import {
+  fillCatalogAfterHandshake,
+  lazyStartOf,
+  type McpConnectionLazyStart,
+} from './mcp-connection-lazy-start'
+import { McpConnectionLease } from './mcp-connection-lease'
+import {
+  CANCELLED,
+  DISCARDING_ERRORS,
+  errorResponse,
+  INITIALIZE,
+  INITIALIZED,
+  type McpPooledConnectionOptions,
+} from './mcp-connection-support'
+import { deliverPooledResponse } from './mcp-pooled-response'
+import { deliverServerNotification } from './mcp-server-notifications'
+import { McpServerRequestRouter } from './mcp-server-request-router'
+import { McpUpstreamReplacement } from './mcp-upstream-replacement'
+import { McpUpstreamSlot } from './mcp-upstream-slot'
+import {
+  isJsonRpcNotification,
+  isJsonRpcRequest,
+  JSON_RPC_ERROR_CODES,
+  type JsonRpcId,
+  type JsonRpcMessage,
+  type JsonRpcNotification,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+  toError,
+} from './mcp-wire'
+import { mcpMessageFields } from './mcp-message-fields'
+
+/** How long a retiring connection waits for its open requests before it closes anyway. */
+const RETIRE_GRACE_MS = 30_000
+
+/**
+ * One server connection of one Session, shared by the Pi clients of that Session's successive
+ * Runs (leases) and by OpenWaggle's own requests. It answers repeated `initialize` requests from
+ * the cached handshake and numbers requests upstream so clients never collide
+ * (`McpClientRequestLedger`); server requests go through `McpServerRequestRouter`.
+ */
+export class McpPooledConnection {
+  private closed = false
+  /** Closed by OpenWaggle (idle close, eviction, archive, Host stop), not by a server failure. */
+  private closedByOwner = false
+  /** No longer offered to new clients; closes once its open requests are answered. */
+  private retiring = false
+  private lastErrorValue: string | undefined
+  /** Answers from the catalog until a request needs the server (D1.3). */
+  private readonly lazyStart: McpConnectionLazyStart | undefined
+  private readonly slot: McpUpstreamSlot
+  /** Replaces a stuck server process; clients' messages wait while it does. */
+  private readonly replacement = new McpUpstreamReplacement({
+    isClosed: () => this.isClosed,
+    hasPending: () => this.ledger.hasPending || this.router.hasOpenRequests,
+    replaceUpstream: async () => {
+      await this.slot.replace()
+      await this.handshake.replay()
+    },
+    resend: ({ lease, id, method, params }) => {
+      const request = this.ledger.trackLease(lease, { jsonrpc: '2.0', id, method, params })
+      return this.sendUpstream(request, () => this.ledger.forget(request.id))
+    },
+    retire: () => this.retire(),
+  })
+  private readonly ledger = new McpClientRequestLedger()
+  private readonly leases = new Set<McpConnectionLease>()
+  private readonly handshake: McpConnectionHandshake
+  private readonly router: McpServerRequestRouter
+
+  private readonly options: McpPooledConnectionOptions
+
+  constructor(options: McpPooledConnectionOptions) {
+    this.options = options
+    this.handshake = new McpConnectionHandshake({
+      request: (method, params) => this.sendInternal(method, params),
+      notify: (message) => this.sendUpstream(message),
+      augmentParams: options.augmentInitializeParams,
+      onProtocolVersion: (version) => this.slot.current?.transport.setProtocolVersion?.(version),
+      onResult: (result) => options.catalog?.recordInitialize(result),
+      onInitialized: (result) =>
+        fillCatalogAfterHandshake(options, result, (method, params) =>
+          this.sendInternal(method, params),
+        ),
+    })
+    this.slot = new McpUpstreamSlot({
+      serverName: options.serverName,
+      open: options.open,
+      isClosed: () => this.closed,
+      closedError: () => this.closedConnectionError(),
+      onMessage: (message) => this.handleUpstreamMessage(message),
+      onError: (error) => {
+        this.lastErrorValue = error.message
+        for (const lease of this.leases) lease.deliverError(error)
+      },
+      onClosed: (error) => this.markClosed(error),
+      onOpenFailed: (error) => {
+        this.lastErrorValue = error.message
+        this.markClosed(error)
+      },
+    })
+    this.router = new McpServerRequestRouter({
+      send: (message) => this.sendUpstream(message),
+      leases: () => this.leases,
+      options,
+    })
+    this.lazyStart = lazyStartOf(options, {
+      serverName: options.serverName,
+      handshake: this.handshake,
+      startUpstream: () => this.slot.start(),
+      close: () => void this.close(),
+      closedByOwner: () => this.closedByOwner,
+      sendInternal: (method, params) => this.sendInternal(method, params),
+      leases: () => this.leases,
+    })
+  }
+
+  get serverName() {
+    return this.options.serverName
+  }
+
+  /** Closed, or going away: either way no new client or request may use it. */
+  get isClosed() {
+    return this.closed || this.retiring
+  }
+
+  /** Open and past its handshake with the server itself, not one answered from its catalog. */
+  get isReady() {
+    return !this.isClosed && this.handshake.isDone && !this.isServingCatalog
+  }
+
+  /**
+   * Answering from the server's catalog without having started it (D1.3): it says nothing about
+   * whether the server runs now (review R5 P2-4).
+   */
+  get isServingCatalog() {
+    return this.lazyStart?.waiting === true
+  }
+
+  get attachedLeases() {
+    return this.leases.size
+  }
+
+  get lastError() {
+    return this.lastErrorValue
+  }
+
+  get stderrTail() {
+    return this.slot.stderrTail
+  }
+
+  /** A new client attaches; the connection opens on its `start()` if it is not open yet. */
+  attach() {
+    if (this.isClosed) throw this.closedConnectionError()
+    const lease = new McpConnectionLease({
+      start: () => this.start(),
+      send: (from, message) => this.sendFromLease(from, message),
+      detach: (from) => this.detachLease(from),
+      setProtocolVersion: () => {},
+    })
+    this.leases.add(lease)
+    return lease
+  }
+
+  /** An OpenWaggle request over the connection, initializing it first when no client has. */
+  async request(method: string, params?: unknown, options: { signal?: AbortSignal } = {}) {
+    await this.replacement.settled()
+    await this.lazyStart?.wake()
+    await this.start()
+    await this.handshake.ensureInitialized()
+    return this.sendInternal(method, params, options.signal)
+  }
+
+  async close() {
+    if (!this.closed) {
+      this.closedByOwner = true
+      this.markClosed(new Error(`MCP server "${this.serverName}" connection closed`))
+    }
+    await this.slot.release()
+  }
+
+  /**
+   * After an error that makes the upstream unusable (an expired HTTP session, a needed sign-in),
+   * the connection takes no new clients, lets the requests already sent settle, then closes.
+   */
+  private retire() {
+    if (this.retiring || this.closed) return
+    this.retiring = true
+    if (!this.ledger.hasPending) {
+      void this.close()
+      return
+    }
+    setTimeout(() => void this.close(), RETIRE_GRACE_MS).unref()
+  }
+
+  private closedConnectionError() {
+    return new Error(`MCP server "${this.serverName}" connection is closed`)
+  }
+
+  private start() {
+    if (this.isClosed) return Promise.reject(this.closedConnectionError())
+    if (this.lazyStart?.waiting) return Promise.resolve()
+    return this.slot.start()
+  }
+
+  /**
+   * Sends to the server. `settleFailed` drops the request that failed from the ledger before an
+   * unusable upstream is retired, so the connection does not wait for a request that cannot be
+   * answered.
+   */
+  private sendUpstream(message: JsonRpcMessage, settleFailed?: (failure: Error) => void) {
+    const upstream = this.slot.current
+    if (!upstream || this.closed) return Promise.reject(this.closedConnectionError())
+    return upstream.transport.send(message).catch((error: unknown) => {
+      const failure = toError(error)
+      settleFailed?.(failure)
+      if (DISCARDING_ERRORS.has(failure.name)) this.retire()
+      throw failure
+    })
+  }
+
+  private sendInternal(method: string, params: unknown, signal?: AbortSignal) {
+    const id = this.ledger.allocate()
+    const response = this.ledger.waitForInternal(id, signal, () =>
+      this.cancelUpstream({ requestId: id }),
+    )
+    const request: JsonRpcRequest = {
+      jsonrpc: '2.0',
+      id,
+      method,
+      ...(params === undefined ? {} : { params }),
+    }
+    this.sendUpstream(request, (failure) => this.ledger.rejectRequest(id, failure)).catch(
+      () => undefined,
+    )
+    return response
+  }
+
+  private async sendFromLease(lease: McpConnectionLease, message: JsonRpcMessage) {
+    await this.replacement.settled()
+    if (this.lazyStart && (await this.lazyStart.answer(lease, message))) return
+    if (isJsonRpcRequest(message)) {
+      if (this.retiring) throw this.closedConnectionError()
+      if (message.method === INITIALIZE) return this.handshake.answer(lease, message)
+      const upstreamRequest = this.ledger.trackLease(lease, message)
+      return this.sendUpstream(upstreamRequest, () => this.ledger.forget(upstreamRequest.id))
+    }
+    if (isJsonRpcNotification(message)) return this.forwardLeaseNotification(lease, message)
+    // A client's answer to a server request it was given.
+    this.router.answered(message.id)
+    return this.sendUpstream(message)
+  }
+
+  private async forwardLeaseNotification(lease: McpConnectionLease, message: JsonRpcNotification) {
+    if (message.method === INITIALIZED) return this.handshake.initialized(message)
+    if (message.method === CANCELLED) {
+      const params = isRecord(message.params) ? message.params : {}
+      const upstreamId = this.ledger.upstreamId(lease, mcpMessageFields(params)?.requestId)
+      if (upstreamId === undefined) return
+      this.ledger.forget(upstreamId)
+      try {
+        return await this.sendUpstream({ ...message, params: { ...params, requestId: upstreamId } })
+      } finally {
+        this.closeIfRetiredAndIdle()
+      }
+    }
+    return this.sendUpstream(message)
+  }
+
+  private detachLease(lease: McpConnectionLease) {
+    this.leases.delete(lease)
+    for (const id of this.ledger.openRequests(lease)) {
+      this.ledger.forget(id)
+      this.cancelUpstream({ requestId: id, reason: 'The client detached' })
+    }
+    this.router.detach(lease)
+    this.closeIfRetiredAndIdle()
+  }
+
+  /** Tells the server to stop a request nobody waits for; a failed send leaves nothing to stop. */
+  private cancelUpstream(params: { readonly requestId: JsonRpcId; readonly reason?: string }) {
+    void this.sendUpstream({ jsonrpc: '2.0', method: CANCELLED, params }).catch(() => undefined)
+  }
+
+  /** A retiring connection closes once no request is left to settle, not after the grace. */
+  private closeIfRetiredAndIdle() {
+    if (this.retiring && !this.ledger.hasPending) void this.close()
+  }
+
+  private handleUpstreamMessage(message: JsonRpcMessage) {
+    if (isJsonRpcRequest(message)) {
+      void this.router.handle(message)
+      return
+    }
+    if (isJsonRpcNotification(message)) {
+      deliverServerNotification(message, this.ledger, this.router, this.leases)
+      return
+    }
+    this.handleResponse(message)
+  }
+
+  private handleResponse(message: JsonRpcResponse) {
+    deliverPooledResponse(message, {
+      ledger: this.ledger,
+      replacement: this.replacement,
+      options: this.options,
+    })
+    this.closeIfRetiredAndIdle()
+  }
+
+  private markClosed(error: Error) {
+    if (this.closed) return
+    this.closed = true
+    this.router.close()
+    this.ledger.failAll(error, (lease, id) =>
+      lease.deliver(errorResponse(id, JSON_RPC_ERROR_CODES.internalError, error.message)),
+    )
+    this.handshake.fail(error)
+    for (const lease of [...this.leases]) lease.detach()
+    this.options.catalog?.closed()
+    this.options.onClosed()
+    void this.slot.release()
+  }
+}

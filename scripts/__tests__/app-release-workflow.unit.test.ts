@@ -1,14 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { assertMatching } from '@diegogbrisa/ts-match'
+import { assertMatching, isMatching, P } from '@diegogbrisa/ts-match'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 const PROJECT_ROOT = process.cwd()
-const WORKFLOW = fs.readFileSync(
-  path.join(PROJECT_ROOT, '.github/workflows/release.yml'),
-  'utf8',
-)
+const WORKFLOW = fs.readFileSync(path.join(PROJECT_ROOT, '.github/workflows/release.yml'), 'utf8')
 describe('desktop app release workflow', () => {
   it('grants write permissions only to orchestration and publication jobs', () => {
     const parsed: unknown = parse(WORKFLOW)
@@ -31,58 +28,144 @@ describe('desktop app release workflow', () => {
     )
   })
 
-  it('merges a validated version PR instead of bypassing main protection', () => {
+  it('leaves the validated version PR open for a maintainer to merge', () => {
     expect(WORKFLOW).not.toContain('git push origin main')
     expect(WORKFLOW).not.toContain('--admin')
-    expect(WORKFLOW).toContain('git push origin "$RELEASE_BRANCH"')
+    expect(WORKFLOW).not.toContain('gh pr merge')
+    expect(WORKFLOW).not.toContain('enablePullRequestAutoMerge')
+    expect(WORKFLOW).toContain(
+      'git push origin "${RELEASE_COMMIT_SHA}:refs/heads/${RELEASE_BRANCH}"',
+    )
     expect(WORKFLOW).toContain('gh pr create')
     expect(WORKFLOW).toContain('event=pull_request&branch=${RELEASE_BRANCH}')
     expect(WORKFLOW).toContain('gh run rerun "$RUN_ID"')
     expect(WORKFLOW).toContain('gh run watch "$RUN_ID" --exit-status')
     expect(WORKFLOW).not.toContain('gh workflow run ci.yml --ref "$RELEASE_BRANCH"')
-    expect(WORKFLOW).toContain('--match-head-commit "$HEAD_SHA"')
-    expect(WORKFLOW).toContain('--squash')
+    expect(WORKFLOW).toContain('Release PR ready for maintainer review: ${PR_URL}')
+    expect(WORKFLOW).toContain('A maintainer must merge this PR manually')
   })
 
-  it('tags only the verified protected merge commit', () => {
+  it('publishes only a verified human-merged release PR commit', () => {
     expect(WORKFLOW).toContain('git merge-base --is-ancestor "$commit_sha" origin/main')
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts release-subject-version')
+    expect(WORKFLOW).toContain('repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}/pulls')
+    expect(WORKFLOW).toContain('repos/${GITHUB_REPOSITORY}/pulls/${MATCHING_PR_NUMBER}')
+    expect(WORKFLOW).not.toContain('.[0].merged_by')
+    expect(WORKFLOW).toContain(`test "$(jq -er '.merged_by.type' <<<"$MATCHING_PR")" = "User"`)
     expect(WORKFLOW).toContain(
-      'test "$(git show -s --format=%s "$commit_sha")" = "chore(release): v${VERSION}"',
+      `test "$(jq -er '.merged_by.login' <<<"$MATCHING_PR")" != "github-actions[bot]"`,
     )
+    expect(WORKFLOW).toContain("RELEASE_PR_HEAD_SHA=$(jq -er '.head.sha'")
+    expect(WORKFLOW).toContain('.conclusion == "success"')
     expect(WORKFLOW).toContain('git tag -a "$TAG" "$MERGE_SHA"')
     expect(WORKFLOW).toContain('git push origin "refs/tags/${TAG}"')
     expect(WORKFLOW).not.toContain('--follow-tags')
+  })
+
+  it('waits for GitHub merge provenance to become consistent', () => {
+    expect(WORKFLOW).toContain('for PR_ASSOCIATION_ATTEMPT in $(seq 1 12)')
+    expect(WORKFLOW).toContain('Waiting for GitHub to expose the merged release PR')
+    expect(WORKFLOW).toContain('More than one merged release PR matched')
+    expect(WORKFLOW).toContain('GitHub did not expose the merged release PR')
+    expect(WORKFLOW).toContain('for RELEASE_CI_ATTEMPT in $(seq 1 12)')
+    expect(WORKFLOW).toContain('Waiting for GitHub to expose successful exact-head CI')
+    expect(WORKFLOW).toContain('GitHub did not expose successful exact-head CI')
   })
 
   it('resumes compatible durable state and retries stale-base validation', () => {
     expect(WORKFLOW).toContain('gh pr list --state all --head "$RELEASE_BRANCH"')
     expect(WORKFLOW).toContain('scripts/app-release-state.ts filter-prs')
     expect(WORKFLOW).toContain('if [ "$PR_STATE" = "MERGED" ]')
-    expect(WORKFLOW).toContain('if [ "$MERGE_STATE" = "BEHIND" ]')
+    expect(WORKFLOW).toContain('git merge-base --is-ancestor "$MAIN_SHA" "$HEAD_SHA"')
     expect(WORKFLOW).toContain('/update-branch')
-    expect(WORKFLOW).toContain('for MERGE_ATTEMPT in $(seq 1 3)')
-    expect(WORKFLOW).toContain('for STATE_ATTEMPT in $(seq 1 30)')
+    expect(WORKFLOW).toContain('for VALIDATION_ATTEMPT in $(seq 1 3)')
     expect(WORKFLOW).toContain('test "$(git rev-list -n 1 "$TAG")" = "$MERGE_SHA"')
-    expect(WORKFLOW).toContain('verify_release_commit "$TAG_COMMIT"')
+    expect(WORKFLOW).toContain('its protected-merge run owns publication')
+    expect(WORKFLOW).toContain('Release PR merged after validation')
   })
 
-  it('accepts no candidate package changes beyond the expected version', () => {
-    expect(WORKFLOW).toContain('verify_version_only_tree()')
-    expect(WORKFLOW).toContain('scripts/app-release-state.ts expected-manifest')
+  it('recovers from transient and ambiguous GitHub PR creation failures', () => {
+    expect(WORKFLOW).toContain('for PR_CREATE_ATTEMPT in $(seq 1 4)')
+    expect(WORKFLOW).toContain('2>"$PR_CREATE_ERROR"')
     expect(WORKFLOW).toContain(
-      'cmp "$RUNNER_TEMP/expected-package.json" "$RUNNER_TEMP/candidate-package.json"',
+      'RECOVERY_ALL_PRS=$(gh pr list --state open --head "$RELEASE_BRANCH"',
     )
-    expect(WORKFLOW).toContain('verify_version_only_tree "$parent_sha" "$commit_sha"')
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts filter-prs')
+    expect(WORKFLOW).toContain('Adopted release PR after an ambiguous creation failure')
+    expect(WORKFLOW).toContain('sleep $((PR_CREATE_ATTEMPT * 5))')
+    expect(WORKFLOW).toContain('test -n "$PR_URL"')
+  })
+
+  it('separates PR preparation from protected-merge publication', () => {
     expect(WORKFLOW).toContain(
-      'verify_version_only_tree "origin/main" "origin/${RELEASE_BRANCH}"',
+      `if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')"`,
+    )
+    expect(WORKFLOW).toContain('if [ "$RELEASE_SUBJECT_VERSION" = "$CURRENT_VERSION" ]')
+    expect(WORKFLOW).toContain('write_no_release_output')
+    expect(WORKFLOW).toContain('write_release_outputs')
+    expect(WORKFLOW).toContain(
+      "group: \"${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('release-{0}', github.sha) || 'release-prepare' }}\"",
+    )
+    expect(WORKFLOW).toContain('cancel-in-progress: false')
+    expect(WORKFLOW).toContain(
+      'NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"',
+    )
+    expect(WORKFLOW).toContain(
+      'if [[ "$CURRENT" =~ ^([0-9]+\\.[0-9]+\\.[0-9]+)-(alpha|beta|rc)\\.([0-9]+)$ ]]; then',
+    )
+    expect(WORKFLOW).toContain('echo "Unrecognized desktop app version ${CURRENT}." >&2')
+    const bump = WORKFLOW.slice(
+      WORKFLOW.indexOf('name: Determine bump'),
+      WORKFLOW.indexOf('name: Prepare release PR'),
+    )
+    expect(bump).toMatch(/CURRENT=\$\(node -p[\s\S]*Unrecognized desktop app version/u)
+    expect(bump).not.toMatch(/\bsed ['"]/u) // GNU sed alternation fails on macOS, where the train harness runs it
+  })
+
+  it('supports an explicit forward promotion through the same protected release PR', () => {
+    const parsed: unknown = parse(WORKFLOW)
+    assertMatching(
+      {
+        jobs: { version: { steps: P.array(P._) } },
+        on: {
+          workflow_dispatch: {
+            inputs: { target_version: { required: true, type: 'string' } },
+          },
+        },
+      },
+      parsed,
+    )
+    const validationStep = parsed.jobs.version.steps[0]
+    expect(validationStep).toEqual(
+      expect.objectContaining({
+        env: { RELEASE_TARGET_VERSION: '${{ inputs.target_version }}' },
+        if: "github.event_name == 'workflow_dispatch'",
+        name: 'Validate manual release dispatch',
+        run: expect.stringMatching(
+          /test "\$GITHUB_REF" = "refs\/heads\/main"[\s\S]*test -n "\$RELEASE_TARGET_VERSION"/u,
+        ),
+      }),
+    )
+    expect(parsed.jobs.version.steps[1]).toEqual(
+      expect.objectContaining({ uses: expect.stringMatching(/^actions\/checkout@/u) }),
+    )
+    expect(WORKFLOW).toContain('RELEASE_TARGET_VERSION: ${{ inputs.target_version }}')
+    expect(WORKFLOW).toContain('scripts/app-release-state.ts validate-transition')
+    expect(WORKFLOW).toContain('--current "$CURRENT_VERSION"')
+    expect(WORKFLOW).toContain('--target "$RELEASE_TARGET_VERSION"')
+  })
+
+  it('marks semantic prerelease versions as GitHub prereleases', () => {
+    expect(WORKFLOW).toContain(
+      "prerelease: ${{ contains(needs.version.outputs.new_version, '-') }}",
     )
   })
 
-  it('skips release orchestration commits and increments prerelease versions', () => {
-    expect(WORKFLOW).toContain(
-      `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`,
-    )
-    expect(WORKFLOW).toContain('NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"')
+  it('installs from the registry, never from a restored Bun package cache', () => {
+    // Bun does not check cached package files against bun.lock, and these jobs sign and publish.
+    expect(WORKFLOW).not.toMatch(/uses:\s*actions\/cache@/u)
+    expect(WORKFLOW).not.toContain('~/.bun/install/cache')
+    expect(WORKFLOW).not.toContain('./.github/actions/bun-install')
   })
 
   it('pins every referenced action to an immutable commit', () => {
@@ -97,8 +180,130 @@ describe('desktop app release workflow', () => {
   })
 
   it('verifies the Windows installer through the typed deterministic verifier', () => {
-    expect(WORKFLOW).toContain('node scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"')
-    expect(WORKFLOW).toContain("INSTALLER_PATH: ${{ runner.temp }}\\release\\windows\\openwaggle-")
+    const parsed: unknown = parse(WORKFLOW)
+    assertMatching(
+      {
+        jobs: {
+          'verify-installers': {
+            steps: P.array(P._),
+          },
+        },
+      },
+      parsed,
+    )
+    const verifierSteps = parsed.jobs['verify-installers'].steps
+    const windowsGuard = "matrix.platform == 'windows'"
+    const bunSetupPattern = {
+      if: windowsGuard,
+      uses: P.regex(/^oven-sh\/setup-bun@[0-9a-f]{40}$/u),
+      with: { 'bun-version-file': 'package.json' },
+    }
+    const nodeSetupPattern = {
+      if: windowsGuard,
+      uses: P.regex(/^actions\/setup-node@[0-9a-f]{40}$/u),
+      with: {
+        'package-manager-cache': false,
+        'node-version': '24.14.0',
+      },
+    }
+    const installPattern = {
+      if: windowsGuard,
+      name: 'Install Windows verifier dependencies',
+      run: 'bun install --frozen-lockfile --ignore-scripts',
+    }
+    const verifierPattern = {
+      env: {
+        INSTALLER_PATH:
+          '${{ runner.temp }}\\release\\windows\\openwaggle-${{ needs.version.outputs.new_version }}-x64.exe',
+      },
+      if: windowsGuard,
+      name: 'Verify Windows installer',
+      run: 'bun scripts/verify-windows-installer.ts "$env:INSTALLER_PATH"',
+      shell: 'pwsh',
+    }
+
+    const bunSetupSteps = verifierSteps.filter((step) =>
+      isMatching({ uses: P.regex(/^oven-sh\/setup-bun@/u) }, step),
+    )
+    const nodeSetupSteps = verifierSteps.filter((step) =>
+      isMatching({ uses: P.regex(/^actions\/setup-node@/u) }, step),
+    )
+    const installSteps = verifierSteps.filter((step) =>
+      isMatching({ name: 'Install Windows verifier dependencies' }, step),
+    )
+    const verifierCommandSteps = verifierSteps.filter((step) =>
+      isMatching({ name: 'Verify Windows installer' }, step),
+    )
+
+    expect(bunSetupSteps).toHaveLength(1)
+    expect(nodeSetupSteps).toHaveLength(1)
+    expect(installSteps).toHaveLength(1)
+    expect(verifierCommandSteps).toHaveLength(1)
+    expect(isMatching(bunSetupPattern, bunSetupSteps[0])).toBe(true)
+    expect(isMatching(nodeSetupPattern, nodeSetupSteps[0])).toBe(true)
+    expect(isMatching(installPattern, installSteps[0])).toBe(true)
+    expect(isMatching(verifierPattern, verifierCommandSteps[0])).toBe(true)
+
+    const bunSetupIndex = verifierSteps.findIndex((step) => isMatching(bunSetupPattern, step))
+    const nodeSetupIndex = verifierSteps.findIndex((step) => isMatching(nodeSetupPattern, step))
+    const installIndex = verifierSteps.findIndex((step) => isMatching(installPattern, step))
+    const verifierIndex = verifierSteps.findIndex((step) => isMatching(verifierPattern, step))
+
+    expect(bunSetupIndex).toBeLessThan(nodeSetupIndex)
+    expect(nodeSetupIndex).toBeLessThan(installIndex)
+    expect(installIndex).toBeLessThan(verifierIndex)
+    expect(WORKFLOW).not.toContain('node scripts/verify-windows-installer.ts')
     expect(WORKFLOW).not.toContain('Installed executable not found after silent install')
+  })
+
+  it('runs the semantic packaged PTY smoke after every platform build', () => {
+    const buildCommands = [
+      'bunx electron-builder --mac --arm64 --x64 --publish never',
+      'bunx electron-builder --linux --publish never',
+      'bunx electron-builder --win --publish never',
+    ]
+    const smokeStepNames = [
+      'Smoke packaged macOS PTY runtime',
+      'Smoke packaged Linux PTY runtime',
+      'Smoke packaged Windows PTY runtimes',
+    ]
+
+    for (const [index, buildCommand] of buildCommands.entries()) {
+      const buildIndex = WORKFLOW.indexOf(buildCommand)
+      const smokeIndex = WORKFLOW.indexOf(smokeStepNames[index] ?? '')
+      const nextUploadIndex = WORKFLOW.indexOf('actions/upload-artifact@', buildIndex)
+      expect(buildIndex).toBeGreaterThan(-1)
+      expect(smokeIndex).toBeGreaterThan(buildIndex)
+      expect(nextUploadIndex).toBeGreaterThan(smokeIndex)
+    }
+    expect(WORKFLOW.match(/run: bun run packaged-app:smoke/gu)).toHaveLength(3)
+  })
+
+  it('rebuilds macOS at most twice, only for a transient runner failure', () => {
+    const build = WORKFLOW.slice(
+      WORKFLOW.indexOf('name: Build macOS artifacts (arm64 + x64)'),
+      WORKFLOW.indexOf('name: Verify macOS signing and notarization'),
+    )
+    expect(build).toContain('for BUILD_ATTEMPT in 1 2 3; do')
+    expect(build).toContain('sudo mdutil -a -i off')
+    expect(build).toContain('sudo pkill -9 XProtect')
+    expect(build).toContain('--publish never 2>&1 | tee "$BUILD_LOG"; then')
+    expect(build).toContain('set -uo pipefail')
+    expect(build).toContain(
+      'if [ "$BUILD_ATTEMPT" -eq 3 ] || ! FAILURE_REASON="$(node scripts/macos-build-failure.ts "$BUILD_LOG")"; then',
+    )
+    expect(build).toContain('hdiutil detach "$volume" -force')
+  })
+
+  it('prepares compatible update metadata for every published platform channel', () => {
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" mac',
+    )
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" linux',
+    )
+    expect(WORKFLOW).toContain(
+      'prepare-update-channel-metadata.ts dist "$OPENWAGGLE_RELEASE_CHANNEL" windows',
+    )
   })
 })

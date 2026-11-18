@@ -7,10 +7,12 @@ import {
   SessionNodeId,
   SupportedModelId,
 } from '@shared/types/brand'
-import type { SessionNode, SessionWorkspace } from '@shared/types/session'
+import type { UIMessage } from '@shared/types/chat-ui'
+import type { SessionNode } from '@shared/types/session'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from '@/features/sessions/state'
+import { hiveWakeRunError } from '../../lib/hive-wake-run-error'
 import { type TranscriptSectionParams, useTranscriptSection } from '../useTranscriptSection'
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -27,7 +29,7 @@ function uiMessage(id: string, role: 'user' | 'assistant', content: string) {
     role,
     parts: [{ type: 'text', content }],
     createdAt: new Date(1),
-  }
+  } satisfies UIMessage
 }
 
 function sessionNode(
@@ -36,7 +38,7 @@ function sessionNode(
   role: 'user' | 'assistant',
   content: string,
   createdOrder: number,
-): SessionNode {
+) {
   return {
     id: SessionNodeId(id),
     sessionId: SESSION_ID,
@@ -48,6 +50,7 @@ function sessionNode(
     createdOrder,
     pathDepth: createdOrder,
     branchId: MAIN_BRANCH_ID,
+    hasMessage: true,
     message: {
       id: MessageId(id),
       role,
@@ -56,13 +59,10 @@ function sessionNode(
     },
     contentJson: JSON.stringify({ parts: [{ type: 'text', text: content }], model: null }),
     metadataJson: '{}',
-  }
+  } satisfies SessionNode
 }
 
-function transcriptPathForActiveNode(
-  nodes: readonly SessionNode[],
-  activeNodeId: SessionNodeId,
-): SessionWorkspace['transcriptPath'] {
+function transcriptPathForActiveNode(nodes: readonly SessionNode[], activeNodeId: SessionNodeId) {
   const nodesById = new Map(nodes.map((node) => [String(node.id), node]))
   const path: SessionNode[] = []
   const seen = new Set<string>()
@@ -76,7 +76,7 @@ function transcriptPathForActiveNode(
 
   return path.map((node) => ({
     node,
-    branchId: node.branchId,
+    ...(node.branchId === undefined ? {} : { branchId: node.branchId }),
     isActive: node.id === activeNodeId,
   }))
 }
@@ -122,10 +122,8 @@ const phase = {
   reset: vi.fn(),
 }
 
-function transcriptParams(
-  overrides: Partial<TranscriptSectionParams> = {},
-): TranscriptSectionParams {
-  return {
+function transcriptParams(overrides: Partial<TranscriptSectionParams> = {}) {
+  const params: TranscriptSectionParams = {
     messages: [],
     customMessages: [],
     interactionEvents: [],
@@ -146,13 +144,19 @@ function transcriptParams(
     handleSelectProjectPath: vi.fn(),
     handleSendText: vi.fn(),
     openSettings: vi.fn(),
-    handleDismissInterruptedRun: vi.fn(),
     handleBranchFromMessage: vi.fn(),
     handleForkFromMessage: vi.fn(),
-    userDidSend: false,
-    onUserDidSendConsumed: vi.fn(),
+    handleForkFromResponse: vi.fn(),
+    handleDismissInterruptedRun: vi.fn(),
+    pendingSend: null,
+    onPendingSendConsumed: vi.fn(),
+    handleViewTurnDiff: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
+    turnsByAnchorNodeId: new Map(),
+    compactionStatus: null,
     ...overrides,
   }
+  return params
 }
 
 describe('useTranscriptSection', () => {
@@ -223,5 +227,31 @@ describe('useTranscriptSection', () => {
       'assistant-before-branch',
       'user-branch-point',
     ])
+    expect(result.current.activeBranchId).toBe(MAIN_BRANCH_ID)
+    expect(result.current.activePathNodeIds).toEqual([
+      'user-before-branch',
+      'assistant-before-branch',
+      'user-branch-point',
+    ])
+  })
+
+  // A wake's prompt is not the user's, so its error card offers no Retry that would resend
+  // the user's own earlier message.
+  it('offers no Retry for the error of a Run OpenWaggle started for worker updates', () => {
+    function errorRowRetry(error: Error) {
+      const { result } = renderHook(() =>
+        useTranscriptSection(
+          transcriptParams({
+            messages: [uiMessage('user-1', 'user', 'Ask the workers')],
+            error,
+          }),
+        ),
+      )
+      const row = result.current.chatRows.find((candidate) => candidate.type === 'error')
+      return row?.type === 'error' ? row.lastUserMessage : undefined
+    }
+
+    expect(errorRowRetry(new Error('Provider failed'))).toBe('Ask the workers')
+    expect(errorRowRetry(hiveWakeRunError(new Error('Provider failed')))).toBeNull()
   })
 })

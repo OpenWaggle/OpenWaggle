@@ -13,14 +13,27 @@ function QueryWrapper({ children, client }: QueryWrapperProps) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }
 
+/** Interfaces, so declarations name them instead of spelling out Testing Library's queries. */
+export interface QueryClientRenderResult extends RenderResult {
+  readonly client: QueryClient
+}
+
+export interface QueryClientRenderHookResult<Result, Props> extends RenderHookResult<
+  Result,
+  Props
+> {
+  readonly client: QueryClient
+}
+
 export function renderWithQueryClient(
   ui: ReactElement,
   client: QueryClient = createRendererQueryClient(),
-): RenderResult & { readonly client: QueryClient } {
-  return {
+) {
+  const result: QueryClientRenderResult = {
     client,
     ...render(<QueryWrapper client={client}>{ui}</QueryWrapper>),
   }
+  return result
 }
 
 export function renderHookWithQueryClient<Result, Props>(
@@ -29,10 +42,10 @@ export function renderHookWithQueryClient<Result, Props>(
     readonly client?: QueryClient
     readonly initialProps?: Props
   },
-): RenderHookResult<Result, Props> & { readonly client: QueryClient } {
+) {
   const client = options?.client ?? createRendererQueryClient()
 
-  return {
+  const result: QueryClientRenderHookResult<Result, Props> = {
     client,
     ...renderHook(renderCallback, {
       initialProps: options?.initialProps,
@@ -41,4 +54,5 @@ export function renderHookWithQueryClient<Result, Props>(
       ),
     }),
   }
+  return result
 }

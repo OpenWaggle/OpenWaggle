@@ -1,0 +1,89 @@
+import type { JsonObject, JsonValue } from '@shared/types/json'
+import {
+  LEGACY_PROVIDER_RENAMES,
+  renameLegacyProviderId,
+  renameLegacyProviderModelReference,
+} from '../../domain/legacy-provider-renames'
+import { piCompactionFields, piSettingsFields } from './pi-settings-fields'
+
+function renamedStringArray(value: JsonValue | undefined) {
+  if (!Array.isArray(value)) return undefined
+  let changed = false
+  const next = value.map((entry) => {
+    if (typeof entry !== 'string') return entry
+    const renamed = renameLegacyProviderModelReference(entry)
+    changed ||= renamed !== entry
+    return renamed
+  })
+  const result: JsonValue[] | undefined = changed ? next : undefined
+  return result
+}
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function renamedModelKeyedObject(value: JsonValue | undefined) {
+  if (!isJsonObject(value)) return undefined
+  const keys = Object.keys(value)
+  if (!keys.some((key) => renameLegacyProviderModelReference(key) !== key)) return undefined
+  const next: Record<string, JsonValue> = {}
+  for (const key of keys) {
+    const renamed = renameLegacyProviderModelReference(key)
+    // A value already stored under the new name was set after the rename and wins.
+    if (renamed !== key && Object.hasOwn(value, renamed)) continue
+    const entry = value[key]
+    if (entry !== undefined) next[renamed] = entry
+  }
+  return next
+}
+
+function renamedCompaction(value: JsonValue | undefined) {
+  if (!isJsonObject(value)) return undefined
+  const modelOverrides = renamedModelKeyedObject(piCompactionFields(value).modelOverrides)
+  const object: JsonObject | undefined = modelOverrides ? { ...value, modelOverrides } : undefined
+  return object
+}
+
+/**
+ * Pi settings with renamed providers in `defaultProvider`, `enabledModels` patterns, and the
+ * `provider/modelId` keys of `modelThinkingLevels` and `compaction.modelOverrides`. Returns the
+ * same object when nothing needs renaming.
+ */
+export function renameLegacyProviderPiSettings<T extends JsonObject>(settings: T) {
+  const current = piSettingsFields(settings)
+  const provider = current.defaultProvider
+  const defaultProvider =
+    typeof provider === 'string' && renameLegacyProviderId(provider) !== provider
+      ? renameLegacyProviderId(provider)
+      : undefined
+  const enabledModels = renamedStringArray(current.enabledModels)
+  const modelThinkingLevels = renamedModelKeyedObject(current.modelThinkingLevels)
+  const compaction = renamedCompaction(current.compaction)
+  const changes = {
+    ...(defaultProvider === undefined ? {} : { defaultProvider }),
+    ...(enabledModels ? { enabledModels } : {}),
+    ...(modelThinkingLevels ? { modelThinkingLevels } : {}),
+    ...(compaction ? { compaction } : {}),
+  }
+  const result: T = Object.keys(changes).length > 0 ? { ...settings, ...changes } : settings
+  return result
+}
+
+/**
+ * Stored credentials with each renamed provider's credential copied to its new key. The old key
+ * stays, because a standalone Pi older than the rename can share the same `auth.json`; a
+ * credential already stored under the new key is never replaced.
+ */
+export function renameLegacyProviderCredentials<T extends JsonObject>(credentials: T) {
+  const next: Record<string, JsonValue> = { ...credentials }
+  let changed = false
+  for (const [legacyId, providerId] of LEGACY_PROVIDER_RENAMES) {
+    const credential = credentials[legacyId]
+    if (credential === undefined || Object.hasOwn(credentials, providerId)) continue
+    next[providerId] = credential
+    changed = true
+  }
+  const result: T = changed ? { ...credentials, ...next } : credentials
+  return result
+}

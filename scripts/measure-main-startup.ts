@@ -6,12 +6,13 @@ import path from 'node:path'
 import type { Readable } from 'node:stream'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium, type Browser, type Page } from '@playwright/test'
+import { electronDevInvocation } from './run-electron-dev'
+import { buildSafeElectronEnvironment } from './safe-electron-environment'
 
 const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
 const TEMP_DIR_PREFIX = 'openwaggle-startup-'
 const LOCALHOST = '127.0.0.1'
 const LOCALHOST_RENDERER_MARKER = 'localhost:'
-const OPENWAGGLE_PROTOCOL_PREFIX = 'openwaggle://'
 const OPTION_RUNS = '--runs'
 const OPTION_TIMEOUT_MS = '--timeout-ms'
 const OPTION_PORT = '--port'
@@ -76,7 +77,7 @@ function readOptionalNumberOption(args: readonly string[], optionName: string) {
   return match ? parsePositiveInteger(match.slice(prefix.length), optionName) : null
 }
 
-function readCliOptions(): CliOptions {
+function readCliOptions() {
   const args = process.argv.slice(CLI_ARGS_START_INDEX)
   return {
     runs: readNumberOption(args, OPTION_RUNS, DEFAULT_RUNS),
@@ -116,7 +117,7 @@ function appendRecentLines(lines: string[], chunk: Buffer) {
   }
 }
 
-function parseStartupTiming(line: string): StartupTiming | null {
+function parseStartupTiming(line: string) {
   const match = line.match(STARTUP_TIMING_PATTERN)
   const label = match?.[FIRST_CAPTURE_GROUP]
   const elapsed = match?.[SECOND_CAPTURE_GROUP]
@@ -133,35 +134,28 @@ function collectStartupTimings(lines: readonly string[]) {
   })
 }
 
-function createElectronEnv(userDataDir: string): NodeJS.ProcessEnv {
-  const childEnv: NodeJS.ProcessEnv = {
-    ...process.env,
+function createElectronEnv(userDataDir: string) {
+  return buildSafeElectronEnvironment({
     ELECTRON_ENABLE_LOGGING: '1',
+    OPENWAGGLE_AUTOMATION: '1',
     OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
     OPENWAGGLE_USER_DATA_DIR: userDataDir,
-  }
-  delete childEnv.ELECTRON_RUN_AS_NODE
-  return childEnv
+  })
 }
 
 function spawnElectronDev(port: number, userDataDir: string) {
-  return spawn(
-    'pnpm',
-    [
-      'exec',
-      'electron-vite',
-      'dev',
-      '--',
-      `--remote-debugging-port=${port}`,
-      `--${STARTUP_TIMINGS_SWITCH}`,
-    ],
-    {
-      cwd: process.cwd(),
-      detached: process.platform !== 'win32',
-      env: createElectronEnv(userDataDir),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
+  // electron-vite dev on Node with no ELECTRON_RUN_AS_NODE, the same way on every OS.
+  const invocation = electronDevInvocation(
+    'vite',
+    ['--', `--remote-debugging-port=${port}`, `--${STARTUP_TIMINGS_SWITCH}`],
+    { environment: createElectronEnv(userDataDir), projectRoot: process.cwd() },
   )
+  return spawn(invocation.command, [...invocation.args], {
+    cwd: process.cwd(),
+    detached: process.platform !== 'win32',
+    env: invocation.environment,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
 }
 
 async function waitForCdp(port: number, startedAt: number, timeoutMs: number) {
@@ -182,7 +176,7 @@ async function waitForCdp(port: number, startedAt: number, timeoutMs: number) {
 
 function isOpenWagglePage(page: Page) {
   const url = page.url()
-  return url.includes(LOCALHOST_RENDERER_MARKER) || url.startsWith(OPENWAGGLE_PROTOCOL_PREFIX)
+  return url.includes(LOCALHOST_RENDERER_MARKER) || url.startsWith('openwaggle://')
 }
 
 async function waitForOpenWagglePage(browser: Browser, timeoutMs: number) {
@@ -256,7 +250,7 @@ async function closeBrowser(browser: Browser | null) {
   await Promise.race([browser.close(), delay(BROWSER_CLOSE_TIMEOUT_MS)]).catch(() => undefined)
 }
 
-async function measureRun(run: number, options: CliOptions): Promise<StartupRunResult> {
+async function measureRun(run: number, options: CliOptions) {
   const port = options.port ?? (await findFreePort())
   const userDataDir = await mkdtemp(path.join(tmpdir(), TEMP_DIR_PREFIX))
   const recentOutputLines: string[] = []

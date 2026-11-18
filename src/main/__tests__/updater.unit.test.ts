@@ -1,3 +1,4 @@
+import type { BuildChannel } from '@shared/types/build-identity'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // vi.hoisted() callbacks are hoisted above all imports, so they cannot reference
@@ -5,27 +6,39 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // vi.mock factory (which also runs before module-scope code but after Node is ready).
 const {
   mockIsDev,
+  mockBuildChannel,
   mockBroadcastToWindows,
   mockCheckForUpdatesFn,
+  mockConfigureUpdaterFeed,
+  mockCancelDownload,
   mockQuitAndInstall,
   autoUpdaterRef,
 } = vi.hoisted(() => {
   const autoUpdaterRef: {
     current: import('node:events').EventEmitter | null
   } = { current: null }
+  const mockBuildChannel: { value: BuildChannel } = { value: 'alpha' }
 
   return {
     mockIsDev: { value: false },
+    mockBuildChannel,
     mockBroadcastToWindows: vi.fn(),
-    mockCheckForUpdatesFn: vi.fn(() => Promise.resolve()),
+    mockCheckForUpdatesFn: vi.fn<() => Promise<unknown>>(() => Promise.resolve()),
+    mockConfigureUpdaterFeed: vi.fn(),
+    mockCancelDownload: vi.fn(),
     mockQuitAndInstall: vi.fn(),
     autoUpdaterRef,
   }
 })
 
-vi.mock('@electron-toolkit/utils', () => ({
-  get is() {
-    return { dev: mockIsDev.value }
+vi.mock('../desktop-shell/app-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../desktop-shell/app-lifecycle')>()
+  return { appLifecycle: { ...actual.appLifecycle, isPackaged: () => !mockIsDev.value } }
+})
+
+vi.mock('@shared/build-identity-runtime', () => ({
+  get BUILD_CHANNEL() {
+    return mockBuildChannel.value
   },
 }))
 
@@ -39,6 +52,8 @@ vi.mock('electron-updater', async () => {
   autoUpdaterRef.current = emitter
 
   const autoUpdater = Object.assign(emitter, {
+    allowDowngrade: false,
+    allowPrerelease: false,
     autoDownload: true,
     autoInstallOnAppQuit: true,
     logger: null,
@@ -52,6 +67,11 @@ vi.mock('electron-updater', async () => {
 
 vi.mock('../utils/broadcast', () => ({
   broadcastToWindows: (...args: unknown[]) => mockBroadcastToWindows(...args),
+}))
+
+vi.mock('../update-feed', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../update-feed')>()),
+  configureUpdaterFeed: (...args: unknown[]) => mockConfigureUpdaterFeed(...args),
 }))
 
 vi.mock('../logger', () => ({
@@ -81,8 +101,13 @@ describe('updater service', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mockIsDev.value = false
+    mockBuildChannel.value = 'alpha'
     mockBroadcastToWindows.mockReset()
     mockCheckForUpdatesFn.mockReset()
+    mockConfigureUpdaterFeed.mockReset()
+    // The feed lists a release, so each check goes on to ask the updater.
+    mockConfigureUpdaterFeed.mockResolvedValue({ type: 'release', tag: 'v0.5.0-alpha.1' })
+    mockCancelDownload.mockReset()
     mockQuitAndInstall.mockReset()
     mockCheckForUpdatesFn.mockResolvedValue(undefined)
     emitter().removeAllListeners()
@@ -109,24 +134,33 @@ describe('updater service', () => {
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
     })
 
-    it('calls autoUpdater.checkForUpdates in prod mode', () => {
+    it('calls autoUpdater.checkForUpdates in prod mode', async () => {
       mockIsDev.value = false
       checkForUpdates()
-      expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
+      await vi.waitFor(() => expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce())
+    })
+
+    it('is a no-op for dev channel builds even outside dev mode', () => {
+      mockIsDev.value = false
+      mockBuildChannel.value = 'dev'
+      checkForUpdates()
+      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
     })
   })
 
   describe('installUpdate', () => {
-    it('calls quitAndInstall with correct arguments', () => {
-      installUpdate()
-      expect(mockQuitAndInstall).toHaveBeenCalledWith(false, true)
+    it('installs silently and forces the app to relaunch', async () => {
+      initAutoUpdater('stable')
+      emitter().emit('update-downloaded', { version: '1.2.3' })
+      await installUpdate()
+      expect(mockQuitAndInstall).toHaveBeenCalledWith(true, true)
     })
   })
 
   describe('initAutoUpdater', () => {
     it('is a no-op in dev mode', () => {
       mockIsDev.value = true
-      initAutoUpdater()
+      initAutoUpdater('alpha')
       vi.advanceTimersByTime(10_000)
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
       expect(emitter().listenerCount('checking-for-update')).toBe(0)
@@ -134,7 +168,7 @@ describe('updater service', () => {
 
     it('registers event listeners in prod mode', () => {
       mockIsDev.value = false
-      initAutoUpdater()
+      initAutoUpdater('alpha')
       expect(emitter().listenerCount('checking-for-update')).toBeGreaterThan(0)
       expect(emitter().listenerCount('update-available')).toBeGreaterThan(0)
       expect(emitter().listenerCount('update-not-available')).toBeGreaterThan(0)
@@ -143,19 +177,98 @@ describe('updater service', () => {
       expect(emitter().listenerCount('error')).toBeGreaterThan(0)
     })
 
-    it('triggers an initial checkForUpdates after the startup delay', () => {
+    it('triggers an initial checkForUpdates after the startup delay', async () => {
       mockIsDev.value = false
-      initAutoUpdater()
+      initAutoUpdater('alpha')
       expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(5_001)
+      await vi.advanceTimersByTimeAsync(5_001)
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
+    })
+
+    it('refreshes the authoritative channel before periodic checks', async () => {
+      let savedChannel: 'alpha' | 'stable' = 'alpha'
+      const readChannel = vi.fn(() => Promise.resolve(savedChannel))
+      initAutoUpdater('alpha', readChannel)
+
+      await vi.advanceTimersByTimeAsync(5_001)
+      expect(mockConfigureUpdaterFeed).toHaveBeenLastCalledWith(expect.anything(), 'alpha')
+
+      savedChannel = 'stable'
+      await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1_000)
+      expect(mockConfigureUpdaterFeed).toHaveBeenLastCalledWith(expect.anything(), 'stable')
+      expect(readChannel).toHaveBeenCalledTimes(2)
+    })
+
+    it('cancels and invalidates an Alpha download when switching to Stable', async () => {
+      mockCheckForUpdatesFn.mockResolvedValueOnce({
+        isUpdateAvailable: true,
+        updateInfo: { version: '0.5.0-alpha.1' },
+        cancellationToken: { cancel: mockCancelDownload },
+        downloadPromise: Promise.resolve([]),
+      })
+      initAutoUpdater('alpha')
+
+      checkForUpdates('alpha')
+      await vi.advanceTimersByTimeAsync(0)
+
+      checkForUpdates('stable')
+
+      expect(mockCancelDownload).toHaveBeenCalledOnce()
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
+    })
+
+    it('invalidates an already downloaded Alpha update when switching to Stable', async () => {
+      initAutoUpdater('alpha')
+      emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
+
+      checkForUpdates('stable')
+
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
+      expect(getUpdateStatus()).not.toEqual({ type: 'downloaded', version: '0.5.0-alpha.1' })
+      await installUpdate()
+      expect(mockQuitAndInstall).not.toHaveBeenCalled()
+      mockBroadcastToWindows.mockClear()
+
+      emitter().emit('update-available', { version: '0.5.0-alpha.1' })
+      emitter().emit('update-downloaded', { version: '0.5.0-alpha.1' })
+
+      expect(emitter()).toHaveProperty('autoInstallOnAppQuit', false)
+      const statusTypes = mockBroadcastToWindows.mock.calls.map(([, status]) => status.type)
+      expect(statusTypes).not.toContain('available')
+      expect(statusTypes).not.toContain('downloaded')
+    })
+
+    it('does not register listeners for dev channel builds', () => {
+      mockIsDev.value = false
+      mockBuildChannel.value = 'dev'
+      initAutoUpdater('alpha')
+      vi.advanceTimersByTime(10_000)
+      expect(mockCheckForUpdatesFn).not.toHaveBeenCalled()
+      expect(emitter().listenerCount('checking-for-update')).toBe(0)
+    })
+
+    it('uses the Alpha feed, allows prereleases, and still prevents downgrades', () => {
+      mockIsDev.value = false
+      mockBuildChannel.value = 'alpha'
+      initAutoUpdater('alpha')
+      expect(emitter()).toHaveProperty('channel', 'alpha')
+      expect(emitter()).toHaveProperty('allowPrerelease', true)
+      expect(emitter()).toHaveProperty('allowDowngrade', false)
+    })
+
+    it('maps the Stable preference to the electron-updater latest feed', () => {
+      initAutoUpdater('stable')
+      expect(emitter()).toHaveProperty('channel', 'latest')
+      expect(emitter()).toHaveProperty('allowPrerelease', false)
+      expect(emitter()).toHaveProperty('allowDowngrade', false)
     })
   })
 
   describe('status broadcasting via autoUpdater events', () => {
     beforeEach(() => {
       mockIsDev.value = false
-      initAutoUpdater()
+      initAutoUpdater('alpha')
     })
 
     it('broadcasts checking status on checking-for-update event', () => {
@@ -193,13 +306,9 @@ describe('updater service', () => {
       })
     })
 
-    it('uses "unknown" version when download starts before an available event', () => {
+    it('ignores download progress before a channel-eligible available event', () => {
       emitter().emit('download-progress', { percent: 10.0 })
-      expect(mockBroadcastToWindows).toHaveBeenCalledWith('updater:status-changed', {
-        type: 'downloading',
-        version: 'unknown',
-        percent: 10,
-      })
+      expect(mockBroadcastToWindows).not.toHaveBeenCalled()
     })
 
     it('broadcasts downloaded status with version on update-downloaded event', () => {
@@ -220,11 +329,11 @@ describe('updater service', () => {
   })
 
   describe('disposeAutoUpdater', () => {
-    it('clears the periodic interval so no further checks fire after disposal', () => {
+    it('clears the periodic interval so no further checks fire after disposal', async () => {
       mockIsDev.value = false
-      initAutoUpdater()
+      initAutoUpdater('alpha')
 
-      vi.advanceTimersByTime(5_001)
+      await vi.advanceTimersByTimeAsync(5_001)
       expect(mockCheckForUpdatesFn).toHaveBeenCalledOnce()
       mockCheckForUpdatesFn.mockClear()
 

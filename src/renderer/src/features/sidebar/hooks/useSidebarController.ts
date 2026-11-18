@@ -1,32 +1,56 @@
-import type { SessionId } from '@shared/types/brand'
-import { useBranchSummaryStore } from '@/features/chat/state'
+import type { RepositoryPath, SessionId } from '@shared/types/brand'
+import { resolveSessionWorkingDir } from '@shared/utils/worktree'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useBranchSummaryStore, useChatStore } from '@/features/chat/state'
+import { resolvePinnedDropNeighbours } from '../lib/pinned-sessions'
+import { usePinnedSessionsStore } from '../state/pinned-sessions-store'
 import { createSidebarBranchActions } from './sidebar-branch-actions'
 import { createSidebarProjectActions } from './sidebar-project-actions'
 import { createSidebarSessionActions } from './sidebar-session-actions'
+import { useRegisterSidebarSessionActions } from './useRegisterSidebarSessionActions'
 import { useSidebarState } from './useSidebarState'
 
-function removeCollapsedProject(current: ReadonlySet<string>, path: string): ReadonlySet<string> {
-  if (!current.has(path)) return current
-  const next = new Set(current)
-  next.delete(path)
-  return next
-}
-
-function toggleCollapsedProject(current: ReadonlySet<string>, path: string): ReadonlySet<string> {
-  const next = new Set(current)
-  if (next.has(path)) next.delete(path)
-  else next.add(path)
-  return next
+/**
+ * The rendered section that holds the active session, in display order: the Pinned rows when it
+ * is pinned, otherwise its project group. A neighbour is picked inside that section so removing a
+ * session never jumps the reader into another project.
+ */
+function visibleSectionSessionIds(state: ReturnType<typeof useSidebarState>) {
+  const activeId = String(useChatStore.getState().activeSessionId ?? '')
+  const pinned = state.pinnedRows.map((row) => row.session.id)
+  if (pinned.some((id) => String(id) === activeId)) return pinned
+  const group = state.sessionGroups.projects.find((candidate) =>
+    candidate.sessions.some((session) => String(session.id) === activeId),
+  )
+  const result: readonly SessionId[] = group ? group.sessions.map((session) => session.id) : []
+  return result
 }
 
 function createDomainActions(
   state: ReturnType<typeof useSidebarState>,
   clearTransientDraftContext: () => void,
-  refreshGit: (path: string | null) => void,
+  refreshGit: (path: RepositoryPath | null) => void,
   refreshAfterSessionMutation: (sessionId: SessionId) => Promise<void>,
+  queryClient: QueryClient,
 ) {
   const session = createSidebarSessionActions({
     activeSessionId: state.activeSessionId,
+    removalNavigation: {
+      getActiveSessionId: () => useChatStore.getState().activeSessionId,
+      hasDraftSession: () => useChatStore.getState().draftSession !== null,
+      getVisibleSessionIds: () => visibleSectionSessionIds(state),
+      isSessionListed: (id: SessionId) =>
+        useChatStore
+          .getState()
+          .sessions.some((session) => String(session.id) === String(id) && !session.archived),
+      selectSession: (id: SessionId) => {
+        clearTransientDraftContext()
+        useChatStore.getState().setActiveSession(id)
+        void state.navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
+      },
+      clearActiveSession: () => useChatStore.getState().setActiveSession(null),
+    },
     clearTransientDraftContext,
     deleteSession: state.chat.deleteSession,
     loadChatSessions: state.chat.loadSessions,
@@ -35,10 +59,15 @@ function createDomainActions(
     matchingActiveWorkspace: state.matchingActiveWorkspace,
     navigate: state.navigate,
     projectPath: state.project.projectPath,
+    queryClient,
     refreshSessionWorkspace: state.sessions.refreshSessionWorkspace,
     selectedModel: state.preferences.selectedModel,
     showToast: state.showToast,
-    startDraftSession: state.chat.startDraftSession,
+    togglePin: (sessionId: SessionId) => {
+      const store = usePinnedSessionsStore.getState()
+      const isPinned = store.pins.some((pin) => String(pin.sessionId) === String(sessionId))
+      void (isPinned ? store.unpinSession(sessionId) : store.pinSession(sessionId))
+    },
   })
   const branch = createSidebarBranchActions({
     activeBranchId: state.activeBranchId,
@@ -48,7 +77,7 @@ function createDomainActions(
     navigate: state.navigate,
     refreshAfterSessionMutation,
     refreshSessionWorkspace: state.sessions.refreshSessionWorkspace,
-    selectedModel: state.preferences.selectedModel,
+    defaultModel: state.preferences.defaultModel,
     sessions: state.sessions.sessions,
     showToast: state.showToast,
   })
@@ -56,21 +85,26 @@ function createDomainActions(
     activeSessionId: state.activeSessionId ? String(state.activeSessionId) : null,
     clearTransientDraftContext,
     displayProjectName: state.displayProjectName,
-    expandProject(path) {
-      state.setCollapsedProjectPaths((current) => removeCollapsedProject(current, path))
+    expandProject: (path) => {
+      state.setProjectExpanded(path, true)
     },
     loadChatSessions: state.chat.loadSessions,
     loadSessionTrees: state.sessions.loadSessions,
     navigate: state.navigate,
     projectPath: state.project.projectPath,
+    queryClient,
     refreshGit,
     removeProjectReferences: state.preferences.removeProjectReferences,
     selectFolder: state.project.selectFolder,
-    sessions: state.sessions.sessions,
     setProjectDisplayName: state.preferences.setProjectDisplayName,
     setProjectPath: state.project.setProjectPath,
     showToast: state.showToast,
     startDraftSession: state.chat.startDraftSession,
+    clearActiveSession: () => useChatStore.getState().setActiveSession(null),
+    getActiveSessionId: () => {
+      const active = useChatStore.getState().activeSessionId
+      return active === null ? null : String(active)
+    },
   })
 
   return { branch, project, session }
@@ -90,18 +124,18 @@ function buildControllerOutput(
     handleArchiveSession: actions.session.archive,
     handleCloneSession: actions.session.clone,
     handleDeleteSession: actions.session.delete,
-    handleNewSession() {
+    handleNewSession: () => {
       clearTransientDraftContext()
       state.chat.startDraftSession(state.project.projectPath)
       void state.navigate({ to: '/' })
     },
     handleOpenProject: actions.project.openProject,
     handleOpenProjectInFinder: actions.project.openInFinder,
-    handleOpenSettings() {
+    handleOpenSettings: () => {
       void state.navigate({ to: '/settings' })
     },
-    handleOpenSkills() {
-      void state.navigate({ to: '/skills' })
+    handleOpenUsageCost: () => {
+      void state.navigate({ to: '/usage' })
     },
     handleRemoveProject: actions.project.remove,
     handleRenameBranch: actions.branch.rename,
@@ -110,8 +144,22 @@ function buildControllerOutput(
     handleSelectProjectPath: actions.project.selectProjectPath,
     handleSelectSession: actions.session.select,
     handleToggleBranches: actions.branch.toggle,
-    handleToggleProjectCollapsed(path: string) {
-      state.setCollapsedProjectPaths((current) => toggleCollapsedProject(current, path))
+    handleTogglePinnedSession: actions.session.togglePin,
+    handleToggleProjectCollapsed: (path: string) => {
+      state.toggleProjectExpanded(path)
+    },
+    /**
+     * Commit a Pinned section drag. Neighbours are resolved from the rendered rows, so a
+     * drop expresses "between these two" rather than an index the main process would have
+     * to reinterpret.
+     */
+    handleReorderPinnedSession: (sessionId: SessionId, targetIndex: number) => {
+      const neighbours = resolvePinnedDropNeighbours(
+        state.pinnedRows,
+        String(sessionId),
+        targetIndex,
+      )
+      void usePinnedSessionsStore.getState().movePin(sessionId, neighbours)
     },
     projectPath: state.project.projectPath,
   }
@@ -119,9 +167,21 @@ function buildControllerOutput(
 
 export function useSidebarController() {
   const state = useSidebarState()
+  const queryClient = useQueryClient()
+  const loadPins = usePinnedSessionsStore((s) => s.loadPins)
 
-  function refreshGit(path: string | null) {
-    void Promise.all([state.git.refreshStatus(path), state.git.refreshBranches(path)])
+  useEffect(() => {
+    void loadPins()
+  }, [loadPins])
+
+  function refreshGit(path: RepositoryPath | null) {
+    // A project switch: branches are repository-level, and with no session context the
+    // working tree is the checkout itself. resolveSessionWorkingDir stays the sole
+    // WorkingPath producer rather than coercing the repository path directly.
+    void Promise.all([
+      state.git.refreshStatus(resolveSessionWorkingDir(null, path)),
+      state.git.refreshBranches(path),
+    ])
   }
 
   function clearTransientDraftContext() {
@@ -141,6 +201,10 @@ export function useSidebarController() {
     clearTransientDraftContext,
     refreshGit,
     refreshAfterSessionMutation,
+    queryClient,
   )
+  // Hive panel rows reuse these exact handlers (ADR 0051); registration is a side effect of the
+  // Sidebar owning the domain actions, so the registry never creates a second source of truth.
+  useRegisterSidebarSessionActions(actions.session)
   return buildControllerOutput(state, actions, clearTransientDraftContext)
 }

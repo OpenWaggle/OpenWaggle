@@ -1,46 +1,61 @@
 ---
-title: "AGENTS.md"
-description: "Project-wide and directory-scoped agent instructions using AGENTS.md files."
+title: "Project instructions"
+description: "Add an AGENTS.md file with the commands, conventions, and constraints the agent should follow."
 order: 3
-section: "Extending"
+section: "Customize"
+kind: "guide"
 ---
 
-`AGENTS.md` files provide project instructions. Pi's default resource loader discovers context files, and OpenWaggle also exposes AGENTS status in the Skills panel.
+An `AGENTS.md` file holds the instructions you would otherwise repeat at the start of every conversation: which commands to run, which files to leave alone, and what to check before calling a task done. Put it in your project root. Pi, the agent runtime inside OpenWaggle, adds it to the agent's context in every session for that project.
 
-## How It Works
+## Write an AGENTS.md
 
-- Place an `AGENTS.md` in your project root to give the agent baseline instructions for every run.
-- Place additional `AGENTS.md` files in subdirectories to provide scoped instructions for specific areas of your codebase.
-- Pi discovers relevant context files for the active project. OpenWaggle's own resolver can preview root and scoped instructions for the UI.
-
-## What to Include
-
-Use `AGENTS.md` for things like:
-
-- **Project conventions** — Coding standards, naming patterns, preferred libraries.
-- **Architecture context** — How the project is structured, key design decisions.
-- **Workflow rules** — Testing requirements, commit message formats, review processes.
-- **Warnings** — Areas of the codebase that need special care, known gotchas.
-
-## Example
+Start with a short file. This one covers the three things agents most often get wrong:
 
 ```markdown
-# AGENTS.md
+# Project instructions
+
+## Commands
+- Install dependencies with pnpm install.
+- Run pnpm test after changing behavior.
+- Run pnpm lint before reporting a change complete.
 
 ## Conventions
 - Use TypeScript strict mode.
-- Always use pnpm, never npm or yarn.
-- Write tests for all new features.
-
-## Architecture
 - API routes live in src/api/.
 - Shared types live in src/types/.
 - Do not modify generated files in src/generated/.
+
+## Review
+- Report which checks passed, failed, or were not run.
+- Do not commit or push unless asked.
 ```
 
-## AGENTS.md vs Skills
+Replace the paths and commands with ones that exist in your repository. Commit the file if you want your team to share the instructions.
 
-- **AGENTS.md** — Baseline project context discovered by Pi/OpenWaggle for the active project.
-- **Skills** — Runtime-loaded through Pi-native resource locations with `.openwaggle > .pi > .agents` project precedence; OpenWaggle also has a catalog UI for skill preview and toggles.
+To check that OpenWaggle found the file, open **Settings > Skills** and choose the project. The panel shows whether the root `AGENTS.md` is there.
 
-See [Skills System](/docs/extending/skills-system) for more on skills.
+## Decide what to include
+
+Write down what the agent cannot work out from the code:
+
+- The package manager and the exact test commands.
+- Repository conventions and architecture rules.
+- Generated files and areas that need special care.
+- What you expect for review, commits, and reporting failures.
+
+Keep the file current. An outdated test command misleads the agent on every task.
+
+## Add instructions for one folder
+
+You can put another `AGENTS.md` in a subdirectory for rules that only apply there. Keep the root file short and point to those files when the agent needs the detail. Pi loads a context file for the directory it runs in and the directories above it, so do not expect every nested file to be in every conversation.
+
+## Know what instructions cannot do
+
+Instructions are text the agent reads. They are not access controls. A rule such as "do not edit generated files" does not stop a tool from writing there. To review actions before they happen, use [approvals and permissions](/docs/configuration/approvals-permissions).
+
+## Choose between AGENTS.md, skills, and agent definitions
+
+`AGENTS.md` sets the rules for the whole project. A [skill](/docs/extending/skills-system) is a workflow for one kind of task, such as a code review, that the agent loads when it needs it.
+
+[Agent definitions](/docs/extending/agent-definitions) give a new session a role and defaults. They do not set conventions for the project.

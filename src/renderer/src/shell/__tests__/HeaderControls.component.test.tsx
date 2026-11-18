@@ -1,11 +1,12 @@
 import type { GitStatusSummary } from '@shared/types/git'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { registerRightPanelController } from '@/shared/lib/right-panel-surfaces'
 import {
   CommitButton,
   DiffToggleButton,
   HeaderLeft,
-  SessionTreeButton,
+  SessionSummaryButton,
   TerminalButton,
 } from '../HeaderControls'
 
@@ -30,6 +31,7 @@ describe('HeaderControls', () => {
       <HeaderLeft
         activeBranchName="feature/test"
         projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
         sidebarOpen={false}
         title="Working session"
         onToggleSidebar={onToggleSidebar}
@@ -44,6 +46,103 @@ describe('HeaderControls', () => {
     expect(onToggleSidebar).toHaveBeenCalledOnce()
   })
 
+  it('renders Hive identity on a quiet second line below the session title', () => {
+    render(
+      <HeaderLeft
+        activeBranchName="main"
+        projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
+        sidebarOpen
+        title="Migration and recovery"
+        sessionIdentity={{ role: 'worker', agentDefinitionName: 'security-reviewer' }}
+        onToggleSidebar={vi.fn()}
+      />,
+    )
+
+    const main = document.querySelector('[data-qa="header-session-main"]')
+    const identity = document.querySelector('[data-qa="header-session-identity"]')
+
+    expect(main).toHaveTextContent('Migration and recovery')
+    expect(main?.contains(identity)).toBe(false)
+    expect(identity).toHaveTextContent('Worker')
+    expect(identity).toHaveTextContent('security-reviewer')
+    expect(identity).not.toHaveClass('border')
+  })
+
+  it('says how many Workers below still run and opens the Hive panel from it (ADR 0065)', () => {
+    const showSurface = vi.fn()
+    const release = registerRightPanelController({
+      toggleSurface: vi.fn(),
+      showSurface,
+      togglePanel: vi.fn(),
+      closePanel: vi.fn(),
+    })
+    const { rerender } = render(
+      <HeaderLeft
+        activeBranchName="main"
+        projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
+        sidebarOpen
+        title="Release prep"
+        sessionIdentity={{ role: 'queen', runningWorkerCount: 3 }}
+        onToggleSidebar={vi.fn()}
+      />,
+    )
+
+    const identity = document.querySelector('[data-qa="header-session-identity"]')
+    expect(identity).toHaveTextContent('Queen')
+    expect(identity).toHaveTextContent('3 Workers running')
+    expect(identity).not.toHaveTextContent('working')
+    fireEvent.click(screen.getByRole('button', { name: '3 Workers running, open Hive panel' }))
+    expect(showSurface).toHaveBeenCalledWith('hive')
+    release()
+
+    rerender(
+      <HeaderLeft
+        activeBranchName="main"
+        projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
+        sidebarOpen
+        title="Release prep"
+        sessionIdentity={{ role: 'worker', runningWorkerCount: 1 }}
+        onToggleSidebar={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('1 Worker running')).toBeVisible()
+
+    rerender(
+      <HeaderLeft
+        activeBranchName="main"
+        projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
+        sidebarOpen
+        title="Release prep"
+        sessionIdentity={{ role: 'queen' }}
+        onToggleSidebar={vi.fn()}
+      />,
+    )
+    expect(document.querySelector('[data-qa="header-running-workers"]')).toBeNull()
+  })
+
+  it('shows an Agent definition without inventing Hive lineage for an independent Session', () => {
+    render(
+      <HeaderLeft
+        activeBranchName="main"
+        projectPath="/Users/demo/OpenWaggle"
+        sessionId={null}
+        sidebarOpen
+        title="Independent review"
+        sessionIdentity={{ agentDefinitionName: 'security-reviewer' }}
+        onToggleSidebar={vi.fn()}
+      />,
+    )
+
+    const identity = document.querySelector('[data-qa="header-session-identity"]')
+    expect(identity).toHaveTextContent('security-reviewer')
+    expect(identity).not.toHaveTextContent('Queen')
+    expect(identity).not.toHaveTextContent('Worker')
+  })
+
   it('disables terminal and commit buttons without a project', () => {
     render(
       <>
@@ -56,15 +155,20 @@ describe('HeaderControls', () => {
     expect(screen.getByRole('button', { name: 'Open commit dialog' })).toBeDisabled()
   })
 
-  it('delegates enabled terminal, session-tree, and diff actions', () => {
+  it('delegates enabled terminal, session-summary and diff actions', () => {
     const onToggleTerminal = vi.fn()
-    const onToggleTree = vi.fn()
+    const onToggleSummary = vi.fn()
     const onToggleDiff = vi.fn()
 
     render(
       <>
         <TerminalButton open projectPath="/repo" onToggle={onToggleTerminal} />
-        <SessionTreeButton hasSessionTree isChatRoute open={false} onToggle={onToggleTree} />
+        <SessionSummaryButton
+          open
+          panelId="session-summary-session-1"
+          suppressed={false}
+          onToggle={onToggleSummary}
+        />
         <DiffToggleButton
           error={null}
           isChatRoute
@@ -78,14 +182,38 @@ describe('HeaderControls', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide terminal' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle Session Tree' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle diff panel' }))
+    const summaryButton = screen.getByRole('button', { name: 'Hide Session Summary' })
+    fireEvent.click(summaryButton)
+    const diffToggle = screen.getByRole('button', { name: 'Changes' })
+    expect(diffToggle).toHaveAttribute('data-git-status-state', 'ready')
+    fireEvent.click(diffToggle)
 
     expect(screen.getByText('+12')).toBeInTheDocument()
     expect(screen.getByText('-3')).toBeInTheDocument()
     expect(onToggleTerminal).toHaveBeenCalledOnce()
-    expect(onToggleTree).toHaveBeenCalledOnce()
+    expect(summaryButton).toHaveAttribute('aria-pressed', 'true')
+    expect(summaryButton).toHaveAttribute('aria-controls', 'session-summary-session-1')
+    expect(summaryButton.querySelector('.lucide-layout-list')).toBeInTheDocument()
+    expect(onToggleSummary).toHaveBeenCalledOnce()
     expect(onToggleDiff).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the Summary control visible but disabled while another side panel owns the space', () => {
+    render(
+      <SessionSummaryButton
+        open={false}
+        panelId="session-summary-session-1"
+        suppressed
+        onToggle={vi.fn()}
+      />,
+    )
+
+    const button = screen.getByRole('button', { name: 'Open Session Summary' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute(
+      'title',
+      'Session Summary is hidden while the side panel is open',
+    )
   })
 
   it('shows non-status diff text for loading and error states', () => {
@@ -102,6 +230,10 @@ describe('HeaderControls', () => {
     )
 
     expect(screen.getByText('Loading diff…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute(
+      'data-git-status-state',
+      'loading',
+    )
 
     rerender(
       <DiffToggleButton
@@ -116,5 +248,37 @@ describe('HeaderControls', () => {
     )
 
     expect(screen.getByText('Git unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute(
+      'data-git-status-state',
+      'error',
+    )
+  })
+
+  it('retains accessible actions and diff totals when compact labels collapse', () => {
+    const onCommit = vi.fn()
+    render(
+      <>
+        <CommitButton isCommitting={false} projectPath="/repo" onOpen={onCommit} />
+        <DiffToggleButton
+          error={null}
+          isChatRoute
+          isLoading={false}
+          open={false}
+          projectPath="/repo"
+          status={gitStatus()}
+          onToggle={vi.fn()}
+        />
+      </>,
+    )
+    const commit = screen.getByRole('button', { name: 'Open commit dialog' })
+    expect(commit.querySelector('.lucide-git-commit-horizontal')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    )
+    fireEvent.click(commit)
+    expect(onCommit).toHaveBeenCalledOnce()
+    const diff = screen.getByRole('button', { name: 'Changes' })
+    expect(diff).toHaveAttribute('title', 'Changes: +12 -3')
+    expect(diff.querySelector('.lucide-file-diff')).toHaveAttribute('aria-hidden', 'true')
   })
 })

@@ -1,0 +1,177 @@
+import type { SchemaType } from '@shared/schema'
+import type { sessionHostEventCursorSchema } from '@shared/schemas/session-host-event-cursor'
+import type { RunMode, WorktreeLaunchProgress } from './background-run'
+import type { SupportedModelId } from './brand'
+import type { DesktopNotification } from './desktop-notification'
+import type {
+  SessionExportOperationStatus,
+  SessionExportProgress,
+} from './session-export-operation'
+import type { SemanticDiscoveryReadiness } from './session-query'
+import type { ThinkingLevel } from './settings'
+import type { AgentTransportEvent } from './stream'
+import type { WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
+
+export type SessionRunTerminalStatus =
+  | 'completed'
+  | 'failed'
+  | 'interrupted'
+  | 'interrupted-by-interaction-timeout'
+
+export type SessionHostEventCursor = SchemaType<typeof sessionHostEventCursorSchema>
+
+export type SessionHostEventPayload =
+  | {
+      readonly kind: 'session-transport'
+      readonly sessionId: string
+      readonly event: AgentTransportEvent
+    }
+  | {
+      readonly kind: 'session-worktree-launch'
+      readonly sessionId: string
+      readonly model: SupportedModelId
+      readonly mode: RunMode
+      readonly event:
+        | { readonly type: 'progress'; readonly progress: WorktreeLaunchProgress }
+        | { readonly type: 'failure'; readonly errorMessage: string }
+    }
+  | {
+      readonly kind: 'session-state-changed'
+      readonly sessionId: string
+      readonly stateRevision: number
+      readonly operation: string
+      /** For `run-settled` and `follow-up-started`: the Run that settled. */
+      readonly runId?: string
+      readonly terminalStatus?: SessionRunTerminalStatus
+      /**
+       * The Run failed after its terminal event reported a clean end (it could not be saved). Only
+       * the classification code: messages stay on the transport, which needs `sessions:read`.
+       */
+      readonly failureCode?: string
+      /** The Run was a Hive wake: no prompt of the user's started it, so none is retried. */
+      readonly hiveWake?: true
+    }
+  | {
+      readonly kind: 'session-waggle-transport'
+      readonly sessionId: string
+      readonly event: AgentTransportEvent
+      readonly meta: WaggleStreamMetadata
+    }
+  | {
+      readonly kind: 'session-waggle-turn'
+      readonly sessionId: string
+      readonly event: WaggleTurnEvent
+    }
+  | {
+      readonly kind: 'session-list-changed'
+      readonly sessionId: string
+      readonly change: 'created' | 'updated' | 'archived' | 'unarchived' | 'deleted'
+      /**
+       * Only the Session's catalog entry changed (a pin or its read receipt), not its transcript
+       * or tree: windows refresh the entry and need not read the Session again.
+       */
+      readonly catalogOnly?: true
+    }
+  | {
+      readonly kind: 'semantic-discovery-readiness-changed'
+      readonly readiness: SemanticDiscoveryReadiness
+    }
+  | {
+      /**
+       * Pi's global default thinking level changed (the desktop user picked a level), so every
+       * window's draft picker shows where the next new Session starts.
+       */
+      readonly kind: 'default-thinking-level-changed'
+      readonly level: ThinkingLevel
+    }
+  | {
+      /**
+       * The provider refused a Title model (access, sign-in, or a model the account cannot use).
+       * Background titles use the Session's own model until `retryAt`; sent once per model (#357).
+       */
+      readonly kind: 'session-title-model-refused'
+      readonly model: string
+      readonly reason: string
+      readonly retryAt: number
+    }
+  | {
+      /**
+       * The Session Host decided a Desktop notification is due (ADR 0062). It replaces the
+       * notification standing under the same `id`; `presentedBy` says whether the desktop app
+       * shows it or the Host already did.
+       */
+      readonly kind: 'desktop-notification-shown'
+      readonly notification: DesktopNotification
+    }
+  | {
+      /** The situation ended (answered, read, archived): the notification under `id` goes. */
+      readonly kind: 'desktop-notification-withdrawn'
+      readonly notificationId: string
+      readonly revision: number
+    }
+  | {
+      readonly kind: 'session-export-changed'
+      readonly sessionId: string
+      readonly exportOperationId: string
+      readonly status: SessionExportOperationStatus
+      readonly progress: SessionExportProgress
+    }
+
+/** Host events about the app rather than one Session; only unscoped desktop callers see them. */
+export type SessionlessHostEventPayload = Extract<
+  SessionHostEventPayload,
+  {
+    readonly kind:
+      | 'semantic-discovery-readiness-changed'
+      | 'default-thinking-level-changed'
+      | 'session-title-model-refused'
+      | 'desktop-notification-shown'
+      | 'desktop-notification-withdrawn'
+  }
+>
+
+export function isSessionlessHostEvent(
+  payload: SessionHostEventPayload,
+): payload is SessionlessHostEventPayload {
+  return (
+    payload.kind === 'semantic-discovery-readiness-changed' ||
+    payload.kind === 'default-thinking-level-changed' ||
+    payload.kind === 'session-title-model-refused' ||
+    payload.kind === 'desktop-notification-shown' ||
+    payload.kind === 'desktop-notification-withdrawn'
+  )
+}
+
+export interface SessionHostEventEnvelope {
+  readonly cursor: SessionHostEventCursor
+  readonly timestamp: number
+  readonly payload: SessionHostEventPayload
+}
+
+export type SessionHostEventResyncReason =
+  | 'host-restarted'
+  | 'cursor-expired'
+  | 'cursor-ahead'
+  | 'slow-consumer'
+
+export type SessionHostEventReplayResult =
+  | {
+      readonly status: 'ready'
+      readonly events: readonly SessionHostEventEnvelope[]
+      readonly cursor: SessionHostEventCursor
+    }
+  | {
+      readonly status: 'resync-required'
+      readonly reason: SessionHostEventResyncReason
+      readonly cursor: SessionHostEventCursor
+    }
+
+export type SessionHostEventDelivery =
+  | { readonly status: 'event'; readonly event: SessionHostEventEnvelope }
+  | { readonly status: 'cursor-advanced'; readonly cursor: SessionHostEventCursor }
+  | {
+      readonly status: 'resync-required'
+      readonly reason: SessionHostEventResyncReason
+      readonly cursor: SessionHostEventCursor
+    }
+  | { readonly status: 'closed' }

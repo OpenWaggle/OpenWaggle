@@ -1,0 +1,28 @@
+---
+interface Props {
+  destination: URL;
+  title: string;
+}
+
+const { destination, title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline define:vars={{ targetPath: destination.pathname }}>
+      window.location.replace(targetPath + window.location.search + window.location.hash);
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content={`0;url=${destination.pathname}`} />
+    </noscript>
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={destination} />
+    <title>Continue to {title}</title>
+  </head>
+  <body>
+    <a href={destination.pathname}>Continue to {title}</a>
+  </body>
+</html>

@@ -1,21 +1,25 @@
+import { Schema, type SchemaType } from '@shared/schema'
+import { anyObjectSchema } from '@shared/schemas/lenient'
 import { randomUUID } from 'node:crypto'
 import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import { isRecord } from '@shared/utils/validation'
+import { piToolResultDetails } from './pi-tool-result-details'
 
 function makeProjectedMessage(
   role: 'user' | 'assistant' | 'system',
   parts: MessagePart[],
   model?: string,
 ) {
-  return {
+  const message: Message = {
     id: MessageId(randomUUID()),
     role,
     parts,
-    model: model ? SupportedModelId(model) : undefined,
+    ...(model ? { model: SupportedModelId(model) } : {}),
     createdAt: Date.now(),
   }
+  return message
 }
 
 export function toJsonValue(value: unknown): JsonValue {
@@ -38,15 +42,24 @@ export function toJsonValue(value: unknown): JsonValue {
     )
   }
 
-  return String(value)
+  // JSON has no value for these, so they keep their text.
+  if (typeof value === 'bigint' || typeof value === 'symbol' || typeof value === 'function') {
+    return value.toString()
+  }
+  // Every other type returned above.
+  return 'undefined'
 }
 
-export function toJsonObject(value: unknown): JsonObject {
+export function toJsonObject(value: unknown) {
   if (!isRecord(value)) {
-    return {}
+    const object: JsonObject = {}
+    return object
   }
 
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, toJsonValue(entry)]))
+  const object: JsonObject = Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, toJsonValue(entry)]),
+  )
+  return object
 }
 
 function toToolResultArgs(details: unknown, fallbackArgs: JsonObject | undefined) {
@@ -54,12 +67,12 @@ function toToolResultArgs(details: unknown, fallbackArgs: JsonObject | undefined
     return fallbackArgs ?? {}
   }
 
-  const args = toJsonObject(details.args)
+  const args = toJsonObject(piToolResultDetails(details).args)
   return Object.keys(args).length > 0 ? args : (fallbackArgs ?? {})
 }
 
 function toToolResultDuration(details: unknown) {
-  return isRecord(details) && typeof details.duration === 'number' ? details.duration : 0
+  return piToolResultDetails(details).duration ?? 0
 }
 
 function toProjectedToolResultValue(content: readonly unknown[], details: unknown) {
@@ -91,12 +104,21 @@ interface PiProjectionState {
   currentToolCallArgs: Map<string, JsonObject>
 }
 
-interface PiToolCallContent {
-  readonly type: 'toolCall'
-  readonly id: string
-  readonly name: string
-  readonly arguments: JsonObject
-}
+const isPiTextContent = Schema.is(
+  Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }),
+)
+const isPiThinkingContent = Schema.is(
+  Schema.Struct({ type: Schema.Literal('thinking'), thinking: Schema.String }),
+)
+const piToolCallContentSchema = Schema.Struct({
+  type: Schema.Literal('toolCall'),
+  id: Schema.String,
+  name: Schema.String,
+  arguments: anyObjectSchema,
+})
+const isPiToolCallContent = Schema.is(piToolCallContentSchema)
+
+type PiToolCallContent = SchemaType<typeof piToolCallContentSchema>
 
 function flushAssistant(state: PiProjectionState) {
   if (!state.currentAssistantParts) {
@@ -116,39 +138,25 @@ function flushAssistant(state: PiProjectionState) {
   state.currentToolCallArgs = new Map<string, JsonObject>()
 }
 
-function projectAssistantPart(
-  part: unknown,
-  toolCallArgs: Map<string, JsonObject>,
-): MessagePart | null {
-  if (!isRecord(part) || typeof part.type !== 'string') {
-    return null
+function projectAssistantPart(part: unknown, toolCallArgs: Map<string, JsonObject>) {
+  if (isPiTextContent(part)) {
+    const result: MessagePart | null = { type: 'text', text: part.text }
+    return result
   }
-  if (part.type === 'text' && typeof part.text === 'string') {
-    return { type: 'text', text: part.text }
+  if (isPiThinkingContent(part)) {
+    const result: MessagePart | null = { type: 'reasoning', text: part.thinking }
+    return result
   }
-  if (part.type === 'thinking' && typeof part.thinking === 'string') {
-    return { type: 'reasoning', text: part.thinking }
-  }
-  return isPiToolCallContent(part) ? projectToolCallPart(part, toolCallArgs) : null
+  const result: MessagePart | null = isPiToolCallContent(part)
+    ? projectToolCallPart(part, toolCallArgs)
+    : null
+  return result
 }
 
-function isPiToolCallContent(part: unknown): part is PiToolCallContent {
-  return (
-    isRecord(part) &&
-    part.type === 'toolCall' &&
-    typeof part.id === 'string' &&
-    typeof part.name === 'string' &&
-    isRecord(part.arguments)
-  )
-}
-
-function projectToolCallPart(
-  part: PiToolCallContent,
-  toolCallArgs: Map<string, JsonObject>,
-): MessagePart {
+function projectToolCallPart(part: PiToolCallContent, toolCallArgs: Map<string, JsonObject>) {
   const toolArgs = toJsonObject(part.arguments)
   toolCallArgs.set(part.id, toolArgs)
-  return {
+  const result: MessagePart = {
     type: 'tool-call',
     toolCall: {
       id: ToolCallId(part.id),
@@ -157,6 +165,7 @@ function projectToolCallPart(
       state: 'input-complete',
     },
   }
+  return result
 }
 
 function projectAssistantParts(content: readonly unknown[], toolCallArgs: Map<string, JsonObject>) {
@@ -178,8 +187,8 @@ function handleAssistantMessage(
 function projectToolResultPart(
   message: Extract<PiProjectedHistoryMessage, { role: 'toolResult' }>,
   fallbackArgs: JsonObject | undefined,
-): MessagePart {
-  return {
+) {
+  const part: MessagePart = {
     type: 'tool-result',
     toolResult: {
       id: ToolCallId(message.toolCallId ?? randomUUID()),
@@ -188,11 +197,12 @@ function projectToolResultPart(
       result: Array.isArray(message.content)
         ? toProjectedToolResultValue(message.content, message.details)
         : '',
-      isError: message.isError === true,
+      isError: message.isError,
       duration: toToolResultDuration(message.details),
       details: toJsonValue(message.details ?? null),
     },
   }
+  return part
 }
 
 function handleToolResultMessage(
@@ -208,9 +218,7 @@ function handleToolResultMessage(
   ]
 }
 
-export function piHistoryToProjectedMessages(
-  messages: ReadonlyArray<PiProjectedHistoryMessage>,
-): Message[] {
+export function piHistoryToProjectedMessages(messages: readonly PiProjectedHistoryMessage[]) {
   const state: PiProjectionState = {
     result: [],
     currentAssistantParts: null,
@@ -231,6 +239,7 @@ export function piHistoryToProjectedMessages(
   return state.result
 }
 
-export function createStreamingMessageId(): string {
-  return randomUUID()
+export function createStreamingMessageId() {
+  const result: string = randomUUID()
+  return result
 }

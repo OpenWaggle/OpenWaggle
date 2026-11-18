@@ -1,8 +1,9 @@
 import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionTree } from '@shared/types/session'
 import type { SidebarProjectGroup } from '../lib/sidebar-project-groups'
+import type { QueenWorkerAttention } from '../lib/worker-attention'
 
-export type SidebarView = 'chat' | 'skills' | 'settings'
+export type SidebarView = 'chat' | 'settings'
 
 export interface SidebarDraftBranch {
   readonly sessionId: SessionId
@@ -15,6 +16,8 @@ export interface SidebarSessionActions {
   readonly archive: (id: SessionId) => void
   readonly markUnread: (id: SessionId) => void
   readonly clone: (id: SessionId) => void
+  /** Pin or unpin the session, depending on whether it is already a Pinned session. */
+  readonly togglePin: (id: SessionId) => void
 }
 
 export interface SidebarBranchActions {
@@ -40,8 +43,15 @@ export interface SidebarProjectRenderState {
   readonly activeBranchId: SessionTree['session']['lastActiveBranchId']
   readonly activeSessionId: SessionId | null
   readonly activeSessionTree: SessionTree | null
-  readonly collapsedProjectPaths: ReadonlySet<string>
+  /** True when this project's sessions are hidden. Absent means expanded. */
+  readonly isProjectCollapsed: (projectPath: string) => boolean
   readonly draftBranch: SidebarDraftBranch | null
   readonly draftSessionProjectPath: string | null
   readonly projectPath: string | null
+  /** A status filter or search is active, so hidden Workers may list flat (ADR 0051). */
+  readonly narrowed: boolean
+  /** How many of a Queen's hidden Workers need the user, keyed by the Queen's id (ADR 0051). */
+  readonly workerAttentionOf: (queenId: string) => QueenWorkerAttention
+  /** The Queen of the Hive the open Worker belongs to, for her secondary row highlight. */
+  readonly activeHiveRootId: string | null
 }

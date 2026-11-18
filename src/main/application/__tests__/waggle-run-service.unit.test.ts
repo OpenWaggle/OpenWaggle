@@ -1,3 +1,4 @@
+import { WORKTREE_CREATED_CUSTOM_EVENT } from '@shared/types/background-run'
 import { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import {
@@ -7,7 +8,7 @@ import {
 } from '@shared/types/waggle'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeWaggleRun } from '../waggle-run-service'
 import {
   clearActiveRunMock,
@@ -19,9 +20,14 @@ import {
   selectedModel,
   session,
   sessionId,
+  setTurnCheckpointAnchorMock,
   TestLayer,
   waggleConfig,
 } from './waggle-run-service.test-harness'
+import {
+  HOST_RESOLVED_ATTACHMENT,
+  HOST_RESOLVED_PUBLIC_ATTACHMENT,
+} from './waggle-run-service-attachment-test-fixture'
 
 function runInput(config: WaggleConfig, runId: string, model = selectedModel) {
   return {
@@ -134,10 +140,7 @@ describe('executeWaggleRun', () => {
   })
 
   it('delegates the full collaboration to a single Pi-native Waggle kernel run', async () => {
-    const emitted: Array<{
-      readonly event: AgentTransportEvent
-      readonly meta: WaggleStreamMetadata
-    }> = []
+    const emitted: { event: AgentTransportEvent; meta: WaggleStreamMetadata }[] = []
 
     const result = await Effect.runPromise(
       executeWaggleRun({
@@ -169,14 +172,116 @@ describe('executeWaggleRun', () => {
     })
     expect(emitted[0]?.meta.agentLabel).toBe('Architect')
 
-    if (result.outcome !== 'success') {
-      throw new Error('Expected successful Waggle result')
-    }
+    if (result.outcome !== 'success') throw new Error('Expected successful Waggle result')
     expect(result.newMessages[0]?.role).toBe('user')
     expect(result.newMessages[1]?.role).toBe('assistant')
     expect(persistSnapshotMock).toHaveBeenCalledOnce()
+    expect(setTurnCheckpointAnchorMock).toHaveBeenCalledWith(
+      sessionId,
+      'run-waggle-1',
+      'assistant-node-1',
+    )
     expect(persistSnapshotMock.mock.calls[0]?.[0].nodes[0]?.metadataJson).toContain('Architect')
     expect(clearActiveRunMock).toHaveBeenCalledWith({ sessionId, runId: 'run-waggle-1' })
+  })
+
+  it('uses immutable Host-resolved attachments without consulting the GUI capability registry', async () => {
+    const result = await Effect.runPromise(
+      executeWaggleRun({
+        ...runInput(waggleConfig, 'run-waggle-host-attachment'),
+        payload: {
+          text: 'Review the immutable evidence.',
+          attachments: [HOST_RESOLVED_PUBLIC_ATTACHMENT],
+        },
+        hydratedAttachments: [HOST_RESOLVED_ATTACHMENT],
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    expect(result.outcome).toBe('success')
+    const [kernelInput] = runMock.mock.calls[0] ?? []
+    expect(kernelInput.payload.attachments).toEqual([HOST_RESOLVED_ATTACHMENT])
+  })
+
+  it('forwards first-send worktree launch progress to the Pi kernel', async () => {
+    const onWorktreeLaunch = vi.fn()
+
+    await Effect.runPromise(
+      executeWaggleRun({
+        ...runInput(waggleConfig, 'run-waggle-worktree-launch'),
+        onWorktreeLaunch,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    const [kernelInput] = runMock.mock.calls[0] ?? []
+    const progress = {
+      stage: 'preparing-workspace' as const,
+      details: ['Preparing the session worktree'],
+    }
+    kernelInput.onWorktreeLaunch(progress)
+    expect(onWorktreeLaunch).toHaveBeenCalledWith(progress)
+  })
+
+  it('reports cancellation during first-send worktree creation as aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    runMock.mockImplementationOnce(() => controller.signal.throwIfAborted())
+
+    const result = await Effect.runPromise(
+      executeWaggleRun({
+        ...runInput(waggleConfig, 'run-waggle-cancelled-worktree'),
+        signal: controller.signal,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    expect(result).toEqual({ outcome: 'aborted' })
+    expect(clearActiveRunMock).toHaveBeenCalledWith({
+      sessionId,
+      runId: 'run-waggle-cancelled-worktree',
+    })
+  })
+
+  it('persists a successful first-send worktree launch as a compact trace', async () => {
+    runMock.mockImplementationOnce((kernelInput) => {
+      kernelInput.onWorktreeLaunch?.({
+        stage: 'preparing-workspace',
+        details: ['Preparing the session worktree'],
+      })
+      kernelInput.onWorktreeLaunch?.({
+        stage: 'worktree-created',
+        details: ['Created ow/session-1 from main'],
+        worktreePath: '/tmp/worktrees/session-1',
+        branch: 'ow/session-1',
+        baseRef: 'main',
+      })
+    })
+
+    const result = await Effect.runPromise(
+      executeWaggleRun(runInput(waggleConfig, 'run-waggle-worktree-trace')).pipe(
+        Effect.provide(TestLayer),
+      ),
+    )
+
+    expect(result.outcome).toBe('success')
+    const persisted = persistSnapshotMock.mock.calls[0]?.[0]
+    expect(persisted.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'run-waggle-worktree-trace:agent-loop:0',
+          contentJson: expect.stringContaining(WORKTREE_CREATED_CUSTOM_EVENT),
+        }),
+      ]),
+    )
+    const trace = persisted.nodes.find((node: { contentJson: string }) =>
+      node.contentJson.includes(WORKTREE_CREATED_CUSTOM_EVENT),
+    )
+    expect(JSON.parse(trace.contentJson).event.value).toEqual({
+      stage: 'starting-task',
+      status: 'complete',
+      details: ['Preparing the session worktree', 'Created ow/session-1 from main'],
+      worktreePath: '/tmp/worktrees/session-1',
+      branch: 'ow/session-1',
+      baseRef: 'main',
+    })
   })
 
   it('persists durable agent-loop events emitted during a Waggle run', async () => {

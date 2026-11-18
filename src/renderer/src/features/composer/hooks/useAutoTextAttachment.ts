@@ -2,12 +2,19 @@ import { PERCENT_BASE } from '@shared/constants/math'
 import type { PreparedAttachment } from '@shared/types/agent'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
+import { trackAttachmentPreparation } from '../state/composer-activity-store'
+import { useComposerInputGuard } from './useComposerInputGuard'
 
 const LONG_PROMPT_THRESHOLD = 12_000
 const MAX_ATTACHMENTS = 5
 const PENDING_ATTACHMENT_DISMISS_DELAY_MS = 1200
 const AUTO_PASTE_ATTACHMENT_NAME_PREFIX = 'Pasted Text '
 const AUTO_PASTE_ATTACHMENT_FILE_EXTENSION = '.md'
+const LONG_PASTE_FAILED_MESSAGE =
+  'Could not turn the long paste into an attachment. Paste it again, or attach it as a file.'
+
+const logger = createRendererLogger('auto-text-attachment')
 
 export interface PendingTextAttachmentChip {
   operationId: string
@@ -18,31 +25,23 @@ export interface PendingTextAttachmentChip {
 }
 
 interface UseAutoTextAttachmentOptions {
+  readonly disabled?: boolean
   attachments: PreparedAttachment[]
   addAttachments: (attachments: PreparedAttachment[]) => void
   removeAttachment: (attachmentId: string) => void
   setAttachmentError: (error: string | null) => void
-  setInput: (input: string) => void
   onToast?: (message: string) => void
 }
 
-interface UseAutoTextAttachmentResult {
-  pendingTextAttachmentChips: PendingTextAttachmentChip[]
-  hasPreparingTextAttachment: boolean
-  preparingPendingCount: number
-  /** Called by PastePlugin. Returns true if the paste was auto-converted to an attachment. */
-  checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
-  removePendingTextAttachment: (operationId: string, attachmentId: string) => void
-}
-
 export function useAutoTextAttachment({
+  disabled = false,
   attachments,
   addAttachments,
   removeAttachment,
   setAttachmentError,
-  setInput,
   onToast,
-}: UseAutoTextAttachmentOptions): UseAutoTextAttachmentResult {
+}: UseAutoTextAttachmentOptions) {
+  const captureInputGuard = useComposerInputGuard(disabled)
   const nextAutoPasteAttachmentIndexRef = useRef(1)
   const pendingAttachmentTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const [pendingTextAttachmentChips, setPendingTextAttachmentChips] = useState<
@@ -67,32 +66,36 @@ export function useAutoTextAttachment({
 
   async function handleAutoConvertLongPaste(
     pastedText: string,
-    fallbackInput: string,
     operationId: string,
     chipName: string,
   ) {
+    const isCurrentDraft = captureInputGuard()
     const trimmedPastedText = pastedText.trim()
     if (!trimmedPastedText) return
 
-    const prepareAttachmentFromText = api.prepareAttachmentFromText
-    if (typeof prepareAttachmentFromText !== 'function') {
+    const autoAttachment = await trackAttachmentPreparation(
+      // Named by the Host, so the sent message's copy shows, and matches, the chip's name.
+      api
+        .prepareAttachmentFromText(trimmedPastedText, operationId, chipName)
+        .catch((error: unknown) => {
+          logger.warn('Failed to convert a long paste to an attachment', { error: String(error) })
+          return null
+        }),
+    )
+    if (!isCurrentDraft()) {
       clearPendingChip(operationId)
-      setAttachmentError('Attachment conversion is unavailable. Please restart the app.')
-      setInput(fallbackInput)
       return
     }
-
-    const autoAttachment = await prepareAttachmentFromText(trimmedPastedText, operationId).catch(
-      () => null,
-    )
     if (!autoAttachment) {
+      // Intercepting the paste left the editor untouched, so the text is gone unless this says so;
+      // any newer typing is preserved.
       clearPendingChip(operationId)
-      setInput(fallbackInput)
+      setAttachmentError(LONG_PASTE_FAILED_MESSAGE)
       return
     }
 
     setAttachmentError(null)
-    addAttachments([{ ...autoAttachment, name: chipName }])
+    addAttachments([autoAttachment])
     setPendingTextAttachmentChips((chips) =>
       chips.map((chip) =>
         chip.operationId === operationId
@@ -117,7 +120,7 @@ export function useAutoTextAttachment({
   }
 
   function checkAndConvertPaste(pastedText: string, currentEditorText: string) {
-    if (!pastedText) return false
+    if (disabled || !pastedText) return false
 
     const nextValue = `${currentEditorText}${pastedText}`
     const usedAttachmentSlots = attachments.length + preparingPendingCount
@@ -140,7 +143,7 @@ export function useAutoTextAttachment({
       },
     ])
 
-    void handleAutoConvertLongPaste(pastedText, currentEditorText, operationId, chipName)
+    void handleAutoConvertLongPaste(pastedText, operationId, chipName)
     return true
   }
 
@@ -152,12 +155,7 @@ export function useAutoTextAttachment({
   }
 
   useEffect(() => {
-    const subscribeToProgress = api.onPrepareAttachmentFromTextProgress
-    if (typeof subscribeToProgress !== 'function') {
-      return () => {}
-    }
-
-    const unsubscribe = subscribeToProgress((payload) => {
+    const unsubscribe = api.onPrepareAttachmentFromTextProgress((payload) => {
       setPendingTextAttachmentChips((chips) =>
         chips.map((chip) =>
           chip.operationId === payload.operationId

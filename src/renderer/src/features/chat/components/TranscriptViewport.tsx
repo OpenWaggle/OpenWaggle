@@ -1,0 +1,166 @@
+import type { ReactNode } from 'react'
+import { cn } from '@/shared/lib/cn'
+import { useTranscriptCommitLayout } from '../hooks/useTranscriptCommitLayout'
+import { useTranscriptEdgeLoading } from '../hooks/useTranscriptEdgeLoading'
+import { useTranscriptRemoteHistory } from '../hooks/useTranscriptRemoteHistory'
+import { useTranscriptViewport } from '../hooks/useTranscriptViewport'
+import { useTranscriptWindowRange } from '../hooks/useTranscriptWindowRange'
+import { useTurnSettlePresentation } from '../hooks/useTurnSettlePresentation'
+import { pendingSentRowKey } from '../lib/optimistic-user-message'
+import type { TranscriptRemoteHistory } from '../lib/transcript-remote-history'
+import { chatRowKeys } from '../lib/transcript-row-keys'
+import { visibleMessageNodeIds } from '../lib/transcript-rows'
+import type { ChatRow } from '../lib/types-chat-row'
+import type { PendingSend } from '../model'
+import type { ChatRowRenderContext } from './ChatRowRenderContext'
+import { ScrollToBottomButton } from './ScrollToBottomButton'
+import { TranscriptRows } from './TranscriptRows'
+import { TranscriptLoadEdge, TranscriptTopEdge } from './TranscriptWindowEdges'
+
+export interface TranscriptViewportInput {
+  readonly rows: readonly ChatRow[]
+  readonly context: ChatRowRenderContext
+  readonly isLoading: boolean
+  readonly lastUserMessageId: string | null
+  readonly pendingSend: PendingSend | null
+  readonly onPendingSendConsumed: () => void
+  /** Whether this view is the one that keeps the Session's send (its branch is known). */
+  readonly canConsumePendingSend: boolean
+  readonly onToggleTurnFold: (turnKey: string) => void
+  readonly sessionCreatedAt: number | null
+  /** History the Host still holds above the loaded window, read on demand. */
+  readonly remoteHistory?: TranscriptRemoteHistory | null
+}
+
+interface TranscriptViewportProps {
+  readonly positionKey: string
+  readonly input: TranscriptViewportInput
+  readonly trailing: ReactNode
+  readonly renderVisibleMessageRows?: (nodeIds: readonly string[], rows: ReactNode) => ReactNode
+}
+
+/**
+ * The scrolling transcript for one Session branch (ADR 0036).
+ *
+ * Keyed by Session and branch by its parent, so a switch builds a fresh window around that
+ * branch's own saved reading position instead of slicing the previous branch's rows.
+ */
+export function TranscriptViewport({
+  positionKey,
+  input,
+  trailing,
+  renderVisibleMessageRows,
+}: TranscriptViewportProps) {
+  const { rows, isLoading, lastUserMessageId, pendingSend, onPendingSendConsumed } = input
+  const keys = chatRowKeys(rows)
+  const { session, showScrollToBottom, showScrollbar, pendingRestoreKey, boundsLikeFollower } =
+    useTranscriptViewport(positionKey, keys.length > 0)
+  const transcriptWindow = useTranscriptWindowRange({
+    rows,
+    keys,
+    anchorKey: pendingRestoreKey,
+    isFollowing: () => session.controller.isFollowing,
+    boundsLikeFollower,
+  })
+  const edge = useTranscriptRemoteHistory(pendingRestoreKey, keys, input, transcriptWindow)
+  const { exiting, clearExiting } = useTurnSettlePresentation({
+    rows,
+    keys,
+    start: transcriptWindow.start,
+    end: transcriptWindow.end,
+    isLoading,
+    viewport: session,
+    onToggleTurnFold: input.onToggleTurnFold,
+  })
+  const edges = useTranscriptEdgeLoading({
+    viewport: session,
+    loadEarlier: edge.loadEarlier,
+    loadLater: transcriptWindow.loadLater,
+  })
+
+  useTranscriptCommitLayout({
+    session,
+    rows,
+    keys,
+    sentKey: pendingSentRowKey(pendingSend, lastUserMessageId),
+    onPendingSendConsumed,
+    canConsumePendingSend: input.canConsumePendingSend,
+    hasLater: transcriptWindow.hasLater,
+    showNewest: transcriptWindow.showNewest,
+  })
+
+  const visibleRows = rows.slice(transcriptWindow.start, transcriptWindow.end)
+  const visibleKeys = keys.slice(transcriptWindow.start, transcriptWindow.end)
+  const renderedRows = (
+    <TranscriptRows
+      rows={visibleRows}
+      keys={visibleKeys}
+      context={input.context}
+      exiting={exiting}
+      onExited={clearExiting}
+    />
+  )
+
+  return (
+    <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div
+        ref={(element) => session.attach('scroller', element)}
+        role="log"
+        aria-label="Chat messages"
+        aria-busy={isLoading}
+        className={cn(
+          'flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]',
+          showScrollbar && 'is-scrolling',
+        )}
+        {...session.scrollerHandlers}
+      >
+        {/* shrink-0, or the column shrinks to the viewport and its ResizeObserver, which follows
+          streamed tokens that re-render only their bubble (B2), never sees it grow. */}
+        <div
+          ref={(element) => session.attach('content', element)}
+          data-chat-transcript-container
+          className="@container/transcript flex min-h-full shrink-0 flex-col"
+        >
+          <div aria-live="polite" className="sr-only">
+            {transcriptWindow.announcement}
+          </div>
+          <TranscriptTopEdge
+            hasEarlier={edge.hasEarlier}
+            hasRows={keys.length > 0}
+            rangeStart={transcriptWindow.start}
+            createdAt={input.sessionCreatedAt}
+            sentinelRef={edges.earlierRef}
+            onLoad={edge.loadEarlier}
+          />
+          {renderVisibleMessageRows
+            ? renderVisibleMessageRows(visibleMessageNodeIds(visibleRows), renderedRows)
+            : renderedRows}
+          {transcriptWindow.hasLater ? (
+            <TranscriptLoadEdge
+              key={`later:${String(transcriptWindow.end)}`}
+              label="Load newer messages"
+              sentinelRef={edges.laterRef}
+              onLoad={transcriptWindow.loadLater}
+            />
+          ) : null}
+          {trailing}
+          <div
+            ref={(element) => session.attach('endSpace', element)}
+            aria-hidden="true"
+            data-transcript-end-space
+            className="shrink-0"
+          />
+        </div>
+      </div>
+
+      <ScrollToBottomButton
+        visible={showScrollToBottom || transcriptWindow.hasLater}
+        working={isLoading}
+        onClick={() => {
+          if (transcriptWindow.hasLater) transcriptWindow.showNewest()
+          session.scrollToBottom()
+        }}
+      />
+    </div>
+  )
+}

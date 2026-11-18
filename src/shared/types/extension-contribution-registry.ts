@@ -1,4 +1,9 @@
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { SchemaType } from '@shared/schema'
+import type {
+  extensionListContributionsInputSchema,
+  extensionRuntimeModuleAccessInputSchema,
+} from '@shared/schemas/extensions'
 import type { ExtensionPackageScopeView } from './extension-package-scope'
 
 type ConstantValue<TObject> = TObject[keyof TObject]
@@ -17,10 +22,12 @@ interface ExtensionDiagnosticView {
   readonly path?: string
 }
 
-export interface ExtensionListContributionsInput {
-  readonly projectPaths?: readonly string[]
-  readonly sessionId?: string
-}
+export type ExtensionListContributionsInput = SchemaType<
+  typeof extensionListContributionsInputSchema
+>
+export type ExtensionRuntimeModuleAccessInput = SchemaType<
+  typeof extensionRuntimeModuleAccessInputSchema
+>
 
 export interface ExtensionContributionEligibilityView {
   readonly runtimeEnabled: boolean
@@ -42,6 +49,44 @@ export interface ExtensionContributionMatchView {
   readonly interactionKinds?: readonly string[]
 }
 
+export interface ExtensionSessionSummaryActionView {
+  readonly family: 'commands' | 'sidePanels' | 'dialogs'
+  readonly contributionId: string
+}
+
+export interface ExtensionSessionSummaryRowView {
+  readonly id: string
+  readonly label: string
+  readonly value?: string
+  readonly badge?: string
+  readonly count?: number
+  readonly resourceId?: string
+  readonly action?: ExtensionSessionSummaryActionView
+}
+
+export interface ExtensionSessionSummaryView {
+  readonly placement: 'context' | 'coordination' | 'details'
+  readonly disclosure?: {
+    readonly defaultExpanded?: boolean
+    readonly collapsible?: boolean
+    readonly autoCollapseAfterMs?: number
+  }
+  readonly state?:
+    | { readonly status: 'ready' }
+    | { readonly status: 'loading' | 'live'; readonly message?: string }
+    | { readonly status: 'failure'; readonly message: string }
+  readonly rows: readonly ExtensionSessionSummaryRowView[]
+}
+
+/**
+ * A side panel's rail icon resolved by the host (ADR 0043). `svg` is complete, host-validated
+ * standalone SVG markup used only as a single-colour mask; it is never inserted into the DOM.
+ */
+export interface ExtensionContributionIconView {
+  readonly source: 'lucide' | 'svg'
+  readonly svg: string
+}
+
 export interface ExtensionContributionRegistryEntry {
   readonly extensionId: string
   readonly extensionName: string
@@ -50,6 +95,8 @@ export interface ExtensionContributionRegistryEntry {
   readonly packagePath: string
   readonly manifestPath: string
   readonly contentHash: string
+  /** Opaque host-issued authority binding. Never expose this value to extension frame code. */
+  readonly invocationBinding?: string
   readonly projectPaths: readonly string[]
   readonly sessionId?: string
   readonly appliesToAllRequestedProjects: boolean
@@ -68,6 +115,9 @@ export interface ExtensionContributionRegistryEntry {
   readonly runtime?: ExtensionContributionRuntime
   readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string
+  readonly sessionSummary?: ExtensionSessionSummaryView
+  /** Only side panels carry an icon; absent when the manifest declares none or it was invalid. */
+  readonly icon?: ExtensionContributionIconView
   readonly eligibility: ExtensionContributionEligibilityView
   readonly diagnostics: readonly ExtensionDiagnosticView[]
 }

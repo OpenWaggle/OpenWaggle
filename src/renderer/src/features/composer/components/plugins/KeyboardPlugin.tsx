@@ -6,17 +6,22 @@ import {
   COMMAND_PRIORITY_NORMAL,
   KEY_DOWN_COMMAND,
 } from 'lexical'
-import { useEffect } from 'react'
+import { useEffect, useEffectEvent } from 'react'
 import { useComposerStore } from '@/features/composer/state/composer-store'
-import { useUIStore } from '@/shell/ui-store'
+import { hasEnabledEscapeHandler } from '@/shared/hooks/useEscapeHotkey'
 import { setEditorText } from '../../lib/lexical-utils'
 
 interface KeyboardPluginProps {
   onSubmit: (text: string) => void
+  /** Escape not taken by a menu above the input (they register at higher priority). */
+  onEscape?: () => void
 }
 
-export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
+export function KeyboardPlugin({ onSubmit, onEscape }: KeyboardPluginProps) {
   const [editor] = useLexicalComposerContext()
+  const submit = useEffectEvent(onSubmit)
+  const hasEscape = onEscape !== undefined
+  const cancelOnEscape = useEffectEvent(() => onEscape?.())
 
   useEffect(() => {
     return editor.registerCommand<KeyboardEvent>(
@@ -26,7 +31,14 @@ export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault()
           const text = editor.getEditorState().read(() => $getRoot().getTextContent())
-          onSubmit(text)
+          submit(text)
+          return true
+        }
+
+        // A sheet, popover, or dialog that owns Escape through the shared stack goes first.
+        if (event.key === 'Escape' && hasEscape && !hasEnabledEscapeHandler()) {
+          event.preventDefault()
+          cancelOnEscape()
           return true
         }
 
@@ -78,17 +90,7 @@ export function KeyboardPlugin({ onSubmit }: KeyboardPluginProps): null {
       },
       COMMAND_PRIORITY_NORMAL,
     )
-  }, [editor, onSubmit])
-
-  // Slash detection via text content listener
-  useEffect(() => {
-    return editor.registerTextContentListener((text) => {
-      const trimmed = text.trimStart()
-      if (trimmed === '/' || text.endsWith(' /')) {
-        useUIStore.getState().openCommandPalette()
-      }
-    })
-  }, [editor])
+  }, [editor, hasEscape])
 
   return null
 }

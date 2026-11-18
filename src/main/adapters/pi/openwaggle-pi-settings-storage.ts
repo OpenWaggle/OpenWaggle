@@ -4,13 +4,26 @@ import { getAgentDir, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
+import { COMPACTION_MAX_THRESHOLD_TOKENS } from '@shared/types/settings'
+import {
+  type OpenWagglePiAppSettings,
+  withOpenWagglePiAppSettings,
+  withStoredPiAppSettings,
+} from './openwaggle-pi-settings-app-overlay'
+import {
+  withoutExcludedPackageEntries,
+  withoutExcludedPackages,
+  withoutSyntheticExcludedExtensionPatterns,
+  withRestoredExcludedNpmPackageEntries,
+} from './openwaggle-pi-settings-package-exclusions'
 import { withoutImplicitOpenWaggleResourcePrecedence } from './openwaggle-pi-settings-resource-removal'
 import {
-  isStringArray,
   type OpenWaggleResourcePrecedenceOptions,
   PI_CONFIG_DIR,
   withOpenWaggleResourcePrecedence,
 } from './openwaggle-pi-settings-resources'
+import { renameLegacyProviderPiSettings } from './pi-provider-renames'
+import { piSettingsFields } from './pi-settings-fields'
 
 const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
@@ -24,8 +37,12 @@ interface SettingsStorageLike {
 }
 
 interface OpenWagglePiSettingsManagerOptions extends OpenWaggleResourcePrecedenceOptions {
+  readonly compactionThresholdPercent?: number
   readonly excludedGlobalPackageSources?: readonly string[]
   readonly excludedProjectPackageSources?: readonly string[]
+  readonly runtimeExcludedNpmPackageNames?: readonly string[]
+  /** OpenWaggle settings with a Pi equivalent, reported to Pi in the global layer. */
+  readonly appSettings?: OpenWagglePiAppSettings
 }
 
 function getOpenWaggleProjectSettingsPath(projectPath: string) {
@@ -40,7 +57,7 @@ function getPiGlobalSettingsPath() {
   return join(getAgentDir(), SETTINGS_FILE_NAME)
 }
 
-function readFileIfPresent(filePath: string): string | undefined {
+function readFileIfPresent(filePath: string) {
   return existsSync(filePath) ? readFileSync(filePath, 'utf-8') : undefined
 }
 
@@ -49,135 +66,33 @@ function writeJsonFile(filePath: string, content: string) {
   writeFileSync(filePath, content, 'utf-8')
 }
 
-function parseJsonObject(content: string | undefined): JsonObject {
-  if (!content || content.trim().length === 0) {
-    return {}
-  }
-  const parsed: unknown = JSON.parse(content)
-  return decodeUnknownOrThrow(jsonObjectSchema, parsed)
+function removeExcludedPackagesFromPiSettingsFile(
+  filePath: string,
+  excludedSources: readonly string[] | undefined,
+) {
+  const current = readFileIfPresent(filePath)
+  const next = withoutExcludedPackageEntries(current, excludedSources)
+  if (current !== undefined && next !== undefined && next !== current) writeJsonFile(filePath, next)
 }
 
-function parseOpenWaggleSettings(content: string | undefined): ParsedProjectSettingsFile {
+function parseJsonObject(content: string | undefined) {
   if (!content || content.trim().length === 0) {
     return {}
   }
   const parsed: unknown = JSON.parse(content)
-  return decodeUnknownOrThrow(projectSettingsFileSchema, parsed)
+  return decodeUnknownOrThrow(jsonObjectSchema, parsed) satisfies JsonObject
+}
+
+function parseOpenWaggleSettings(content: string | undefined) {
+  if (!content || content.trim().length === 0) {
+    return {}
+  }
+  const parsed: unknown = JSON.parse(content)
+  return decodeUnknownOrThrow(projectSettingsFileSchema, parsed) satisfies ParsedProjectSettingsFile
 }
 
 function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function getPackageSource(value: JsonValue): string | null {
-  if (typeof value === 'string') {
-    return value
-  }
-  if (isJsonObject(value) && typeof value.source === 'string') {
-    return value.source
-  }
-  return null
-}
-
-function getPackageEntries(settings: JsonObject) {
-  return Array.isArray(settings.packages) ? [...settings.packages] : []
-}
-
-function getExcludedExtensionPatterns(excludedPackageSources: readonly string[]) {
-  return excludedPackageSources.flatMap((source) => [`!${source}`, `!${source}/**`])
-}
-
-function withExcludedExtensionPatterns(
-  settings: JsonObject,
-  excludedPackageSources: readonly string[],
-) {
-  const excludedPatterns = getExcludedExtensionPatterns(excludedPackageSources)
-  if (excludedPatterns.length === 0) {
-    return settings
-  }
-
-  const extensions = isStringArray(settings.extensions) ? settings.extensions : []
-  const nextExtensions = [...extensions]
-  for (const pattern of excludedPatterns) {
-    if (!nextExtensions.includes(pattern)) {
-      nextExtensions.push(pattern)
-    }
-  }
-  return {
-    ...settings,
-    extensions: nextExtensions,
-  }
-}
-
-function isExcludedPackageSource(value: JsonValue, excludedPackageSources: ReadonlySet<string>) {
-  const source = getPackageSource(value)
-  return source !== null && excludedPackageSources.has(source)
-}
-
-function withoutExcludedPackages(
-  content: string | undefined,
-  excludedPackageSources: readonly string[] | undefined,
-) {
-  if (!excludedPackageSources || excludedPackageSources.length === 0) {
-    return content
-  }
-
-  const settings = parseJsonObject(content)
-  const packages = getPackageEntries(settings)
-  if (packages.length === 0) {
-    return serializeJsonObject(withExcludedExtensionPatterns(settings, excludedPackageSources))
-  }
-
-  const excludedSources = new Set(excludedPackageSources)
-  const visiblePackages = packages.filter(
-    (entry) => !isExcludedPackageSource(entry, excludedSources),
-  )
-  const visibleSettings =
-    visiblePackages.length === packages.length
-      ? settings
-      : {
-          ...settings,
-          packages: visiblePackages,
-        }
-
-  return serializeJsonObject(withExcludedExtensionPatterns(visibleSettings, excludedPackageSources))
-}
-
-function withPreservedExcludedPackages(
-  currentContent: string | undefined,
-  nextContent: string | undefined,
-  excludedPackageSources: readonly string[] | undefined,
-) {
-  if (!nextContent || !excludedPackageSources || excludedPackageSources.length === 0) {
-    return nextContent
-  }
-
-  const currentSettings = parseJsonObject(currentContent)
-  const nextSettings = parseJsonObject(nextContent)
-  const excludedSources = new Set(excludedPackageSources)
-  const excludedPackages = getPackageEntries(currentSettings).filter((entry) =>
-    isExcludedPackageSource(entry, excludedSources),
-  )
-  if (excludedPackages.length === 0) {
-    return nextContent
-  }
-
-  const nextPackages = getPackageEntries(nextSettings)
-  const nextPackageSources = new Set(
-    nextPackages.map(getPackageSource).filter((source) => source !== null),
-  )
-  const preservedPackages = excludedPackages.filter((entry) => {
-    const source = getPackageSource(entry)
-    return source !== null && !nextPackageSources.has(source)
-  })
-  if (preservedPackages.length === 0) {
-    return nextContent
-  }
-
-  return serializeJsonObject({
-    ...nextSettings,
-    packages: [...nextPackages, ...preservedPackages],
-  })
 }
 
 function mergeJsonObjects(base: JsonObject, override: JsonObject) {
@@ -196,8 +111,67 @@ function serializeJsonObject(value: JsonObject) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
+/** Pi settings content as Pi reads it, with providers Pi renamed under their new ids. */
+function withRenamedLegacyProviders(content: string | undefined) {
+  if (content === undefined || content.trim().length === 0) return content
+  const settings = parseJsonObject(content)
+  const renamed = renameLegacyProviderPiSettings(settings)
+  return renamed === settings ? content : serializeJsonObject(renamed)
+}
+
 function serializeOpenWaggleSettings(value: ParsedProjectSettingsFile) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
+}
+
+function withOpenWaggleCompactionThreshold(
+  settings: JsonObject,
+  thresholdPercent: number | undefined,
+) {
+  if (thresholdPercent === undefined) return settings
+  const current = piSettingsFields(settings).compaction
+  const compaction = current !== undefined && isJsonObject(current) ? current : {}
+  return {
+    ...settings,
+    compaction: {
+      ...compaction,
+      thresholdPercent,
+      maxThresholdTokens: COMPACTION_MAX_THRESHOLD_TOKENS,
+    },
+  } satisfies JsonObject
+}
+
+function withoutOpenWaggleCompactionThreshold(settings: JsonObject) {
+  const current = piSettingsFields(settings).compaction
+  if (current === undefined || !isJsonObject(current)) return settings
+  const { compaction: _currentCompaction, ...otherSettings } = settings
+  const {
+    thresholdPercent: _thresholdPercent,
+    maxThresholdTokens: _maxThresholdTokens,
+    ...compaction
+  } = current
+  return {
+    ...otherSettings,
+    ...(Object.keys(compaction).length > 0 ? { compaction } : {}),
+  } satisfies JsonObject
+}
+
+function removeExcludedPackagesFromOpenWaggleProjectSettings(
+  projectPath: string,
+  excludedSources: readonly string[] | undefined,
+) {
+  const settingsPath = getOpenWaggleProjectSettingsPath(projectPath)
+  const raw = readFileIfPresent(settingsPath)
+  if (raw === undefined) return
+  const current = parseOpenWaggleSettings(raw)
+  if (!isJsonObject(current.pi)) return
+  const currentPi = serializeJsonObject(current.pi)
+  const nextPi = withoutExcludedPackageEntries(currentPi, excludedSources)
+  if (!nextPi || nextPi === currentPi) return
+  const next = decodeUnknownOrThrow(projectSettingsFileSchema, {
+    ...current,
+    pi: parseJsonObject(nextPi),
+  })
+  writeJsonFile(settingsPath, serializeOpenWaggleSettings(next))
 }
 
 function readProjectPiSettings(projectPath: string, options: OpenWagglePiSettingsManagerOptions) {
@@ -211,7 +185,14 @@ function readProjectPiSettings(projectPath: string, options: OpenWagglePiSetting
   const mergedSettings = isJsonObject(openWagglePiSettings)
     ? mergeJsonObjects(piProjectSettings, openWagglePiSettings)
     : piProjectSettings
-  return withOpenWaggleResourcePrecedence(projectPath, mergedSettings, options)
+  return withOpenWaggleCompactionThreshold(
+    withOpenWaggleResourcePrecedence(
+      projectPath,
+      renameLegacyProviderPiSettings(mergedSettings),
+      options,
+    ),
+    options.compactionThresholdPercent,
+  )
 }
 
 function writeProjectPiSettings(
@@ -219,10 +200,12 @@ function writeProjectPiSettings(
   nextPiSettings: string,
   options: OpenWagglePiSettingsManagerOptions,
 ) {
-  const nextPi = withoutImplicitOpenWaggleResourcePrecedence(
-    projectPath,
-    parseJsonObject(nextPiSettings),
-    options,
+  const nextPi = withoutOpenWaggleCompactionThreshold(
+    withoutImplicitOpenWaggleResourcePrecedence(
+      projectPath,
+      parseJsonObject(nextPiSettings),
+      options,
+    ),
   )
   const settingsPath = getOpenWaggleProjectSettingsPath(projectPath)
   const currentOpenWaggleSettings = parseOpenWaggleSettings(readFileIfPresent(settingsPath))
@@ -236,7 +219,15 @@ function writeProjectPiSettings(
 function createOpenWagglePiSettingsStorage(
   projectPath: string,
   options: OpenWagglePiSettingsManagerOptions = {},
-): SettingsStorageLike {
+) {
+  removeExcludedPackagesFromPiSettingsFile(
+    getPiProjectSettingsPath(projectPath),
+    options.excludedProjectPackageSources,
+  )
+  removeExcludedPackagesFromOpenWaggleProjectSettings(
+    projectPath,
+    options.excludedProjectPackageSources,
+  )
   return {
     withLock(scope, fn) {
       if (scope === 'global') {
@@ -245,17 +236,30 @@ function createOpenWagglePiSettingsStorage(
       }
 
       const current = serializeJsonObject(readProjectPiSettings(projectPath, options))
-      const visibleCurrent = withoutExcludedPackages(current, options.excludedProjectPackageSources)
-      const next = withPreservedExcludedPackages(
+      const visibleCurrent = withoutExcludedPackages(
+        current,
+        options.excludedProjectPackageSources,
+        options.runtimeExcludedNpmPackageNames,
+      )
+      const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
         current,
         fn(visibleCurrent),
+        options.excludedProjectPackageSources,
+      )
+      const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(
+        current,
+        nextWithoutSyntheticPatterns,
+        options.runtimeExcludedNpmPackageNames,
+      )
+      const next = withoutExcludedPackageEntries(
+        nextWithRestoredRuntimePackages,
         options.excludedProjectPackageSources,
       )
       if (next !== undefined) {
         writeProjectPiSettings(projectPath, next, options)
       }
     },
-  }
+  } satisfies SettingsStorageLike
 }
 
 function withGlobalPiSettingsLock(
@@ -264,10 +268,26 @@ function withGlobalPiSettingsLock(
 ) {
   const globalSettingsPath = getPiGlobalSettingsPath()
   const current = readFileIfPresent(globalSettingsPath)
-  const visibleCurrent = withoutExcludedPackages(current, options.excludedGlobalPackageSources)
-  const next = withPreservedExcludedPackages(
+  const visibleCurrent = withoutExcludedPackages(
     current,
-    fn(visibleCurrent),
+    options.excludedGlobalPackageSources,
+    options.runtimeExcludedNpmPackageNames,
+  )
+  const app = options.appSettings
+  const renamed = withRenamedLegacyProviders(visibleCurrent)
+  const written = fn(app ? withOpenWagglePiAppSettings(renamed, app) : renamed)
+  const nextWithoutSyntheticPatterns = withoutSyntheticExcludedExtensionPatterns(
+    current,
+    app ? withStoredPiAppSettings(current, written, app) : written,
+    options.excludedGlobalPackageSources,
+  )
+  const nextWithRestoredRuntimePackages = withRestoredExcludedNpmPackageEntries(
+    current,
+    nextWithoutSyntheticPatterns,
+    options.runtimeExcludedNpmPackageNames,
+  )
+  const next = withoutExcludedPackageEntries(
+    nextWithRestoredRuntimePackages,
     options.excludedGlobalPackageSources,
   )
   if (next !== undefined) {
@@ -275,9 +295,11 @@ function withGlobalPiSettingsLock(
   }
 }
 
-function createOpenWaggleGlobalPiSettingsStorage(
-  options: OpenWagglePiSettingsManagerOptions = {},
-): SettingsStorageLike {
+function createOpenWaggleGlobalPiSettingsStorage(options: OpenWagglePiSettingsManagerOptions = {}) {
+  removeExcludedPackagesFromPiSettingsFile(
+    getPiGlobalSettingsPath(),
+    options.excludedGlobalPackageSources,
+  )
   return {
     withLock(scope, fn) {
       if (scope === 'global') {
@@ -286,18 +308,18 @@ function createOpenWaggleGlobalPiSettingsStorage(
       }
       fn(undefined)
     },
-  }
+  } satisfies SettingsStorageLike
 }
 
 export function createOpenWagglePiSettingsManager(
   projectPath: string,
   options: OpenWagglePiSettingsManagerOptions = {},
-): SettingsManager {
+) {
   return SettingsManager.fromStorage(createOpenWagglePiSettingsStorage(projectPath, options))
 }
 
 export function createOpenWaggleGlobalPiSettingsManager(
   options: OpenWagglePiSettingsManagerOptions = {},
-): SettingsManager {
+) {
   return SettingsManager.fromStorage(createOpenWaggleGlobalPiSettingsStorage(options))
 }

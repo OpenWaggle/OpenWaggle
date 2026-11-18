@@ -1,5 +1,14 @@
 import type { ExtensionCommandContext, Theme, ThemeColor } from '@earendil-works/pi-coding-agent'
-import type { Component, Keybinding, KeybindingsManager, TUI } from '@earendil-works/pi-tui'
+import {
+  type Component,
+  getKeybindings,
+  type Keybinding,
+  KeybindingsManager,
+  setKeybindings,
+  type TUI,
+  TUI_KEYBINDINGS,
+  visibleWidth,
+} from '@earendil-works/pi-tui'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { promptPrefilledText } from '../default-prefilled-input.js'
@@ -27,6 +36,7 @@ describe('promptPrefilledText', () => {
         fromPartial<KeybindingsManager>({
           matches: (data: string, keybinding: Keybinding) =>
             keybinding === 'tui.select.confirm' && data === '\r',
+          getKeys: () => [],
         }),
         (value) => {
           result = value
@@ -50,5 +60,87 @@ describe('promptPrefilledText', () => {
 
     expect(stripAnsi(renderedLines.join('\n'))).toContain('Existing preset name')
     expect(result).toBe('Existing preset name')
+  })
+
+  it('keeps the cursor after the existing value, so typing appends to it', async () => {
+    // Themed text carries ANSI colours, as Pi's system theme renders it.
+    const themed = fromPartial<Theme>({
+      fg: (_color: ThemeColor, text: string) => `\u001b[38;5;81m${text}\u001b[39m`,
+    })
+    const renderedLines: string[] = []
+    const custom = vi.fn(async <T>(factory: CustomFactory<T>) => {
+      let result: T | undefined
+      const component = await factory(
+        fromPartial<TUI>({}),
+        themed,
+        new KeybindingsManager(TUI_KEYBINDINGS),
+        (value) => {
+          result = value
+        },
+      )
+      component.handleInput?.('X')
+      renderedLines.push(...component.render(24))
+      component.handleInput?.('\r')
+      return result ?? fromAny<T, string | null>(null)
+    })
+    const ctx = fromPartial<ExtensionCommandContext>({ hasUI: true, ui: { custom } })
+
+    const result = await promptPrefilledText({
+      ctx,
+      title: 'Agent label for Advocate',
+      currentValue: 'Advocate',
+    })
+
+    expect(result).toBe('AdvocateX')
+    for (const line of renderedLines) expect(visibleWidth(line)).toBeLessThanOrEqual(24)
+  })
+
+  async function promptWithKeys(
+    currentValue: string,
+    keys: readonly string[],
+    keybindings = new KeybindingsManager(TUI_KEYBINDINGS),
+  ) {
+    const custom = vi.fn(async <T>(factory: CustomFactory<T>) => {
+      let result: T | undefined
+      const component = await factory(
+        fromPartial<TUI>({}),
+        fromPartial<Theme>({ fg: (_color: ThemeColor, text: string) => text }),
+        keybindings,
+        (value) => {
+          result = value
+        },
+      )
+      for (const key of keys) component.handleInput?.(key)
+      component.handleInput?.('\r')
+      return result ?? fromAny<T, string | null>(null)
+    })
+    const ctx = fromPartial<ExtensionCommandContext>({ hasUI: true, ui: { custom } })
+    return promptPrefilledText({ ctx, title: 'Edit', currentValue })
+  }
+
+  it('keeps the existing value when the user undoes before typing', async () => {
+    // ctrl+- is Pi's undo key; the prefilled value is not an edit to undo.
+    await expect(promptWithKeys('Existing preset name', ['\u001f', 'X'])).resolves.toBe(
+      'Existing preset nameX',
+    )
+  })
+
+  it('keeps tabs in the existing value', async () => {
+    await expect(promptWithKeys('Advocate\tlabel', ['X'])).resolves.toBe('Advocate\tlabelX')
+  })
+
+  it('puts the cursor after the value when the user rebound the End key', async () => {
+    // A user who moved "line end" off End: Pi's input reads the same, global keybindings.
+    const rebound = new KeybindingsManager(TUI_KEYBINDINGS, {
+      'tui.editor.cursorLineEnd': ['alt+e'],
+      'tui.editor.cursorLineStart': ['end'],
+    })
+    const previous = getKeybindings()
+    setKeybindings(rebound)
+    try {
+      await expect(promptWithKeys('Advocate', ['X'], rebound)).resolves.toBe('AdvocateX')
+    } finally {
+      setKeybindings(previous)
+    }
   })
 })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/shared/lib/ipc'
 
-export function useFullscreen(): boolean {
+export function useFullscreen() {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {

@@ -1,26 +1,16 @@
-export {
-  type ExtensionCapabilityDeclaration,
-  type ExtensionCommandContribution,
-  type ExtensionContributionRegistration,
-  type ExtensionContributions,
-  type ExtensionContributionUnregistration,
-  type ExtensionEntryContribution,
-  extensionCapabilityDeclarationSchema,
-  extensionCapabilityScopeSchema,
-  extensionCommandContributionFamilySchema,
-  extensionCommandContributionRegistrationSchema,
-  extensionCommandContributionSchema,
-  extensionContributionFamilySchema,
-  extensionContributionIdSchema,
-  extensionContributionRegistrationSchema,
-  extensionContributionRuntimeSchema,
-  extensionContributionsSchema,
-  extensionContributionUnregistrationSchema,
-  extensionExecutionPlacementSchema,
-  extensionRelativePathSchema,
-  extensionRouteContributionRegistrationSchema,
-  extensionRouteContributionSchema,
-  extensionSlotContributionFamilySchema,
-  extensionSlotContributionRegistrationSchema,
-  extensionSlotContributionSchema,
+export type {
+  ExtensionCapabilityDeclaration,
+  ExtensionContributionRegistration,
+  ExtensionContributions,
+  ExtensionContributionUnregistration,
+  ExtensionSessionSummaryContribution,
+  ExtensionSidePanelIcon,
 } from '@openwaggle/extension-sdk'
+export {
+  extensionContributionRegistrationSchema,
+  extensionContributionUnregistrationSchema,
+} from '@openwaggle/extension-sdk/internal/manifest-contributions'
+export {
+  extensionContributionIdSchema,
+  extensionRelativePathSchema,
+} from '@openwaggle/extension-sdk/internal/manifest-primitives'

@@ -1,6 +1,6 @@
 {
   "name": "@openwaggle/extension-sdk",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "description": "Browser-safe OpenWaggle extension SDK schemas, types, broker helpers, theme tokens, and federated-module context helpers.",
   "type": "module",
   "license": "MIT",
@@ -12,7 +12,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git",
     "directory": "packages/extension-sdk"
   },
-  "homepage": "https://openwaggle.ai/docs/packages/extension-sdk/0.1/",
+  "homepage": "https://openwaggle.ai/docs/packages/extension-sdk/0.3/",
   "bugs": {
     "url": "https://github.com/OpenWaggle/OpenWaggle/issues"
   },
@@ -28,7 +28,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "effect": "3.21.2"
+    "effect": "3.22.2"
   },
   "files": [
     "dist",
@@ -47,11 +47,6 @@
       "types": "./dist/agent-loop.d.ts",
       "import": "./dist/agent-loop.js",
       "require": "./dist-cjs/agent-loop.js"
-    },
-    "./broker": {
-      "types": "./dist/broker.d.ts",
-      "import": "./dist/broker.js",
-      "require": "./dist-cjs/broker.js"
     },
     "./constants": {
       "types": "./dist/constants.d.ts",
@@ -73,15 +68,20 @@
       "import": "./dist/json.js",
       "require": "./dist-cjs/json.js"
     },
-    "./manifest": {
-      "types": "./dist/manifest.d.ts",
-      "import": "./dist/manifest.js",
-      "require": "./dist-cjs/manifest.js"
-    },
     "./runtime": {
       "types": "./dist/runtime.d.ts",
       "import": "./dist/runtime.js",
       "require": "./dist-cjs/runtime.js"
+    },
+    "./syntax": {
+      "types": "./dist/syntax.d.ts",
+      "import": "./dist/syntax.js",
+      "require": "./dist-cjs/syntax.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "require": "./dist-cjs/testing.js"
     },
     "./theme": {
       "types": "./dist/theme.d.ts",
@@ -97,12 +97,17 @@
       "types": "./dist/ui.d.ts",
       "import": "./dist/ui.js",
       "require": "./dist-cjs/ui.js"
+    },
+    "./validation": {
+      "types": "./dist/validation.d.ts",
+      "import": "./dist/validation.js",
+      "require": "./dist-cjs/validation.js"
     }
   },
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && tsx ../../scripts/write-cjs-package-json.ts",
+    "build": "tsc -p tsconfig.build.json && bun ../../scripts/prune-package-declarations.ts && tsc -p tsconfig.cjs.json && bun ../../scripts/write-cjs-package-json.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "pack:check": "pnpm build && pnpm pack --pack-destination .pack --json"
+    "pack:check": "bun run build && bun pm pack --destination .pack"
   }
 }

@@ -41,7 +41,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-import type { ChatRow } from '../../lib/types-chat-row'
+import type { ChatRow, MessageChatRow } from '../../lib/types-chat-row'
 import { ChatTranscript } from '../ChatTranscript'
 
 function createTextMessage(id: string, role: UIMessage['role'], content: string) {
@@ -49,7 +49,7 @@ function createTextMessage(id: string, role: UIMessage['role'], content: string)
     id,
     role,
     parts: [{ type: 'text', content }],
-  }
+  } satisfies UIMessage
 }
 
 function createMessageChatRow(message: UIMessage) {
@@ -59,35 +59,44 @@ function createMessageChatRow(message: UIMessage) {
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-  }
+  } satisfies MessageChatRow
 }
 
 function createSection(overrides: Partial<ChatTranscriptSectionState> = {}) {
   const defaultMessage = createTextMessage('msg-1', 'user', 'hello')
 
-  return {
+  const state: ChatTranscriptSectionState = {
     messages: [defaultMessage],
     isLoading: false,
     projectPath: PROJECT_PATH,
+    worktreePath: null,
+    workingPath: null,
     recentProjects: [],
     activeSessionId: null,
+    turnsByAnchorNodeId: new Map(),
+    onToggleTurnFold: () => {},
+    onDismissInterruptedRun: () => {},
     chatRows: [createMessageChatRow(defaultMessage)],
     extensionRegistry: null,
     extensionProjectPaths: [],
     lastUserMessageId: 'msg-1',
     streamSignalVersion: 0,
-    userDidSend: false,
-    onUserDidSendConsumed: vi.fn(),
+    pendingSend: null,
+    onPendingSendConsumed: vi.fn(),
     onOpenProject: vi.fn().mockResolvedValue(undefined),
     onSelectProjectPath: vi.fn(),
     onRetryText: vi.fn().mockResolvedValue(undefined),
     onOpenSettings: vi.fn(),
     onDismissError: vi.fn(),
-    onDismissInterruptedRun: vi.fn(),
     onBranchFromMessage: vi.fn(),
     onForkFromMessage: vi.fn(),
+    onForkFromResponse: vi.fn(),
+    copiesBlocked: false,
+    onViewTurnDiff: vi.fn(),
+    turnAnchorMessageIds: new Set<string>(),
     ...overrides,
   }
+  return state
 }
 
 function configureScrollableElement(scroller: HTMLElement) {
@@ -128,14 +137,14 @@ function configureScrollableElement(scroller: HTMLElement) {
   })
 
   return {
-    setNaturalScrollHeight: (height) => {
+    setNaturalScrollHeight: (height: number) => {
       naturalScrollHeight = height
     },
     getScrollTop: () => scrollTop,
   }
 }
 
-describe('ChatTranscript t3-style scroll behavior', () => {
+describe('ChatTranscript pinned-turn scroll behavior', () => {
   beforeEach(() => {
     apiMock.registerExtensionFrame.mockClear()
     apiMock.unregisterExtensionFrame.mockClear()
@@ -256,6 +265,54 @@ describe('ChatTranscript t3-style scroll behavior', () => {
     const { container } = render(<ChatTranscript section={createSection()} />)
     const scroller = container.querySelector('[role="log"]')
     expect(scroller?.className).toContain('[overflow-anchor:none]')
+  })
+
+  it('follows growth its content ResizeObserver reports between commits', async () => {
+    // A token re-renders only its bubble (B2); the content column's observer must see it grow.
+    class RecordingResizeObserver {
+      readonly targets: Element[] = []
+      readonly callback: ResizeObserverCallback
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
+        observers.push(this)
+      }
+      observe(target: Element) {
+        this.targets.push(target)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    const observers: RecordingResizeObserver[] = []
+    vi.stubGlobal('ResizeObserver', RecordingResizeObserver)
+    const userMessage = createTextMessage('msg-1', 'user', 'hello')
+    const assistantMessage = createTextMessage('msg-2', 'assistant', 'short')
+    const { container } = render(
+      <ChatTranscript
+        section={createSection({
+          isLoading: true,
+          messages: [userMessage, assistantMessage],
+          chatRows: [createMessageChatRow(userMessage), createMessageChatRow(assistantMessage)],
+          lastUserMessageId: 'msg-1',
+        })}
+      />,
+    )
+    const scroller = container.querySelector('[role="log"]')
+    const content = container.querySelector('[data-chat-transcript-container]')
+    if (!(scroller instanceof HTMLElement) || !(content instanceof HTMLElement)) {
+      throw new Error('Chat scroller not found')
+    }
+    expect(content.className.split(' ')).toContain('shrink-0')
+    const layout = configureScrollableElement(scroller)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REQUEST_ANIMATION_FRAME_DELAY_MS)
+    })
+
+    layout.setNaturalScrollHeight(1200)
+    const contentObserver = observers.find((observer) => observer.targets.includes(content))
+    if (contentObserver === undefined) throw new Error('Content observer not found')
+    act(() => contentObserver.callback([], contentObserver))
+
+    expect(layout.getScrollTop()).toBe(700)
   })
 
   it('does not scroll when lastUserMessageId is null', async () => {

@@ -1,126 +1,105 @@
-import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { useComposerStore } from '@/features/composer/state'
-import { useSessionStore } from '@/features/sessions/state'
-import { groupSessionsByProject } from '@/features/sidebar/lib'
 import {
-  archivedSessionBranchesQueryOptions,
-  archivedSessionsQueryOptions,
-  useArchivedDeleteSessionMutation,
-  useRestoreSessionBranchMutation,
-  useUnarchiveSessionMutation,
-} from '@/queries/archived-sessions'
-import { api } from '@/shared/lib/ipc'
-import { ArchivedEmptyState, ArchivedErrorAlert, ArchivedSectionContent } from './ArchivedGroups'
-import { groupArchivedBranchesByProject } from './archived-branch-groups'
+  type ArchivedItem,
+  type ArchivedItemRef,
+  archivedItemKey,
+} from '@shared/types/archived-items'
+import { Button } from '@/shared/ui/Button'
+import { useArchivedItemActions } from '../../hooks/useArchivedItemActions'
+import { type ArchivedItemsList, useArchivedItemsList } from '../../hooks/useArchivedItemsList'
+import { useArchivedItemsSelection } from '../../hooks/useArchivedItemsSelection'
+import { hasArchivedFacetFilter, isSearching } from '../../lib/archived-items-view'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
+import { ArchivedEmptyState } from './ArchivedEmptyState'
+import { ArchivedErrorAlert } from './ArchivedErrorAlert'
+import { ArchivedResults } from './archived/ArchivedResults'
+import { ArchivedSelectionBar } from './archived/ArchivedSelectionBar'
+import { ArchivedToolbar } from './archived/ArchivedToolbar'
 
-function describeArchivedError(error: unknown, fallback: string) {
-  return error instanceof Error && error.message.trim() ? error.message : fallback
+function describeQueryError(error: Error | null) {
+  if (!error) return null
+  return error.message.trim() || 'Failed to load archived items.'
 }
 
-function getArchivedQueryError(archivedError: unknown, archivedBranchesError: unknown) {
-  if (archivedError) {
-    return describeArchivedError(archivedError, 'Failed to load archived sessions.')
-  }
-  if (archivedBranchesError) {
-    return describeArchivedError(archivedBranchesError, 'Failed to load archived branches.')
-  }
-  return null
+/** Titles of the loaded items, for naming what a restore brought back. */
+function titled(refs: readonly ArchivedItemRef[], items: readonly ArchivedItem[]) {
+  const titles = new Map(items.map((item) => [archivedItemKey(item.ref), item.title] as const))
+  return refs.map((ref) => ({ ref, title: titles.get(archivedItemKey(ref)) ?? '' }))
 }
 
-export function ArchivedSection() {
-  const archivedQuery = useQuery(archivedSessionsQueryOptions())
-  const archivedBranchesQuery = useQuery(archivedSessionBranchesQueryOptions())
-  const unarchiveMutation = useUnarchiveSessionMutation()
-  const restoreBranchMutation = useRestoreSessionBranchMutation()
-  const deleteMutation = useArchivedDeleteSessionMutation()
-  const loadSessions = useSessionStore((state) => state.loadSessions)
-  const [actionError, setActionError] = useState<string | null>(null)
+function NoMatches({ list }: { readonly list: ArchivedItemsList }) {
+  return (
+    <div className="flex flex-col items-center gap-2 py-16 text-center text-xs text-text-muted">
+      <p>No archived items match.</p>
+      {hasArchivedFacetFilter(list.view) ? (
+        <Button type="button" variant="link" size="xs" onClick={list.resetFacets}>
+          Clear filters
+        </Button>
+      ) : null}
+    </div>
+  )
+}
 
-  function handleRestore(id: SessionId) {
-    setActionError(null)
-    void unarchiveMutation
-      .mutateAsync(id)
-      .then(() => {
-        void loadSessions()
-      })
-      .catch((error: unknown) => {
-        setActionError(describeArchivedError(error, 'Failed to restore archived session.'))
-      })
-  }
-
-  function handleRestoreBranch(sessionId: SessionId, branchId: SessionBranchId) {
-    setActionError(null)
-    void restoreBranchMutation
-      .mutateAsync({ sessionId, branchId })
-      .then(() => {
-        void loadSessions()
-      })
-      .catch((error: unknown) => {
-        setActionError(describeArchivedError(error, 'Failed to restore archived branch.'))
-      })
-  }
-
-  function handleDelete(id: SessionId) {
-    setActionError(null)
-    void api
-      .showConfirm(
-        'Delete permanently?',
-        'This session will be permanently deleted. This cannot be undone.',
-      )
-      .then((confirmed) => {
-        if (!confirmed) return
-        void deleteMutation
-          .mutateAsync(id)
-          .then(() => {
-            useComposerStore.getState().clearScopedDraftsForSession(String(id))
-          })
-          .catch((error: unknown) => {
-            setActionError(
-              describeArchivedError(error, 'Failed to permanently delete archived session.'),
-            )
-          })
-      })
-      .catch((error: unknown) => {
-        setActionError(describeArchivedError(error, 'Failed to open delete confirmation.'))
-      })
-  }
-
-  if (archivedQuery.isPending || archivedBranchesQuery.isPending) {
-    return (
-      <div className="flex items-center justify-center py-20 text-text-muted text-[13px]">
-        Loading archived sessions…
-      </div>
-    )
-  }
-
-  const archived = archivedQuery.data ?? []
-  const archivedBranchSessions = archivedBranchesQuery.data ?? []
-  const queryError = getArchivedQueryError(archivedQuery.error, archivedBranchesQuery.error)
-  const hasArchivedItems = archived.length > 0 || archivedBranchSessions.length > 0
-
-  if (queryError && !hasArchivedItems) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <ArchivedErrorAlert message={queryError} />
-      </div>
-    )
-  }
-
-  if (!hasArchivedItems) {
-    return <ArchivedEmptyState />
-  }
+/** The toolbar, the results (or why there are none), and the selection bar. */
+function ArchivedBrowser({ list }: { readonly list: ArchivedItemsList }) {
+  const selection = useArchivedItemsSelection(list.items, JSON.stringify([list.filter, list.sort]))
+  const actions = useArchivedItemActions(selection.forget)
+  const queryError = describeQueryError(list.error)
+  const showLoading = list.isPending && !queryError
+  const showNoMatches = !list.isPending && !queryError && list.items.length === 0
 
   return (
-    <ArchivedSectionContent
-      groups={groupSessionsByProject(archived)}
-      branchGroups={groupArchivedBranchesByProject(archivedBranchSessions)}
-      actionError={actionError}
-      queryError={queryError}
-      onRestore={handleRestore}
-      onDelete={handleDelete}
-      onRestoreBranch={handleRestoreBranch}
-    />
+    <>
+      <ArchivedToolbar list={list} />
+      {actions.actionError ? <ArchivedErrorAlert message={actions.actionError} /> : null}
+      {queryError ? <ArchivedErrorAlert message={queryError} subtle /> : null}
+      {showLoading ? (
+        <output className="flex justify-center py-20 text-xs text-text-muted">
+          Loading archived items…
+        </output>
+      ) : null}
+      {showNoMatches ? <NoMatches list={list} /> : null}
+      {list.items.length > 0 ? (
+        <ArchivedResults
+          list={list}
+          selection={selection}
+          pending={actions.pending}
+          actions={{
+            toggle: selection.toggle,
+            restore: (item) => actions.restore([item]),
+            open: (item) => actions.open(item.ref),
+            remove: (item) => void actions.remove([item.ref]),
+          }}
+        />
+      ) : null}
+      <ArchivedSelectionBar
+        selection={selection}
+        pending={actions.pending}
+        onRestore={() => actions.restore(titled(selection.selected, list.items))}
+        onDelete={() => void actions.remove(selection.selected)}
+      />
+    </>
+  )
+}
+
+/**
+ * Settings > Archived items (CONTEXT.md): every archived session and branch in one list that the
+ * search, the Archive facets, and the sort narrow, with bulk restore (and Undo) and delete.
+ */
+export function ArchivedSection() {
+  const list = useArchivedItemsList()
+  const filtered = isSearching(list.view) || hasArchivedFacetFilter(list.view)
+  const archiveIsEmpty =
+    !list.isPending && !list.error && list.total === 0 && !filtered && !list.isPlaceholderData
+
+  return (
+    <SettingsSectionContainer className="space-y-4">
+      <div>
+        <h2 className="text-base font-medium text-text-primary">Archived sessions and branches</h2>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Sessions and branches removed from normal navigation. Restore them to bring them back.
+        </p>
+      </div>
+      {archiveIsEmpty ? <ArchivedEmptyState /> : <ArchivedBrowser list={list} />}
+    </SettingsSectionContainer>
   )
 }

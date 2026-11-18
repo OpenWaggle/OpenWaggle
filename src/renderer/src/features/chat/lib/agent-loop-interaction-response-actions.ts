@@ -27,13 +27,14 @@ export function responseFromExtensionAction(input: {
   readonly interaction: AgentLoopInteraction
   readonly actionId: string
   readonly payload?: JsonValue
-}): AgentLoopInteractionResponse | null {
+}) {
   const typedResponse = typedResponseFromPayload(input.interaction, input.payload)
   if (input.actionId === CUSTOM_INTERACTION_RESPONSE_ACTION_ID && typedResponse !== null) {
-    return typedResponse
+    const response: AgentLoopInteractionResponse | null = typedResponse
+    return response
   }
 
-  return matchBy(input.interaction, 'kind')
+  const response: AgentLoopInteractionResponse | null = matchBy(input.interaction, 'kind')
     .with('confirm', () => {
       if (input.actionId === 'accept') return { kind: 'confirm', accepted: true }
       if (input.actionId === 'reject') return { kind: 'confirm', accepted: false }
@@ -70,4 +71,5 @@ export function responseFromExtensionAction(input: {
       return null
     })
     .exhaustive()
+  return response
 }

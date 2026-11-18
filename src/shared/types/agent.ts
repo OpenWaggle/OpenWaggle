@@ -1,55 +1,40 @@
-import type { MessageId } from './brand'
-import type { SupportedModelId } from './llm'
-import type { ThinkingLevel } from './settings'
-import type { ToolCallRequest, ToolCallResult } from './tools'
-import type { WaggleMessageMetadata } from './waggle'
+import type { SchemaType } from '@shared/schema'
+import type {
+  messageMetadataSchema,
+  messagePartSchema,
+  messageRoleSchema,
+  messageSchema,
+  textPartSchema,
+  toolCallPartSchema,
+} from '@shared/schemas/message'
+import type { messageScheduledTaskOriginSchema } from '@shared/schemas/message-scheduled-task-origin'
+import type {
+  attachmentKindSchema,
+  attachmentOriginSchema,
+  browserPreviewAttachmentSchema,
+  preparedAttachmentSchema,
+} from '@shared/schemas/validation'
+import type { JsonValue } from './json'
+import type { WaggleInvocation } from './waggle'
 
-export type MessageRole = 'user' | 'assistant' | 'system'
+export type MessageRole = SchemaType<typeof messageRoleSchema>
 
 /**
  * Message parts — discriminated union.
  * Use `part.type` to narrow in switch/if statements.
  */
-export interface TextPart {
-  readonly type: 'text'
-  readonly text: string
-}
+export type TextPart = SchemaType<typeof textPartSchema>
 
-export type AttachmentKind = 'text' | 'image' | 'pdf'
-export type AttachmentOrigin = 'user-file' | 'auto-paste-text'
+export type AttachmentKind = SchemaType<typeof attachmentKindSchema>
+export type AttachmentOrigin = SchemaType<typeof attachmentOriginSchema>
 
-export interface AttachmentRecord {
-  readonly id: string
-  readonly kind: AttachmentKind
-  readonly origin?: AttachmentOrigin
-  readonly name: string
-  readonly path: string
-  readonly mimeType: string
-  readonly sizeBytes: number
-  readonly extractedText: string
-}
+/** The browser preview a picked element or annotation came from, as the attachment schema bounds it. */
+export type BrowserPreviewAttachmentMetadata = SchemaType<typeof browserPreviewAttachmentSchema>
 
-export interface AttachmentPart {
-  readonly type: 'attachment'
-  readonly attachment: AttachmentRecord
-}
+export type AttachmentRecord = SchemaType<typeof preparedAttachmentSchema>
 
-export interface ToolCallPart {
-  readonly type: 'tool-call'
-  readonly toolCall: ToolCallRequest
-}
-
-export interface ToolResultPart {
-  readonly type: 'tool-result'
-  readonly toolResult: ToolCallResult
-}
-
-export interface ReasoningPart {
-  readonly type: 'reasoning'
-  readonly text: string
-}
-
-export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ReasoningPart
+export type ToolCallPart = SchemaType<typeof toolCallPartSchema>
+export type MessagePart = SchemaType<typeof messagePartSchema>
 
 export interface AttachmentSource {
   readonly source: {
@@ -71,33 +56,49 @@ export interface HydratedAgentSendPayload extends Omit<AgentSendPayload, 'attach
 
 export interface AgentSendPayload {
   readonly text: string
-  readonly thinkingLevel: ThinkingLevel
   readonly attachments: readonly PreparedAttachment[]
+  readonly waggle?: WaggleInvocation
+  readonly visualizationContext?: InlineVisualizationContext
 }
 
-export interface CompactionSummaryMetadata {
-  readonly summary: string
-  readonly tokensBefore: number
+export type AgentSteerDeliveryResult =
+  | {
+      readonly delivery: 'queued'
+      readonly durableText: string
+      readonly minimumCreatedOrder: number
+    }
+  | {
+      readonly delivery: 'handled'
+    }
+
+/** Pi acceptance is not durable delivery; queued input is projected as a user node later. */
+export type AgentSteerDeliveryReceipt =
+  | {
+      readonly delivery: 'queued'
+      /** Lowercase SHA-256 of Pi's first text block, encoded as UTF-8 without normalization. */
+      readonly durableTextSha256: string
+      /** First eligible Pi entry index, captured immediately before queuing this steer. */
+      readonly minimumCreatedOrder: number
+    }
+  | {
+      readonly delivery: 'handled'
+    }
+
+export interface InlineVisualizationContext {
+  readonly title: string
+  readonly sourcePath: string
+  readonly state: JsonValue
 }
 
-export interface BranchSummaryMetadata {
-  readonly summary: string
-}
+/**
+ * The Scheduled task whose run delivered a user message (ADR 0057). The Host records it with the
+ * message when the Run starts, from its own Scheduled task run record, never from the prompt text,
+ * so a message cannot claim to be scheduled. It survives the task's later rename or deletion.
+ */
+export type MessageScheduledTaskOrigin = SchemaType<typeof messageScheduledTaskOriginSchema>
 
-export interface MessageMetadata {
-  readonly waggle?: WaggleMessageMetadata
-  readonly branchSummary?: BranchSummaryMetadata
-  readonly compactionSummary?: CompactionSummaryMetadata
-}
-
-export interface Message {
-  readonly id: MessageId
-  readonly role: MessageRole
-  readonly parts: readonly MessagePart[]
-  readonly model?: SupportedModelId
-  readonly metadata?: MessageMetadata
-  readonly createdAt: number
-}
+export type MessageMetadata = SchemaType<typeof messageMetadataSchema>
+export type Message = SchemaType<typeof messageSchema>
 
 /** Type-safe extraction helper used by getMessageText and IPC handlers. */
 export function isTextPart(part: MessagePart): part is TextPart {
@@ -109,9 +110,35 @@ export function isToolCallPart(part: MessagePart): part is ToolCallPart {
   return part.type === 'tool-call'
 }
 
-export function getMessageText(message: Message): string {
-  return message.parts
-    .filter(isTextPart)
-    .map((p) => p.text)
-    .join('')
+export function getMessageText(message: Message) {
+  return message.parts.reduce((text, part) => (isTextPart(part) ? text + part.text : text), '')
+}
+
+/**
+ * What became of a send, as reported back to the caller of `agent:send-message`.
+ *
+ * The invoke used to return nothing, and main recovers every run failure into a value rather than failing the
+ * Effect - so a caller awaiting the invoke could not tell a completed turn from a refused one. A review
+ * submitted as a session's first message was therefore cleared on a failure that looked exactly like success.
+ *
+ * More than two outcomes, because "not delivered", "cannot tell" and "kept for later" call for different behaviour:
+ *
+ * - `delivered`: the run produced a turn.
+ * - `refused`: the run never started, and the reason is known. A caller may treat this as an error.
+ * - `cancelled`: the run was aborted. This says nothing about whether the message arrived - a cancellation
+ *   before the prompt was sent reports the same outcome as one mid-turn - so it must not be raised as an
+ *   error, while a caller holding work the user might still want should keep it.
+ * - `queued`: the Host kept the message, but as a Follow-up in the Session's queue, not as a Run. It does
+ *   this whenever the Session still has a Run or has Follow-ups waiting - including an idle Session whose
+ *   queue a failed Run paused. No Run belongs to this send, so a caller must not wait for one: reported
+ *   as `delivered`, the renderer showed Stop and "Thinking" over an idle Session indefinitely.
+ */
+export type AgentSendOutcome = 'delivered' | 'refused' | 'cancelled' | 'queued'
+
+export interface AgentSendReport {
+  readonly outcome: AgentSendOutcome
+  readonly message?: string
+  readonly code?: string
+  /** The Run a `delivered` send started, when the Host reported it. */
+  readonly runId?: string
 }

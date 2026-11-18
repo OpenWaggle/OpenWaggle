@@ -1,0 +1,86 @@
+import type { SessionId } from '@shared/types/brand'
+import { Context, type Effect } from 'effect'
+
+export interface SessionWorkspaceResource {
+  readonly id: string
+  readonly projectPath: string
+  readonly kind: 'local' | 'managed-worktree'
+  readonly workingPath: string
+  readonly pending: boolean
+  readonly worktreeBranch: string | null
+}
+
+export interface ManagedWorktreeRemovalCandidate {
+  readonly id: string
+  readonly projectPath: string
+  readonly workingPath: string
+}
+
+/** One Session and the Workspace it is bound to, for deciding whether a worktree is in use. */
+export interface WorkspaceOccupant {
+  readonly sessionId: string
+  readonly title: string
+  readonly archived: boolean
+  /** The Session's Archive time; null while it is not archived. */
+  readonly archivedAt: number | null
+  readonly activeRun: boolean
+  readonly sessionProjectPath: string | null
+  readonly workspace: {
+    readonly id: string
+    readonly kind: SessionWorkspaceResource['kind']
+    readonly workingPath: string
+    /** `ready` once born; anything else is being created, changed or removed. */
+    readonly lifecycleState: string
+  } | null
+}
+
+export type ManagedWorktreeRemovalAdmission =
+  | {
+      readonly status: 'reserved'
+      readonly resourceId: string
+      readonly createdReservation: boolean
+    }
+  | { readonly status: 'unavailable' }
+
+export interface SessionWorkspaceResourceRepositoryShape {
+  readonly getById: (workspaceId: string) => Effect.Effect<SessionWorkspaceResource | null, Error>
+  readonly countBindings: (
+    workspaceId: string,
+    excludingSessionId?: SessionId,
+  ) => Effect.Effect<number, Error>
+  readonly countActiveBindings: (
+    workspaceId: string,
+    excludingSessionId?: SessionId,
+  ) => Effect.Effect<number, Error>
+  readonly getBound: (sessionId: SessionId) => Effect.Effect<SessionWorkspaceResource | null, Error>
+  readonly countManagedWorktreeBindings: (input: {
+    readonly projectPath: string
+    readonly workingPath: string
+  }) => Effect.Effect<number, Error>
+  readonly listManagedWorktreeRemovalCandidates: () => Effect.Effect<
+    readonly ManagedWorktreeRemovalCandidate[],
+    Error
+  >
+  readonly admitManagedWorktreeRemoval: (input: {
+    readonly resourceId?: string
+    readonly reservationId: string
+    readonly projectPath: string
+    readonly workingPath: string
+    /**
+     * Admit a worktree whose bound Sessions are all archived and have no active Run, keeping
+     * their bindings (ADR 0060). Without it any binding refuses the removal.
+     */
+    readonly admitArchivedBindings?: boolean
+  }) => Effect.Effect<ManagedWorktreeRemovalAdmission, Error>
+  /** Sessions that can keep a worktree in use (see `listWorkspaceOccupants`). */
+  readonly listWorkspaceOccupants: () => Effect.Effect<readonly WorkspaceOccupant[], Error>
+  readonly finalizeManagedWorktreeRemoval: (input: {
+    readonly resourceId: string
+    readonly createdReservation: boolean
+    readonly removed: boolean
+  }) => Effect.Effect<void, Error>
+}
+
+export class SessionWorkspaceResourceRepository extends Context.Tag(
+  '@openwaggle/SessionWorkspaceResourceRepository',
+)<SessionWorkspaceResourceRepository, SessionWorkspaceResourceRepositoryShape>() {}

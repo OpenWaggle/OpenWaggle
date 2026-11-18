@@ -27,6 +27,51 @@ describe('redactSensitiveText', () => {
     expect(redactSensitiveText(input)).toContain('[REDACTED_GITHUB_TOKEN]')
   })
 
+  // Review finding: only Bearer, sk-, and GitHub tokens were redacted before errors were published.
+  it('redacts labelled credentials, Basic auth, and common provider key formats', () => {
+    const input = [
+      'x-api-key: AIzaSyA1234567890abcdefghijklmnopqrstu',
+      'api_key=0123456789abcdef',
+      'Authorization: Basic dXNlcjpwYXNzd29yZA==',
+      '{"password": "hunter22hunter"}',
+      'AKIAABCDEFGHIJKLMNOP',
+    ].join('\n')
+    const output = redactSensitiveText(input)
+    for (const secret of [
+      'AIzaSyA1234567890',
+      '0123456789abcdef',
+      'dXNlcjpwYXNzd29yZA',
+      'hunter22hunter',
+      'AKIAABCDEFGHIJKLMNOP',
+    ]) {
+      expect(output).not.toContain(secret)
+    }
+  })
+
+  it('redacts credentials named by environment variables and prose labels', () => {
+    const input = [
+      'ANTHROPIC_API_KEY=abcdef1234567890',
+      'AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENG',
+      'NPM_TOKEN=npm_abcdefghij123456',
+      'API key: xyz9876543210',
+    ].join('\n')
+    const output = redactSensitiveText(input)
+    for (const secret of [
+      'abcdef1234567890',
+      'wJalrXUtnFEMIK7MDENG',
+      'npm_abcdefghij123456',
+      'xyz9876543210',
+    ]) {
+      expect(output).not.toContain(secret)
+    }
+    expect(output).toContain('ANTHROPIC_API_KEY=[REDACTED]')
+  })
+
+  it('does not redact ordinary words that resemble credential labels', () => {
+    const input = 'token_count=483 and tokens used: 1024'
+    expect(redactSensitiveText(input)).toBe(input)
+  })
+
   it('leaves non-sensitive text unchanged', () => {
     const input = 'This is a normal log line with no secrets'
     expect(redactSensitiveText(input)).toBe(input)

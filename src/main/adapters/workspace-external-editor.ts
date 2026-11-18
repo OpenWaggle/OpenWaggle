@@ -1,0 +1,310 @@
+import { execFile } from 'node:child_process'
+import fs from 'node:fs/promises'
+import { homedir } from 'node:os'
+import path from 'node:path'
+import { promisify } from 'node:util'
+import {
+  type WorkspaceExternalEditor,
+  type WorkspaceExternalEditorId,
+  workspaceExternalEditorLabel,
+} from '@shared/types/workspace-external-editor'
+import { getSafeChildEnv } from '../env'
+
+const execFileAsync = promisify(execFile)
+const EDITOR_DISCOVERY_CACHE_TTL_MS = 60_000
+const EDITOR_COMMAND_PROBE_TIMEOUT_MS = 1_000
+const EDITOR_COMMAND_PROBE_MAX_BUFFER_BYTES = 8 * 1024
+const MACOS_APPLICATION_ROOTS = ['/Applications'] as const
+
+type EditorLaunchStyle = 'direct-path' | 'goto' | 'line-column'
+
+export interface WorkspaceExternalEditorRuntimeDefinition {
+  readonly id: WorkspaceExternalEditorId
+  readonly commands: readonly string[]
+  readonly baseArgs?: readonly string[]
+  readonly launchStyle: EditorLaunchStyle
+  readonly macApplicationNames: readonly string[]
+}
+
+export const WORKSPACE_EXTERNAL_EDITOR_RUNTIME_DEFINITIONS = [
+  {
+    id: 'cursor',
+    commands: ['cursor'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Cursor'],
+  },
+  {
+    id: 'trae',
+    commands: ['trae'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Trae'],
+  },
+  {
+    id: 'kiro',
+    commands: ['kiro'],
+    baseArgs: ['ide'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Kiro'],
+  },
+  {
+    id: 'vscode',
+    commands: ['code'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Visual Studio Code'],
+  },
+  {
+    id: 'vscode-insiders',
+    commands: ['code-insiders'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Visual Studio Code - Insiders'],
+  },
+  {
+    id: 'vscodium',
+    commands: ['codium'],
+    launchStyle: 'goto',
+    macApplicationNames: ['VSCodium'],
+  },
+  {
+    id: 'zed',
+    commands: ['zed', 'zeditor'],
+    launchStyle: 'direct-path',
+    macApplicationNames: ['Zed'],
+  },
+  {
+    id: 'antigravity',
+    commands: ['agy'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Antigravity'],
+  },
+  {
+    id: 'idea',
+    commands: ['idea'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['IntelliJ IDEA', 'IntelliJ IDEA CE'],
+  },
+  {
+    id: 'aqua',
+    commands: ['aqua'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['Aqua'],
+  },
+  {
+    id: 'clion',
+    commands: ['clion'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['CLion'],
+  },
+  {
+    id: 'datagrip',
+    commands: ['datagrip'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['DataGrip'],
+  },
+  {
+    id: 'dataspell',
+    commands: ['dataspell'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['DataSpell'],
+  },
+  {
+    id: 'goland',
+    commands: ['goland'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['GoLand'],
+  },
+  {
+    id: 'phpstorm',
+    commands: ['phpstorm'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['PhpStorm'],
+  },
+  {
+    id: 'pycharm',
+    commands: ['pycharm'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['PyCharm', 'PyCharm CE'],
+  },
+  {
+    id: 'rider',
+    commands: ['rider'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['Rider'],
+  },
+  {
+    id: 'rubymine',
+    commands: ['rubymine'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['RubyMine'],
+  },
+  {
+    id: 'rustrover',
+    commands: ['rustrover'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['RustRover'],
+  },
+  {
+    id: 'webstorm',
+    commands: ['webstorm'],
+    launchStyle: 'line-column',
+    macApplicationNames: ['WebStorm'],
+  },
+  // Additional local editors are a strict superset of T3's desktop list.
+  {
+    id: 'windsurf',
+    commands: ['windsurf'],
+    launchStyle: 'goto',
+    macApplicationNames: ['Windsurf'],
+  },
+  {
+    id: 'sublime',
+    commands: ['subl', 'sublime_text'],
+    launchStyle: 'direct-path',
+    macApplicationNames: ['Sublime Text'],
+  },
+] as const satisfies readonly WorkspaceExternalEditorRuntimeDefinition[]
+
+export interface WorkspaceExternalEditorProbeOptions {
+  readonly platform?: NodeJS.Platform
+  readonly homeDirectory?: string
+  readonly commandAvailable?: (command: string) => Promise<boolean>
+  readonly pathAvailable?: (candidatePath: string) => Promise<boolean>
+}
+
+interface EditorDiscoveryCacheEntry {
+  readonly editors: readonly WorkspaceExternalEditor[]
+  readonly expiresAt: number
+}
+
+let discoveryCache: EditorDiscoveryCacheEntry | null = null
+let discoveryInFlight: Promise<WorkspaceExternalEditor[]> | null = null
+
+export function workspaceExternalEditorDefinition(editorId: WorkspaceExternalEditorId) {
+  return WORKSPACE_EXTERNAL_EDITOR_RUNTIME_DEFINITIONS.find((editor) => editor.id === editorId)
+}
+
+export async function workspaceExternalEditorCommandAvailable(
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+) {
+  const lookupCommand = platform === 'win32' ? 'where.exe' : 'which'
+  try {
+    await execFileAsync(lookupCommand, [command], {
+      env: getSafeChildEnv(),
+      timeout: EDITOR_COMMAND_PROBE_TIMEOUT_MS,
+      maxBuffer: EDITOR_COMMAND_PROBE_MAX_BUFFER_BYTES,
+      windowsHide: true,
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function workspaceExternalEditorPathAvailable(candidatePath: string) {
+  try {
+    await fs.access(candidatePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function macApplicationCandidates(
+  editor: WorkspaceExternalEditorRuntimeDefinition,
+  homeDirectory: string,
+) {
+  const roots = [...MACOS_APPLICATION_ROOTS, path.join(homeDirectory, 'Applications')]
+  return roots.flatMap((root) =>
+    editor.macApplicationNames.map((name) => ({
+      name,
+      path: path.join(root, `${name}.app`),
+    })),
+  )
+}
+
+export async function findAvailableWorkspaceExternalEditorCommand(
+  commands: readonly string[],
+  commandAvailable: (command: string) => Promise<boolean>,
+) {
+  const available = await Promise.all(commands.map((command) => commandAvailable(command)))
+  return commands.find((_command, index) => available[index])
+}
+
+export async function findAvailableWorkspaceExternalEditorMacApplication(
+  editor: WorkspaceExternalEditorRuntimeDefinition,
+  homeDirectory: string,
+  pathAvailable: (candidatePath: string) => Promise<boolean>,
+) {
+  const candidates = macApplicationCandidates(editor, homeDirectory)
+  const available = await Promise.all(candidates.map((candidate) => pathAvailable(candidate.path)))
+  const index = available.findIndex((isAvailable) => isAvailable)
+  return index < 0 ? undefined : candidates[index]?.name
+}
+
+async function discoverWorkspaceExternalEditorsUncached(
+  options: Required<Pick<WorkspaceExternalEditorProbeOptions, 'platform' | 'homeDirectory'>> &
+    Pick<WorkspaceExternalEditorProbeOptions, 'commandAvailable' | 'pathAvailable'>,
+) {
+  const commandAvailable =
+    options.commandAvailable ??
+    ((command: string) => workspaceExternalEditorCommandAvailable(command, options.platform))
+  const pathAvailable = options.pathAvailable ?? workspaceExternalEditorPathAvailable
+  const available = await Promise.all(
+    WORKSPACE_EXTERNAL_EDITOR_RUNTIME_DEFINITIONS.map(async (editor) => {
+      if (await findAvailableWorkspaceExternalEditorCommand(editor.commands, commandAvailable)) {
+        return editor.id
+      }
+      if (options.platform !== 'darwin') return undefined
+      const application = await findAvailableWorkspaceExternalEditorMacApplication(
+        editor,
+        options.homeDirectory,
+        pathAvailable,
+      )
+      return application === undefined ? undefined : editor.id
+    }),
+  )
+
+  return available.flatMap((editorId) =>
+    editorId === undefined
+      ? []
+      : [
+          {
+            id: editorId,
+            label: workspaceExternalEditorLabel(editorId),
+          } satisfies WorkspaceExternalEditor,
+        ],
+  )
+}
+
+export async function discoverWorkspaceExternalEditors(
+  options: WorkspaceExternalEditorProbeOptions = {},
+) {
+  return discoverWorkspaceExternalEditorsUncached({
+    platform: options.platform ?? process.platform,
+    homeDirectory: options.homeDirectory ?? homedir(),
+    ...(options.commandAvailable ? { commandAvailable: options.commandAvailable } : {}),
+    ...(options.pathAvailable ? { pathAvailable: options.pathAvailable } : {}),
+  })
+}
+
+export async function listAvailableWorkspaceExternalEditors() {
+  const now = Date.now()
+  if (discoveryCache && discoveryCache.expiresAt > now) {
+    return [...discoveryCache.editors] satisfies WorkspaceExternalEditor[]
+  }
+  if (discoveryInFlight) return discoveryInFlight
+
+  discoveryInFlight = discoverWorkspaceExternalEditors()
+    .then((editors) => {
+      discoveryCache = {
+        editors,
+        expiresAt: Date.now() + EDITOR_DISCOVERY_CACHE_TTL_MS,
+      }
+      return [...editors]
+    })
+    .finally(() => {
+      discoveryInFlight = null
+    })
+
+  return discoveryInFlight
+}

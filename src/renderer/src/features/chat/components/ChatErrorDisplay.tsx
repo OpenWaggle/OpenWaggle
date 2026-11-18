@@ -19,7 +19,9 @@ import {
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { PlainTextBlock } from '@/shared/ui/PlainTextBlock'
 import { useUIStore } from '@/shell/ui-store'
+import { useChatDisplayTextFormatter } from './ChatDisplayPathContext'
 
 const logger = createRendererLogger('chat')
 
@@ -147,12 +149,19 @@ export function ChatErrorDisplay({
   const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
   const [copied, setCopied] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const formatPaths = useChatDisplayTextFormatter()
 
   if (dismissedError === error.message) return null
 
   const info = resolveErrorInfo(error, sessionId)
+  // This message tells the user which folder to fix; shortening its path would hide that.
+  const formatDisplayText =
+    info.code === 'worktree-preparation-mismatch' ? (text: string) => text : formatPaths
   const isAuthError = info.code === 'api-key-invalid' || info.code === 'session-expired'
   const details = formatErrorDetails(error, info)
+  const displayUserMessage = formatDisplayText(info.userMessage)
+  const displaySuggestion = formatDisplayText(info.suggestion ?? '')
+  const displayDetails = formatDisplayText(details)
 
   function handleCopy() {
     const text = `${info.userMessage}${info.suggestion ? `\n${info.suggestion}` : ''}\n\nRaw: ${info.message}`
@@ -171,9 +180,9 @@ export function ChatErrorDisplay({
       <div className="flex items-start gap-3">
         <AlertCircle className="size-4 shrink-0 text-error mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-error/90">{info.userMessage}</p>
-          {info.suggestion && (
-            <p className="text-[13px] text-text-tertiary mt-1">{info.suggestion}</p>
+          <p className="text-sm text-error-text">{displayUserMessage}</p>
+          {displaySuggestion && (
+            <p className="text-sm text-text-tertiary mt-1">{displaySuggestion}</p>
           )}
           {details && (
             <div className="mt-1.5">
@@ -186,9 +195,12 @@ export function ChatErrorDisplay({
                 Show details
               </Button>
               {showDetails && (
-                <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-bg/50 p-2 text-[11px] text-text-tertiary font-mono whitespace-pre-wrap break-all">
-                  {details}
-                </pre>
+                <PlainTextBlock
+                  reason="error"
+                  className="mt-1.5 max-h-40 bg-bg/50 text-text-tertiary break-all"
+                >
+                  {displayDetails}
+                </PlainTextBlock>
               )}
             </div>
           )}
@@ -196,8 +208,12 @@ export function ChatErrorDisplay({
             info={info}
             isAuthError={isAuthError}
             copy={{ copied, onCopy: handleCopy }}
-            retry={{ lastUserMessage, onRetry, onDismiss: handleDismiss }}
-            onOpenSettings={onOpenSettings}
+            retry={{
+              lastUserMessage,
+              ...(onRetry === undefined ? {} : { onRetry }),
+              onDismiss: handleDismiss,
+            }}
+            {...(onOpenSettings === undefined ? {} : { onOpenSettings })}
             onDismiss={handleDismiss}
             onReport={() => openFeedbackModal(info)}
           />

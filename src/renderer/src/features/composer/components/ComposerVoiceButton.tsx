@@ -4,11 +4,12 @@ import { Button } from '@/shared/ui/Button'
 import type { VoiceRecorderMode } from '../hooks/useVoiceCapture'
 
 interface ComposerVoiceButtonProps {
+  readonly disabled?: boolean
   readonly mode: VoiceRecorderMode
   readonly onToggleVoice: () => void
 }
 
-export function ComposerVoiceButton({ mode, onToggleVoice }: ComposerVoiceButtonProps) {
+export function ComposerVoiceButton({ mode, onToggleVoice, disabled }: ComposerVoiceButtonProps) {
   const isListening = mode === 'recording'
   const isTranscribing = mode === 'transcribing'
 
@@ -17,18 +18,14 @@ export function ComposerVoiceButton({ mode, onToggleVoice }: ComposerVoiceButton
       variant="unstyled"
       type="button"
       onClick={onToggleVoice}
-      disabled={isTranscribing}
+      disabled={disabled || isTranscribing}
       className={cn(
         'flex size-5 items-center justify-center transition-colors',
         getVoiceButtonTone(isTranscribing, isListening),
       )}
       title={getVoiceButtonTitle(mode)}
     >
-      {isTranscribing ? (
-        <Loader2 className="size-[15px] animate-spin" />
-      ) : (
-        <Mic className="size-[15px]" />
-      )}
+      {isTranscribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
     </Button>
   )
 }

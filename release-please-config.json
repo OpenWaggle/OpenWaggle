@@ -6,6 +6,7 @@
   "include-component-in-tag": true,
   "include-v-in-tag": true,
   "separate-pull-requests": false,
+  "group-pull-request-title-pattern": "chore(${branch}): release OpenWaggle packages",
   "always-link-local": true,
   "packages": {
     "packages/extension-sdk": {

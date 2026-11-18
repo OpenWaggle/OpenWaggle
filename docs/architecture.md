@@ -9,6 +9,7 @@ This file is the entrypoint for OpenWaggle architecture documentation. It is int
 - `docs/system-architecture.md` describes the current whole-system shape.
 - `docs/hexagonal-architecture.md` defines main-process layering rules.
 - `docs/renderer-architecture.md` defines renderer organization, state, UI, testing, and enforcement rules.
+- `docs/mcp-runtime.md` explains how the MCP runtime of ADR 0051 fits together: Pi's MCP client, the MCP transport layer, configuration files, and ports.
 
 ## Decision Records
 
@@ -22,6 +23,90 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0006-adopt-federated-module-runtime-for-extension-ui.md`
 - `docs/adr/0007-adopt-release-please-for-openwaggle-npm-packages.md`
 - `docs/adr/0008-publish-npm-packages-directly-with-trusted-publishing.md`
+- `docs/adr/0009-promote-attested-package-artifacts.md`
+- `docs/adr/0010-adopt-worktree-per-session-environment-mode.md`
+- `docs/adr/0011-per-turn-worktree-checkpointing.md`
+- `docs/adr/0012-source-control-provider-cli-adapters-and-stacked-actions.md`
+- `docs/adr/0013-adopt-first-party-mcp-integration.md`
+- `docs/adr/0014-windows-mcp-stdio-sandbox.md`
+- `docs/adr/0015-separate-composer-invocations-from-global-command-surfaces.md`
+- `docs/adr/0015-single-design-token-contract.md`
+- `docs/adr/0016-adopt-pierre-diffs-renderer.md`
+- `docs/adr/0017-remove-git-branch-administration-from-composer.md`
+- `docs/adr/0018-session-keyed-git-state.md`
+- `docs/adr/0019-pinned-sessions-stored-per-pin.md`
+- `docs/adr/0020-sidebar-provenance-icon-vocabulary.md`
+- `docs/adr/0021-status-colours-are-semantic-roles.md`
+- `docs/adr/0022-transcript-opens-from-its-newest-end.md`
+- `docs/adr/0023-agent-access-modes-and-declared-authorization.md`
+- `docs/adr/0024-design-token-contract-adopts-tailwind-standards.md`
+- `docs/adr/0025-adopt-monaco-and-shiki-for-workspace-editing.md`
+- `docs/adr/0025-compaction-uses-one-native-protocol-and-one-portable-fallback.md`
+- `docs/adr/0026-adopt-session-summary-and-resource-catalog.md`
+- `docs/adr/0026-unified-worker-backed-syntax-service.md`
+- `docs/adr/0027-standards-first-language-grammar-import.md`
+- `docs/adr/0028-prefer-review-first-workspace-files.md`
+- `docs/adr/0029-tier-ci-gates-behind-a-merge-queue.md`
+- `docs/adr/0030-adopt-single-local-session-host.md`
+- `docs/adr/0030-session-bound-terminals.md`
+- `docs/adr/0031-adopt-visualize-compatible-inline-visualizations.md`
+- `docs/adr/0031-session-owned-browser-preview.md`
+- `docs/adr/0032-coexisting-build-identities-and-channel-keyed-updates.md`
+- `docs/adr/0033-remove-the-merge-queue.md`
+- `docs/adr/0034-turn-settle-fold-presentation.md`
+- `docs/adr/0035-native-project-actions.md`
+- `docs/adr/0035-one-step-mcp-trust-with-a-curated-catalog.md`
+- `docs/adr/0036-bounded-sliding-transcript-window.md`
+- `docs/adr/0037-derived-projections-never-cost-a-durable-turn.md`
+- `docs/adr/0038-guided-action-panel.md`
+- `docs/adr/0039-stop-the-session-host-from-the-command-line.md`
+- `docs/adr/0040-adopt-the-v1-release-policy.md`
+- `docs/adr/0041-forked-sessions-get-their-own-pi-entry-ids.md`
+- `docs/adr/0042-cross-project-session-reach-and-session-scratch-directories.md`
+- `docs/adr/0043-generated-session-titles-follow-t3code.md`
+- `docs/adr/0043-unified-right-panel-with-a-panel-rail.md`
+- `docs/adr/0044-follow-up-edits-keep-their-identity-and-hold-the-queue.md`
+- `docs/adr/0044-usage-statistics-carry-no-persistent-identifier.md`
+- `docs/adr/0045-usage-statistics-go-through-an-openwaggle-endpoint.md`
+- `docs/adr/0046-usage-statistics-are-on-by-default.md`
+- `docs/adr/0047-installing-an-update-releases-the-session-host.md`
+- `docs/adr/0048-compacted-history-stays-visible-in-the-transcript.md`
+- `docs/adr/0048-source-control-resolution-lives-in-the-session-host.md`
+- `docs/adr/0049-pi-entry-ids-are-full-uuids.md`
+- `docs/adr/0049-users-can-recover-desktop-tools-after-an-unclean-quit.md`
+- `docs/adr/0050-edit-rows-show-their-diff-on-demand.md`
+- `docs/adr/0051-openwaggle-is-the-gui-for-the-pi-ecosystem.md`
+- `docs/adr/0051-workers-live-in-a-hive-panel-not-the-sidebar.md`
+- `docs/adr/0052-session-origin-is-recognized-never-inferred.md`
+- `docs/adr/0053-mcp-apps-reach-the-origins-their-server-declares.md`
+- `docs/adr/0053-the-coordination-surface-is-named-hive-everywhere.md`
+- `docs/adr/0054-transcript-rows-name-the-worker.md`
+- `docs/adr/0055-edit-and-fork-points-are-user-messages-and-turn-replies.md`
+- `docs/adr/0056-session-links-use-openwaggle-sessions-urls.md`
+- `docs/adr/0057-the-session-host-runs-scheduled-tasks.md`
+- `docs/adr/0058-scheduled-tasks-are-host-records-not-files.md`
+- `docs/adr/0059-the-hive-groups-workers-by-who-acts-next.md`
+- `docs/adr/0060-automatic-worktree-removal-counts-from-archive.md`
+- `docs/adr/0061-user-docs-split-guides-reference-and-overview.md`
+- `docs/adr/0062-the-session-host-decides-desktop-notifications.md`
+- `docs/adr/0063-cli-machine-output-contract.md`
+- `docs/adr/0064-move-the-toolchain-to-bun-and-put-the-desktop-shell-behind-ports.md`
+- `docs/adr/0065-parents-show-their-running-workers.md`
+- `docs/adr/0066-the-extension-sdk-public-api-is-types-and-result-helpers.md`
+- `docs/adr/0067-split-mit-packages-from-a-gpl-app-with-a-cla-and-trademark-notice.md`
+- `docs/adr/0068-follow-pi-prompt-image-limits-and-decode-heic-in-openwaggle.md`
+- `docs/adr/0069-windows-builds-ship-unsigned-until-a-signer-is-funded.md`
+- `docs/adr/0070-release-prs-write-the-changelog.md`
+
+## Testing
+
+- `docs/pi-waggle-release-checklist.md` — automated and manual Pi TUI checks before a Waggle package release.
+- `docs/git-behaviour-test-coverage.md` — which git, diff and worktree behaviours are covered, and by which test.
+
+## Maintenance
+
+- `docs/dependency-updates.md` — exact dependency pins, when to update, and what to check.
+- `docs/pi-runtime-upgrades.md` — upgrading the matched Pi runtime release.
 
 ## Specs
 

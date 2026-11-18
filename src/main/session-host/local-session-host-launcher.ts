@@ -1,0 +1,300 @@
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { appPaths } from '../desktop-shell/app-paths'
+import { desktopShellEnvironmentRefreshStartedAt } from '../desktop-shell-environment-process'
+import { launchHeadlessBackgroundProcess } from '../desktop-ui'
+import { env, getSessionHostChildEnv } from '../env'
+import { startupTimingsRequested } from '../startup-timing'
+import { awaitWithSignal } from './await-with-signal'
+import { canConnectToLocalSessionHost } from './local-session-host-connect-probe'
+import { probeLocalSessionHost } from './local-session-client'
+import {
+  type LocalSessionClientConnectionInput,
+  LocalSessionHostUpgradePendingError,
+} from './local-session-client-connection'
+import { LocalSessionHostUnavailableError } from './local-session-client-protocol-error'
+import { HOST_POLL_INTERVAL_MS, waitForCondition } from './local-session-host-polling'
+import { type LocalSessionHostPaths, refreshLocalSessionHostEndpoint } from './local-session-paths'
+import {
+  type SessionHostLogLevel,
+  sessionHostChildEnvironmentFrom,
+  sessionHostLaunchCommandFor,
+} from './session-host-launch-command'
+import type { SessionHostOwnership } from './session-host-ownership'
+import { makeSharedOperations } from './shared-operations'
+
+export const HOST_TAKEOVER_TIMEOUT_MS = 15 * 60_000
+
+export { sessionHostLaunchCommand } from './session-host-launch-command'
+
+/** The command that launches a Host with the switches this process was started with. */
+export function currentSessionHostLaunchCommand() {
+  return sessionHostLaunchCommandFor({
+    platform: process.platform,
+    isPackaged: appLifecycle.isPackaged(),
+    executablePath: process.execPath,
+    appPath: appPaths.appRoot(),
+    appImagePath: env.APPIMAGE,
+    commandLine: appLifecycle.commandLine,
+  })
+}
+
+/**
+ * The detached Host outlives the client that starts it, so it must not retain the client's
+ * client-scoped credentials or inherit Electron's Node-compatibility switch. Provider and shell
+ * environment must survive because this process owns Pi Runs after the launching client exits.
+ */
+export function sessionHostChildEnvironment(input: {
+  readonly safeEnvironment?: Readonly<Record<string, string | undefined>>
+  readonly userDataRoot: string
+  readonly logLevel?: SessionHostLogLevel
+  /** The launching GUI measures its startup, so the Host marks its own too. */
+  readonly startupTimings?: boolean
+  readonly shellEnvironmentRefreshedSince?: number
+}) {
+  return sessionHostChildEnvironmentFrom({
+    ...input,
+    safeEnvironment: input.safeEnvironment ?? getSessionHostChildEnv(),
+  })
+}
+
+/** Whether this process (the desktop app) refreshes the login-shell cache the Host can wait for. */
+function shellEnvironmentRefresh() {
+  const since = desktopShellEnvironmentRefreshStartedAt()
+  return since === null ? {} : { shellEnvironmentRefreshedSince: since }
+}
+
+export interface LocalSessionHostLauncherDependencies {
+  readonly canConnect: (endpoint: string, signal?: AbortSignal) => Promise<boolean>
+  readonly probe: typeof probeLocalSessionHost
+  readonly tryAcquireOwnership: (databasePath: string) => Promise<SessionHostOwnership | null>
+  readonly launch: () => void | Promise<void>
+  readonly now: () => number
+  readonly wait: (milliseconds: number, signal?: AbortSignal) => Promise<void>
+  readonly refreshPaths: (paths: LocalSessionHostPaths) => Promise<LocalSessionHostPaths>
+}
+
+export function isLocalSessionHostUnavailable(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return false
+  return (
+    error.code === 'ENOENT' ||
+    error.code === 'ECONNREFUSED' ||
+    error.code === 'ECONNRESET' ||
+    error.code === 'ECONNABORTED' ||
+    error.code === 'EPIPE'
+  )
+}
+
+/** The real socket, probe, ownership lock, launch and clock. */
+export const defaultLocalSessionHostLauncherDependencies: LocalSessionHostLauncherDependencies = {
+  canConnect: canConnectToLocalSessionHost,
+  probe: probeLocalSessionHost,
+  tryAcquireOwnership: async (databasePath) => {
+    // Its SQLite lock loads only when no Host answers, never on the window's entry graph.
+    const ownership = await import('./session-host-ownership')
+    try {
+      return await ownership.acquireSessionHostOwnership(databasePath, { timeoutMs: 0 })
+    } catch (error) {
+      if (ownership.isSessionHostOwnershipHeld(error)) return null
+      throw error
+    }
+  },
+  launch: () =>
+    launchHeadlessBackgroundProcess({
+      ...currentSessionHostLaunchCommand(),
+      environment: sessionHostChildEnvironment({
+        userDataRoot: appPaths.userData(),
+        ...(env.OPENWAGGLE_LOG_LEVEL ? { logLevel: env.OPENWAGGLE_LOG_LEVEL } : {}),
+        startupTimings: startupTimingsRequested(),
+        ...shellEnvironmentRefresh(),
+      }),
+    }),
+  now: Date.now,
+  wait: (milliseconds, signal) =>
+    new Promise((resolve, reject) => {
+      signal?.throwIfAborted()
+      const abort = () => {
+        clearTimeout(timer)
+        reject(signal?.reason)
+      }
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', abort)
+        resolve()
+      }, milliseconds)
+      signal?.addEventListener('abort', abort, { once: true })
+    }),
+  refreshPaths: refreshLocalSessionHostEndpoint,
+}
+
+/** Waits until the Host at `endpoint` stops listening; false once `timeoutMs` passed first. */
+export async function waitForLocalSessionHostRelease(
+  endpoint: string,
+  options: { readonly timeoutMs?: number; readonly signal?: AbortSignal } = {},
+  dependencies: LocalSessionHostLauncherDependencies = defaultLocalSessionHostLauncherDependencies,
+) {
+  const { signal } = options
+  return waitForCondition({
+    timeoutMs: options.timeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS,
+    condition: async () => !(await dependencies.canConnect(endpoint, signal)),
+    dependencies,
+    ...(signal ? { signal } : {}),
+  })
+}
+
+async function waitForCompatibleHost(
+  input: LocalSessionClientConnectionInput,
+  timeoutMs: number,
+  dependencies: LocalSessionHostLauncherDependencies,
+) {
+  let lastFailure: { readonly error: unknown } | undefined
+  const ready = await waitForCondition({
+    timeoutMs,
+    dependencies,
+    ...(input.signal ? { signal: input.signal } : {}),
+    condition: async () => {
+      const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+      if (
+        !(await awaitWithSignal(
+          dependencies.canConnect(paths.endpoint, input.signal),
+          input.signal,
+        ))
+      ) {
+        return false
+      }
+      try {
+        await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
+        return true
+      } catch (error) {
+        lastFailure = { error }
+        return false
+      }
+    },
+  })
+  if (ready) return
+  if (lastFailure) throw lastFailure.error
+  throw new LocalSessionHostUnavailableError('Timed out starting the Local Session Host.')
+}
+
+async function waitForLocalSessionHostAuthority(
+  input: LocalSessionClientConnectionInput & {
+    readonly onUpgradePending?: () => void
+    readonly onUpgradeReleased?: () => void
+  },
+  timeoutMs: number,
+  dependencies: LocalSessionHostLauncherDependencies,
+) {
+  let upgradePendingError: LocalSessionHostUpgradePendingError | null = null
+  /** The last disconnect of a Host that accepted a connection but never finished a probe. */
+  let lastFailure: { readonly error: unknown } | undefined
+  /** Past an update hand-off this call waited for, the caller's start goes on. */
+  const released = () => {
+    if (upgradePendingError) input.onUpgradeReleased?.()
+  }
+  const deadline = dependencies.now() + timeoutMs
+  while (dependencies.now() < deadline) {
+    input.signal?.throwIfAborted()
+    const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+    if (
+      await awaitWithSignal(dependencies.canConnect(paths.endpoint, input.signal), input.signal)
+    ) {
+      try {
+        const negotiation = await awaitWithSignal(
+          dependencies.probe({ ...input, paths }),
+          input.signal,
+        )
+        released()
+        return { status: 'connected' as const, negotiation }
+      } catch (error) {
+        if (error instanceof LocalSessionHostUpgradePendingError) {
+          if (!upgradePendingError) input.onUpgradePending?.()
+          upgradePendingError = error
+        } else {
+          // A Host that accepted the connection but went away before the probe handshake finished
+          // (a disconnect verdict such as EPIPE, Sentry OPENWAGGLE-9) is a Host that is not
+          // answering, exactly like one that never accepted: keep polling within the wait.
+          if (!isLocalSessionHostUnavailable(error)) throw error
+          lastFailure = { error }
+        }
+      }
+      // An older executable may use a different ownership mechanism. Its authenticated listener
+      // remains authoritative until it closes, even if this version's ownership file is available.
+      await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
+      continue
+    }
+    const ownership = await dependencies.tryAcquireOwnership(input.paths.databasePath)
+    if (ownership) {
+      await ownership.release()
+      input.signal?.throwIfAborted()
+      released()
+      return { status: 'launch' as const }
+    }
+    await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
+  }
+  if (upgradePendingError) throw upgradePendingError
+  if (lastFailure) throw lastFailure.error
+  throw new LocalSessionHostUnavailableError('Timed out waiting for Local Session Host authority.')
+}
+
+/**
+ * The probe that closes a launch, once a Host has answered the launch's own wait: that Host can go
+ * away again before this probe reaches it (an update hand-off closes its listener mid-startup,
+ * Sentry OPENWAGGLE-9). A probe that fails with a disconnect verdict (EPIPE, …) is a Host that is
+ * not answering any more, so this waits for one that does — the way the launch's own wait does —
+ * and reports the last disconnect only once its deadline has passed. Anything else a probe can
+ * fail with still fails the start at once.
+ */
+async function waitForCompatibleHostProbe(
+  input: LocalSessionClientConnectionInput,
+  timeoutMs: number,
+  dependencies: LocalSessionHostLauncherDependencies,
+) {
+  let lastFailure: { readonly error: unknown } | undefined
+  const deadline = dependencies.now() + timeoutMs
+  while (dependencies.now() < deadline) {
+    input.signal?.throwIfAborted()
+    const paths = await awaitWithSignal(dependencies.refreshPaths(input.paths), input.signal)
+    try {
+      return await awaitWithSignal(dependencies.probe({ ...input, paths }), input.signal)
+    } catch (error) {
+      if (!isLocalSessionHostUnavailable(error)) throw error
+      lastFailure = { error }
+    }
+    await awaitWithSignal(dependencies.wait(HOST_POLL_INTERVAL_MS, input.signal), input.signal)
+  }
+  if (lastFailure) throw lastFailure.error
+  throw new LocalSessionHostUnavailableError('Timed out starting the Local Session Host.')
+}
+
+/**
+ * Every client that loses its Host looks for authority at once, and finds the ownership file free
+ * until the Host one of them launched boots; each would launch its own Host, and all but one would
+ * stop on ELOCKED. Clients in one process therefore share one launch per Host database.
+ */
+const sharedLaunches = makeSharedOperations()
+
+export async function ensureLocalSessionHost(
+  input: LocalSessionClientConnectionInput & {
+    readonly takeoverTimeoutMs?: number
+    /** Called once when the running Host is handing over to an update and this call waits. */
+    readonly onUpgradePending?: () => void
+    /** Called once that Host has handed over, before this call attaches or launches. */
+    readonly onUpgradeReleased?: () => void
+    /** Called once, just before this call launches a Host process. */
+    readonly onLaunching?: () => void
+    /** Called once this call has launched a Host process, before it waits for it to listen. */
+    readonly onLaunched?: () => void
+  },
+  dependencies: LocalSessionHostLauncherDependencies = defaultLocalSessionHostLauncherDependencies,
+) {
+  const takeoverTimeoutMs = input.takeoverTimeoutMs ?? HOST_TAKEOVER_TIMEOUT_MS
+  const authority = await waitForLocalSessionHostAuthority(input, takeoverTimeoutMs, dependencies)
+  if (authority.status === 'connected') return authority.negotiation
+
+  await sharedLaunches(dependencies, input.paths.databasePath, input.signal, async (signal) => {
+    input.onLaunching?.()
+    await dependencies.launch()
+    input.onLaunched?.()
+    signal.throwIfAborted()
+    await waitForCompatibleHost({ ...input, signal }, takeoverTimeoutMs, dependencies)
+  })
+  return waitForCompatibleHostProbe(input, takeoverTimeoutMs, dependencies)
+}

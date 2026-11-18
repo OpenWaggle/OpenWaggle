@@ -1,0 +1,156 @@
+import { describe, expect, it } from 'vitest'
+import {
+  heartbeatSettings,
+  heartbeatTask,
+  scheduledTask,
+} from '@/test-utils/scheduled-task-fixtures'
+import {
+  draftFromTask,
+  nameFromPrompt,
+  newTaskDraft,
+  taskInputFromDraft,
+  taskPatchFromDraft,
+  withDraftKind,
+} from '../task-draft'
+
+describe('task editor draft', () => {
+  it('defaults a Heartbeat to failures-only and a Launch schedule to every run', () => {
+    const heartbeat = newTaskDraft({ kind: 'heartbeat', timeZone: 'Europe/Paris' })
+    expect(heartbeat.notificationPolicy).toBe('failures-only')
+    expect(heartbeat.schedule.preset).toBe('interval')
+    expect(heartbeat.workspace).toBe('new-worktree')
+
+    const launch = withDraftKind(heartbeat, 'launch')
+    expect(launch.notificationPolicy).toBe('every-run')
+    expect(launch.schedule.preset).toBe('weekdays')
+  })
+
+  it('builds a Launch schedule input with only the chosen options', () => {
+    const draft = {
+      ...newTaskDraft({ kind: 'launch', timeZone: 'Europe/Paris' }),
+      name: '  Nightly audit ',
+      prompt: 'Audit dependencies.',
+      projectPath: '/projects/alpha',
+      workspace: 'local' as const,
+      thinkingLevel: 'high' as const,
+      maxRuns: '10',
+    }
+    expect(taskInputFromDraft(draft)).toEqual({
+      ok: true,
+      value: {
+        name: 'Nightly audit',
+        prompt: 'Audit dependencies.',
+        enabled: true,
+        schedule: { kind: 'daily', at: '09:00', weekdays: [1, 2, 3, 4, 5] },
+        timeZone: 'Europe/Paris',
+        endsAt: null,
+        maxRuns: 10,
+        target: {
+          kind: 'launch',
+          projectPath: '/projects/alpha',
+          workspace: 'local',
+          thinkingLevel: 'high',
+          archiveFinishedSessions: false,
+        },
+        notificationPolicy: 'every-run',
+      },
+    })
+  })
+
+  it('reports the first missing field', () => {
+    const empty = newTaskDraft({ kind: 'heartbeat', timeZone: 'UTC' })
+    expect(taskInputFromDraft(empty)).toEqual({ ok: false, error: 'Write the prompt to deliver.' })
+    expect(taskInputFromDraft({ ...empty, name: 'Watch', prompt: 'Check CI' })).toEqual({
+      ok: false,
+      error: 'Choose the Session to deliver into.',
+    })
+    expect(
+      taskInputFromDraft({
+        ...empty,
+        name: 'Watch',
+        prompt: 'Check',
+        sessionId: 's',
+        maxRuns: '0',
+      }),
+    ).toEqual({ ok: false, error: 'Max runs must be a whole number of at least 1.' })
+  })
+
+  it('names an unnamed task from the start of its prompt', () => {
+    const draft = {
+      ...newTaskDraft({ kind: 'heartbeat', timeZone: 'UTC' }),
+      prompt: 'Check CI on the PR and stop when it is green.',
+      sessionId: 'session-1',
+      stopWhen: 'CI is green',
+    }
+    const result = taskInputFromDraft(draft)
+    expect(result.ok && result.value.name).toBe('Check CI on the PR and…')
+    expect(nameFromPrompt('Summarize open PRs.')).toBe('Summarize open PRs')
+    expect(nameFromPrompt('...\nCheck CI')).toBe('...')
+  })
+
+  it('ends on the last moment of the chosen day in the task time zone', () => {
+    const draft = {
+      ...newTaskDraft({ kind: 'heartbeat', timeZone: 'Pacific/Kiritimati' }),
+      name: 'Watch',
+      prompt: 'Check CI',
+      sessionId: 'session-1',
+      endDate: '2026-04-30',
+    }
+    const result = taskInputFromDraft(draft)
+    // Kiritimati is UTC+14, so its midnight starting 1 May is 10:00 UTC on 30 April.
+    expect(result.ok && result.value.endsAt).toBe(Date.UTC(2026, 3, 30, 10) - 1)
+    const reopened = draftFromTask(
+      heartbeatTask({
+        timeZone: 'Pacific/Kiritimati',
+        endsAt: result.ok ? (result.value.endsAt ?? null) : null,
+      }),
+    )
+    expect(reopened.endDate).toBe('2026-04-30')
+  })
+
+  it('round-trips a stored task and keeps a Heartbeat on its own Session', () => {
+    const task = heartbeatTask({ maxRuns: 3 })
+    const draft = draftFromTask(task)
+    expect(draft).toMatchObject({ sessionId: 'session-1', maxRuns: '3', kind: 'heartbeat' })
+
+    const patch = taskPatchFromDraft({ ...draft, name: 'CI watch (daily)' }, task)
+    expect(patch.ok && patch.value).toMatchObject({
+      name: 'CI watch (daily)',
+      schedule: { kind: 'interval', everyMinutes: 30 },
+      maxRuns: 3,
+      target: { kind: 'heartbeat', sessionId: 'session-1' },
+    })
+  })
+
+  it('echoes a Heartbeat’s stored work unchanged when only its name changes', () => {
+    // The Session Host keeps an agent-created task's limits only when these equal the stored values.
+    const task = heartbeatTask({
+      target: { kind: 'heartbeat', sessionId: 'session-1', modelId: 'm', thinkingLevel: 'low' },
+      heartbeat: heartbeatSettings({
+        wakeCheck: {
+          command: 'gh pr checks',
+          onFailure: 'skip',
+          approval: 'approved',
+          pendingSince: null,
+        },
+      }),
+    })
+    const patch = taskPatchFromDraft({ ...draftFromTask(task), name: 'Renamed' }, task)
+    if (!patch.ok) throw new Error(patch.error)
+    expect(patch.value.prompt).toBe(task.prompt)
+    expect(patch.value.target).toEqual(task.target)
+    expect(patch.value.heartbeat?.stopWhen).toBe(task.heartbeat?.stopWhen)
+    expect(patch.value.heartbeat).not.toHaveProperty('wakeCheck')
+  })
+
+  it('keeps a Launch schedule target in its patch', () => {
+    const task = scheduledTask()
+    const patch = taskPatchFromDraft(draftFromTask(task), task)
+    expect(patch.ok && patch.value.target).toEqual({
+      kind: 'launch',
+      projectPath: '/projects/alpha',
+      workspace: 'new-worktree',
+      archiveFinishedSessions: false,
+    })
+  })
+})

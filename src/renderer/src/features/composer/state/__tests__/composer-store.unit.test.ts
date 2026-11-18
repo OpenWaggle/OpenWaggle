@@ -1,3 +1,6 @@
+import type { AttachmentRecord } from '@shared/types/agent'
+import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
+import type { WagglePreset } from '@shared/types/waggle'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useComposerStore } from '../composer-store'
 
@@ -10,21 +13,41 @@ function makeAttachment(id: string) {
     mimeType: 'text/plain',
     sizeBytes: 100,
     extractedText: 'content',
-  }
+  } satisfies AttachmentRecord
+}
+
+function makeWagglePreset() {
+  return {
+    id: WagglePresetId('review'),
+    name: 'Review',
+    description: 'Review changes',
+    config: {
+      mode: 'sequential',
+      agents: [
+        {
+          label: 'Architect',
+          model: SupportedModelId('openai/gpt-5.5'),
+          roleDescription: 'Reviews architecture',
+          color: 'blue',
+        },
+        {
+          label: 'Reviewer',
+          model: SupportedModelId('anthropic/claude-sonnet-4'),
+          roleDescription: 'Reviews implementation',
+          color: 'amber',
+        },
+      ],
+      stop: { primary: 'consensus', maxTurnsSafety: 4 },
+    },
+    isBuiltIn: false,
+    createdAt: 1,
+    updatedAt: 1,
+  } satisfies WagglePreset
 }
 
 describe('composer-store', () => {
   beforeEach(() => {
     useComposerStore.getState().reset()
-    // Also ensure fields not cleared by reset are back to defaults
-    useComposerStore.setState({
-      actionDialog: null,
-      actionDialogInput: '',
-      actionDialogError: null,
-      actionDialogBusy: false,
-      activeDraftContextKey: null,
-      scopedDrafts: {},
-    })
   })
 
   describe('text input', () => {
@@ -55,7 +78,7 @@ describe('composer-store', () => {
       useComposerStore.getState().removeAttachment('a1')
       const remaining = useComposerStore.getState().attachments
       expect(remaining).toHaveLength(1)
-      expect(remaining[0].id).toBe('a2')
+      expect(remaining[0]?.id).toBe('a2')
     })
 
     it('setAttachmentError sets and clears errors', () => {
@@ -180,6 +203,21 @@ describe('composer-store', () => {
   })
 
   describe('scoped drafts', () => {
+    it('preserves a one-shot Waggle preset while switching composer contexts', () => {
+      const preset = makeWagglePreset()
+      const contextA = 'project:/tmp:session:s1:branch:main'
+      const contextB = 'project:/tmp:session:s2:branch:main'
+      useComposerStore.getState().setActiveDraftContextKey(contextA)
+      useComposerStore.getState().setInput('Review this')
+      useComposerStore.getState().setSelectedWagglePreset(preset)
+
+      useComposerStore.getState().switchScopedDraftContext(contextB)
+      useComposerStore.getState().switchScopedDraftContext(contextA)
+
+      expect(useComposerStore.getState().input).toBe('Review this')
+      expect(useComposerStore.getState().selectedWagglePreset).toBe(preset)
+    })
+
     it('saves the current context and loads the fallback draft when switching contexts', () => {
       const attachment = makeAttachment('a1')
       useComposerStore.getState().setInput('main draft')
@@ -197,7 +235,7 @@ describe('composer-store', () => {
       expect(useComposerStore.getState().input).toBe('retry prompt')
       expect(
         useComposerStore.getState().getScopedDraft('project:/tmp:session:s1:branch:main'),
-      ).toEqual({ input: 'main draft', attachments: [attachment] })
+      ).toEqual({ input: 'main draft', attachments: [attachment], wagglePreset: null })
     })
 
     it('loads a saved draft instead of the fallback for an existing context', () => {

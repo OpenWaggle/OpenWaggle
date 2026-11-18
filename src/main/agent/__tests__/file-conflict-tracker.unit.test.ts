@@ -49,11 +49,6 @@ describe('FileConflictTracker', () => {
       const warning = tracker.recordModification('src/utils.ts', 1, agents, 1)
       expect(warning).toBeNull()
     })
-
-    it('records the modification so the map is no longer empty', () => {
-      tracker.recordModification('src/index.ts', 0, agents, 1)
-      expect(tracker.getModifications().size).toBe(1)
-    })
   })
 
   // ── Same agent modifies same file again ──────────────────────────────────
@@ -63,20 +58,6 @@ describe('FileConflictTracker', () => {
       tracker.recordModification('src/index.ts', 0, agents, 1)
       const warning = tracker.recordModification('src/index.ts', 0, agents, 2)
       expect(warning).toBeNull()
-    })
-
-    it('increments the modification count without raising a conflict', () => {
-      tracker.recordModification('src/index.ts', 0, agents, 1)
-      tracker.recordModification('src/index.ts', 0, agents, 2)
-      const record = tracker.getModifications().get('src/index.ts')
-      expect(record?.modificationCount).toBe(2)
-    })
-
-    it('keeps the correct agent index in the record', () => {
-      tracker.recordModification('src/index.ts', 1, agents, 1)
-      tracker.recordModification('src/index.ts', 1, agents, 2)
-      const record = tracker.getModifications().get('src/index.ts')
-      expect(record?.lastModifiedBy).toBe(1)
     })
   })
 
@@ -112,20 +93,6 @@ describe('FileConflictTracker', () => {
       const warning = tracker.recordModification('src/index.ts', 1, agents, 2)
       expect(warning?.turnNumber).toBe(2)
     })
-
-    it('updates the last-modified agent after a conflict', () => {
-      tracker.recordModification('src/index.ts', 0, agents, 1)
-      tracker.recordModification('src/index.ts', 1, agents, 2)
-      const record = tracker.getModifications().get('src/index.ts')
-      expect(record?.lastModifiedBy).toBe(1)
-    })
-
-    it('increments modification count after a conflict', () => {
-      tracker.recordModification('src/index.ts', 0, agents, 1)
-      tracker.recordModification('src/index.ts', 1, agents, 2)
-      const record = tracker.getModifications().get('src/index.ts')
-      expect(record?.modificationCount).toBe(2)
-    })
   })
 
   // ── Multiple files tracked independently ─────────────────────────────────
@@ -139,34 +106,12 @@ describe('FileConflictTracker', () => {
       expect(warningB).toBeNull()
     })
 
-    it('tracks modification counts separately per file', () => {
-      tracker.recordModification('src/a.ts', 0, agents, 1)
-      tracker.recordModification('src/b.ts', 1, agents, 1)
-      tracker.recordModification('src/a.ts', 0, agents, 2)
-
-      expect(tracker.getModifications().get('src/a.ts')?.modificationCount).toBe(2)
-      expect(tracker.getModifications().get('src/b.ts')?.modificationCount).toBe(1)
-    })
-
     it('conflict on file A does not affect file B state', () => {
       tracker.recordModification('src/a.ts', 0, agents, 1)
       tracker.recordModification('src/b.ts', 1, agents, 1)
-
-      // Cause a conflict on file A
       tracker.recordModification('src/a.ts', 1, agents, 2)
 
-      // File B should still be owned by agent 1 with count 1
-      const recordB = tracker.getModifications().get('src/b.ts')
-      expect(recordB?.lastModifiedBy).toBe(1)
-      expect(recordB?.modificationCount).toBe(1)
-    })
-
-    it('reports the correct total number of tracked files', () => {
-      tracker.recordModification('src/a.ts', 0, agents, 1)
-      tracker.recordModification('src/b.ts', 0, agents, 1)
-      tracker.recordModification('src/c.ts', 1, agents, 1)
-
-      expect(tracker.getModifications().size).toBe(3)
+      expect(tracker.recordModification('src/b.ts', 1, agents, 3)).toBeNull()
     })
   })
 
@@ -192,15 +137,6 @@ describe('FileConflictTracker', () => {
       // Agent 0 is now the intruder — previousAgent should be agent 1.
       expect(warning?.previousAgent).toBe('Reviewer')
       expect(warning?.currentAgent).toBe('Architect')
-    })
-
-    it('modification count grows monotonically across conflicts', () => {
-      tracker.recordModification('src/index.ts', 0, agents, 1) // count = 1
-      tracker.recordModification('src/index.ts', 1, agents, 2) // count = 2 (conflict)
-      tracker.recordModification('src/index.ts', 0, agents, 3) // count = 3 (conflict)
-
-      const record = tracker.getModifications().get('src/index.ts')
-      expect(record?.modificationCount).toBe(3)
     })
   })
 
@@ -241,52 +177,6 @@ describe('FileConflictTracker', () => {
 
       expect(warning?.previousAgent).toBe('Architect')
       expect(warning?.currentAgent).toBe('Agent 1')
-    })
-  })
-
-  // ── reset() ───────────────────────────────────────────────────────────────
-
-  describe('reset', () => {
-    it('clears all tracked modifications', () => {
-      tracker.recordModification('src/a.ts', 0, agents, 1)
-      tracker.recordModification('src/b.ts', 1, agents, 1)
-
-      tracker.reset()
-
-      expect(tracker.getModifications().size).toBe(0)
-    })
-
-    it('allows fresh tracking after reset with no prior-conflict leakage', () => {
-      tracker.recordModification('src/index.ts', 0, agents, 1)
-      tracker.recordModification('src/index.ts', 1, agents, 2) // conflict
-
-      tracker.reset()
-
-      // After reset, first touch by agent 0 should not produce a warning
-      const warning = tracker.recordModification('src/index.ts', 0, agents, 1)
-      expect(warning).toBeNull()
-    })
-  })
-
-  // ── getModifications() ────────────────────────────────────────────────────
-
-  describe('getModifications', () => {
-    it('returns a ReadonlyMap', () => {
-      const map = tracker.getModifications()
-      // ReadonlyMap does not expose set/delete on the type level; verify it is map-like
-      expect(typeof map.get).toBe('function')
-      expect(typeof map.has).toBe('function')
-      expect(typeof map.size).toBe('number')
-    })
-
-    it('reflects changes after a sequence of modifications', () => {
-      tracker.recordModification('src/index.ts', 0, agents, 1)
-      tracker.recordModification('src/utils.ts', 1, agents, 2)
-
-      const map = tracker.getModifications()
-      expect(map.has('src/index.ts')).toBe(true)
-      expect(map.has('src/utils.ts')).toBe(true)
-      expect(map.has('src/other.ts')).toBe(false)
     })
   })
 })

@@ -8,7 +8,7 @@ The pull request title must use an allowed Conventional Commit subject (for exam
 
 Package versions are driven only by release-eligible Conventional Commits that touch the relevant `packages/<name>/**` path. `feat` produces a package minor, `fix` a patch, and `!` or a `BREAKING CHANGE:` footer marks a breaking package change. Changes limited to the desktop app, website, general docs, fixtures, or workflows do not directly release an npm package.
 
-Desktop app release intent is separate. Do not use commit messages to choose a desktop app version; use the required app release classification instead.
+Desktop app releases use release-eligible Conventional Commit subjects to open a human-gated release PR (ADR 0040). That PR writes the release's `CHANGELOG.md` entry from the titles merged since the previous release (ADR 0070), so this title is the line users read. A change that breaks a covered surface needs a `!` title. When users need more than one line, such as an upgrade step, add a note under `## [Unreleased]` in `CHANGELOG.md`. Describe user-facing changes, validation, and remaining scope in this PR body.
 
 ## Mixed PRs
 
@@ -16,6 +16,7 @@ Squash this PR when one Conventional Commit accurately describes its complete in
 
 ## Validation
 
-- [ ] `pnpm check`
+- [ ] `bun run verify` (pre-push baseline; the hook runs it automatically)
+- [ ] `bun run check`
 - [ ] Relevant tests
 - [ ] Package checks when a publishable package changed

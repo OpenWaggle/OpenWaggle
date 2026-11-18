@@ -10,27 +10,26 @@ import {
 import { SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata } from '@shared/types/waggle'
-import type {
-  AgentKernelRunInput,
-  AgentKernelWaggleRunOptions,
-} from '../../../ports/agent-kernel-service'
 import type { PiModel } from '../pi-provider-catalog'
-import { buildPiRunAssistantMessages } from '../pi-run-result'
+import { buildPiRunAssistantMessages, buildPiRunNewMessages } from '../pi-run-result'
+import { notePiRunForUsageStatistics } from '../pi-usage-statistics'
 import { logger } from './constants'
+import { onExtensionTurnStartFailure } from './extension-turn-start-failure'
+import { piEntryNodeIds } from './pi-entry-node-ids'
+import { registerPiLiveRun } from './pi-live-run-registry'
+import { piResponseUsageInput } from './pi-response-usage'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
-import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
+import { observeRunWorkspaceMutations } from './run-workspace-mutations'
 import { createSessionListener } from './session-listener'
-import { resolveSessionProjectPath } from './session-manager'
+import { captureTurnCheckpoint, piSessionFileOf } from './turn-capture'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
+import { createWaggleRunExtensions, type PiWaggleKernelRunInput } from './waggle-run-extensions'
 import {
   buildWaggleTurnCustomMessage,
   buildWaggleTurnMetadata,
   sendInitialWaggleMessages,
 } from './waggle-run-messages'
-
-type PiWaggleKernelRunInput = AgentKernelRunInput & {
-  readonly waggle: AgentKernelWaggleRunOptions
-} & PiRuntimeExtensionIsolationInput
+import { isRecoverableWaggleTurnError } from './waggle-turn-error'
 
 function appendEnabledWaggleModeState(input: {
   readonly session: AgentSession
@@ -42,10 +41,7 @@ function appendEnabledWaggleModeState(input: {
   )
 }
 
-function withTransportEventModel(
-  event: AgentTransportEvent,
-  meta: WaggleStreamMetadata,
-): AgentTransportEvent {
+function withTransportEventModel(event: AgentTransportEvent, meta: WaggleStreamMetadata) {
   return { ...event, model: meta.agentModel }
 }
 
@@ -73,36 +69,59 @@ async function restoreInitialWaggleModel(input: {
   readonly session: AgentSession
   readonly model: PiModel
 }) {
-  await input.session.setModel(input.model).catch((error) => {
+  await input.session.setModel(input.model).catch((error: unknown) => {
     logger.warn('Failed to restore initial Pi Waggle model', {
       error: error instanceof Error ? error.message : String(error),
     })
   })
 }
 
-export async function runPiWaggle(input: PiWaggleKernelRunInput) {
-  const projectPath = resolveSessionProjectPath(input.session)
-  const waggleSessionId = randomUUID()
-  const runtimeConfig = resolveWaggleRuntimeConfig({
-    config: input.waggle.config,
-    inheritedModel: input.waggle.inheritedModel,
-  })
-  const initialRuntimeModel = SupportedModelId(runtimeConfig.agents[0].model)
-  let policyState = createPiWaggleStopPolicyState()
-  let currentMeta = buildWaggleTurnMetadata({
-    config: runtimeConfig,
-    turnNumber: 0,
-    waggleSessionId,
-  })
+async function runInitialWaggleTurn(ctx: {
+  readonly session: AgentSession
+  readonly model: PiModel
+  readonly input: PiWaggleKernelRunInput
+  readonly meta: WaggleStreamMetadata
+  readonly runtimeConfig: ReturnType<typeof resolveWaggleRuntimeConfig>
+  readonly waggleDone: Promise<void>
+}) {
+  appendEnabledWaggleModeState({ session: ctx.session, runInput: ctx.input })
+  emitWaggleTurnStart(ctx.input, ctx.meta)
+  try {
+    await sendInitialWaggleMessages({
+      session: ctx.session,
+      model: ctx.model,
+      meta: ctx.meta,
+      payload: ctx.input.payload,
+      runId: ctx.input.runId,
+      runtimeConfig: ctx.runtimeConfig,
+    })
+    await ctx.waggleDone
+  } finally {
+    await restoreInitialWaggleModel({ session: ctx.session, model: ctx.model })
+  }
+}
 
-  const waggleExtension = createPiWaggleExtension<WaggleStreamMetadata>({
-    config: runtimeConfig,
+function createConfiguredWaggleExtension(input: {
+  readonly runInput: PiWaggleKernelRunInput
+  readonly runtimeConfig: ReturnType<typeof resolveWaggleRuntimeConfig>
+  readonly waggleSessionId: string
+  readonly onActiveTurnChange: (meta: WaggleStreamMetadata) => void
+}) {
+  let policyState = createPiWaggleStopPolicyState()
+  return createPiWaggleExtension<WaggleStreamMetadata>({
+    config: input.runtimeConfig,
     createTurnMetadata: ({ turnNumber }) =>
-      buildWaggleTurnMetadata({ config: runtimeConfig, turnNumber, waggleSessionId }),
+      buildWaggleTurnMetadata({
+        config: input.runtimeConfig,
+        turnNumber,
+        waggleSessionId: input.waggleSessionId,
+      }),
     onTurnComplete: ({ meta, messages, turn }) => {
-      const summary = summarizePiWaggleTurnMessages(messages)
+      const summary = summarizePiWaggleTurnMessages(messages, {
+        isRecoverableError: isRecoverableWaggleTurnError,
+      })
       const evaluation = evaluatePiWaggleStopPolicy({
-        config: runtimeConfig,
+        config: input.runtimeConfig,
         turnNumber: turn.turnNumber,
         summary,
         state: policyState,
@@ -110,14 +129,13 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
       })
       policyState = evaluation.state
 
-      if (evaluation.turnSucceeded) {
-        emitWaggleTurnEnd(input, meta)
-      }
-
+      if (evaluation.turnSucceeded) emitWaggleTurnEnd(input.runInput, meta)
       if (evaluation.consensus) {
-        input.waggle.onTurnEvent({ type: 'consensus-reached', result: evaluation.consensus })
+        input.runInput.waggle.onTurnEvent({
+          type: 'consensus-reached',
+          result: evaluation.consensus,
+        })
       }
-
       if (!evaluation.continue) {
         const stopReason =
           evaluation.stop ??
@@ -125,86 +143,155 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
             classification: 'complete',
             reason: `Reached maximum turns (${String(policyState.successfulTurnCount)})`,
           } as const)
-
         if (stopReason.classification === 'complete') {
-          input.waggle.onTurnEvent({
+          input.runInput.waggle.onTurnEvent({
             type: 'collaboration-complete',
             reason: stopReason.reason,
             totalTurns: policyState.successfulTurnCount,
           })
         } else {
-          input.waggle.onTurnEvent({ type: 'collaboration-stopped', reason: stopReason.reason })
+          input.runInput.waggle.onTurnEvent({
+            type: 'collaboration-stopped',
+            reason: stopReason.reason,
+          })
         }
       }
-
       return { continue: evaluation.continue }
     },
-    onActiveTurnChange: (meta) => {
-      currentMeta = meta
-    },
-    onTurnStart: (meta) => emitWaggleTurnStart(input, meta),
-    canStartNextTurn: () => !input.signal.aborted,
+    onActiveTurnChange: input.onActiveTurnChange,
+    onTurnStart: (meta) => emitWaggleTurnStart(input.runInput, meta),
+    canStartNextTurn: () => !input.runInput.signal.aborted,
     buildTurnMessage: ({ model: turnModel, meta }) =>
       buildWaggleTurnCustomMessage({
         model: turnModel,
-        payload: input.payload,
-        config: runtimeConfig,
+        payload: input.runInput.payload,
+        config: input.runtimeConfig,
         meta,
-        runId: input.runId,
+        runId: input.runInput.runId,
       }),
   })
+}
+
+export async function runPiWaggle(input: PiWaggleKernelRunInput) {
+  const startedAt = Date.now()
+  const projectPath = input.workingPath
+  const waggleSessionId = randomUUID()
+  const runtimeConfig = resolveWaggleRuntimeConfig({
+    config: input.waggle.config,
+    inheritedModel: input.waggle.inheritedModel,
+  })
+  const initialRuntimeModel = SupportedModelId(runtimeConfig.agents[0].model)
+  let currentMeta = buildWaggleTurnMetadata({
+    config: runtimeConfig,
+    turnNumber: 0,
+    waggleSessionId,
+  })
+
+  const waggleExtension = createConfiguredWaggleExtension({
+    runInput: input,
+    runtimeConfig,
+    waggleSessionId,
+    onActiveTurnChange: (meta) => {
+      currentMeta = meta
+    },
+  })
+  const extensions = createWaggleRunExtensions(input, waggleExtension.factory)
 
   const { model, session } = await createPiRunSessionRuntime({
+    ...(input.preparedEnvironment ? { preparedEnvironment: input.preparedEnvironment } : {}),
     session: input.session,
     projectPath,
     runId: input.runId,
     modelReference: initialRuntimeModel,
+    ...(input.runAuthorizationOverride
+      ? { runAuthorizationOverride: input.runAuthorizationOverride }
+      : {}),
+    ...(input.authorityCallerId ? { authorityCallerId: input.authorityCallerId } : {}),
+    compactionThresholdPercent: input.compactionThresholdPercent,
     payload: input.payload,
     signal: input.signal,
     onEvent: (event) =>
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
-    skillToggles: input.skillToggles,
-    enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
-    enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
-    recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
-    extensionFactories: [waggleExtension.factory],
+    ...(input.onControlAvailable ? { onControlAvailable: input.onControlAvailable } : {}),
+    ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.skillAllowlist ? { skillAllowlist: input.skillAllowlist } : {}),
+    ...(input.enabledOpenWaggleExtensionPackages
+      ? { enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages }
+      : {}),
+    ...(input.enabledOpenWaggleExtensionPackagePaths
+      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
+    ...(input.visualizationDirectory
+      ? { visualizationDirectory: input.visualizationDirectory }
+      : {}),
+    ...(input.scratchDirectory ? { scratchDirectory: input.scratchDirectory } : {}),
+    ...(input.recordOpenWaggleExtensionRuntimeFailure
+      ? { recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure }
+      : {}),
+    steeringInputHook: true,
+    extensionFactories: extensions.factories,
+    trustedExtensionFactories: extensions.trustedFactories,
+    ...(input.systemPromptAppendices
+      ? { systemPromptAppendices: [...input.systemPromptAppendices] }
+      : {}),
   })
 
+  notePiRunForUsageStatistics(input, model, session)
+  const unregisterLiveRun = registerPiLiveRun({
+    runId: input.runId,
+    session,
+    model,
+    signal: input.signal,
+    routeThroughInputHook: true,
+  })
+  // A turn the Waggle loop asked for that could not start ends the Run with its error, so its
+  // finally (restoring the initial model) runs and nothing waits for the turn.
+  const stopFailingOnTurnStart = onExtensionTurnStartFailure(session, waggleExtension.fail)
   const unsubscribe = session.subscribe(
     createSessionListener(
       {
         ...input,
+        sessionEntries: session.sessionManager,
+        nodeIds: piEntryNodeIds(input.session),
         model: initialRuntimeModel,
+        ...piResponseUsageInput(session),
         onEvent: (event) =>
           input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
       },
       input.runId,
     ),
   )
-
-  return runSubscribedPiOperation({
+  const workspaceMutations = observeRunWorkspaceMutations(session, input.payload.text)
+  const result = await runSubscribedPiOperation({
     runInput: input,
     session,
     unsubscribe,
     abortWarning: 'Failed to abort Pi Waggle turn cleanly',
     preAbortWarning: 'Failed to abort pre-cancelled Pi Waggle turn cleanly',
-    operation: async () => {
-      appendEnabledWaggleModeState({ session, runInput: input })
-      emitWaggleTurnStart(input, currentMeta)
-      try {
-        await sendInitialWaggleMessages({
-          session,
-          model,
-          meta: currentMeta,
-          payload: input.payload,
-          runId: input.runId,
-          runtimeConfig,
-        })
-        await waggleExtension.done
-      } finally {
-        await restoreInitialWaggleModel({ session, model })
-      }
-    },
+    operation: () =>
+      runInitialWaggleTurn({
+        session,
+        model,
+        input,
+        meta: currentMeta,
+        runtimeConfig,
+        waggleDone: waggleExtension.done,
+      }),
     buildErrorMessages: buildPiRunAssistantMessages,
+    buildSuccessMessages: (appended) => buildPiRunNewMessages(input.payload, appended),
+  }).finally(() => {
+    stopFailingOnTurnStart()
+    extensions.close()
+    unregisterLiveRun()
+    workspaceMutations.dispose()
   })
+  await captureTurnCheckpoint({
+    session: input.session,
+    projectPath,
+    runId: input.runId,
+    startedAt,
+    ...piSessionFileOf(session),
+    workspaceMayHaveChanged: workspaceMutations.mayHaveChangedWorkspace(),
+  })
+  return result
 }

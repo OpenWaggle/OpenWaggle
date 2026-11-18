@@ -1,0 +1,245 @@
+import { randomUUID } from 'node:crypto'
+import * as SqlClient from '@effect/sql/SqlClient'
+import type { SessionId } from '@shared/types/brand'
+import type { TurnDiffFileSummary } from '@shared/types/turn-diff'
+import {
+  parseTurnDiffFilesFromUnifiedDiff,
+  sumDeletions,
+  sumInsertions,
+} from '@shared/utils/turn-diff-parse'
+import * as Effect from 'effect/Effect'
+import { makeEventLoopSlicer } from '../utils/event-loop-slice'
+import { runStoreEffect } from './store-runtime'
+
+interface TurnCheckpointRow {
+  readonly turn_id: string
+  readonly turn_index: number
+  readonly created_at: number
+  readonly started_at: number | null
+  readonly diff: string
+  readonly insertions: number
+  readonly deletions: number
+  readonly snapshot_ref: string | null
+  readonly anchor_node_id: string | null
+}
+
+export interface RecordTurnCheckpointInput {
+  readonly sessionId: SessionId
+  readonly turnId: string
+  /** The incremental unified diff produced during this turn. */
+  readonly diff: string
+  /** Snapshot commit (git stash create) of the worktree at this turn, if any. */
+  readonly snapshotRef?: string | null
+  /** Epoch ms when the turn's run started; enables fold duration labels (ADR 0034). */
+  readonly startedAt?: number | null
+}
+
+/** Persist a per-turn worktree checkpoint (diff blob) for a session. */
+export async function recordTurnCheckpoint(input: RecordTurnCheckpointInput) {
+  const files = parseTurnDiffFilesFromUnifiedDiff(input.diff)
+  const insertions = sumInsertions(files)
+  const deletions = sumDeletions(files)
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        INSERT INTO turn_checkpoints (
+          id, session_id, turn_id, turn_index, created_at, started_at, diff, insertions, deletions, snapshot_ref
+        )
+        SELECT
+          ${randomUUID()}, ${input.sessionId}, ${input.turnId},
+          (SELECT COALESCE(MAX(turn_index), -1) + 1 FROM turn_checkpoints WHERE session_id = ${input.sessionId}),
+          ${Date.now()}, ${input.startedAt ?? null}, ${input.diff}, ${insertions}, ${deletions}, ${input.snapshotRef ?? null}
+        ON CONFLICT(session_id, turn_id) DO UPDATE SET
+          created_at = excluded.created_at,
+          started_at = excluded.started_at,
+          diff = excluded.diff,
+          insertions = excluded.insertions,
+          deletions = excluded.deletions,
+          snapshot_ref = excluded.snapshot_ref
+      `
+    }),
+  )
+}
+
+/** Record the persisted assistant node id a turn's diff is anchored to (for transcript reveal). */
+export async function setTurnCheckpointAnchor(
+  sessionId: SessionId,
+  turnId: string,
+  anchorNodeId: string,
+) {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE turn_checkpoints
+        SET anchor_node_id = ${anchorNodeId}
+        WHERE session_id = ${sessionId} AND turn_id = ${turnId}
+      `
+    }),
+  )
+}
+
+/** The snapshot ref of the most recent checkpoint for a session, if any. */
+export async function getLatestSnapshotRef(sessionId: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ snapshot_ref: string | null }>`
+        SELECT snapshot_ref
+        FROM turn_checkpoints
+        WHERE session_id = ${sessionId}
+        ORDER BY turn_index DESC
+        LIMIT 1
+      `
+      return rows[0]?.snapshot_ref ?? null
+    }),
+  )
+}
+
+/** List checkpoint summaries for a session ordered by turn index. */
+export async function listTurnCheckpoints(sessionId: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<TurnCheckpointRow>`
+        SELECT turn_id, turn_index, created_at, started_at, diff, insertions, deletions, anchor_node_id
+        FROM turn_checkpoints
+        WHERE session_id = ${sessionId}
+        ORDER BY turn_index ASC
+      `
+      return rows.map((row) => ({
+        turnId: row.turn_id,
+        turnIndex: row.turn_index,
+        createdAt: row.created_at,
+        startedAt: row.started_at,
+        insertions: row.insertions,
+        deletions: row.deletions,
+        anchorNodeId: row.anchor_node_id ?? null,
+      }))
+    }),
+  )
+}
+
+/** Compute the Turn diff for a specific turn from its persisted checkpoint. */
+export async function getTurnDiff(sessionId: SessionId, turnId: string) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<TurnCheckpointRow>`
+        SELECT turn_id, turn_index, created_at, diff, insertions, deletions
+        FROM turn_checkpoints
+        WHERE session_id = ${sessionId} AND turn_id = ${turnId}
+        LIMIT 1
+      `
+      const row = rows[0]
+      if (!row) return null
+      const files = parseTurnDiffFilesFromUnifiedDiff(row.diff)
+      return {
+        turnId: row.turn_id,
+        diff: row.diff,
+        files,
+        insertions: row.insertions,
+        deletions: row.deletions,
+      }
+    }),
+  )
+}
+
+/** File summaries for a turn without shipping the whole diff blob across IPC. */
+export async function getTurnDiffFiles(sessionId: SessionId, turnId: string) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<Pick<TurnCheckpointRow, 'diff'>>`
+        SELECT diff FROM turn_checkpoints
+        WHERE session_id = ${sessionId} AND turn_id = ${turnId}
+        LIMIT 1
+      `
+      const row = rows[0]
+      return row ? parseTurnDiffFilesFromUnifiedDiff(row.diff) : []
+    }),
+  )
+}
+
+/** Most turn ids one batched changed-files read accepts; a Session opens with far fewer. */
+export const MAX_TURN_DIFF_FILE_BATCH = 500
+
+/** Turns whose diffs one statement of a batched changed-files read selects. */
+const TURN_DIFF_FILE_PAGE = 25
+
+/**
+ * Several turns' file summaries in one read, keyed by turn id. A Session open used to read them
+ * one turn at a time, one Host round trip per settled turn on screen. A diff can be several MB
+ * (generated files), so the diffs are selected a page at a time and parsed with the event loop
+ * running between slices, never all 500 in one synchronous stretch.
+ */
+export async function listTurnDiffFiles(sessionId: SessionId, turnIds: readonly string[]) {
+  const unique = [...new Set(turnIds)].slice(0, MAX_TURN_DIFF_FILE_BATCH)
+  const filesByTurnId: Record<string, readonly TurnDiffFileSummary[]> = {}
+  for (const turnId of unique) filesByTurnId[turnId] = []
+  if (unique.length === 0) return filesByTurnId
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const slice = makeEventLoopSlicer()
+      for (let start = 0; start < unique.length; start += TURN_DIFF_FILE_PAGE) {
+        const page = unique.slice(start, start + TURN_DIFF_FILE_PAGE)
+        const rows = yield* sql<Pick<TurnCheckpointRow, 'turn_id' | 'diff'>>`
+          SELECT turn_id, diff FROM turn_checkpoints
+          WHERE session_id = ${sessionId} AND turn_id IN ${sql.in(page)}
+        `
+        for (const row of rows) {
+          filesByTurnId[row.turn_id] = parseTurnDiffFilesFromUnifiedDiff(row.diff)
+          yield* slice
+        }
+      }
+      return filesByTurnId
+    }),
+  )
+}
+
+/** Retention: keep only the most recent `maxCheckpoints` turns for a session. Returns pruned turn ids. */
+export async function pruneTurnCheckpoints(sessionId: SessionId, maxCheckpoints: number) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const doomed = yield* sql<{ turn_id: string }>`
+        SELECT turn_id FROM turn_checkpoints
+        WHERE session_id = ${sessionId}
+          AND turn_id NOT IN (
+            SELECT turn_id FROM turn_checkpoints
+            WHERE session_id = ${sessionId}
+            ORDER BY turn_index DESC
+            LIMIT ${maxCheckpoints}
+          )
+      `
+      if (doomed.length === 0) return []
+      yield* sql`
+        DELETE FROM turn_checkpoints
+        WHERE session_id = ${sessionId}
+          AND turn_id NOT IN (
+            SELECT turn_id FROM turn_checkpoints
+            WHERE session_id = ${sessionId}
+            ORDER BY turn_index DESC
+            LIMIT ${maxCheckpoints}
+          )
+      `
+      return doomed.map((row) => row.turn_id)
+    }),
+  )
+}
+
+/** Retention: drop all checkpoints for a session (e.g. on session delete). Returns removed turn ids. */
+export async function deleteTurnCheckpointsForSession(sessionId: SessionId) {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<{ turn_id: string }>`
+        SELECT turn_id FROM turn_checkpoints WHERE session_id = ${sessionId}
+      `
+      yield* sql`DELETE FROM turn_checkpoints WHERE session_id = ${sessionId}`
+      return rows.map((row) => row.turn_id)
+    }),
+  )
+}

@@ -7,7 +7,7 @@ import { api } from '@/shared/lib/ipc'
  * Subscribe to Waggle IPC events and route them to the collaboration store.
  * Tracks both turn events (status changes) and stream chunks (live message metadata).
  */
-export function useWaggleChat(sessionId: SessionId | null): void {
+export function useWaggleChat(sessionId: SessionId | null) {
   const handleTurnEvent = useWaggleStore((s) => s.handleTurnEvent)
   const trackMessageMetadata = useWaggleStore((s) => s.trackMessageMetadata)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
@@ -45,8 +45,13 @@ export function useWaggleChat(sessionId: SessionId | null): void {
     // Safety net: if the collaboration-complete turn event was missed,
     // onRunCompleted still transitions the store to 'completed'.
     const unsubRunCompleted = api.onRunCompleted((payload) => {
+      // The Session went straight on to a queued Follow-up; it has not finished.
+      if (payload.continues) return
       const state = useWaggleStore.getState()
-      if (state.activeCollaborationId === payload.sessionId && state.status === 'running') {
+      if (
+        state.activeCollaborationId === payload.sessionId &&
+        (state.status === 'pending' || state.status === 'running')
+      ) {
         state.handleTurnEvent({
           type: 'collaboration-complete',
           reason: state.completionReason ?? 'Run completed',

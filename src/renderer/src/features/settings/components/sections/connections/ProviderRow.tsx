@@ -30,24 +30,24 @@ export function ProviderRow({ providerInfo, isLast, autoEdit, onEditingChange }:
       : providerInfo.auth.apiKeySource === 'environment-or-custom'
         ? 'Configured outside OpenWaggle'
         : 'Not configured'
-  const statusColor = isConfigured ? '#34d399' : '#6b7280'
+  const statusClassName = isConfigured ? 'text-success' : 'text-neutral'
 
   return (
     <div className={cn(!isLast && 'border-b border-border')}>
       <div className="flex items-center justify-between h-14 px-5">
         <div className="flex items-center gap-2 min-w-0">
-          <Icon className="size-3.5 shrink-0" style={{ color: meta.color }} />
-          <span className="truncate text-[13px] font-medium text-text-primary">
+          <Icon className={cn('size-3.5 shrink-0', meta.iconClassName)} />
+          <span className="truncate text-xs font-medium text-text-primary">
             {providerInfo.displayName}
           </span>
         </div>
 
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1 rounded-[10px] px-2 h-[22px]">
-            <div className="size-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
-            <span className="text-[11px] font-medium" style={{ color: statusColor }}>
-              {statusText}
-            </span>
+          <div className="flex items-center gap-1 rounded-xl px-2 h-5.5">
+            <div
+              className={cn('size-1.5 rounded-full', isConfigured ? 'bg-success' : 'bg-neutral')}
+            />
+            <span className={cn('text-xs font-medium', statusClassName)}>{statusText}</span>
           </div>
           <Button
             variant="unstyled"
@@ -59,7 +59,7 @@ export function ProviderRow({ providerInfo, isLast, autoEdit, onEditingChange }:
               onEditingChange?.(next)
             }}
             className={cn(
-              'flex items-center justify-center rounded-[5px] border border-input-card-border bg-[#1a1f28] size-7',
+              'flex items-center justify-center rounded-md border border-border-light bg-bg-secondary size-7',
               'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors',
             )}
           >

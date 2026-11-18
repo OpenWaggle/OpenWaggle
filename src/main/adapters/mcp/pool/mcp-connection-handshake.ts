@@ -1,0 +1,151 @@
+import type { McpConnectionLease } from './mcp-connection-lease'
+import {
+  errorResponse,
+  INITIALIZE,
+  INITIALIZED,
+  INTERNAL_CLIENT_INFO,
+  INTERNAL_PROTOCOL_VERSION,
+} from './mcp-connection-support'
+import {
+  JSON_RPC_ERROR_CODES,
+  type JsonRpcId,
+  type JsonRpcMessage,
+  type JsonRpcRequest,
+  toError,
+} from './mcp-wire'
+import { mcpMessageFields, stringField } from './mcp-message-fields'
+
+interface HandshakeChannel {
+  /** Sends a request upstream and waits for its result. */
+  readonly request: (method: string, params: unknown) => Promise<unknown>
+  readonly notify: (message: JsonRpcMessage) => Promise<void>
+  /** Rewrites the `initialize` params sent upstream; the connection passes its option, set or not. */
+  readonly augmentParams: ((params: unknown) => unknown) | undefined
+  readonly onProtocolVersion: (version: string) => void
+  /** Sees each result the server gave, for the connection's catalog. */
+  readonly onResult?: (result: unknown) => void
+  /** The server was sent `notifications/initialized`, with the `initialize` result it gave. */
+  readonly onInitialized?: (result: unknown) => void
+}
+
+/**
+ * The one `initialize` exchange of a pooled connection. The first client's (or OpenWaggle's own)
+ * `initialize` goes upstream; every later one is answered from the cached result, and
+ * `notifications/initialized` is sent once.
+ */
+export class McpConnectionHandshake {
+  /** The `initialize` params that went upstream, so a replacement upstream is initialized alike. */
+  private requested: { readonly params: unknown } | undefined
+  private result: { readonly value: unknown } | undefined
+  private initializing: Promise<unknown> | undefined
+  private initializedSent = false
+  private readonly waiters = new Map<McpConnectionLease, JsonRpcId>()
+
+  private readonly channel: HandshakeChannel
+
+  constructor(channel: HandshakeChannel) {
+    this.channel = channel
+  }
+
+  get isDone() {
+    return this.result !== undefined
+  }
+
+  /** The `initialize` result clients were given. */
+  get resultValue() {
+    return this.result?.value
+  }
+
+  ensure(params: unknown) {
+    if (this.result) return Promise.resolve(this.result.value)
+    this.requested ??= { params }
+    this.initializing ??= this.channel
+      .request(INITIALIZE, this.channel.augmentParams?.(params) ?? params)
+      .then(
+        (value) => {
+          this.result = { value }
+          this.channel.onResult?.(value)
+          const protocolVersion = stringField(mcpMessageFields(value)?.protocolVersion)
+          if (protocolVersion !== undefined) this.channel.onProtocolVersion(protocolVersion)
+          return value
+        },
+        (error: unknown) => {
+          this.initializing = undefined
+          throw error
+        },
+      )
+    return this.initializing
+  }
+
+  /**
+   * Answers from a cached result without the server, which is not started yet: `replay` later
+   * initializes it with these params, and with `notifications/initialized` if a client sent it.
+   */
+  seed(params: unknown, result: unknown) {
+    this.requested ??= { params }
+    this.result ??= { value: result }
+  }
+
+  /** A client's `notifications/initialized` while the server is not started: sent by `replay`. */
+  markInitialized() {
+    this.initializedSent = true
+  }
+
+  /** Initializes for OpenWaggle's own requests when no client has. */
+  async ensureInitialized() {
+    await this.ensure({
+      protocolVersion: INTERNAL_PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: INTERNAL_CLIENT_INFO,
+    })
+    await this.initialized({ jsonrpc: '2.0', method: INITIALIZED })
+  }
+
+  /**
+   * Initializes a replacement upstream with the params the first one got, then sends
+   * `notifications/initialized` if the first one had it. Clients keep the result they were given.
+   * Only for a connection past its handshake: a replacement is asked for by a failed listing, which
+   * a client sends after `initialize`, and clients' messages wait while it runs, so no `initialize`
+   * is in flight to be lost.
+   */
+  async replay() {
+    const requested = this.requested
+    const wasInitialized = this.initializedSent
+    this.result = undefined
+    this.initializing = undefined
+    this.initializedSent = false
+    if (!requested) return
+    await this.ensure(requested.params)
+    if (wasInitialized) await this.initialized({ jsonrpc: '2.0', method: INITIALIZED })
+  }
+
+  /** A client's `notifications/initialized`, forwarded the first time only. */
+  initialized(message: JsonRpcMessage) {
+    if (this.initializedSent) return Promise.resolve()
+    this.initializedSent = true
+    return this.channel.notify(message).then(() => this.channel.onInitialized?.(this.resultValue))
+  }
+
+  /** Answers a client's `initialize` from the handshake. */
+  async answer(lease: McpConnectionLease, message: JsonRpcRequest) {
+    this.waiters.set(lease, message.id)
+    try {
+      const result = await this.ensure(message.params)
+      lease.deliver({ jsonrpc: '2.0', id: message.id, result })
+    } catch (error) {
+      lease.deliver(
+        errorResponse(message.id, JSON_RPC_ERROR_CODES.internalError, toError(error).message),
+      )
+    } finally {
+      this.waiters.delete(lease)
+    }
+  }
+
+  /** A client still waiting for its handshake learns why, stderr included, before the close. */
+  fail(error: Error) {
+    for (const [lease, id] of this.waiters) {
+      lease.deliver(errorResponse(id, JSON_RPC_ERROR_CODES.internalError, error.message))
+    }
+    this.waiters.clear()
+  }
+}

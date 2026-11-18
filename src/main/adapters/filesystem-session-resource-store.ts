@@ -1,0 +1,233 @@
+import { createHash } from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { isEnoent, isNodeError } from '@shared/utils/node-error'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import { appPaths } from '../desktop-shell/app-paths'
+import { SessionResourceStoreError } from '../errors'
+import {
+  SessionResourceStore,
+  type SessionResourceStoreShape,
+  type StoreSessionResourceBytesInput,
+} from '../ports/session-resource-store'
+import { removeManagedSessionResource } from './filesystem-session-resource-deletion'
+import { copyBoundedSessionResourceFile } from './filesystem-session-resource-file-copy'
+import { readBoundedSessionResourceSource } from './filesystem-session-resource-source-reader'
+import {
+  openManagedSessionResourceFile,
+  openManagedSessionResourceStream,
+} from './filesystem-session-resource-stream'
+import {
+  createSessionResourceTemporaryPathManager,
+  SESSION_RESOURCE_TEMPORARY_SUFFIX,
+} from './filesystem-session-resource-temporary-files'
+
+const RESOURCE_DIRECTORY = 'session-resources'
+const MAX_DIRECTORY_ENTRY_BYTES = 255
+const MAX_RESOURCE_ID_BYTES = 64
+const MAX_EXTENSION_BYTES = 32
+
+function storeError(operation: string, cause: unknown) {
+  return new SessionResourceStoreError({ operation, cause })
+}
+
+function safeFileName(fileName: string) {
+  const normalized = path.basename(fileName).replaceAll(/[^a-zA-Z0-9._-]/g, '-')
+  return normalized.length > 0 ? normalized : 'resource'
+}
+
+function truncateUtf8(value: string, maxBytes: number) {
+  if (Buffer.byteLength(value) <= maxBytes) return value
+  let byteLength = 0
+  let result = ''
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character)
+    if (byteLength + characterBytes > maxBytes) break
+    byteLength += characterBytes
+    result += character
+  }
+  return result
+}
+
+function truncateFileName(fileName: string, maxBytes: number) {
+  if (Buffer.byteLength(fileName) <= maxBytes) return fileName
+  const candidateExtension = path.extname(fileName)
+  const extension =
+    Buffer.byteLength(candidateExtension) <= MAX_EXTENSION_BYTES ? candidateExtension : ''
+  const stem = extension ? fileName.slice(0, -extension.length) : fileName
+  return `${truncateUtf8(stem, maxBytes - Buffer.byteLength(extension))}${extension}`
+}
+
+function managedFileName(resourceId: string, fileName: string) {
+  const safeResourceId = truncateUtf8(safeFileName(resourceId), MAX_RESOURCE_ID_BYTES)
+  const prefix = `${safeResourceId}-`
+  const availableNameBytes =
+    MAX_DIRECTORY_ENTRY_BYTES -
+    Buffer.byteLength(prefix) -
+    Buffer.byteLength(SESSION_RESOURCE_TEMPORARY_SUFFIX)
+  return `${prefix}${truncateFileName(safeFileName(fileName), availableNameBytes)}`
+}
+
+function isWithinRoot(root: string, candidate: string) {
+  const relative = path.relative(root, candidate)
+  return relative.length > 0 && !relative.startsWith(`..${path.sep}`) && relative !== '..'
+}
+
+function digest(bytes: Uint8Array) {
+  return createHash('sha256').update(bytes).digest('hex')
+}
+
+function sessionDirectoryName(sessionId: string) {
+  return createHash('sha256').update(sessionId).digest('hex')
+}
+
+async function sessionDirectoryFor(root: string, sessionId: string) {
+  await fs.mkdir(root, { recursive: true })
+  const realRoot = await fs.realpath(root)
+  const target = path.join(realRoot, sessionDirectoryName(sessionId))
+  await fs.mkdir(target).catch(async (cause: unknown) => {
+    if (!isNodeError(cause, 'EEXIST')) throw cause
+    const stats = await fs.lstat(target)
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new Error('Session resource directory is not a managed directory.')
+    }
+  })
+  const realTarget = await fs.realpath(target)
+  if (!isWithinRoot(realRoot, realTarget)) {
+    throw new Error('Session resource directory escapes the managed resource root.')
+  }
+  return realTarget
+}
+
+async function writeBytesAtomically(temporaryPath: string, targetPath: string, bytes: Uint8Array) {
+  let handle: fs.FileHandle | null = null
+  let ownsTemporary = false
+  try {
+    handle = await fs.open(temporaryPath, 'wx')
+    ownsTemporary = true
+    await handle.writeFile(bytes)
+    await handle.close()
+    handle = null
+    await fs.rename(temporaryPath, targetPath)
+  } catch (cause) {
+    await handle?.close().catch(() => {})
+    if (ownsTemporary) await fs.rm(temporaryPath, { force: true }).catch(() => {})
+    throw cause
+  }
+}
+
+function makeStore(root: string) {
+  const prepareTemporaryPath = createSessionResourceTemporaryPathManager()
+
+  function storeBytes(input: StoreSessionResourceBytesInput) {
+    return Effect.tryPromise({
+      try: async () => {
+        const sessionDirectory = await sessionDirectoryFor(root, String(input.sessionId))
+        const target = path.join(
+          sessionDirectory,
+          managedFileName(input.resourceId, input.fileName),
+        )
+        const temporary = await prepareTemporaryPath(sessionDirectory, target)
+        await writeBytesAtomically(temporary, target, input.bytes)
+        return {
+          path: target,
+          sha256: digest(input.bytes),
+          sizeBytes: input.bytes.byteLength,
+        }
+      },
+      catch: (cause) => storeError('storeBytes', cause),
+    })
+  }
+
+  return {
+    storeBytes,
+    storeFile: (input) =>
+      Effect.tryPromise({
+        try: async () => {
+          const sessionDirectory = await sessionDirectoryFor(root, String(input.sessionId))
+          const target = path.join(
+            sessionDirectory,
+            managedFileName(input.resourceId, input.fileName),
+          )
+          const temporary = await prepareTemporaryPath(sessionDirectory, target)
+          const copied = await copyBoundedSessionResourceFile({
+            sourcePath: input.sourcePath,
+            temporaryPath: temporary,
+            expectedSizeBytes: input.expectedSizeBytes,
+            ...(input.expectedSha256 === undefined ? {} : { expectedSha256: input.expectedSha256 }),
+            maxSizeBytes: input.maxSizeBytes,
+          })
+          try {
+            await fs.rename(temporary, target)
+          } catch (cause) {
+            await fs.rm(temporary, { force: true }).catch(() => {})
+            throw cause
+          }
+          return { path: target, ...copied }
+        },
+        catch: (cause) => storeError('storeFile', cause),
+      }),
+    readSource: (input) =>
+      Effect.tryPromise({
+        try: () => readBoundedSessionResourceSource(input),
+        catch: (cause) => storeError('readSource', cause),
+      }),
+    inspect: (managedPath) =>
+      Effect.tryPromise({
+        try: () =>
+          openManagedSessionResourceFile(root, managedPath).then((handle) => handle.close()),
+        catch: (cause) => storeError('inspect', cause),
+      }),
+    openReadStream: (managedPath) =>
+      Effect.tryPromise({
+        try: () => openManagedSessionResourceStream(root, managedPath),
+        catch: (cause) => storeError('openReadStream', cause),
+      }),
+    read: (managedPath) =>
+      Effect.tryPromise({
+        try: async () => {
+          const handle = await openManagedSessionResourceFile(root, managedPath)
+          try {
+            return await handle.readFile()
+          } finally {
+            await handle.close()
+          }
+        },
+        catch: (cause) => storeError('read', cause),
+      }),
+    remove: (managedPath) =>
+      Effect.tryPromise({
+        try: () => removeManagedSessionResource(root, managedPath),
+        catch: (cause) => storeError('remove', cause),
+      }),
+    removeSession: (sessionId) =>
+      Effect.tryPromise({
+        try: async () => {
+          const realRoot = await fs.realpath(root).catch((cause: unknown) => {
+            if (isEnoent(cause)) return null
+            throw cause
+          })
+          if (realRoot === null) return
+          const target = path.join(realRoot, sessionDirectoryName(String(sessionId)))
+          if (!isWithinRoot(realRoot, target)) {
+            throw new Error('Session resource cleanup target is invalid.')
+          }
+          await fs.rm(target, { recursive: true, force: true })
+        },
+        catch: (cause) => storeError('removeSession', cause),
+      }),
+  } satisfies SessionResourceStoreShape
+}
+
+export function makeFilesystemSessionResourceStoreLayer(root: string) {
+  return Layer.succeed(SessionResourceStore, SessionResourceStore.of(makeStore(root)))
+}
+
+export const FilesystemSessionResourceStoreLive = Layer.effect(
+  SessionResourceStore,
+  Effect.sync(() => {
+    const root = path.join(appPaths.userData(), RESOURCE_DIRECTORY)
+    return SessionResourceStore.of(makeStore(root))
+  }),
+)

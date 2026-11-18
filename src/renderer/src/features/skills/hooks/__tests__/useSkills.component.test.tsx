@@ -55,6 +55,28 @@ describe('useSkills', () => {
     expect(getSkillPreviewMock).not.toHaveBeenCalled()
   })
 
+  it('does not show a failed toggle from another project', async () => {
+    getStandardsStatusMock.mockResolvedValue({ agents: 'missing', agentsPath: null })
+    listSkillsMock.mockImplementation(async (projectPath: string) => ({
+      projectPath,
+      skills: [],
+    }))
+    setSkillEnabledMock.mockRejectedValue(new Error('Could not update alpha'))
+
+    const { result, rerender } = renderHookWithQueryClient(
+      ({ projectPath }: { projectPath: string }) => useSkills(projectPath),
+      { initialProps: { projectPath: '/tmp/alpha' } },
+    )
+    await waitFor(() => expect(listSkillsMock).toHaveBeenCalledWith('/tmp/alpha'))
+
+    await act(async () => result.current.toggleSkill('example', false))
+    await waitFor(() => expect(result.current.error).toBe('Could not update alpha'))
+
+    rerender({ projectPath: '/tmp/beta' })
+    await waitFor(() => expect(listSkillsMock).toHaveBeenCalledWith('/tmp/beta'))
+    await waitFor(() => expect(result.current.error).toBeNull())
+  })
+
   it('loads skills resources and preview for the selected skill', async () => {
     getStandardsStatusMock.mockResolvedValueOnce({
       agents: 'found',

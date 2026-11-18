@@ -1,0 +1,15 @@
+import { realpath } from 'node:fs/promises'
+import { basename } from 'node:path'
+import type { QuotedBuiltinSyntax } from './preparation-quoted-builtin'
+
+export async function quotedBuiltinSyntaxForShell(shell: string) {
+  const name = basename(shell).toLowerCase()
+  const resolvedName =
+    name === 'sh' ? basename(await realpath(shell).catch(() => shell)).toLowerCase() : name
+  if (resolvedName === 'dash') return { ansi: false, locale: false } satisfies QuotedBuiltinSyntax
+  if (resolvedName === 'zsh') return { ansi: true, locale: false } satisfies QuotedBuiltinSyntax
+  if (resolvedName === 'sh' && process.platform !== 'darwin') {
+    return { ansi: false, locale: false } satisfies QuotedBuiltinSyntax
+  }
+  return { ansi: true, locale: true } satisfies QuotedBuiltinSyntax
+}

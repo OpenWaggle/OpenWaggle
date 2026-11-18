@@ -1,47 +1,45 @@
 import { match } from '@diegogbrisa/ts-match'
-import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
-import { useChat } from '@/features/chat/hooks'
+import { useNavigateBackToApp } from '@/features/chat/hooks'
+import { ProjectActionsSettings } from '@/features/project-actions/components'
+import { useFullProviderCatalog } from '@/features/providers/hooks'
+import { ScheduledTasksSettings } from '@/features/scheduled-tasks/components'
+import { SkillsPanel } from '@/features/skills/components'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import type { SettingsTab } from '@/shell/ui-store'
 import { useFullscreen } from '@/shell/useFullscreen'
 import { SettingsNav } from './SettingsNav'
+import { AgentsSettingsSection } from './sections/AgentsSettingsSection'
+import { AppearanceSection } from './sections/AppearanceSection'
 import { ArchivedSection } from './sections/ArchivedSection'
+import { BrowserProfilesSection } from './sections/BrowserProfilesSection'
 import { ConnectionsSection } from './sections/ConnectionsSection'
 import { ExtensionsSection } from './sections/ExtensionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { McpSection } from './sections/McpSection'
+import { NotificationsSection } from './sections/NotificationsSection'
+import { PermissionsSection } from './sections/PermissionsSection'
+import { ShortcutsSection } from './sections/ShortcutsSection'
 import { WaggleSection } from './sections/WaggleSection'
+import { WorktreesSection } from './sections/WorktreesSection'
 
 interface SettingsPageProps {
   readonly activeTab: SettingsTab
 }
 
 export function SettingsPage({ activeTab }: SettingsPageProps) {
-  const navigate = useNavigate()
-  const { activeSessionId } = useChat()
+  const navigateBackToApp = useNavigateBackToApp()
   const isFullscreen = useFullscreen()
-
-  function navigateBackToApp() {
-    if (activeSessionId) {
-      void navigate({
-        to: '/sessions/$sessionId',
-        params: { sessionId: String(activeSessionId) },
-      })
-      return
-    }
-
-    void navigate({ to: '/' })
-  }
+  useFullProviderCatalog()
 
   return (
-    <div className="flex size-full flex-col bg-bg">
+    <div className="@container/settings flex size-full flex-col bg-bg">
       {/* Header */}
       <div
         className={cn(
           'drag-region flex shrink-0 items-center gap-3 border-b border-border px-4 h-12',
-          !isFullscreen && 'pl-[80px]',
+          !isFullscreen && 'pl-20',
         )}
       >
         <Button
@@ -51,17 +49,18 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
           className="no-drag flex items-center gap-2 rounded-md px-2 py-1 text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
         >
           <ArrowLeft className="size-4" />
-          <span className="text-[13px]">Back to app</span>
+          <span className="text-xs">Back to app</span>
         </Button>
-        <span className="no-drag text-[15px] font-medium text-text-primary">Settings</span>
+        <span className="no-drag text-base font-medium text-text-primary">Settings</span>
       </div>
 
       {/* Body: Nav + Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden @min-[640px]/settings:flex-row">
         <SettingsNav activeTab={activeTab} />
 
         {/* Content area — fills available width */}
-        <div className="flex-1 overflow-y-auto px-10 py-8">
+        {/* Each tab roots itself in SettingsSectionContainer, which owns scroll and padding. */}
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <SettingsTabContent tab={activeTab} />
         </div>
       </div>
@@ -69,12 +68,22 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
   )
 }
 
-function SettingsTabContent({ tab }: { tab: SettingsTab }) {
+function SettingsTabContent({ tab }: { readonly tab: SettingsTab }) {
   return match(tab)
     .with('general', () => <GeneralSection />)
+    .with('notifications', () => <NotificationsSection />)
+    .with('browser', () => <BrowserProfilesSection />)
+    .with('actions', () => <ProjectActionsSettings />)
+    .with('shortcuts', () => <ShortcutsSection />)
+    .with('appearance', () => <AppearanceSection />)
     .with('waggle', () => <WaggleSection />)
     .with('extensions', () => <ExtensionsSection />)
+    .with('skills', () => <SkillsPanel />)
+    .with('agents', () => <AgentsSettingsSection />)
+    .with('scheduled', () => <ScheduledTasksSettings />)
+    .with('permissions', () => <PermissionsSection />)
     .with('mcp', () => <McpSection />)
+    .with('worktrees', () => <WorktreesSection />)
     .with('connections', () => <ConnectionsSection />)
     .with('archived', () => <ArchivedSection />)
     .otherwise(() => <GeneralSection />)

@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'vitest'
+import { tildifyPath } from '../tildify-path'
+
+describe('tildifyPath', () => {
+  it('abbreviates a macOS home prefix to ~', () => {
+    expect(tildifyPath('/Users/diego.garciabrisa/.openwaggle/mcp/state.json')).toBe(
+      '~/.openwaggle/mcp/state.json',
+    )
+  })
+
+  it('abbreviates a Linux home prefix to ~', () => {
+    expect(tildifyPath('/home/diego/.pi/agent/mcp.json')).toBe('~/.pi/agent/mcp.json')
+  })
+
+  it('abbreviates a Windows home prefix to ~', () => {
+    expect(tildifyPath('C:\\Users\\diego\\.openwaggle\\mcp.json')).toBe('~\\.openwaggle\\mcp.json')
+  })
+
+  it('handles a bare home directory', () => {
+    expect(tildifyPath('/Users/diego')).toBe('~')
+  })
+
+  it('leaves non-home paths unchanged', () => {
+    expect(tildifyPath('/opt/project/.mcp.json')).toBe('/opt/project/.mcp.json')
+    expect(tildifyPath('/var/folders/tmp/x')).toBe('/var/folders/tmp/x')
+    expect(tildifyPath('relative/path.json')).toBe('relative/path.json')
+  })
+
+  it('does not abbreviate system directories that are not home directories', () => {
+    expect(tildifyPath('/Users/Shared/something/mcp.json')).toBe('/Users/Shared/something/mcp.json')
+    expect(tildifyPath('C:\\Users\\Public\\file.json')).toBe('C:\\Users\\Public\\file.json')
+    expect(tildifyPath('C:\\Users\\Default\\AppData\\f')).toBe('C:\\Users\\Default\\AppData\\f')
+  })
+
+  it('removes the OpenWaggle Session worktree storage prefix', () => {
+    expect(
+      tildifyPath(
+        '/Users/diego/.openwaggle/worktrees/OpenWaggle/session-a/.agents/skills/review/SKILL.md',
+      ),
+    ).toBe('.agents/skills/review/SKILL.md')
+  })
+
+  it('shortens the home directory main passed, wherever it is', () => {
+    const home = '/private/tmp/openwaggle-shots-x1/home'
+    expect(tildifyPath(`${home}/.openwaggle/mcp.json`, home)).toBe('~/.openwaggle/mcp.json')
+    expect(tildifyPath(home, `${home}/`)).toBe('~')
+    expect(tildifyPath('C:\\Profiles\\Diego\\mcp.json', 'c:\\profiles\\diego')).toBe('~\\mcp.json')
+  })
+
+  it('leaves a sibling of the home directory alone', () => {
+    expect(tildifyPath('/srv/home-other/mcp.json', '/srv/home')).toBe('/srv/home-other/mcp.json')
+    expect(tildifyPath('/srv/project/mcp.json', '/srv/home')).toBe('/srv/project/mcp.json')
+    expect(tildifyPath('/Users/diego/mcp.json', '/')).toBe('~/mcp.json')
+  })
+
+  it('never guesses another home when the real home is known', () => {
+    expect(tildifyPath('/Users/bob/x', '/Users/diego')).toBe('/Users/bob/x')
+    expect(tildifyPath('/home/bob/.pi/mcp.json', '/home/diego')).toBe('/home/bob/.pi/mcp.json')
+    expect(tildifyPath('C:\\Users\\bob\\x', 'C:\\Users\\diego')).toBe('C:\\Users\\bob\\x')
+  })
+
+  it('compares Windows separators normalised', () => {
+    expect(tildifyPath('C:/Users/Diego/.openwaggle/mcp.json', 'C:\\Users\\Diego')).toBe(
+      '~/.openwaggle/mcp.json',
+    )
+    expect(tildifyPath('c:\\users\\diego\\mcp.json', 'C:/Users/Diego/')).toBe('~\\mcp.json')
+  })
+
+  it('shortens a UNC home directory, ignoring case', () => {
+    expect(tildifyPath('\\\\srv\\home\\x', '\\\\SRV\\Home')).toBe('~\\x')
+    expect(tildifyPath('\\\\srv\\home', '\\\\srv\\home\\')).toBe('~')
+    expect(tildifyPath('\\\\srv\\home-other\\x', '\\\\srv\\home')).toBe('\\\\srv\\home-other\\x')
+  })
+
+  it('treats a home at a filesystem root as unknown', () => {
+    expect(tildifyPath('C:\\Projects\\app', 'C:\\')).toBe('C:\\Projects\\app')
+    expect(tildifyPath('/opt/app', '/')).toBe('/opt/app')
+    expect(tildifyPath('\\\\srv\\share\\x', '\\\\srv')).toBe('\\\\srv\\share\\x')
+  })
+})

@@ -2,14 +2,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import * as Effect from 'effect/Effect'
 
-export function isPathInsideDirectory(parentPath: string, childPath: string): boolean {
+export function isPathInsideDirectory(parentPath: string, childPath: string) {
   const relativePath = path.relative(parentPath, childPath)
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
 }
 
-export function validateProjectPath(
-  projectPath: string | null | undefined,
-): Effect.Effect<string | undefined, Error> {
+export function validateProjectPath(projectPath: string | null | undefined) {
   return Effect.gen(function* () {
     if (projectPath == null) {
       return undefined
@@ -38,14 +36,38 @@ export function validateProjectPath(
   })
 }
 
-export function validateRequiredProjectPath(
-  projectPath: string | null | undefined,
-): Effect.Effect<string, Error> {
+export function validateRequiredProjectPath(projectPath: string | null | undefined) {
   return Effect.gen(function* () {
     const validated = yield* validateProjectPath(projectPath)
     if (!validated) {
       return yield* Effect.fail(new Error('Project path is required.'))
     }
     return validated
+  })
+}
+
+export function validateAuthorizedProjectPath(
+  projectPath: string | null | undefined,
+  authorizedProjectPaths: readonly (string | null | undefined)[],
+) {
+  return Effect.gen(function* () {
+    const validatedProjectPath = yield* validateRequiredProjectPath(projectPath)
+    const exactMatch = authorizedProjectPaths.some((candidate) => {
+      const normalized = candidate?.trim()
+      return normalized
+        ? path.isAbsolute(normalized) && path.resolve(normalized) === validatedProjectPath
+        : false
+    })
+    if (exactMatch) return validatedProjectPath
+    const authorizedRealPaths = yield* Effect.all(
+      authorizedProjectPaths.map((candidate) =>
+        validateProjectPath(candidate).pipe(Effect.catchAll(() => Effect.succeed(undefined))),
+      ),
+      { concurrency: 'unbounded' },
+    )
+    if (authorizedRealPaths.includes(validatedProjectPath)) {
+      return validatedProjectPath
+    }
+    return yield* Effect.fail(new Error('Project path is not authorized for workspace access.'))
   })
 }

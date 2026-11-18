@@ -4,6 +4,8 @@ import { singleTerminalLine, truncateTerminalLine } from './terminal-text.js'
 
 const MODEL_PICKER_VISIBLE_ROWS = 10
 const MODEL_PICKER_DETAILS_ROWS = 3
+/** Title, search, rule, the details block, a blank line and the key help. */
+const MODEL_PICKER_CHROME_ROWS = 3 + MODEL_PICKER_DETAILS_ROWS + 2
 const HALF_DIVISOR = 2
 const MODEL_PICKER_OVERLAY_OPTIONS = {
   overlay: true,
@@ -22,12 +24,16 @@ function modelReference(provider: string, id: string) {
 }
 
 export function modelReferenceForCurrentModel(ctx: ExtensionContext) {
-  return ctx.model ? modelReference(ctx.model.provider, ctx.model.id) : null
+  const result: string | null = ctx.model ? modelReference(ctx.model.provider, ctx.model.id) : null
+  return result
 }
 
-function modelPickerItems(ctx: ExtensionContext): readonly ModelPickerItem[] {
-  if (typeof ctx.modelRegistry.getAvailable !== 'function') return []
-  return ctx.modelRegistry
+function modelPickerItems(ctx: ExtensionContext) {
+  if (typeof ctx.modelRegistry.getAvailable !== 'function') {
+    const item: readonly ModelPickerItem[] = []
+    return item
+  }
+  const item: readonly ModelPickerItem[] = ctx.modelRegistry
     .getAvailable()
     .map((model) => ({
       provider: model.provider,
@@ -39,6 +45,7 @@ function modelPickerItems(ctx: ExtensionContext): readonly ModelPickerItem[] {
       (left, right) =>
         left.provider.localeCompare(right.provider) || left.id.localeCompare(right.id),
     )
+  return item
 }
 
 function filterModelItems(items: readonly ModelPickerItem[], query: string) {
@@ -56,7 +63,8 @@ function isBackspace(data: string) {
 }
 
 function printableInput(data: string) {
-  const key = decodeKittyPrintable(data) ?? parseKey(data) ?? data
+  // A plain character is itself; `parseKey` names some of them (a space is "space").
+  const key = decodeKittyPrintable(data) ?? (data.length === 1 ? data : (parseKey(data) ?? data))
   return key.length === 1 && key >= ' ' && key !== '\u007f' ? key : null
 }
 
@@ -65,6 +73,8 @@ export function createModelPickerComponent(input: {
   readonly currentModelReference: string | null
   readonly done: (modelReference: string | undefined) => void
   readonly requestRender: () => void
+  /** Terminal rows, so the picker fits a short screen; Pi's fullscreen TUI clips taller overlays. */
+  readonly availableRows?: () => number
 }) {
   let selectedIndex = 0
   let query = ''
@@ -83,13 +93,19 @@ export function createModelPickerComponent(input: {
     input.requestRender()
   }
 
+  function visibleRows() {
+    const rows = input.availableRows?.() ?? Number.POSITIVE_INFINITY
+    return Math.max(1, Math.min(MODEL_PICKER_VISIBLE_ROWS, rows - MODEL_PICKER_CHROME_ROWS))
+  }
+
   function lines() {
-    const maxStartIndex = Math.max(0, filteredItems.length - MODEL_PICKER_VISIBLE_ROWS)
+    const listRows = visibleRows()
+    const maxStartIndex = Math.max(0, filteredItems.length - listRows)
     const startIndex = Math.max(
       0,
-      Math.min(selectedIndex - Math.floor(MODEL_PICKER_VISIBLE_ROWS / HALF_DIVISOR), maxStartIndex),
+      Math.min(selectedIndex - Math.floor(listRows / HALF_DIVISOR), maxStartIndex),
     )
-    const visibleItems = filteredItems.slice(startIndex, startIndex + MODEL_PICKER_VISIBLE_ROWS)
+    const visibleItems = filteredItems.slice(startIndex, startIndex + listRows)
     const rendered = [
       'Select Waggle agent model',
       `Search: ${query}`,
@@ -103,7 +119,7 @@ export function createModelPickerComponent(input: {
       return `${selectedPrefix} ${item.id} [${item.provider}]${currentMarker}`
     })
     if (filteredItems.length === 0) renderedItems.push('  No matching models')
-    while (renderedItems.length < MODEL_PICKER_VISIBLE_ROWS) renderedItems.push('')
+    while (renderedItems.length < listRows) renderedItems.push('')
     rendered.push(...renderedItems)
 
     const current = filteredItems[selectedIndex]
@@ -118,7 +134,11 @@ export function createModelPickerComponent(input: {
     return rendered
   }
 
-  return {
+  const result: {
+    invalidate(): undefined
+    render(width: number): string[]
+    handleInput(data: string): void
+  } = {
     invalidate() {
       return undefined
     },
@@ -150,6 +170,7 @@ export function createModelPickerComponent(input: {
       if (printable) updateFilter(`${query}${printable}`)
     },
   }
+  return result
 }
 
 export async function selectConcreteModelReference(input: {
@@ -167,6 +188,7 @@ export async function selectConcreteModelReference(input: {
           currentModelReference: input.currentModelReference,
           done,
           requestRender: () => tui.requestRender(),
+          availableRows: () => tui.terminal.rows,
         }),
       MODEL_PICKER_OVERLAY_OPTIONS,
     )
@@ -179,12 +201,15 @@ export async function selectConcreteModelReference(input: {
     })
     const selected = await input.ctx.ui.select('Select Waggle agent model', labels)
     const selectedIndex = selected ? labels.indexOf(selected) : -1
-    return selectedIndex >= 0 ? (items[selectedIndex]?.reference ?? null) : null
+    const result: string | null | undefined =
+      selectedIndex >= 0 ? (items[selectedIndex]?.reference ?? null) : null
+    return result
   }
 
   const typed = await input.ctx.ui.input(
     'Pin Waggle agent model (provider/modelId)',
     input.currentModelReference ?? modelReferenceForCurrentModel(input.ctx) ?? 'provider/modelId',
   )
-  return typed?.trim() || null
+  const result: string | null | undefined = typed?.trim() || null
+  return result
 }

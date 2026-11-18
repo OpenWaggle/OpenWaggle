@@ -8,11 +8,6 @@ interface SessionPhaseState {
   runStatus: 'idle' | 'running'
 }
 
-interface PhaseChangeResult {
-  readonly changed: boolean
-  readonly phase: AgentPhaseState | null
-}
-
 const states = new Map<string, SessionPhaseState>()
 
 function getState(sessionId: SessionId) {
@@ -53,7 +48,7 @@ export function updatePhaseFromTransportEvent(
   sessionId: SessionId,
   event: AgentTransportEvent,
   now: number,
-): PhaseChangeResult {
+) {
   const state = getState(sessionId)
 
   return matchBy(event, 'type')
@@ -88,6 +83,7 @@ export function updatePhaseFromTransportEvent(
       'turn_end',
       'message_start',
       'message_end',
+      'context_usage',
       'tool_execution_start',
       'tool_execution_update',
       'tool_execution_end',
@@ -99,16 +95,18 @@ export function updatePhaseFromTransportEvent(
       'custom',
       'agent_interaction_request',
       'agent_interaction_resolved',
+      'extension_status',
+      'agent_settled',
       () => ({ changed: false, phase: state.current }),
     )
     .exhaustive()
 }
 
-export function resetPhaseForSession(sessionId: SessionId): PhaseChangeResult {
+export function resetPhaseForSession(sessionId: SessionId) {
   return clearPhase(sessionId)
 }
 
-export function getPhaseForSession(sessionId: SessionId): AgentPhaseState | null {
+export function getPhaseForSession(sessionId: SessionId) {
   const state = states.get(String(sessionId))
   return state?.current ?? null
 }

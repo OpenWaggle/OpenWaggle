@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Button } from '@/shared/ui/Button'
 import { Textarea } from '@/shared/ui/Textarea'
 import type { AgentInteractionSubmit } from './agent-interaction-control-types'
+import { useChatDisplayText } from './ChatDisplayPathContext'
 
 export function AgentInteractionEditorControls({
   interaction,
@@ -13,20 +14,38 @@ export function AgentInteractionEditorControls({
   readonly busy: boolean
   readonly submit: AgentInteractionSubmit
 }) {
-  const [value, setValue] = useState(interaction.prefill ?? '')
+  const displayTitle = useChatDisplayText(interaction.title)
+  const originalPrefill = interaction.prefill ?? ''
+  const displayPrefill = useChatDisplayText(originalPrefill)
+  const [value, setValue] = useState(displayPrefill)
   return (
-    <div className="grid gap-2">
+    <div className="grid min-w-0 grid-cols-1 gap-2">
       <Textarea
+        aria-label={displayTitle}
         disabled={busy}
         value={value}
         resize="vertical"
         onChange={(event) => setValue(event.currentTarget.value)}
       />
       <div className="flex flex-wrap gap-2">
-        <Button disabled={busy} variant="accent" onClick={() => submit({ kind: 'editor', value })}>
+        <Button
+          aria-label={`Submit ${displayTitle}`}
+          disabled={busy}
+          onClick={() =>
+            submit({
+              kind: 'editor',
+              value: value === displayPrefill ? originalPrefill : value,
+            })
+          }
+          variant="accent"
+        >
           Submit
         </Button>
-        <Button disabled={busy} onClick={() => submit({ kind: 'editor', value: null })}>
+        <Button
+          aria-label={`Cancel ${displayTitle}`}
+          disabled={busy}
+          onClick={() => submit({ kind: 'editor', value: null })}
+        >
           Cancel
         </Button>
       </div>

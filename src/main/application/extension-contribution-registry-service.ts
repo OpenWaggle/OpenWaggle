@@ -2,7 +2,6 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
-  ExtensionDiagnosticView,
   ExtensionListContributionsInput,
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
@@ -12,10 +11,6 @@ import type {
   ExtensionLifecycleState,
 } from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
-import {
-  ExtensionManagerService,
-  type ExtensionManagerServiceShape,
-} from '../ports/extension-manager-service'
 import {
   ExtensionProjectOverridesRepository,
   type ExtensionProjectOverridesRepositoryShape,
@@ -28,29 +23,21 @@ import {
   type ExtensionContributionProjectOverrideLookup,
   packageToContributionEntriesWithRegistrationResolver,
 } from './extension-contribution-registry-model'
+import type { ContributionIconDeclaration } from './extension-contribution-registry-types'
 import {
   appendExtensionDiagnostic,
-  makeDiscoveryFailurePackage,
   makeExtensionFailureDiagnostic,
-  scopeForProjectPath,
 } from './extension-failure-isolation-model'
+import {
+  loadScopedExtensionPackages,
+  normalizeExtensionProjectPaths,
+  packageRequestedProjectPaths,
+} from './extension-package-listing'
 
 interface ContributionRegistryPackageResult {
   readonly entries: readonly ExtensionContributionRegistryEntry[]
   readonly diagnostics: readonly ExtensionDiagnostic[]
-}
-
-function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
-  const normalizedProjectPaths: string[] = []
-  const seenProjectPaths = new Set<string>()
-  for (const projectPath of projectPaths ?? []) {
-    const normalized = projectPath.trim()
-    if (normalized.length > 0 && !seenProjectPaths.has(normalized)) {
-      seenProjectPaths.add(normalized)
-      normalizedProjectPaths.push(normalized)
-    }
-  }
-  return normalizedProjectPaths
+  readonly iconDeclarations: readonly ContributionIconDeclaration[]
 }
 
 function normalizeSessionId(sessionId: string | undefined) {
@@ -58,52 +45,7 @@ function normalizeSessionId(sessionId: string | undefined) {
   return normalized && normalized.length > 0 ? normalized : undefined
 }
 
-function isGlobalPackage(extensionPackage: DiscoveredExtensionPackage) {
-  return extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
-}
-
-function listPackagesSafely(manager: ExtensionManagerServiceShape, projectPath: string | null) {
-  return manager
-    .listPackages({ projectPath })
-    .pipe(
-      Effect.catchAll((error) =>
-        Effect.succeed([
-          makeDiscoveryFailurePackage({ scope: scopeForProjectPath(projectPath), error }),
-        ]),
-      ),
-    )
-}
-
-function isProjectPackageForPath(
-  extensionPackage: DiscoveredExtensionPackage,
-  projectPath: string,
-) {
-  return (
-    extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND &&
-    extensionPackage.scope.projectPath === projectPath
-  )
-}
-
-function getCandidateProjectPaths(
-  extensionPackage: DiscoveredExtensionPackage,
-  requestedProjectPaths: readonly string[],
-) {
-  if (requestedProjectPaths.length === 0) {
-    return []
-  }
-
-  if (extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
-    return requestedProjectPaths
-  }
-
-  return requestedProjectPaths.includes(extensionPackage.scope.projectPath)
-    ? [extensionPackage.scope.projectPath]
-    : []
-}
-
-function diagnosticsToView(
-  diagnostics: readonly ExtensionDiagnostic[],
-): readonly ExtensionDiagnosticView[] {
+function diagnosticsToView(diagnostics: readonly ExtensionDiagnostic[]) {
   return diagnostics.map((diagnostic) => ({
     severity: diagnostic.severity,
     code: diagnostic.code,
@@ -112,31 +54,11 @@ function diagnosticsToView(
   }))
 }
 
-function loadContributionPackages(projectPaths: readonly string[]) {
-  return Effect.gen(function* () {
-    const manager = yield* ExtensionManagerService
-    const globalPackages = yield* listPackagesSafely(manager, null).pipe(
-      Effect.map((packages) => packages.filter(isGlobalPackage)),
-    )
-    const projectPackageGroups = yield* Effect.forEach(projectPaths, (projectPath) =>
-      listPackagesSafely(manager, projectPath).pipe(
-        Effect.map((packages) =>
-          packages.filter((extensionPackage) =>
-            isProjectPackageForPath(extensionPackage, projectPath),
-          ),
-        ),
-      ),
-    )
-
-    return [...globalPackages, ...projectPackageGroups.flat()]
-  })
-}
-
 function unavailableProjectOverrideLookup(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly projectPath: string
   readonly error: unknown
-}): ExtensionContributionProjectOverrideLookup {
+}) {
   return {
     projectPath: input.projectPath,
     projectOverride: { disabled: true },
@@ -148,7 +70,7 @@ function unavailableProjectOverrideLookup(input: {
         path: input.projectPath,
       }),
     ],
-  }
+  } satisfies ExtensionContributionProjectOverrideLookup
 }
 
 function loadProjectOverride(
@@ -237,6 +159,7 @@ function packageToContributionEntriesSafely(input: {
         ({
           entries: result.entries,
           diagnostics: result.diagnostics,
+          iconDeclarations: result.iconDeclarations,
         }) satisfies ContributionRegistryPackageResult,
     ),
     Effect.catchAll((error) =>
@@ -250,22 +173,27 @@ function packageToContributionEntriesSafely(input: {
             path: input.extensionPackage.manifestPath,
           }),
         ],
+        iconDeclarations: [],
       } satisfies ContributionRegistryPackageResult),
     ),
   )
 }
 
-export function listExtensionContributionRegistryView(input: ExtensionListContributionsInput = {}) {
+/**
+ * Builds the registry view together with the side panel icons it still has to resolve. Icon
+ * resolution reads package files, so only surfaces that draw icons pay for it.
+ */
+export function buildExtensionContributionRegistry(input: ExtensionListContributionsInput = {}) {
   return Effect.gen(function* () {
-    const projectPaths = normalizeProjectPaths(input.projectPaths)
-    const packages = yield* loadContributionPackages(projectPaths)
+    const projectPaths = normalizeExtensionProjectPaths(input.projectPaths)
+    const packages = yield* loadScopedExtensionPackages(projectPaths)
     yield* Effect.sync(() => {
       pruneCachedPackageContributionRegistrations(packages)
     })
     const packageResults = yield* Effect.forEach(packages, (extensionPackage) =>
       Effect.gen(function* () {
         const lifecycleLookup = yield* loadLifecycle(extensionPackage)
-        const candidateProjectPaths = getCandidateProjectPaths(extensionPackage, projectPaths)
+        const candidateProjectPaths = packageRequestedProjectPaths(extensionPackage, projectPaths)
         const projectOverrides = yield* loadProjectOverrides(
           lifecycleLookup.extensionPackage,
           candidateProjectPaths,
@@ -286,14 +214,22 @@ export function listExtensionContributionRegistryView(input: ExtensionListContri
             ...projectOverrides.flatMap((projectOverride) => projectOverride.diagnostics),
             ...registryPackageResult.diagnostics,
           ],
+          iconDeclarations: registryPackageResult.iconDeclarations,
         } satisfies ContributionRegistryPackageResult
       }),
     )
 
     return {
-      projectPaths,
-      entries: packageResults.flatMap((result) => result.entries),
-      diagnostics: diagnosticsToView(packageResults.flatMap((result) => result.diagnostics)),
-    } satisfies ExtensionContributionRegistryView
+      view: {
+        projectPaths,
+        entries: packageResults.flatMap((result) => result.entries),
+        diagnostics: diagnosticsToView(packageResults.flatMap((result) => result.diagnostics)),
+      } satisfies ExtensionContributionRegistryView,
+      iconDeclarations: packageResults.flatMap((result) => result.iconDeclarations),
+    }
   })
+}
+
+export function listExtensionContributionRegistryView(input: ExtensionListContributionsInput = {}) {
+  return buildExtensionContributionRegistry(input).pipe(Effect.map((registry) => registry.view))
 }

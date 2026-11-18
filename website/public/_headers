@@ -1,4 +1,7 @@
 # ── Security headers (all responses) ──
+# connect-src 'self' admits the site's only request, the statistics beacon to /api/v1/web on this
+# origin; no third-party analytics origin is allowed. script-src keeps 'self' and 'unsafe-inline'
+# for Astro's bundled and inlined page scripts, including the beacon script in BaseLayout.astro.
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
@@ -27,6 +30,13 @@
 
 /*.woff2
   Cache-Control: public, max-age=31536000, immutable
+
+# ── Published JSON Schemas ──
+# Editors and browser-based schema tools fetch these from other origins. Not content-hashed, and a
+# schema changes with the app, so use a moderate cache with revalidation.
+/schemas/*
+  Cache-Control: public, max-age=3600, must-revalidate
+  Access-Control-Allow-Origin: *
 
 # ── Cache: OG / social images ──
 /og/*

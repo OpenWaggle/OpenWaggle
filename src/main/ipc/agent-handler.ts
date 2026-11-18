@@ -1,52 +1,37 @@
-/**
- * Agent IPC handlers — transport layer.
- *
- * Responsibilities: abort controller lifecycle, active run tracking,
- * stream buffer management, IPC event emission, cleanup.
- *
- * Business logic (model validation, session fetching, run execution,
- * message persistence, error classification) lives in AgentRunService.
- */
 import { randomUUID } from 'node:crypto'
-import { matchBy } from '@diegogbrisa/ts-match'
-import { decodeUnknownOrThrow } from '@shared/schema'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   agentLoopResponseInputSchema,
   toAgentLoopResponseInput,
 } from '@shared/schemas/agent-loop-interaction'
-import { agentSendPayloadSchema } from '@shared/schemas/validation'
+import { agentSendPayloadSchema, toAgentSendPayload } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { SessionId } from '@shared/types/brand'
+import type { AgentLoopInteractionErrorCode } from '@shared/types/agent-loop-interaction'
+import { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { AgentTransportEvent } from '@shared/types/stream'
+import { SESSION_CONTROL_CONTRACT_VERSION } from '@shared/types/session-control'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
 import * as Effect from 'effect/Effect'
 import { getPhaseForSession } from '../agent/phase-tracker'
 import { cleanupSessionRun } from '../agent/session-cleanup'
-import {
-  cancelAgentLoopInteractionsForRun,
-  submitAgentLoopInteractionResponse,
-} from '../application/agent-loop-interaction-broker'
-import { type AgentRunResult, executeAgentRun } from '../application/agent-run-service'
-import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
-import { broadcastToWindows } from '../utils/broadcast'
+import { dispatchGuiSessionCommand } from '../application/gui-session-command'
+import { interruptSessionRunThrough } from '../application/session-run-interruption-command'
+import { durableSessionRunId } from '../domain/session-control/root-session-project-reach'
+import { readAfterFlushingSession, setWindowShownSessions } from '../utils/broadcast'
 import {
   clearAgentPhase,
   clearStreamBuffer,
   emitRunCompleted,
-  emitTransportEvent,
   getStreamBuffer,
-  listStreamBuffers,
-  startStreamBuffer,
 } from '../utils/stream-bridge'
-import {
-  activeCompactions,
-  activeRuns,
-  cancelAllSessionRuns,
-  cancelSessionRuns,
-  hasAnyActiveRun,
-} from './active-agent-runs'
-import { emitErrorAndFinish } from './run-handler-utils'
-import { typedHandle } from './typed-ipc'
+import { cancelAllSessionRuns } from './active-agent-runs'
+import { hostHandle, typedHandle } from './typed-ipc'
+
+/** At most this many: a window shows a handful of Sessions at once. */
+const MAX_SHOWN_SESSIONS = 64
+const shownSessionIdsSchema = Schema.Array(Schema.String.pipe(Schema.fromBrand(SessionId))).pipe(
+  Schema.maxItems(MAX_SHOWN_SESSIONS),
+)
 
 function clearSessionTransportState(sessionId: SessionId) {
   clearAgentPhase(sessionId)
@@ -55,21 +40,12 @@ function clearSessionTransportState(sessionId: SessionId) {
 }
 
 function emitCancelledCompletion(sessionId: SessionId) {
+  // Named by the Run the stream buffer held (the classic Run behind a requested Waggle), so the
+  // renderer credits it to that Run.
+  const buffered = getStreamBuffer(sessionId)?.runId
+  const runId = buffered === undefined ? undefined : durableSessionRunId(buffered)
   clearSessionTransportState(sessionId)
-  emitRunCompleted(sessionId)
-}
-
-function handleRunResult(sessionId: SessionId, result: AgentRunResult) {
-  if (result.outcome === 'error' && result.transportEmitted) {
-    return
-  }
-
-  matchBy(result, 'outcome')
-    .with('success', 'aborted', () => undefined)
-    .with('invalid-model', 'not-found', 'error', (value) =>
-      emitErrorAndFinish(sessionId, value.message, value.code),
-    )
-    .exhaustive()
+  emitRunCompleted(sessionId, runId ? { runId } : {})
 }
 
 /**
@@ -84,73 +60,139 @@ export function persistAllActiveRuns() {
 function registerAgentRunHandlers() {
   typedHandle(
     'agent:send-message',
-    (_event, sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId) =>
+    (_event, sessionId: SessionId, payload: AgentSendPayload, _model: SupportedModelId) =>
       Effect.gen(function* () {
-        const validatedPayload = decodeUnknownOrThrow(agentSendPayloadSchema, payload)
-        // ─── Transport: cancel existing same-session work, register new ────
-        if (cancelSessionRuns(sessionId)) {
-          clearSessionTransportState(sessionId)
-        }
-
-        const abortController = new AbortController()
-        const runId = randomUUID()
-        activeRuns.register(sessionId, abortController, {
-          model,
-        })
-
-        startStreamBuffer(sessionId, model, 'classic')
-
-        function onEventWithUsageCapture(event: AgentTransportEvent) {
-          emitTransportEvent(sessionId, event)
-        }
-
-        // ─── Application: delegate to service ────────────
-        const result = yield* executeAgentRun({
-          sessionId,
-          runId,
-          payload: validatedPayload,
-          model,
-          signal: abortController.signal,
-          onEvent: onEventWithUsageCapture,
-          onTitleAssigned: (title) => {
-            broadcastToWindows('sessions:title-updated', { sessionId, title })
+        const validatedPayload = toAgentSendPayload(
+          decodeUnknownOrThrow(agentSendPayloadSchema, payload),
+        )
+        const result = yield* dispatchGuiSessionCommand({
+          caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+          payload: {
+            contract: 'session-control-v2',
+            request: {
+              contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+              requestId: randomUUID(),
+              idempotencyKey: randomUUID(),
+              command: {
+                operation: 'message',
+                sessionId,
+                input: {
+                  text: validatedPayload.text,
+                  attachmentIds: validatedPayload.attachments.map((attachment) => attachment.id),
+                  ...(validatedPayload.visualizationContext
+                    ? { visualizationContext: validatedPayload.visualizationContext }
+                    : {}),
+                },
+              },
+            },
           },
         })
-
-        // ─── Transport: respond based on outcome ─────────
-        handleRunResult(sessionId, result)
-
-        // ─── Transport: cleanup ──────────────────────────
-        cancelAgentLoopInteractionsForRun({ sessionId, runId })
-        if (activeRuns.deleteIfCurrent(sessionId, abortController)) {
-          clearAgentPhase(sessionId)
-          clearStreamBuffer(sessionId)
-          emitRunCompleted(sessionId)
+        if (result.contract !== 'session-control-v2') {
+          return yield* Effect.die(new Error('Session Control returned the wrong contract.'))
         }
+        const outcome = result.response.outcome
+        if (outcome.effect === 'rejected') {
+          return { outcome: 'refused', message: outcome.code, code: outcome.code } as const
+        }
+        // The Host keeps a message as a Follow-up, not a Run, while the Session has a Run or waiting
+        // Follow-ups (a failed Run pauses them). No completion will follow for this send.
+        if (outcome.effect === 'queued-follow-up') return { outcome: 'queued' } as const
+        // Naming the Run lets the renderer credit only that Run's completion to this send.
+        return outcome.effect === 'started-run'
+          ? ({ outcome: 'delivered', runId: outcome.runId } as const)
+          : ({ outcome: 'delivered' } as const)
       }),
   )
 
   typedHandle('agent:cancel', (_event, sessionId?: SessionId) =>
-    Effect.sync(() => {
-      if (sessionId) {
-        if (cancelSessionRuns(sessionId)) {
-          emitCancelledCompletion(sessionId)
-        }
-      } else {
+    Effect.gen(function* () {
+      if (!sessionId) {
         const cancelledSessionIds = cancelAllSessionRuns()
         for (const id of cancelledSessionIds) {
           emitCancelledCompletion(id)
         }
+        return
       }
+      yield* interruptSessionRunThrough(dispatchGuiSessionCommand, sessionId)
     }),
   )
 }
 
 function registerAgentInteractionHandlers() {
   typedHandle('agent:respond-interaction', (_event, input) =>
-    Effect.sync(() => {
+    Effect.gen(function* () {
       const decoded = decodeUnknownOrThrow(agentLoopResponseInputSchema, input)
-      return submitAgentLoopInteractionResponse(toAgentLoopResponseInput(decoded))
+      const normalized = toAgentLoopResponseInput(decoded)
+      const pending = yield* dispatchGuiSessionCommand({
+        caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+        payload: {
+          contract: 'session-query-v2',
+          request: {
+            contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+            requestId: randomUUID(),
+            query: { operation: 'requests-list', sessionId: normalized.sessionId },
+          },
+        },
+      })
+      const interaction =
+        pending.contract === 'session-query-v2' &&
+        pending.response.outcome.operation === 'requests-list' &&
+        !('error' in pending.response.outcome)
+          ? pending.response.outcome.requests.find(
+              (candidate) =>
+                candidate.runId === normalized.runId &&
+                candidate.interactionId === normalized.interactionId &&
+                candidate.kind === normalized.kind,
+            )
+          : undefined
+      if (!interaction) {
+        return {
+          ok: false,
+          error: {
+            code: 'interaction-not-found' as const,
+            message: 'No pending agent-loop interaction matches this response.',
+          },
+        }
+      }
+      const authorization =
+        interaction.kind === 'confirm' && interaction.purpose === 'authorization'
+      const result = yield* dispatchGuiSessionCommand({
+        caller: { callerId: 'gui:local-user', workingDirectory: process.cwd() },
+        payload: {
+          contract: 'session-control-v2',
+          request: {
+            contractVersion: SESSION_CONTROL_CONTRACT_VERSION,
+            requestId: randomUUID(),
+            idempotencyKey: randomUUID(),
+            command: {
+              operation: authorization ? 'approval-respond' : 'request-respond',
+              sessionId: normalized.sessionId,
+              runId: normalized.runId,
+              interactionId: normalized.interactionId,
+              kind: normalized.kind,
+              response: normalized.response,
+            },
+          },
+        },
+      })
+      const outcome = result.contract === 'session-control-v2' ? result.response.outcome : undefined
+      if (outcome?.effect === 'interaction-resolved') {
+        return {
+          ok: true,
+          interactionId: outcome.interactionId,
+          status: outcome.status,
+        } as const
+      }
+      const supportedCodes: readonly AgentLoopInteractionErrorCode[] = [
+        'interaction-not-found',
+        'interaction-mismatch',
+        'invalid-response-payload',
+        'custom-renderer-unavailable',
+      ]
+      const rejectedCode = outcome?.effect === 'rejected' ? outcome.code : 'interaction-mismatch'
+      const code =
+        supportedCodes.find((candidate) => candidate === rejectedCode) ?? 'interaction-mismatch'
+      return { ok: false, error: { code, message: rejectedCode } } as const
     }),
   )
 }
@@ -160,15 +202,23 @@ function registerAgentStateHandlers() {
     Effect.sync(() => getPhaseForSession(sessionId)),
   )
 
+  typedHandle('agent:set-shown-sessions', (event, sessionIds: unknown) =>
+    Effect.sync(() =>
+      setWindowShownSessions(event.sender, decodeUnknownOrThrow(shownSessionIdsSchema, sessionIds)),
+    ),
+  )
+
   typedHandle('agent:get-background-run', (_event, sessionId: SessionId) =>
-    Effect.sync(() => getStreamBuffer(sessionId)),
+    // The snapshot holds every delta the buffer has seen; the ones still coalescing go out first,
+    // so none reaches the window after a snapshot that already contains its text.
+    Effect.sync(() => readAfterFlushingSession(sessionId, () => getStreamBuffer(sessionId))),
   )
 
-  typedHandle('agent:list-active-runs', () => Effect.sync(() => listStreamBuffers()))
+  hostHandle('agent:list-active-runs')
 
-  typedHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
-    getAgentContextUsage({ sessionId, model }),
-  )
+  hostHandle('agent:get-context-usage')
+
+  hostHandle('agent:list-extension-commands')
 }
 
 function registerAgentCompactionHandlers() {
@@ -176,62 +226,36 @@ function registerAgentCompactionHandlers() {
     'agent:compact-session',
     (_event, sessionId: SessionId, model: SupportedModelId, customInstructions?: string) =>
       Effect.gen(function* () {
-        if (hasAnyActiveRun(sessionId)) {
+        const requestId = randomUUID()
+        const result = yield* dispatchGuiSessionCommand({
+          caller: { callerId: 'gui:local-user' },
+          payload: {
+            contract: 'local-compaction-v1',
+            request: {
+              requestId,
+              sessionId,
+              model,
+              ...(customInstructions !== undefined ? { customInstructions } : {}),
+            },
+          },
+        })
+        if (
+          result.contract !== 'local-compaction-v1' ||
+          result.response.requestId !== requestId ||
+          result.response.sessionId !== sessionId
+        ) {
           return yield* Effect.fail(
-            new Error('Wait for the current run to finish before compacting.'),
+            new Error('Session Host returned an invalid compaction response.'),
           )
         }
-
-        const abortController = new AbortController()
-        activeCompactions.register(sessionId, abortController, { model })
-        let delayedSuccessfulCompactionEnd: AgentTransportEvent | null = null
-
-        return yield* compactAgentSession({
-          sessionId,
-          model,
-          customInstructions,
-          signal: abortController.signal,
-          onEvent: (event) => {
-            if (event.type === 'compaction_end' && !event.aborted && !event.errorMessage) {
-              delayedSuccessfulCompactionEnd = event
-              return
-            }
-            emitTransportEvent(sessionId, event)
-          },
-        }).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => {
-              if (delayedSuccessfulCompactionEnd) {
-                emitTransportEvent(sessionId, delayedSuccessfulCompactionEnd)
-              }
-            }),
-          ),
-          Effect.ensuring(
-            Effect.sync(() => {
-              activeCompactions.deleteIfCurrent(sessionId, abortController)
-            }),
-          ),
-        )
+        return result.response.result
       }),
   )
 }
 
-function registerAgentSteeringHandlers() {
-  typedHandle('agent:steer', (_event, sessionId: SessionId) =>
-    Effect.sync(() => {
-      if (cancelSessionRuns(sessionId)) {
-        emitCancelledCompletion(sessionId)
-      }
-
-      return { preserved: false }
-    }),
-  )
-}
-
-export function registerAgentHandlers(): void {
+export function registerAgentHandlers() {
   registerAgentRunHandlers()
   registerAgentInteractionHandlers()
   registerAgentStateHandlers()
   registerAgentCompactionHandlers()
-  registerAgentSteeringHandlers()
 }

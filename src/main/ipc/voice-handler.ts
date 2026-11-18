@@ -1,10 +1,11 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { assertMatching, P } from '@diegogbrisa/ts-match'
-import { AUDIO_RECORDING, AUDIO_SAMPLE_RATE, LANGUAGE_CODE } from '@shared/constants/audio-config'
+import { AUDIO_RECORDING } from '@shared/constants/audio-config'
 import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { VOICE_TIMEOUT } from '@shared/constants/time'
-import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { decodeUnknownOrThrow } from '@shared/schema'
+import { voiceTranscriptionRequestSchema } from '@shared/schemas/voice'
 import {
   VOICE_MODEL_BASE,
   VOICE_MODEL_TINY,
@@ -12,50 +13,26 @@ import {
   type VoiceTranscriptionResult,
 } from '@shared/types/voice'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
+import { recordUsageStatisticsObservation } from '../application/usage-statistics-recording'
+import { appPaths } from '../desktop-shell/app-paths'
 import { typedHandle } from './typed-ipc'
 
 const PCM16_SIGNED_NORMALIZATION_FACTOR = 32768
 
 const VOICE_MODEL_CONFIG: Record<
   VoiceModel,
-  { modelId: string; quantized: boolean; language?: string }
+  { modelId: string; dtype: 'fp32' | 'q8'; language?: string }
 > = {
   tiny: {
     modelId: 'Xenova/whisper-tiny.en',
-    quantized: true,
+    dtype: 'q8',
     language: 'en',
   },
   base: {
     modelId: 'Xenova/whisper-base',
-    quantized: false,
+    dtype: 'fp32',
   },
 }
-
-const modernTranscribePayloadSchema = Schema.Struct({
-  pcm16: Schema.Uint8ArrayFromSelf.pipe(
-    Schema.filter((value) => {
-      if (value.byteLength <= 0) {
-        return 'pcm16 payload is invalid.'
-      }
-      return value.byteLength <= AUDIO_RECORDING.MAX_PCM16_BYTES || 'pcm16 payload is invalid.'
-    }),
-  ),
-  sampleRate: Schema.Number.pipe(
-    Schema.int(),
-    Schema.greaterThanOrEqualTo(AUDIO_SAMPLE_RATE.MIN_HZ),
-    Schema.lessThanOrEqualTo(AUDIO_SAMPLE_RATE.MAX_HZ),
-  ),
-  language: Schema.optional(
-    Schema.String.pipe(
-      Schema.trimmed(),
-      Schema.minLength(LANGUAGE_CODE.MIN_LENGTH),
-      Schema.maxLength(LANGUAGE_CODE.MAX_LENGTH),
-    ),
-  ),
-  model: Schema.optional(Schema.Literal(VOICE_MODEL_TINY, VOICE_MODEL_BASE)),
-})
-const transcribePayloadSchema = modernTranscribePayloadSchema
 
 type WhisperTranscriber = (
   audio: Float32Array,
@@ -63,7 +40,7 @@ type WhisperTranscriber = (
 ) => Promise<unknown>
 
 interface WhisperTranscriberOptions {
-  readonly quantized?: boolean
+  readonly dtype?: 'fp32' | 'q8'
   readonly task?: 'transcribe'
   readonly return_timestamps?: boolean
   readonly chunk_length_s?: number
@@ -120,7 +97,7 @@ function assertTransformersModule(value: unknown): asserts value is Transformers
   }
 }
 
-function pcm16BytesToFloat32(bytes: Uint8Array): Float32Array {
+function pcm16BytesToFloat32(bytes: Uint8Array) {
   const sampleCount = Math.floor(bytes.byteLength / DOUBLE_FACTOR)
   const normalized = new Float32Array(sampleCount)
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
@@ -164,16 +141,16 @@ function mapTranscriptionError(error: unknown) {
   return `Local voice transcription failed: ${message}`
 }
 
-async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
+async function loadTranscriber(model: VoiceModel) {
   const existing = transcriberPromises[model]
   if (existing) return existing
 
   const config = VOICE_MODEL_CONFIG[model]
   const transcriberPromise = (async () => {
-    const imported: unknown = await import('@xenova/transformers')
+    const imported: unknown = await import('@huggingface/transformers')
     assertTransformersModule(imported)
 
-    const cacheDir = path.join(app.getPath('userData'), 'models', 'transformers')
+    const cacheDir = path.join(appPaths.userData(), 'models', 'transformers')
     await mkdir(cacheDir, { recursive: true })
 
     imported.env.allowLocalModels = true
@@ -184,13 +161,13 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
     }
 
     const transcriber = await imported.pipeline('automatic-speech-recognition', config.modelId, {
-      quantized: config.quantized,
+      dtype: config.dtype,
     })
     if (!isWhisperTranscriber(transcriber)) {
       throw new Error('Whisper transcriber could not be created.')
     }
     return transcriber
-  })().catch((error) => {
+  })().catch((error: unknown) => {
     delete transcriberPromises[model]
     throw error
   })
@@ -218,7 +195,7 @@ function markModelUsed(model: VoiceModel) {
   scheduleEviction(model)
 }
 
-export function resetVoiceHandlerForTests(): void {
+export function resetVoiceHandlerForTests() {
   for (const model of VOICE_MODELS) {
     delete transcriberPromises[model]
     delete lastUsedAt[model]
@@ -228,10 +205,10 @@ export function resetVoiceHandlerForTests(): void {
   }
 }
 
-export function registerVoiceHandlers(): void {
+export function registerVoiceHandlers() {
   typedHandle('voice:transcribe-local', (_event, rawPayload: unknown) =>
     Effect.gen(function* () {
-      const payload = decodeUnknownOrThrow(transcribePayloadSchema, rawPayload)
+      const payload = decodeUnknownOrThrow(voiceTranscriptionRequestSchema, rawPayload)
       const model = payload.model ?? VOICE_MODEL_BASE
       const sampleCount = Math.floor(payload.pcm16.byteLength / DOUBLE_FACTOR)
       if (sampleCount <= 0) {
@@ -253,6 +230,7 @@ export function registerVoiceHandlers(): void {
       })
 
       const modelConfig = VOICE_MODEL_CONFIG[model]
+      const language = payload.language ?? modelConfig.language
       const rawResult = yield* Effect.tryPromise({
         try: () =>
           transcriber(audio, {
@@ -260,11 +238,12 @@ export function registerVoiceHandlers(): void {
             return_timestamps: false,
             chunk_length_s: AUDIO_RECORDING.CHUNK_LENGTH_S,
             stride_length_s: AUDIO_RECORDING.STRIDE_LENGTH_S,
-            language: payload.language ?? modelConfig.language,
+            ...(language === undefined ? {} : { language }),
           }),
         catch: (error) => new Error(mapTranscriptionError(error)),
       })
       markModelUsed(model)
+      yield* recordUsageStatisticsObservation({ kind: 'feature', flag: 'voice' })
       const text = extractTranscriptionText(rawResult)
       const response: VoiceTranscriptionResult = { text, model }
       return response

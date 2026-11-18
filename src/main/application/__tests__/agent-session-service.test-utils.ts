@@ -15,6 +15,8 @@ export const sessionServiceSession: SessionDetail = {
   messages: [],
   createdAt: 1,
   updatedAt: 2,
+  // A worktree-mode source, so a fork of it must not silently become local.
+  environmentMode: 'worktree',
 }
 
 export const sessionServiceForkedSession: SessionDetail = {

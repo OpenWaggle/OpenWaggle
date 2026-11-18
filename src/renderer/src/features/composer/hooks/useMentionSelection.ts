@@ -6,7 +6,6 @@ import {
   $isTextNode,
   type LexicalEditor,
 } from 'lexical'
-import { useEffectEvent } from 'react'
 import { $createFileMentionNode } from '../components/nodes/FileMentionNode'
 import type { MentionMatch } from '../lib/mention-match'
 
@@ -16,8 +15,14 @@ interface UseMentionSelectionInput {
   readonly onClose: () => void
 }
 
+/**
+ * Returns the mention-commit handler. Deliberately a plain function, not a
+ * useEffectEvent: the result is passed as a prop to the dropdown (and to the
+ * keyboard hook), and useEffectEvent results must only be called from Effects in
+ * the component that created them (react-doctor/rules-of-hooks).
+ */
 export function useMentionSelection({ editor, match, onClose }: UseMentionSelectionInput) {
-  return useEffectEvent((item: FileSuggestion) => {
+  return (item: FileSuggestion) => {
     editor.update(() => {
       const selection = $getSelection()
       if (!$isRangeSelection(selection) || !match) return
@@ -39,5 +44,5 @@ export function useMentionSelection({ editor, match, onClose }: UseMentionSelect
 
     onClose()
     editor.focus()
-  })
+  }
 }

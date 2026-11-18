@@ -6,7 +6,7 @@ declare global {
   }
 }
 
-const isElectron = typeof window !== 'undefined' && window.api !== undefined
+const isElectron = typeof window === 'undefined' ? false : window.api !== undefined
 const isDevelopment =
   typeof window !== 'undefined' &&
   window.location.protocol !== 'file:' &&

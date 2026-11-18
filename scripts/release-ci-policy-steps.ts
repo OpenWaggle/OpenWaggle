@@ -1,0 +1,245 @@
+/**
+ * The exact CI step literals the release policy pins.
+ *
+ * Extracted from `release-ci-policy.ts` so that file stays within the 300-line cap. These
+ * are deliberately literal: the policy compares them byte-for-byte against
+ * `.github/workflows/ci.yml`, so a step cannot be added, reordered or weakened without an
+ * explicit, reviewed change here.
+ *
+ * Note the comparison slices each step from one `      - ` marker to the next, so a comment
+ * placed between two steps becomes part of the preceding step's text and will fail the
+ * match. Keep rationale in this file rather than interleaved in the workflow.
+ */
+const ACTION_CHECKOUT = 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6'
+const ACTION_SETUP_NODE = 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6'
+const ACTION_SETUP_BUN = 'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2'
+export const IMMUTABLE_ACTIONS = [ACTION_CHECKOUT, ACTION_SETUP_BUN, ACTION_SETUP_NODE] as const
+export const REQUIRED_COMMANDS = new Map<string, string>([
+  ['Typecheck & Lint', 'bun scripts/check/output-budget.ts check'],
+  ['Unit Tests', 'bun run test:unit'],
+  ['Integration & Component Tests', 'bun run test:integration && bun run test:component'],
+  ['MCP Conformance', 'bun run prepare:native:node && bun run test:mcp:conformance'],
+])
+export const CONCURRENCY_GROUP =
+  'group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}'
+export const CONCURRENCY_CANCEL_LINE =
+  "cancel-in-progress: ${{ github.event_name != 'merge_group' }}"
+// Jobs permitted an exact job-level `if`. The three app-test jobs carry only the Release
+// Please skip (source is unchanged on that authenticated version-bump branch, so re-running
+// is redundant); the two rehearsals run on pull requests, merge-queue results and full
+// dispatches, scoped to the paths they rehearse. Asserted exactly, so no job here can carry
+// an arbitrary skip.
+const RELEASE_PR_SKIP =
+  "    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}\n"
+export const ALLOWED_JOB_CONDITIONS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['Unit Tests', [RELEASE_PR_SKIP]],
+  ['Integration & Component Tests', [RELEASE_PR_SKIP]],
+  ['MCP Conformance', [RELEASE_PR_SKIP]],
+  [
+    'Package Consumer Rehearsal (Node 22.19.0)',
+    [
+      '    if: >-\n',
+      "      (github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&\n",
+      "      (needs.changes.outputs.package == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')\n",
+    ],
+  ],
+  [
+    'Website & Docs Rehearsal (Node 24.14.0)',
+    [
+      '    if: >-\n',
+      "      (github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&\n",
+      "      (needs.changes.outputs.website-docs == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')\n",
+    ],
+  ],
+])
+export const DISPATCH_GUARD_STEP = `      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: \${{ github.sha }}
+          EXPECTED_SHA: \${{ inputs.head_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"`
+export const CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
+        with:
+          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
+export const COMMIT_POLICY_CHECKOUT_STEP = `      - uses: ${ACTION_CHECKOUT}
+        with:
+          fetch-depth: 0
+          ref: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}`
+/* Bun's version is the `packageManager` pin of package.json, the one every developer uses. */
+const BUN_SETUP_STEP = `      - uses: ${ACTION_SETUP_BUN}
+        with:
+          bun-version-file: package.json`
+/* Node still runs Electron's tooling and the test tiers; Bun's own cache replaces setup-node's. */
+const NODE_SETUP_STEP = `      - uses: ${ACTION_SETUP_NODE}
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false`
+/*
+ * Install runs through the repo-owned composite action, which restores Bun's package cache (these
+ * jobs ship nothing) and retries transient registry/postinstall network failures (for example
+ * onnxruntime binary downloads) instead of red a whole run on one timeout.
+ */
+const INSTALL_COMPOSITE_STEP = '      - uses: ./.github/actions/bun-install'
+/*
+ * Jobs that run Electron (the Pi main-bundle smoke and tests that require `electron`) fetch
+ * its binary in the install action, with retries. Electron otherwise downloads it lazily on
+ * first use with no retry, and one GitHub 504 failed a whole Typecheck & Lint run.
+ */
+const INSTALL_COMPOSITE_WITH_ELECTRON_STEP = `${INSTALL_COMPOSITE_STEP}
+        with:
+          electron-binary: 'true'`
+const TERMINAL_SHELLS_INSTALL_STEP = `      - name: Install terminal integration shells
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update || echo "::warning::apt-get update could not refresh every package source (attempt $attempt)."
+            if sudo apt-get install --yes zsh; then break; fi
+            sleep 15
+          done
+          /bin/zsh --version
+          while IFS= read -r insecure_path; do
+            [ -n "$insecure_path" ] || continue
+            sudo chown root -- "$insecure_path"
+            sudo chmod go-w -- "$insecure_path"
+          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
+          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'`
+/*
+ * NSIS is required by `bun run check:installer`, which compile-checks build/installer.nsh.
+ * Pinned here because a broken installer script otherwise only surfaces when the release
+ * workflow packages Windows - it silently broke two consecutive releases before this
+ * check existed.
+ *
+ * The apt steps tolerate a failing `apt-get update`: the runner image ships third-party
+ * sources (packages.microsoft.com once answered 403), and `apt-get update` fails on any of
+ * them even though the Ubuntu archive refreshed. The install and the version probe after it
+ * still fail the job when the package really is unavailable.
+ */
+const NSIS_INSTALL_STEP = `      - name: Install NSIS for the installer script check
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update || echo "::warning::apt-get update could not refresh every package source (attempt $attempt)."
+            if sudo apt-get install --yes nsis; then break; fi
+            sleep 15
+          done
+          makensis -VERSION`
+const RELEASE_POLICY_STEP = '      - run: bun scripts/release-ci-policy.ts'
+/**
+ * A desktop app release PR's package.json and CHANGELOG.md are generated (ADR 0070): a hand edit,
+ * or GitHub's "Update branch" without the release workflow writing them again, fails here instead
+ * of failing the release's verification on main after the merge.
+ */
+const RELEASE_FILES_STEP = `      - name: Verify generated desktop app release files
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'app-release-v') && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          HEAD_SHA: \${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          BASE_SHA=$(git merge-base "$HEAD_SHA" refs/remotes/origin/main)
+          VERSION=$(git show "\${HEAD_SHA}:package.json" | jq -er '.version')
+          bun scripts/app-release-state.ts verify-release-tree \\
+            --base "$BASE_SHA" --candidate "$HEAD_SHA" --version "$VERSION"`
+const CONVENTIONAL_COMMITS_STEP = `      - name: Validate Conventional Commits
+        env:
+          COMMIT_POLICY_FROM: \${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          COMMIT_POLICY_TO: \${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          COMMIT_POLICY_EVENT: \${{ github.event_name }}
+          PR_TITLE: \${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
+        run: |
+          if [ "$COMMIT_POLICY_EVENT" = workflow_dispatch ]; then
+            git fetch --no-tags origin main:refs/remotes/origin/main
+            COMMIT_POLICY_FROM="$(git merge-base "$COMMIT_POLICY_TO" refs/remotes/origin/main)"
+            test -n "$COMMIT_POLICY_FROM"
+            git merge-base --is-ancestor "$COMMIT_POLICY_FROM" "$COMMIT_POLICY_TO"
+            git merge-base --is-ancestor "$COMMIT_POLICY_FROM" refs/remotes/origin/main
+          fi
+          bun scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"`
+
+/**
+ * Publishes the check runner's per-step times (.tmp/check/report.json) to the job summary, also
+ * when the check failed.
+ */
+const CHECK_JOB_SUMMARY_STEP = `      - name: Publish check step times
+        if: always()
+        run: bun scripts/check/job-summary.ts`
+
+/*
+ * Every tier runs on Bun (ADR 0064), but the main process, shared code and packages ship on
+ * Electron's Node.js, where the trusted main network guard and the fs and child_process paths
+ * behave differently. This step runs their unit tests again on the job's Node.js 24.
+ */
+const NODE_RUNTIME_UNIT_STEP = `      - name: Unit tests of shipped Node.js code on Node.js
+        run: bun run test:node-runtime:raw`
+
+/*
+ * The same for the main process's integration tests, where child_process, SQLite, node-pty,
+ * worker_threads and fs do the real work; test:integration already built the natives for Node.
+ */
+const NODE_RUNTIME_INTEGRATION_STEP = `      - name: Integration tests of the main process on Node.js
+        run: bun run test:node-runtime:integration:raw`
+
+export const EXPECTED_STEPS = new Map<string, readonly string[]>([
+  [
+    'Commit Policy',
+    [
+      DISPATCH_GUARD_STEP,
+      COMMIT_POLICY_CHECKOUT_STEP,
+      BUN_SETUP_STEP,
+      NODE_SETUP_STEP,
+      INSTALL_COMPOSITE_STEP,
+      RELEASE_POLICY_STEP,
+      RELEASE_FILES_STEP,
+      CONVENTIONAL_COMMITS_STEP,
+    ],
+  ],
+  [
+    'Typecheck & Lint',
+    [
+      DISPATCH_GUARD_STEP,
+      // Full history: the no-cheating and dependency-pins steps compare with origin/main.
+      COMMIT_POLICY_CHECKOUT_STEP,
+      BUN_SETUP_STEP,
+      NODE_SETUP_STEP,
+      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
+      NSIS_INSTALL_STEP,
+      '      - run: bun scripts/check/output-budget.ts check',
+      CHECK_JOB_SUMMARY_STEP,
+    ],
+  ],
+  [
+    'Unit Tests',
+    [
+      DISPATCH_GUARD_STEP,
+      CHECKOUT_STEP,
+      BUN_SETUP_STEP,
+      NODE_SETUP_STEP,
+      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
+      '      - run: bun run test:unit',
+      NODE_RUNTIME_UNIT_STEP,
+    ],
+  ],
+  [
+    'Integration & Component Tests',
+    [
+      DISPATCH_GUARD_STEP,
+      CHECKOUT_STEP,
+      BUN_SETUP_STEP,
+      NODE_SETUP_STEP,
+      INSTALL_COMPOSITE_WITH_ELECTRON_STEP,
+      TERMINAL_SHELLS_INSTALL_STEP,
+      '      - run: bun run test:integration && bun run test:component',
+      NODE_RUNTIME_INTEGRATION_STEP,
+    ],
+  ],
+  [
+    'MCP Conformance',
+    [
+      DISPATCH_GUARD_STEP,
+      CHECKOUT_STEP,
+      BUN_SETUP_STEP,
+      NODE_SETUP_STEP,
+      INSTALL_COMPOSITE_STEP,
+      '      - run: bun run prepare:native:node && bun run test:mcp:conformance',
+    ],
+  ],
+])

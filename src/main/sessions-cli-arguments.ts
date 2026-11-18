@@ -1,0 +1,206 @@
+import type { AgentAuthorizationMode } from '@shared/types/agent-authorization'
+import type {
+  ForkWorkspaceSelection,
+  LaunchWorkspaceSelection,
+  SessionExecutionSpecialization,
+  SpawnWorkspaceSelection,
+} from '@shared/types/session-lifecycle'
+import type { SessionDiscoveryMode } from '@shared/types/session-query'
+import { THINKING_LEVELS } from '@shared/types/settings'
+import { sessionIdFromReference } from '@shared/utils/session-link'
+import { CommandCliUsageError } from './command-cli-option-contract'
+import { hasFlag, option, type ParsedArguments } from './mcp-cli-arguments'
+
+export function required(value: string | undefined, label: string) {
+  if (!value) throw new CommandCliUsageError(`${label} is required.`)
+  return value
+}
+
+/** A Session identity, given as a bare ID or as a Session link (ADR 0056). */
+export function requiredSessionId(value: string | undefined, label = 'Session ID') {
+  return sessionIdFromReference(required(value, label), label)
+}
+
+export function positiveInteger(value: string | undefined, label: string) {
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new CommandCliUsageError(`${label} must be a positive integer.`)
+  }
+  return parsed
+}
+
+export function nonNegativeInteger(value: string | undefined, label: string) {
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new CommandCliUsageError(`${label} must be a non-negative integer.`)
+  }
+  return parsed
+}
+
+export function discoveryMode(value: string | undefined) {
+  if (value === undefined) return undefined
+  if (value === 'hybrid' || value === 'lexical' || value === 'semantic') {
+    const mode: SessionDiscoveryMode | undefined = value
+    return mode
+  }
+  throw new CommandCliUsageError('--mode must be one of hybrid, lexical, semantic.')
+}
+
+export function runAuthorization(arguments_: ParsedArguments) {
+  const explicit = option(arguments_, 'authorization')
+  if (hasFlag(arguments_, 'yolo')) {
+    if (explicit && explicit !== 'yolo') {
+      throw new CommandCliUsageError(
+        '--yolo cannot be combined with a different --authorization value.',
+      )
+    }
+    const mode: AgentAuthorizationMode | undefined = 'yolo'
+    return mode
+  }
+  if (!explicit || explicit === 'inherit') return undefined
+  if (explicit === 'ask-for-approval' || explicit === 'yolo') {
+    const mode: AgentAuthorizationMode | undefined = explicit
+    return mode
+  }
+  throw new CommandCliUsageError('--authorization must be inherit, ask-for-approval, or yolo.')
+}
+
+export function thinkingLevel(value: string | undefined, label = '--thinking') {
+  if (!value) return undefined
+  const resolved = THINKING_LEVELS.find((candidate) => candidate === value)
+  if (!resolved) {
+    throw new CommandCliUsageError(`${label} must be one of ${THINKING_LEVELS.join(', ')}.`)
+  }
+  return resolved
+}
+
+export function specialization(arguments_: ParsedArguments) {
+  const modelId = option(arguments_, 'model')
+  const resolvedThinkingLevel = thinkingLevel(option(arguments_, 'thinking'))
+  const agentDefinitionName = option(arguments_, 'agent')
+  const result: SessionExecutionSpecialization | undefined =
+    modelId || resolvedThinkingLevel || agentDefinitionName
+      ? {
+          ...(modelId ? { modelId } : {}),
+          ...(resolvedThinkingLevel ? { thinkingLevel: resolvedThinkingLevel } : {}),
+          ...(agentDefinitionName ? { agentDefinitionName } : {}),
+        }
+      : undefined
+  return result
+}
+
+/**
+ * `{ [key]: value }` for an option given a non-empty value, else `{}`, so a payload omits the key
+ * rather than carrying an explicit undefined.
+ */
+export function optionEntry<Key extends string>(
+  arguments_: ParsedArguments,
+  name: string,
+  key: Key,
+) {
+  const value = option(arguments_, name)
+  if (!value) {
+    const partial: Partial<Record<Key, string>> = {}
+    return partial
+  }
+  const entry: Partial<Record<Key, string>> = {}
+  entry[key] = value
+  return entry
+}
+
+function worktreeSelection(arguments_: ParsedArguments) {
+  const baseRef = option(arguments_, 'base-ref')
+  return {
+    mode: 'new-worktree' as const,
+    ...(baseRef ? { baseRef } : {}),
+    ...(hasFlag(arguments_, 'start-from-origin') ? { startFromOrigin: true } : {}),
+  }
+}
+
+export function launchWorkspace(arguments_: ParsedArguments) {
+  const mode = option(arguments_, 'workspace')
+  if (!mode) return undefined
+  if (mode === 'current' || mode === 'local') {
+    const selection: LaunchWorkspaceSelection | undefined = { mode }
+    return selection
+  }
+  if (mode === 'existing') {
+    const selection: LaunchWorkspaceSelection | undefined = {
+      mode,
+      workspaceId: required(option(arguments_, 'workspace-id'), '--workspace-id'),
+    }
+    return selection
+  }
+  if (mode === 'new-worktree') {
+    const selection: LaunchWorkspaceSelection | undefined = worktreeSelection(arguments_)
+    return selection
+  }
+  throw new CommandCliUsageError(`Unsupported launch Workspace mode: ${mode}.`)
+}
+
+export function spawnWorkspace(arguments_: ParsedArguments) {
+  const mode = option(arguments_, 'workspace')
+  if (!mode) return undefined
+  if (mode === 'share-parent' || mode === 'local') {
+    const selection: SpawnWorkspaceSelection | undefined = { mode }
+    return selection
+  }
+  if (mode === 'new-worktree') {
+    const selection: SpawnWorkspaceSelection | undefined = worktreeSelection(arguments_)
+    return selection
+  }
+  throw new CommandCliUsageError(`Unsupported spawn Workspace mode: ${mode}.`)
+}
+
+export function forkWorkspace(arguments_: ParsedArguments) {
+  const mode = option(arguments_, 'workspace')
+  if (!mode) return undefined
+  if (mode === 'share-source' || mode === 'local') {
+    const selection: ForkWorkspaceSelection | undefined = { mode }
+    return selection
+  }
+  if (mode === 'existing') {
+    const selection: ForkWorkspaceSelection | undefined = {
+      mode,
+      workspaceId: required(option(arguments_, 'workspace-id'), '--workspace-id'),
+    }
+    return selection
+  }
+  if (mode === 'new-worktree') {
+    const selection: ForkWorkspaceSelection | undefined = worktreeSelection(arguments_)
+    return selection
+  }
+  throw new CommandCliUsageError(`Unsupported fork Workspace mode: ${mode}.`)
+}
+
+export function watchCursor(arguments_: ParsedArguments) {
+  const hostInstanceId = option(arguments_, 'after-host')
+  const sequence = option(arguments_, 'after-sequence')
+  if (hostInstanceId === undefined && sequence === undefined) return undefined
+  return {
+    hostInstanceId: required(hostInstanceId, '--after-host'),
+    sequence: nonNegativeInteger(required(sequence, '--after-sequence'), '--after-sequence'),
+  }
+}
+
+/** Commands that act on an active Run or queue for one, so they never set Session settings. */
+const ACTIVE_RUN_COMMANDS = new Set(['follow-up', 'steer', 'replace'])
+
+/**
+ * A thinking level or Run authorization override applies only when a command starts a Run on an
+ * idle Session (create, launch, spawn, message, start). Refuse them on follow-up, steer, and
+ * replace with the same codes the Host uses for a message that would be queued.
+ */
+export function refuseRunSettingsOnActiveRunCommand(route: string, arguments_: ParsedArguments) {
+  if (!ACTIVE_RUN_COMMANDS.has(route)) return
+  if (arguments_.options.has('thinking')) {
+    throw new CommandCliUsageError(
+      `thinking_level_requires_idle_session: hive ${route} does not accept --thinking. The Session thinking level can change only when no Run is active; pass --thinking to message or start on an idle Session.`,
+    )
+  }
+  if (arguments_.options.has('authorization') || arguments_.options.has('yolo')) {
+    throw new CommandCliUsageError(
+      `run_authorization_override_requires_idle_session: hive ${route} does not accept --authorization or --yolo. A Run authorization override applies only to a Run started on an idle Session; pass it to message or start.`,
+    )
+  }
+}

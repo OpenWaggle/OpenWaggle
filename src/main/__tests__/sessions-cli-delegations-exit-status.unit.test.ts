@@ -1,0 +1,188 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CliError } from '../cli-error'
+import {
+  LocalSessionClientProtocolError,
+  LocalSessionClientTimeoutError,
+} from '../session-host/local-session-client-protocol-error'
+
+const mocks = vi.hoisted(() => ({
+  createClientInput: vi.fn(),
+  executeCommand: vi.fn(),
+}))
+
+vi.mock('../local-session-cli-client', () => ({
+  createLocalSessionCliClientInput: mocks.createClientInput,
+}))
+
+vi.mock('../session-host/local-session-client', () => ({
+  executeLocalSessionCommand: mocks.executeCommand,
+}))
+
+import { runSessionsCli } from '../sessions-cli'
+
+describe('Hive CLI Delegation structured failure exit status', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.createClientInput.mockResolvedValue({
+      paths: {},
+      clientKind: 'cli',
+      clientVersion: 'test',
+      workingDirectory: '/project',
+    })
+    vi.spyOn(process.stdout, 'write').mockImplementation((_chunk, _encoding, callback) => {
+      callback?.()
+      return true
+    })
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+  })
+
+  it('returns not-found while preserving a structured Delegation query error', async () => {
+    mocks.executeCommand.mockResolvedValue({
+      contract: 'session-query-v2',
+      response: {
+        contractVersion: 2,
+        requestId: 'request-read',
+        outcome: {
+          operation: 'delegations-read',
+          error: {
+            code: 'delegation_not_found',
+            kind: 'not_found',
+            message: 'Delegation not found.',
+          },
+        },
+      },
+    })
+
+    await expect(
+      runSessionsCli(['delegations-read', 'missing-delegation', '--json']),
+    ).resolves.toBe(5)
+    expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      type: 'response',
+      command: 'hive delegations-read',
+      result: { response: { outcome: { error: { code: 'delegation_not_found' } } } },
+    })
+  })
+
+  it('returns conflict while preserving a rejected Delegation mutation', async () => {
+    mocks.executeCommand.mockResolvedValue({
+      contract: 'session-control-v2',
+      response: {
+        contractVersion: 2,
+        requestId: 'request-accept',
+        idempotencyKey: 'accept-once',
+        replayed: false,
+        outcome: {
+          operation: 'delegation-accept',
+          effect: 'rejected',
+          sessionId: 'queen',
+          code: 'submission_revision_stale',
+          kind: 'conflict',
+        },
+      },
+    })
+
+    await expect(
+      runSessionsCli(['delegation-accept', 'queen', 'delegation-1', '2', '--json']),
+    ).resolves.toBe(6)
+    expect(JSON.parse(String(vi.mocked(process.stdout.write).mock.calls[0]?.[0]))).toMatchObject({
+      schemaVersion: 1,
+      type: 'response',
+      command: 'hive delegation-accept',
+      result: {
+        response: {
+          outcome: { effect: 'rejected', code: 'submission_revision_stale', kind: 'conflict' },
+        },
+      },
+    })
+  })
+
+  it('renders a readable summary by default', async () => {
+    mocks.executeCommand.mockResolvedValue({
+      contract: 'session-query-v2',
+      response: {
+        contractVersion: 2,
+        requestId: 'request-list',
+        outcome: {
+          operation: 'delegations-list',
+          delegations: [{ delegationId: 'delegation-1', state: 'working' }],
+        },
+      },
+    })
+
+    await expect(runSessionsCli(['delegations-list', '--all'])).resolves.toBe(0)
+    const output = String(vi.mocked(process.stdout.write).mock.calls[0]?.[0])
+    expect(output).toContain('Delegations List')
+    expect(output).toContain('delegation-1')
+    expect(output).not.toMatch(/^\{"contract"/)
+  })
+
+  it.each([
+    {
+      name: 'credential lookup',
+      error: new CliError('authentication', 'Profile credential file could not be read.'),
+      exitCode: 3,
+      kind: 'authentication',
+    },
+    {
+      name: 'profile authorization',
+      error: new LocalSessionClientProtocolError('capability_denied', 'Access rejected.', {
+        errorKind: 'authorization',
+      }),
+      exitCode: 4,
+      kind: 'authorization',
+    },
+    {
+      name: 'Host timeout',
+      error: new LocalSessionClientTimeoutError('Session Host timed out.'),
+      exitCode: 7,
+      kind: 'timeout',
+    },
+    {
+      name: 'Host unavailability',
+      error: Object.assign(new Error('connect ECONNREFUSED'), {
+        code: 'ECONNREFUSED',
+        syscall: 'connect',
+      }),
+      exitCode: 8,
+      kind: 'host_unavailable',
+    },
+    {
+      // A kind comes from the error's type, never its wording (#351).
+      name: 'untyped failure that mentions credentials',
+      error: new Error('The credential destination timed out: host not found.'),
+      exitCode: 1,
+      kind: 'internal',
+    },
+  ])(
+    'preserves the JSON error contract for $name before a result',
+    async ({ error, exitCode, kind }) => {
+      if (kind === 'authentication' || kind === 'host_unavailable') {
+        mocks.createClientInput.mockRejectedValue(error)
+      } else {
+        mocks.executeCommand.mockRejectedValue(error)
+      }
+
+      await expect(runSessionsCli(['delegations-list', '--all', '--json'])).resolves.toBe(exitCode)
+      expect(process.stdout.write).not.toHaveBeenCalled()
+      expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toEqual({
+        schemaVersion: 1,
+        type: 'error',
+        error: {
+          kind,
+          message: error.message,
+          ...(error instanceof LocalSessionClientProtocolError ? { code: error.code } : {}),
+        },
+      })
+    },
+  )
+
+  it('reports usage errors without contacting the Host', async () => {
+    await expect(runSessionsCli(['delegations-list', '--unknown', '--json'])).resolves.toBe(2)
+    expect(mocks.createClientInput).not.toHaveBeenCalled()
+    expect(JSON.parse(String(vi.mocked(process.stderr.write).mock.calls[0]?.[0]))).toMatchObject({
+      type: 'error',
+      error: { kind: 'usage', message: 'Unknown option for OpenWaggle Hive: --unknown.' },
+    })
+  })
+})

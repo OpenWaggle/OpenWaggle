@@ -1,17 +1,29 @@
-import { matchBy } from '@diegogbrisa/ts-match'
+import { PRODUCT_NAME } from '@shared/build-identity-runtime'
 import type { UpdateStatus } from '@shared/types/updater'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { usePreferencesStore } from '@/features/settings/state'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/Button'
+import { NumberStepper } from '@/shared/ui/NumberStepper'
+import { SegmentedRadioGroup } from '@/shared/ui/SegmentedRadioGroup'
+import { SettingsSectionContainer } from '../SettingsSectionContainer'
+import { AgentToolsSettings } from './AgentToolsSettings'
+import { CliAvailabilityNotice } from './CliAvailabilityNotice'
+import { PiSessionContinuationSetting } from './PiSessionContinuationSetting'
+import { UpdateChannelSetting } from './UpdateChannelSetting'
+import { UsageStatisticsSetting } from './UsageStatisticsSetting'
+import { getStatusRow } from './update-status-row'
 
 const logger = createRendererLogger('settings')
+
+const COMPACTION_THRESHOLD_MINIMUM = 1
+const COMPACTION_THRESHOLD_MAXIMUM = 100
 
 function useAppVersion() {
   const [version, setVersion] = useState('…')
   useEffect(() => {
-    if (typeof api.getAppVersion !== 'function') return
     api
       .getAppVersion()
       .then(setVersion)
@@ -26,7 +38,6 @@ function useUpdateStatus() {
   const [status, setStatus] = useState<UpdateStatus>({ type: 'idle' })
 
   useEffect(() => {
-    if (typeof api.getUpdateStatus !== 'function') return
     api
       .getUpdateStatus()
       .then(setStatus)
@@ -35,56 +46,104 @@ function useUpdateStatus() {
       })
   }, [])
 
-  useEffect(() => {
-    if (typeof api.onUpdateStatus !== 'function') return
-    return api.onUpdateStatus(setStatus)
-  }, [])
+  useEffect(() => api.onUpdateStatus(setStatus), [])
 
   return status
 }
 
-interface StatusRow {
-  subtitle: string
-  subtitleClass: string
-  dotClass: string | null
+const BROWSER_LINK_TARGET_OPTIONS = [
+  { value: 'system', label: 'System browser' },
+  { value: 'app', label: 'OpenWaggle' },
+] as const
+
+function BrowserLinkTargetSettings() {
+  const target = usePreferencesStore((state) => state.settings.browserLinkTarget)
+  const setTarget = usePreferencesStore((state) => state.setBrowserLinkTarget)
+  const [saving, setSaving] = useState(false)
+
+  const choose = (next: 'system' | 'app') => {
+    if (saving || next === target) return
+    setSaving(true)
+    void setTarget(next)
+      .catch((error: unknown) => {
+        logger.warn('Failed to update browser link target', { error: String(error) })
+      })
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-base font-semibold text-text-primary">Links</h3>
+      <div className="flex min-h-14 items-center justify-between gap-4 rounded-lg border border-border bg-bg px-5 py-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-text-primary">Open web links in</div>
+          <div className="mt-0.5 text-xs text-text-tertiary">
+            Terminal links and detected local ports use this destination.
+          </div>
+        </div>
+        <SegmentedRadioGroup
+          label="Open web links in"
+          options={BROWSER_LINK_TARGET_OPTIONS}
+          value={target}
+          pending={saving}
+          onSelect={choose}
+        />
+      </div>
+    </div>
+  )
 }
 
-const UP_TO_DATE: StatusRow = {
-  subtitle: 'You are up to date',
-  subtitleClass: 'text-[#9098a8]',
-  dotClass: null,
-}
+function CompactionThresholdSetting() {
+  const compactionThresholdPercent = usePreferencesStore(
+    (state) => state.settings.compactionThresholdPercent,
+  )
+  const setCompactionThresholdPercent = usePreferencesStore(
+    (state) => state.setCompactionThresholdPercent,
+  )
+  const [isPersistingCompactionThreshold, setIsPersistingCompactionThreshold] = useState(false)
+  const isPersistingCompactionThresholdRef = useRef(false)
 
-function getStatusRow(status: UpdateStatus) {
-  return matchBy(status, 'type')
-    .with('idle', () => UP_TO_DATE)
-    .with('not-available', () => UP_TO_DATE)
-    .with('checking', () => ({
-      subtitle: 'Checking for updates…',
-      subtitleClass: 'text-[#9098a8]',
-      dotClass: null,
-    }))
-    .with('available', (s) => ({
-      subtitle: `Downloading v${s.version}…`,
-      subtitleClass: 'text-[#61a8ff]',
-      dotClass: 'bg-[#61a8ff]',
-    }))
-    .with('downloading', (s) => ({
-      subtitle: `Downloading v${s.version}… ${Math.round(s.percent)}%`,
-      subtitleClass: 'text-[#61a8ff]',
-      dotClass: 'bg-[#61a8ff]',
-    }))
-    .with('downloaded', (s) => ({
-      subtitle: `v${s.version} ready to install`,
-      subtitleClass: 'text-[#4caf72]',
-      dotClass: 'bg-[#4caf72]',
-    }))
-    .with('error', () => ({
-      subtitle: 'Update check failed',
-      subtitleClass: 'text-[#ef4444]',
-      dotClass: 'bg-[#ef4444]',
-    }))
-    .exhaustive()
+  const updateCompactionThreshold = (percent: number) => {
+    if (isPersistingCompactionThresholdRef.current) return
+    if (percent === compactionThresholdPercent) return
+
+    isPersistingCompactionThresholdRef.current = true
+    setIsPersistingCompactionThreshold(true)
+    void setCompactionThresholdPercent(percent)
+      .catch(() => undefined)
+      .finally(() => {
+        isPersistingCompactionThresholdRef.current = false
+        setIsPersistingCompactionThreshold(false)
+      })
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-base font-semibold text-text-primary">Context compaction</h3>
+      <div className="overflow-hidden rounded-lg border border-border bg-bg">
+        <div className="flex min-h-14 items-center justify-between gap-3 px-5 py-3">
+          <label htmlFor="automatic-compaction-threshold">
+            <span className="block text-xs font-medium text-text-primary">
+              Automatic compaction threshold
+            </span>
+            <span className="mt-0.5 block text-xs text-text-tertiary">
+              Compact before the next model request when context reaches this percentage.
+            </span>
+          </label>
+          <NumberStepper
+            id="automatic-compaction-threshold"
+            label="Automatic compaction threshold"
+            value={compactionThresholdPercent}
+            minimum={COMPACTION_THRESHOLD_MINIMUM}
+            maximum={COMPACTION_THRESHOLD_MAXIMUM}
+            suffix="%"
+            disabled={isPersistingCompactionThreshold}
+            onValueChange={updateCompactionThreshold}
+          />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function GeneralSection() {
@@ -95,51 +154,65 @@ export function GeneralSection() {
   const canCheck =
     status.type === 'idle' || status.type === 'not-available' || status.type === 'error'
   const isDownloaded = status.type === 'downloaded'
+  const isWaitingForRuns =
+    status.type === 'downloaded' && status.waitingForRuns !== undefined && status.waitingForRuns > 0
   const isChecking = status.type === 'checking'
 
   return (
-    <div className="space-y-6">
+    <SettingsSectionContainer className="space-y-6">
+      <CliAvailabilityNotice />
+      <BrowserLinkTargetSettings />
+
+      <CompactionThresholdSetting />
+
+      <PiSessionContinuationSetting />
+
+      <AgentToolsSettings />
+
       {/* About & Updates — title outside the card */}
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-[#e7e9ee]">About & Updates</h3>
+        <h3 className="text-base font-semibold text-text-primary">About & Updates</h3>
 
-        <div className="overflow-hidden rounded-lg border border-[#1e2229] bg-[#111418]">
+        <div className="overflow-hidden rounded-lg border border-border bg-bg">
           {/* Row 1 — Version */}
-          <div className="flex h-14 items-center justify-between border-b border-[#1e2229] px-5">
+          <div className="flex h-14 items-center justify-between border-b border-border px-5">
             <div className="flex flex-col gap-0.5">
-              <span className="text-[13px] font-medium text-[#e7e9ee]">Version</span>
-              <span className="text-[12px] text-[#9098a8]">OpenWaggle v{version}</span>
+              <span className="text-xs font-medium text-text-primary">Version</span>
+              <span className="text-xs text-text-tertiary">
+                {PRODUCT_NAME} v{version}
+              </span>
             </div>
           </div>
 
+          <UpdateChannelSetting />
+          <UsageStatisticsSetting />
+
           {/* Row 2 — Latest version / status */}
-          <div className="flex h-14 items-center justify-between px-5">
-            <div className="flex items-center gap-2">
+          <div className="flex min-h-14 items-center justify-between gap-4 px-5 py-3">
+            <div className="flex min-w-0 items-center gap-2">
               {statusRow.dotClass ? (
                 <div className={`size-2 shrink-0 rounded-full ${statusRow.dotClass}`} />
-              ) : isChecking ? (
-                <Loader2 className="size-3 shrink-0 animate-spin text-[#9098a8]" />
+              ) : isChecking || status.type === 'installing' ? (
+                <Loader2 className="size-3 shrink-0 animate-spin text-text-tertiary" />
               ) : null}
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-medium text-[#e7e9ee]">Latest version</span>
-                <span className={`text-[12px] ${statusRow.subtitleClass}`}>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-xs font-medium text-text-primary">Latest version</span>
+                <span className={`break-words text-xs ${statusRow.subtitleClass}`}>
                   {statusRow.subtitle}
                 </span>
               </div>
             </div>
-            <div>
+            <div className="shrink-0">
               {canCheck && (
                 <Button
                   variant="secondary"
                   size="xs"
                   onClick={() => {
-                    if (typeof api.checkForUpdates === 'function') {
-                      api.checkForUpdates().catch((err: unknown) => {
-                        logger.warn('Failed to check for updates', { error: String(err) })
-                      })
-                    }
+                    api.checkForUpdates().catch((err: unknown) => {
+                      logger.warn('Failed to check for updates', { error: String(err) })
+                    })
                   }}
-                  className="h-7 border-[#2a2f3a] bg-[#1a1f28] text-[#c9cdd6] hover:bg-[#222830]"
+                  className="h-7 border-border-light bg-bg-secondary text-text-secondary hover:bg-bg-hover"
                 >
                   <RefreshCw className="size-3" />
                   Check now
@@ -150,22 +223,21 @@ export function GeneralSection() {
                   variant="primary"
                   size="xs"
                   onClick={() => {
-                    if (typeof api.installUpdate === 'function') {
-                      api.installUpdate().catch((err: unknown) => {
-                        logger.warn('Failed to install update', { error: String(err) })
-                      })
-                    }
+                    const install = isWaitingForRuns ? api.installUpdateNow() : api.installUpdate()
+                    install.catch((err: unknown) => {
+                      logger.warn('Failed to install update', { error: String(err) })
+                    })
                   }}
-                  className="h-7 bg-[#f5a623] text-white hover:bg-[#e09520]"
+                  className="h-7 bg-accent text-bg hover:bg-accent-dim"
                 >
                   <RotateCcw className="size-3" />
-                  Restart to update
+                  {isWaitingForRuns ? 'Restart now' : 'Restart to update'}
                 </Button>
               )}
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </SettingsSectionContainer>
   )
 }

@@ -1,120 +1,42 @@
 import { SessionId } from '@shared/types/brand'
-import type { IpcEventChannelMap } from '@shared/types/ipc-events'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSessionStatusStore } from '@/features/sessions/state'
+import { queryKeys } from '@/queries/query-keys'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
 import { useUIStore } from '../ui-store'
-import { useWorkspaceLifecycle } from '../useWorkspaceLifecycle'
+import {
+  dispatchInAct,
+  getWorkspaceLifecycleMocks,
+  getWorkspaceTerminalState,
+  loadUseWorkspaceLifecycle,
+  resetWorkspaceLifecycleMocks,
+  runWorkspaceHotkey,
+} from './useWorkspaceLifecycle.test-harness'
 
-type TitleUpdatedPayload = IpcEventChannelMap['sessions:title-updated']['payload']
-type TitleUpdatedHandler = (payload: TitleUpdatedPayload) => void
-interface HotkeyBinding {
-  readonly hotkey: string
-  readonly callback: () => void
-}
-
-const lifecycleMocks = vi.hoisted(() => {
-  let titleUpdatedHandler: TitleUpdatedHandler | null = null
-  const titleUnsubscribe = vi.fn()
-  const hotkeys: HotkeyBinding[] = []
-  return {
-    projectPath: '/repo',
-    activeSessionId: 'session-1',
-    loadChatSessions: vi.fn().mockResolvedValue(undefined),
-    refreshSession: vi.fn().mockResolvedValue(undefined),
-    updateSessionTitle: vi.fn(),
-    loadSessionTrees: vi.fn().mockResolvedValue(undefined),
-    refreshSessionTree: vi.fn().mockResolvedValue(undefined),
-    refreshGitStatus: vi.fn().mockResolvedValue(undefined),
-    refreshGitBranches: vi.fn().mockResolvedValue(undefined),
-    navigate: vi.fn(),
-    toggleDiff: vi.fn(),
-    toggleSessionTree: vi.fn(),
-    useGitRefresh: vi.fn(),
-    useSessionStatusMonitor: vi.fn(),
-    titleUnsubscribe,
-    hotkeys,
-    getTitleUpdatedHandler: () => titleUpdatedHandler,
-    onSessionTitleUpdated: vi.fn((handler: TitleUpdatedHandler) => {
-      titleUpdatedHandler = handler
-      return titleUnsubscribe
-    }),
-  }
-})
-
-vi.mock('@tanstack/react-hotkeys', () => ({
-  useHotkeys: (bindings: readonly HotkeyBinding[]) => {
-    lifecycleMocks.hotkeys.length = 0
-    lifecycleMocks.hotkeys.push(...bindings)
-  },
-}))
-
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => lifecycleMocks.navigate,
-}))
-
-vi.mock('@/features/chat/hooks', () => ({
-  useChat: () => ({
-    activeSessionId: lifecycleMocks.activeSessionId,
-    startDraftSession: vi.fn(),
-    loadSessions: lifecycleMocks.loadChatSessions,
-    refreshSession: lifecycleMocks.refreshSession,
-    updateSessionTitle: lifecycleMocks.updateSessionTitle,
-  }),
-}))
-
-vi.mock('@/features/diff-panel/hooks', () => ({
-  useDiffRouteNavigation: () => ({
-    toggleDiff: lifecycleMocks.toggleDiff,
-    toggleSessionTree: lifecycleMocks.toggleSessionTree,
-  }),
-}))
-
-vi.mock('@/features/git/hooks', () => ({
-  useGit: () => ({
-    refreshStatus: lifecycleMocks.refreshGitStatus,
-    refreshBranches: lifecycleMocks.refreshGitBranches,
-  }),
-  useGitRefresh: lifecycleMocks.useGitRefresh,
-}))
-
-vi.mock('@/features/sessions/hooks', () => ({
-  useProject: () => ({ projectPath: lifecycleMocks.projectPath }),
-  useSessions: () => ({
-    loadSessions: lifecycleMocks.loadSessionTrees,
-    refreshSessionTree: lifecycleMocks.refreshSessionTree,
-  }),
-  useSessionStatusMonitor: lifecycleMocks.useSessionStatusMonitor,
-}))
-
-vi.mock('@/shared/lib/ipc', () => ({
-  api: {
-    onSessionTitleUpdated: lifecycleMocks.onSessionTitleUpdated,
-  },
-}))
-
-function runHotkey(hotkey: string) {
-  const binding = lifecycleMocks.hotkeys.find((candidate) => candidate.hotkey === hotkey)
-  if (!binding) throw new Error(`Expected hotkey ${hotkey}`)
-  binding.callback()
-}
+const lifecycleMocks = getWorkspaceLifecycleMocks()
 
 describe('useWorkspaceLifecycle', () => {
+  let useWorkspaceLifecycle: Awaited<
+    ReturnType<typeof loadUseWorkspaceLifecycle>
+  >['useWorkspaceLifecycle']
+
+  // The hook's module graph is large and cold the first time: import it once, under a deadline.
+  beforeAll(async () => {
+    ;({ useWorkspaceLifecycle } = await loadUseWorkspaceLifecycle())
+  }, COLD_IMPORT_TIMEOUT_MS)
+
   beforeEach(() => {
-    useUIStore.setState({ sidebarOpen: true, terminalOpen: false, commandPaletteOpen: false })
-    lifecycleMocks.loadChatSessions.mockClear()
-    lifecycleMocks.loadSessionTrees.mockClear()
-    lifecycleMocks.refreshGitStatus.mockClear()
-    lifecycleMocks.refreshGitBranches.mockClear()
-    lifecycleMocks.refreshSessionTree.mockClear()
-    lifecycleMocks.updateSessionTitle.mockClear()
-    lifecycleMocks.navigate.mockClear()
-    lifecycleMocks.toggleDiff.mockClear()
-    lifecycleMocks.toggleSessionTree.mockClear()
-    lifecycleMocks.useGitRefresh.mockClear()
-    lifecycleMocks.useSessionStatusMonitor.mockClear()
-    lifecycleMocks.onSessionTitleUpdated.mockClear()
-    lifecycleMocks.titleUnsubscribe.mockClear()
-    lifecycleMocks.hotkeys.length = 0
+    resetWorkspaceLifecycleMocks()
+  })
+
+  it("binds project action shortcuts to the open Session's project, not the stale preference", () => {
+    lifecycleMocks.sessionProjectPath = '/other-project'
+    renderHook(() => useWorkspaceLifecycle())
+
+    expect(lifecycleMocks.projectActionsProject).toHaveBeenCalledWith('/other-project')
+    expect(lifecycleMocks.runProjectActionProject).toHaveBeenCalledWith('/other-project')
+    expect(lifecycleMocks.projectActionsProject).not.toHaveBeenCalledWith('/repo')
   })
 
   it('loads app data, subscribes to title updates, refreshes project state, and registers hotkeys', async () => {
@@ -122,15 +44,16 @@ describe('useWorkspaceLifecycle', () => {
 
     await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
     expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce()
-    expect(lifecycleMocks.refreshGitStatus).toHaveBeenCalledWith('/repo')
+    // Status must target the session's worktree, not the opened checkout (ADR 0018).
+    expect(lifecycleMocks.refreshGitStatus).toHaveBeenCalledWith('/repo/.worktrees/session-1')
     expect(lifecycleMocks.refreshGitBranches).toHaveBeenCalledWith('/repo')
+    expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-1')
     expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
     expect(lifecycleMocks.useGitRefresh).toHaveBeenCalledWith({
-      projectPath: '/repo',
-      activeSessionId: SessionId('session-1'),
+      workingPath: '/repo/.worktrees/session-1',
+      repositoryPath: '/repo',
       refreshGitStatus: lifecycleMocks.refreshGitStatus,
       refreshGitBranches: lifecycleMocks.refreshGitBranches,
-      refreshSession: lifecycleMocks.refreshSession,
     })
     expect(lifecycleMocks.useSessionStatusMonitor).toHaveBeenCalledOnce()
 
@@ -142,19 +65,275 @@ describe('useWorkspaceLifecycle', () => {
       'New title',
     )
 
-    act(() => runHotkey('Mod+J'))
-    act(() => runHotkey('Mod+B'))
-    act(() => runHotkey('Mod+D'))
-    act(() => runHotkey('Mod+K'))
-    act(() => runHotkey('Mod+Shift+Y'))
+    act(() => runWorkspaceHotkey('Mod+J'))
+    act(() => runWorkspaceHotkey('Mod+B'))
+    act(() => runWorkspaceHotkey('Mod+D'))
+    act(() => runWorkspaceHotkey('Mod+Shift+Y'))
+    act(() => runWorkspaceHotkey('Mod+K'))
+    expect(useUIStore.getState().commandSurface).toBe('commands')
+    act(() => runWorkspaceHotkey('Mod+P'))
+    expect(useUIStore.getState().commandSurface).toBe('files')
+    act(() => runWorkspaceHotkey('Mod+N'))
+    expect(useUIStore.getState().commandSurface).toBeNull()
 
-    expect(useUIStore.getState().terminalOpen).toBe(true)
+    expect(getWorkspaceTerminalState().groups['session-1']?.panelOpen).toBe(true)
     expect(useUIStore.getState().sidebarOpen).toBe(false)
-    expect(useUIStore.getState().commandPaletteOpen).toBe(true)
+    expect(lifecycleMocks.startDraftSession).toHaveBeenCalledWith('/repo')
+    expect(lifecycleMocks.navigate).toHaveBeenCalledWith({ to: '/' })
     expect(lifecycleMocks.toggleDiff).toHaveBeenCalledOnce()
     expect(lifecycleMocks.toggleSessionTree).toHaveBeenCalledOnce()
 
     unmount()
     expect(lifecycleMocks.titleUnsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('coalesces Host event bursts and ignores out-of-order cursors', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.loadChatSessions.mockClear()
+    lifecycleMocks.loadSessionTrees.mockClear()
+    lifecycleMocks.refreshCatalogSessions.mockClear()
+    lifecycleMocks.refreshSession.mockClear()
+    lifecycleMocks.refreshSessionTree.mockClear()
+    lifecycleMocks.invalidateQueries.mockClear()
+    const initialCountRevision = useSessionStatusStore.getState().hostTerminalCountRevision
+
+    const handler = lifecycleMocks.getSessionHostEventHandler()
+    if (!handler) throw new Error('Expected Session Host event subscription')
+    handler({
+      cursor: { hostInstanceId: 'host-1', sequence: 2 },
+      timestamp: 2,
+      payload: {
+        kind: 'session-state-changed',
+        sessionId: 'session-1',
+        stateRevision: 2,
+        operation: 'queue-updated',
+      },
+    })
+    handler({
+      cursor: { hostInstanceId: 'host-1', sequence: 1 },
+      timestamp: 1,
+      payload: {
+        kind: 'session-list-changed',
+        sessionId: 'session-1',
+        change: 'updated',
+      },
+    })
+    handler({
+      cursor: { hostInstanceId: 'host-1', sequence: 3 },
+      timestamp: 3,
+      payload: {
+        kind: 'session-list-changed',
+        sessionId: 'session-1',
+        change: 'updated',
+      },
+    })
+
+    await waitFor(() => expect(lifecycleMocks.refreshCatalogSessions).toHaveBeenCalledOnce())
+    expect(lifecycleMocks.refreshCatalogSessions).toHaveBeenCalledWith([SessionId('session-1')])
+    expect(lifecycleMocks.loadSessionTrees).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
+    expect(lifecycleMocks.refreshSession).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
+    expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce()
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledTimes(3)
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.archivedItems,
+    })
+    // Project Actions are read on Host Session-state changes instead of polled (B7/D9), only
+    // the changed Session's and its project's (useSessionHostRefresh.project-actions).
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      predicate: expect.any(Function),
+    })
+    expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
+      initialCountRevision + 1,
+    )
+  })
+
+  it('refreshes transcripts only for the active Session and performs a guarded resync', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.loadChatSessions.mockClear()
+    lifecycleMocks.loadSessionTrees.mockClear()
+    lifecycleMocks.refreshCatalogSessions.mockClear()
+    lifecycleMocks.refreshSession.mockClear()
+    lifecycleMocks.refreshSessionTree.mockClear()
+
+    const eventHandler = lifecycleMocks.getSessionHostEventHandler()
+    const resyncHandler = lifecycleMocks.getSessionHostResyncHandler()
+    if (!eventHandler || !resyncHandler) throw new Error('Expected Session Host subscriptions')
+    const initialCountRevision = useSessionStatusStore.getState().hostTerminalCountRevision
+    eventHandler({
+      cursor: { hostInstanceId: 'host-2', sequence: 1 },
+      timestamp: 1,
+      payload: {
+        kind: 'session-list-changed',
+        sessionId: 'session-2',
+        change: 'updated',
+      },
+    })
+    await waitFor(() => expect(lifecycleMocks.refreshCatalogSessions).toHaveBeenCalledOnce())
+    expect(lifecycleMocks.refreshSession).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadChatSessions).not.toHaveBeenCalled()
+    expect(lifecycleMocks.loadSessionTrees).not.toHaveBeenCalled()
+    expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
+      initialCountRevision + 1,
+    )
+
+    resyncHandler({ reason: 'slow-consumer' })
+    await waitFor(() => expect(lifecycleMocks.loadSessionTrees).toHaveBeenCalledOnce())
+    expect(lifecycleMocks.refreshSession).toHaveBeenCalledWith('session-1')
+    expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
+    expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce()
+    expect(useSessionStatusStore.getState().hostTerminalCountRevision).toBe(
+      initialCountRevision + 2,
+    )
+  })
+
+  it('invalidates mounted extension contributions after a Session Host resync', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.invalidateQueries.mockClear()
+
+    const resyncHandler = lifecycleMocks.getSessionHostResyncHandler()
+    if (!resyncHandler) throw new Error('Expected Session Host resync subscription')
+
+    act(() => resyncHandler({ reason: 'slow-consumer' }))
+
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['extensionContributions'],
+    })
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.archivedItems,
+    })
+    // A missed change of Pi's default thinking level cannot be replayed either.
+    expect(lifecycleMocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['pi-default-thinking-level'],
+    })
+  })
+
+  it('clears retained runtime status when the Host archives a Session', async () => {
+    useSessionStatusStore.getState().setStatus(SessionId('session-2'), 'completed', Date.now())
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    const eventHandler = lifecycleMocks.getSessionHostEventHandler()
+    if (!eventHandler) throw new Error('Expected Session Host event subscription')
+
+    act(() =>
+      eventHandler({
+        cursor: { hostInstanceId: 'host-status', sequence: 1 },
+        timestamp: 1,
+        payload: {
+          kind: 'session-list-changed',
+          sessionId: 'session-2',
+          change: 'archived',
+        },
+      }),
+    )
+
+    expect(useSessionStatusStore.getState().statuses.has(SessionId('session-2'))).toBe(false)
+    expect(useSessionStatusStore.getState().completedAt.has(SessionId('session-2'))).toBe(false)
+  })
+
+  it('refreshes the selected tree when deleting another Session can change its Hive identity', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    await waitFor(() => expect(lifecycleMocks.loadChatSessions).toHaveBeenCalledOnce())
+    lifecycleMocks.refreshSession.mockClear()
+    lifecycleMocks.refreshSessionTree.mockClear()
+    const eventHandler = lifecycleMocks.getSessionHostEventHandler()
+    if (!eventHandler) throw new Error('Expected Session Host event subscription')
+
+    act(() =>
+      eventHandler({
+        cursor: { hostInstanceId: 'host-worker-delete', sequence: 1 },
+        timestamp: 1,
+        payload: {
+          kind: 'session-list-changed',
+          sessionId: 'deleted-worker',
+          change: 'deleted',
+        },
+      }),
+    )
+
+    await waitFor(() => expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledOnce())
+    expect(lifecycleMocks.refreshSessionTree).toHaveBeenCalledWith(SessionId('session-1'))
+    expect(lifecycleMocks.refreshSession).not.toHaveBeenCalled()
+  })
+
+  it('loads project syntax resources when direct review changes working trees', async () => {
+    const { rerender } = renderHook(() => useWorkspaceLifecycle())
+
+    await waitFor(() =>
+      expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-1'),
+    )
+
+    lifecycleMocks.workingPath = '/repo/.worktrees/session-2'
+    rerender()
+
+    await waitFor(() =>
+      expect(lifecycleMocks.loadSyntaxResources).toHaveBeenCalledWith('/repo/.worktrees/session-2'),
+    )
+  })
+
+  it('does not route application shortcuts while terminal input owns focus', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    const pane = document.createElement('div')
+    pane.setAttribute('data-terminal-pane', 'term-1')
+    const textarea = document.createElement('textarea')
+    pane.append(textarea)
+
+    act(() => runWorkspaceHotkey('Mod+N', textarea))
+    act(() => runWorkspaceHotkey('Mod+D', textarea))
+
+    expect(lifecycleMocks.startDraftSession).not.toHaveBeenCalled()
+    expect(lifecycleMocks.toggleDiff).not.toHaveBeenCalled()
+  })
+
+  it('captures global chords before xterm and suppresses the paired key release', async () => {
+    renderHook(() => useWorkspaceLifecycle())
+    const pane = document.createElement('div')
+    pane.setAttribute('data-terminal-pane', 'term-1')
+    const textarea = document.createElement('textarea')
+    pane.append(textarea)
+    document.body.append(pane)
+    const terminalKeyDown = vi.fn()
+    const terminalKeyUp = vi.fn()
+    textarea.addEventListener('keydown', terminalKeyDown)
+    textarea.addEventListener('keyup', terminalKeyUp)
+
+    const press = new KeyboardEvent('keydown', {
+      key: 'b',
+      code: 'KeyB',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    dispatchInAct(textarea, press)
+
+    expect(useUIStore.getState().sidebarOpen).toBe(false)
+    expect(press.defaultPrevented).toBe(true)
+    expect(terminalKeyDown).not.toHaveBeenCalled()
+
+    // The physical shortcut key may be released after its modifier.
+    const release = new KeyboardEvent('keyup', {
+      key: 'b',
+      code: 'KeyB',
+      bubbles: true,
+      cancelable: true,
+    })
+    dispatchInAct(textarea, release)
+    expect(release.defaultPrevented).toBe(true)
+    expect(terminalKeyUp).not.toHaveBeenCalled()
+
+    const laterRelease = new KeyboardEvent('keyup', {
+      key: 'b',
+      code: 'KeyB',
+      bubbles: true,
+      cancelable: true,
+    })
+    dispatchInAct(textarea, laterRelease)
+    expect(laterRelease.defaultPrevented).toBe(false)
+    expect(terminalKeyUp).toHaveBeenCalledOnce()
+    pane.remove()
   })
 })

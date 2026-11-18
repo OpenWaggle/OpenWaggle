@@ -1,48 +1,228 @@
+import type { AgentSendPayload } from '@shared/types/agent'
+import type { ActiveAgentRunInfo, WorktreeLaunchSnapshot } from '@shared/types/background-run'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { create } from 'zustand'
-import { applyAgentTransportEvent } from '@/features/chat/lib/chat-stream-state'
+import type { AgentCompactionStatus } from '@/features/chat/lib/compaction-lifecycle'
 import { api } from '@/shared/lib/ipc'
+import {
+  addActiveRunToState,
+  mergeRestoredRunModels,
+  removeActiveRunFromState,
+} from './background-run-active-state'
+import {
+  captureActivityRevisions,
+  loadActiveActivityState,
+  noteActivityLifecycleChange,
+  restoreCompactionSnapshots,
+  retainUnchangedActivities,
+} from './background-run-activity-restore'
+import {
+  interruptedFirstSendLaunch,
+  launchesFromSnapshots,
+  mergeLatestLaunches,
+} from './background-run-launch-model'
+import {
+  loadRecoverableBackgroundRuns,
+  persistRecoverableBackgroundRuns,
+} from './background-run-recovery-storage'
+import {
+  type RunRenderSnapshot,
+  withoutRunRenderSnapshot,
+  withoutSettledRunRenderSnapshot,
+  withRunCompactionStatus,
+  withRunRenderEvent,
+  withRunRenderMessages,
+  withSettledRunRenderSnapshot,
+} from './background-run-render-state'
+import { withUnannouncedRunNoticed } from './background-run-unannounced-run'
 
-interface ActiveRunRenderSnapshot {
-  readonly messages: readonly UIMessage[]
-  readonly updatedAt: number
+export interface FirstSendRecovery {
+  readonly payload: AgentSendPayload
+  readonly waggleConfig: WaggleConfig | null
+  readonly model: SupportedModelId | undefined
 }
 
 interface BackgroundRunState {
   activeRunIds: Set<SessionId>
-  renderSnapshotsBySessionId: Map<SessionId, ActiveRunRenderSnapshot>
-  addActiveRun: (id: SessionId) => void
+  /** The model each busy Session's current Run reported when it started. */
+  runModelBySessionId: Map<SessionId, SupportedModelId>
+  renderSnapshotsBySessionId: Map<SessionId, RunRenderSnapshot>
+  worktreeLaunchBySessionId: Map<SessionId, WorktreeLaunchSnapshot>
+  firstSendRecoveryBySessionId: Map<SessionId, FirstSendRecovery>
+  /** Counts restores of the activity in progress when the renderer started (`initialize`). */
+  activityRestoreRevision: number
+  /** Per Session, the Runs learned of from what they streamed, their start lost. */
+  unannouncedRunNotices: Map<SessionId, number>
+  addActiveRun: (id: SessionId, model?: SupportedModelId) => void
+  noteUnannouncedRun: (id: SessionId, startedAt: number, model?: SupportedModelId) => void
   removeActiveRun: (id: SessionId) => void
   hasActiveRun: (id: SessionId) => boolean
-  getRunRenderSnapshot: (id: SessionId) => ActiveRunRenderSnapshot | null
+  getRunRenderSnapshot: (id: SessionId) => RunRenderSnapshot | null
   setRunRenderMessages: (id: SessionId, messages: readonly UIMessage[]) => void
+  setRunCompactionStatus: (id: SessionId, status: AgentCompactionStatus | null) => void
   applyRunRenderEvent: (id: SessionId, event: AgentTransportEvent) => void
   clearRunRenderSnapshot: (id: SessionId) => void
+  /** A Run settled: the snapshot holds it (`rowsOnly`: rows before an unannounced Run's). */
+  noteRunRenderSnapshotRunSettled: (id: SessionId, runId?: string, rowsOnly?: boolean) => void
+  /** The settled Run's Session refreshed: drops the snapshot unless a later Run seeded it. */
+  clearSettledRunRenderSnapshot: (id: SessionId) => void
+  getWorktreeLaunch: (id: SessionId) => WorktreeLaunchSnapshot | null
+  setWorktreeLaunch: (id: SessionId, launch: WorktreeLaunchSnapshot | null) => void
+  setFirstSendRecovery: (id: SessionId, recovery: FirstSendRecovery | null) => void
+  reconcileTerminalRun: (id: SessionId) => Promise<void>
   initialize: () => Promise<void>
 }
 
-export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
-  activeRunIds: new Set<SessionId>(),
-  renderSnapshotsBySessionId: new Map<SessionId, ActiveRunRenderSnapshot>(),
+function persistRecoveryState(
+  launches: ReadonlyMap<SessionId, WorktreeLaunchSnapshot>,
+  recoveries: ReadonlyMap<SessionId, FirstSendRecovery>,
+) {
+  persistRecoverableBackgroundRuns({
+    launches: new Map(launches),
+    recoveries: new Map(recoveries),
+  })
+}
 
-  addActiveRun(id: SessionId) {
-    set((state) => {
-      if (state.activeRunIds.has(id)) return state
-      const next = new Set(state.activeRunIds)
-      next.add(id)
-      return { activeRunIds: next }
-    })
+async function reconcilePersistedFirstSends(
+  activeRunIds: ReadonlySet<SessionId>,
+  launches: ReadonlyMap<SessionId, WorktreeLaunchSnapshot>,
+  recoveries: ReadonlyMap<SessionId, FirstSendRecovery>,
+) {
+  const nextLaunches = new Map(launches)
+  const nextRecoveries = new Map(recoveries)
+
+  await Promise.all(
+    [...recoveries.keys()].map(async (sessionId) => {
+      if (activeRunIds.has(sessionId)) return
+      try {
+        const session = await api.getSessionDetail(sessionId)
+        if (!session || session.messages.length > 0) {
+          nextLaunches.delete(sessionId)
+          nextRecoveries.delete(sessionId)
+          return
+        }
+
+        const launch = nextLaunches.get(sessionId)
+        if (session.environmentMode === 'worktree' || launch) {
+          nextLaunches.set(sessionId, interruptedFirstSendLaunch(launch))
+        } else {
+          nextRecoveries.delete(sessionId)
+        }
+      } catch {
+        // Unknown durable state must not expose a retry that could duplicate a delivered prompt.
+        // Preserve the last snapshot until a later lifecycle event can reconcile it accurately.
+      }
+    }),
+  )
+
+  return { launches: nextLaunches, recoveries: nextRecoveries }
+}
+
+function reconcileTerminalRecoveryState(input: {
+  readonly id: SessionId
+  readonly session: Awaited<ReturnType<typeof api.getSessionDetail>>
+  readonly launchAtCompletion: WorktreeLaunchSnapshot | undefined
+  readonly recoveryAtCompletion: FirstSendRecovery | undefined
+  readonly state: BackgroundRunState
+}) {
+  const currentLaunch = input.state.worktreeLaunchBySessionId.get(input.id)
+  const currentRecovery = input.state.firstSendRecoveryBySessionId.get(input.id)
+  const launchIsUnchanged = currentLaunch === input.launchAtCompletion
+  const recoveryIsUnchanged = currentRecovery === input.recoveryAtCompletion
+  const launches = new Map(input.state.worktreeLaunchBySessionId)
+  const recoveries = new Map(input.state.firstSendRecoveryBySessionId)
+
+  if (!input.session || input.session.messages.length > 0) {
+    if (launchIsUnchanged) launches.delete(input.id)
+    if (recoveryIsUnchanged) recoveries.delete(input.id)
+    return { launches, recoveries }
+  }
+  if (!launchIsUnchanged || !recoveryIsUnchanged) return null
+  if (
+    input.recoveryAtCompletion &&
+    (input.session.environmentMode === 'worktree' || input.launchAtCompletion)
+  ) {
+    launches.set(input.id, interruptedFirstSendLaunch(input.launchAtCompletion))
+    return { launches, recoveries }
+  }
+  if (input.launchAtCompletion?.status !== 'failed') launches.delete(input.id)
+  return { launches, recoveries }
+}
+
+function mergeInitializedRecoveryState(
+  state: BackgroundRunState,
+  activeRunIds: ReadonlySet<SessionId>,
+  runs: readonly ActiveAgentRunInfo[],
+  reconciled: Awaited<ReturnType<typeof reconcilePersistedFirstSends>>,
+) {
+  return {
+    activeRunIds: new Set([...activeRunIds, ...state.activeRunIds]),
+    runModelBySessionId: mergeRestoredRunModels(state.runModelBySessionId, activeRunIds, runs),
+    // Live renderer events received while initialization awaited IPC are always newer.
+    worktreeLaunchBySessionId: new Map([
+      ...reconciled.launches,
+      ...state.worktreeLaunchBySessionId,
+    ]),
+    firstSendRecoveryBySessionId: new Map([
+      ...reconciled.recoveries,
+      ...state.firstSendRecoveryBySessionId,
+    ]),
+  }
+}
+
+function initialBackgroundRunState() {
+  return {
+    activeRunIds: new Set<SessionId>(),
+    runModelBySessionId: new Map<SessionId, SupportedModelId>(),
+    renderSnapshotsBySessionId: new Map<SessionId, RunRenderSnapshot>(),
+    worktreeLaunchBySessionId: new Map<SessionId, WorktreeLaunchSnapshot>(),
+    firstSendRecoveryBySessionId: new Map<SessionId, FirstSendRecovery>(),
+    activityRestoreRevision: 0,
+    unannouncedRunNotices: new Map<SessionId, number>(),
+  }
+}
+
+function mergeCurrentActivityState(
+  state: BackgroundRunState,
+  current: ReturnType<typeof retainUnchangedActivities>,
+  reconciled: Awaited<ReturnType<typeof reconcilePersistedFirstSends>>,
+) {
+  const next = mergeInitializedRecoveryState(state, current.ids, current.runs, reconciled)
+  persistRecoveryState(next.worktreeLaunchBySessionId, next.firstSendRecoveryBySessionId)
+  return {
+    ...next,
+    activityRestoreRevision: state.activityRestoreRevision + 1,
+    renderSnapshotsBySessionId: restoreCompactionSnapshots(
+      state,
+      current.compactions,
+      current.runs,
+    ),
+  }
+}
+
+export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
+  ...initialBackgroundRunState(),
+
+  addActiveRun(id: SessionId, model?: SupportedModelId) {
+    noteActivityLifecycleChange(id)
+    set((state) => addActiveRunToState(state, id, model))
+  },
+
+  // No activity change: a restore in flight still restores the Run's compaction status.
+  noteUnannouncedRun(id: SessionId, startedAt: number, model?: SupportedModelId) {
+    set((state) => ({
+      ...addActiveRunToState(state, id, model),
+      ...withUnannouncedRunNoticed(state, id, startedAt),
+    }))
   },
 
   removeActiveRun(id: SessionId) {
-    set((state) => {
-      if (!state.activeRunIds.has(id)) return state
-      const next = new Set(state.activeRunIds)
-      next.delete(id)
-      return { activeRunIds: next }
-    })
+    noteActivityLifecycleChange(id)
+    set((state) => removeActiveRunFromState(state, id))
   },
 
   hasActiveRun(id: SessionId) {
@@ -54,43 +234,98 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
   },
 
   setRunRenderMessages(id: SessionId, messages: readonly UIMessage[]) {
-    set((state) => {
-      const next = new Map(state.renderSnapshotsBySessionId)
-      next.set(id, {
-        messages: [...messages],
-        updatedAt: Date.now(),
-      })
-      return { renderSnapshotsBySessionId: next }
-    })
+    set((state) => withRunRenderMessages(state, id, messages))
+  },
+
+  setRunCompactionStatus(id: SessionId, status: AgentCompactionStatus | null) {
+    set((state) => withRunCompactionStatus(state, id, status, state.activeRunIds.has(id)))
   },
 
   applyRunRenderEvent(id: SessionId, event: AgentTransportEvent) {
-    set((state) => {
-      const existing = state.renderSnapshotsBySessionId.get(id)
-      if (!existing) {
-        return state
-      }
-      const next = new Map(state.renderSnapshotsBySessionId)
-      next.set(id, {
-        messages: applyAgentTransportEvent([...existing.messages], event),
-        updatedAt: Date.now(),
-      })
-      return { renderSnapshotsBySessionId: next }
-    })
+    set((state) => withRunRenderEvent(state, id, event))
   },
 
   clearRunRenderSnapshot(id: SessionId) {
+    set((state) => withoutRunRenderSnapshot(state, id))
+  },
+
+  noteRunRenderSnapshotRunSettled(id, runId, rowsOnly) {
+    set((state) => withSettledRunRenderSnapshot(state, id, runId, rowsOnly))
+  },
+
+  clearSettledRunRenderSnapshot(id: SessionId) {
+    set((state) => withoutSettledRunRenderSnapshot(state, id))
+  },
+
+  getWorktreeLaunch(id: SessionId) {
+    return get().worktreeLaunchBySessionId.get(id) ?? null
+  },
+
+  setWorktreeLaunch(id: SessionId, launch: WorktreeLaunchSnapshot | null) {
     set((state) => {
-      if (!state.renderSnapshotsBySessionId.has(id)) return state
-      const next = new Map(state.renderSnapshotsBySessionId)
-      next.delete(id)
-      return { renderSnapshotsBySessionId: next }
+      const next = new Map(state.worktreeLaunchBySessionId)
+      if (launch === null) {
+        next.delete(id)
+      } else {
+        next.set(id, launch)
+      }
+      persistRecoveryState(next, state.firstSendRecoveryBySessionId)
+      return { worktreeLaunchBySessionId: next }
+    })
+  },
+
+  setFirstSendRecovery(id: SessionId, recovery: FirstSendRecovery | null) {
+    set((state) => {
+      const next = new Map(state.firstSendRecoveryBySessionId)
+      if (recovery === null) {
+        next.delete(id)
+      } else {
+        next.set(id, recovery)
+      }
+      persistRecoveryState(state.worktreeLaunchBySessionId, next)
+      return { firstSendRecoveryBySessionId: next }
+    })
+  },
+
+  async reconcileTerminalRun(id: SessionId) {
+    const launchAtCompletion = get().worktreeLaunchBySessionId.get(id)
+    const recoveryAtCompletion = get().firstSendRecoveryBySessionId.get(id)
+    if (!launchAtCompletion && !recoveryAtCompletion) return
+
+    let session: Awaited<ReturnType<typeof api.getSessionDetail>>
+    try {
+      session = await api.getSessionDetail(id)
+    } catch {
+      // A transient read failure is not evidence that retrying is safe.
+      return
+    }
+
+    set((state) => {
+      const reconciled = reconcileTerminalRecoveryState({
+        id,
+        session,
+        launchAtCompletion,
+        recoveryAtCompletion,
+        state,
+      })
+      if (!reconciled) return state
+      persistRecoveryState(reconciled.launches, reconciled.recoveries)
+      return {
+        worktreeLaunchBySessionId: reconciled.launches,
+        firstSendRecoveryBySessionId: reconciled.recoveries,
+      }
     })
   },
 
   async initialize() {
-    const runs = await api.listActiveRuns()
-    const ids = new Set<SessionId>(runs.map((r) => r.sessionId))
-    set({ activeRunIds: ids })
+    const capturedActivityRevisions = captureActivityRevisions()
+    const { ids, compactions, runs, snapshots } = await loadActiveActivityState()
+    const persisted = loadRecoverableBackgroundRuns()
+    const launches = mergeLatestLaunches(launchesFromSnapshots(snapshots), persisted.launches)
+    const reconciled = await reconcilePersistedFirstSends(ids, launches, persisted.recoveries)
+    set((state) => {
+      const current = retainUnchangedActivities(ids, compactions, runs, capturedActivityRevisions)
+      return mergeCurrentActivityState(state, current, reconciled)
+    })
   },
 }))

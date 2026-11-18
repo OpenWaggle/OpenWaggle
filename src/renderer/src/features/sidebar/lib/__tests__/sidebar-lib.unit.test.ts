@@ -13,8 +13,8 @@ function session(input: {
   readonly updatedAt: number
   readonly branches?: readonly SessionBranch[]
   readonly branchesSidebarCollapsed?: boolean
-}): SessionSummary {
-  return {
+}) {
+  const summary: SessionSummary = {
     id: SessionId(input.id),
     title: input.title,
     projectPath: input.projectPath,
@@ -32,9 +32,10 @@ function session(input: {
             updatedAt: input.updatedAt,
           },
   }
+  return summary
 }
 
-function branch(input: { readonly id: string; readonly archived?: boolean }): SessionBranch {
+function branch(input: { readonly id: string; readonly archived?: boolean }) {
   return {
     id: SessionBranchId(input.id),
     sessionId: SessionId('session-a'),
@@ -45,10 +46,10 @@ function branch(input: { readonly id: string; readonly archived?: boolean }): Se
     archived: input.archived ?? false,
     createdAt: 1,
     updatedAt: 1,
-  }
+  } satisfies SessionBranch
 }
 
-function projectAt<TProject>(projects: readonly TProject[], index: number): TProject {
+function projectAt<TProject>(projects: readonly TProject[], index: number) {
   const project = projects[index]
   if (!project) {
     throw new Error(`Expected project at index ${String(index)}`)
@@ -136,7 +137,7 @@ describe('sidebar library helpers', () => {
         },
       }),
     ).toMatchObject([
-      { type: 'draft', sourceNodeId: SessionNodeId('draft-source') },
+      { type: 'draft', sourceNodeId: SessionNodeId('draft-source'), sourceLabel: null },
       { type: 'branch', branch: main, isActive: false },
       { type: 'branch', branch: feature, isActive: true },
     ])
@@ -150,5 +151,47 @@ describe('sidebar library helpers', () => {
         draftBranch: null,
       }),
     ).toEqual([])
+  })
+
+  it('labels a draft branch with the text of the message it starts from', () => {
+    const currentSession = session({
+      id: 'session-a',
+      title: 'Session',
+      projectPath: '/work/app',
+      createdAt: 1,
+      updatedAt: 2,
+    })
+    // A discovered Pi session's node ids carry its Session id (ADR 0051); the label must not.
+    const sourceNodeId = SessionNodeId('session-a/a1b2c3d4')
+    const tree = {
+      session: currentSession,
+      nodes: [
+        {
+          id: sourceNodeId,
+          sessionId: SessionId('session-a'),
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'user_message',
+          role: 'user',
+          timestampMs: 1,
+          createdOrder: 0,
+          pathDepth: 0,
+          // The tree carries the start of the message's text, not the message (B5).
+          hasMessage: true,
+          preview: 'Try the other approach\nwith more detail',
+        },
+      ],
+      branches: [],
+      branchStates: [],
+      uiState: null,
+    } satisfies SessionTree
+    const draftBranch = { sessionId: SessionId('session-a'), sourceNodeId }
+
+    expect(
+      buildSidebarBranchRows({ session: currentSession, activeSessionTree: tree, draftBranch }),
+    ).toEqual([{ type: 'draft', sourceNodeId, sourceLabel: 'Try the other approach' }])
+    expect(buildSidebarBranchRows({ session: currentSession, draftBranch })).toEqual([
+      { type: 'draft', sourceNodeId, sourceLabel: null },
+    ])
   })
 })

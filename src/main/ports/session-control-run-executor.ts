@@ -1,0 +1,31 @@
+import type { RunId, SessionId } from '@shared/types/brand'
+import { Context, type Effect } from 'effect'
+import type { SessionControlRunIntent } from '../domain/session-control/message-aggregate'
+import type { SessionControlTerminalRunStatus } from './session-control-run-lifecycle-repository'
+
+export interface SessionControlRunExecutionInput {
+  readonly sessionId: SessionId
+  readonly runId: RunId
+  readonly intent: SessionControlRunIntent
+  readonly controller: AbortController
+}
+
+export interface SessionControlRunExecutionResult {
+  readonly terminalStatus: SessionControlTerminalRunStatus
+  /** When the Run's terminal `agent_end` was published, if one was. */
+  readonly terminalEventAt?: number
+  /** A failure found after the Run's terminal event said it ended cleanly (it failed to save). */
+  readonly failure?: { readonly code: string }
+  readonly finalResponse?: string
+}
+
+export interface SessionControlRunExecutorShape {
+  readonly execute: (
+    input: SessionControlRunExecutionInput,
+  ) => Effect.Effect<SessionControlRunExecutionResult, Error>
+}
+
+export class SessionControlRunExecutor extends Context.Tag('@openwaggle/SessionControlRunExecutor')<
+  SessionControlRunExecutor,
+  SessionControlRunExecutorShape
+>() {}

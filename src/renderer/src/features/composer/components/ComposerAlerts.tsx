@@ -15,7 +15,7 @@ export function ComposerAlerts({ alerts }: ComposerAlertsProps) {
   if (alerts.length === 0) return null
 
   return (
-    <div className="mb-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary">
+    <div className="mb-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs text-text-secondary">
       {alerts.map((alert) => (
         <div key={alert.id} className="flex items-start justify-between gap-2">
           <div>{alert.message}</div>

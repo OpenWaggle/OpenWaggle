@@ -1,49 +1,80 @@
 ---
-title: "Attachments & Voice Input"
-description: "How to attach files to messages and use local speech-to-text voice input in OpenWaggle."
-order: 4
+title: "Attachments and voice input"
+description: "Share a file or screenshot with the agent, or dictate a message and review it before sending."
+order: 2
 section: "Using OpenWaggle"
+kind: "guide"
 ---
 
-## Attachments
+Attach a file when the agent needs something from outside the project, such as a screenshot, sample data or a document. When the file is already in your repository, reference it instead, so the agent reads the current version. You can also dictate a message instead of typing it.
 
-Attach files to your messages for the agent to analyze.
+## Attach files
 
-### Supported Formats
+Click **+** beside the message box to open its menu:
 
-- **Text files** — Content extracted directly (including `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf`, `.odt`).
-- **PDFs** — Text extracted with page structure preserved.
-- **Images** — Sent as image content when the selected Pi model reports image input support. OCR text is also included in the prompt summary.
+![The composer's + menu open, with Attach files, Reference project file, Use a skill and Start Waggle](/screenshots/composer-plus-menu.png)
 
-### How to Attach
+1. Choose **Attach files** and pick the files, or drag files onto the message box.
+2. Check the file chips above your draft. Click a chip's X to remove a file.
+3. Say what the agent should do with the files, then send the message.
 
-- Click the **+** button in the composer toolbar.
-- Or drag and drop files onto the composer.
+For example:
 
-Up to **5 files** can be attached per message. Attachment chips appear above the text input showing filenames. Click the X on any chip to remove it.
+```text
+Compare this screenshot with the checkout page in our app.
+List the differences before making any changes.
+```
 
-Attachments are persisted in the session as metadata and extracted text. Image/PDF binary data is hydrated by the main process only when needed for a run.
+You can attach up to 5 files to a message. A document can be up to 8 MiB, and the documents in one message up to 20 MiB in total. An image can be up to 100 MiB, because the agent reduces it to the size the model accepts before the request is sent. Nothing is sent until you send the message. With a hosted model, the attachment content in the request goes to that provider.
 
-### Attachment Support by Model
+You can also paste instead of picking a file. Press Ctrl+V, or Cmd+V on macOS, while an image is on the clipboard and OpenWaggle attaches it. Text on the clipboard is pasted as text. Screenshots work this way: press Win+Shift+S on Windows or Cmd+Shift+4 on macOS, then paste.
 
-OpenWaggle follows Pi model metadata. If a selected model supports image input, image attachments are sent as image content. Otherwise, the extracted text summary is still included. PDFs are currently text-extracted before sending rather than passed as native PDF payloads.
+The rest of the **+** menu:
 
-## Voice Input
+- **Reference project file** picks a file from your project. Typing `@` in the message box does the same.
+- **Use a skill** picks a skill, a set of instructions for one kind of task. Typing `/` opens the same list, together with commands and Waggle presets.
+- **Start Waggle** picks a saved Waggle preset, so two agents work on the message in turns. See [Waggle mode](/docs/using-openwaggle/waggle-mode).
+- **Use MCP servers**, under **This Session**, appears once the session has started. Clear it to stop this session's MCP servers. See [MCP](/docs/configuration/mcp).
 
-OpenWaggle includes local speech-to-text powered by Whisper, running entirely on your machine.
+## What the agent receives
 
-### How to Use
+| File type | What the agent gets |
+|-----------|---------------------|
+| Text and documents | The extracted text, for files such as `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf` and `.odt`. |
+| PDF | The extracted text with its page structure, not the PDF itself. |
+| Image | The image, if the model accepts images, plus any text read from it by optical character recognition. |
 
-1. Click the **microphone** button in the composer toolbar.
-2. Speak your message. You'll see a live audio waveform and duration timer.
-3. Press the **stop** button (square icon) or press **Enter** to end recording and transcribe into the composer input.
-4. Press the **send** button while recording to stop, transcribe, and send immediately in one step.
-5. If you stop instead of sending, you can edit the transcribed text before sending it normally.
+Images can be PNG, JPEG, WebP or GIF. A HEIC or HEIF photo from an iPhone is converted to JPEG first, so it reaches the model like any other image.
 
-### Privacy
+OpenWaggle saves attachments with the session, as their details and extracted text. It loads image and PDF data again when a request needs it.
 
-All audio processing happens locally using Whisper. The composer now prefers the higher-accuracy local base model with automatic language detection. No audio data is sent to any external service. Models are cached in your app data directory and idle models are unloaded automatically after several minutes.
+Not every model can look at images. OpenWaggle goes by what the selected model says it supports. A model without image input gets only the extracted text, which says nothing useful about layout, colors or diagrams. For those tasks, choose a model that accepts images.
 
-### Errors
+## View images in the conversation
 
-If local transcription fails or no speech is detected, the composer shows an inline message above the input. You can dismiss that message with the close button or start a new recording to clear it.
+Images you or the agent share appear in the conversation. Click one to zoom, pan, or move through that message's images. To browse every image in the session, open one from [Session Summary and resources](/docs/using-openwaggle/session-summary). The viewer can download a copy, or open the original file when it is still on your computer.
+
+When the agent's reply shows a local image, OpenWaggle can save its own copy with the session's outputs, so the image stays after the original is deleted. [Images in the agent's replies](/docs/using-openwaggle/session-summary#images-in-the-agents-replies) lists the image formats and the folders OpenWaggle copies from.
+
+## Dictate a message
+
+Click the microphone beside the message box to speak instead of typing. OpenWaggle turns your speech into text on your computer.
+
+1. Click the microphone.
+2. Speak while the waveform and timer show that it is recording.
+3. Click the square stop button or press `Enter` to stop. OpenWaggle writes out what you said.
+4. Read the text, fix names and code terms, and send it as usual.
+
+To skip the review, click the send button while recording. OpenWaggle stops, writes out the text and sends it in one go.
+
+Voice input needs macOS 13.4 or later on a Mac.
+
+### Where your voice goes
+
+OpenWaggle uses the Whisper base model on your computer, with automatic language detection, and never sends the audio to another service. The first time, it needs an internet connection to download the model. It then keeps the model in the `models/` folder of the [app data folder](/docs/reference/data-locations#what-is-in-the-app-data-folder) and unloads it from memory after 5 minutes without use.
+
+The text it writes is an ordinary message. When you send it to a hosted model, that provider gets the text.
+
+### When dictation fails
+
+If transcription fails or OpenWaggle hears no speech, a message appears above the message box. Close it, or start a new recording to clear it.

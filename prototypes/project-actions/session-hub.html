@@ -1,0 +1,424 @@
+<style>
+#ow-actions-study {
+  --ow-bg: light-dark(#fafbfc, #141719);
+  --ow-panel: light-dark(#ffffff, #1a1d22);
+  --ow-raised: light-dark(#f0f2f5, #20242b);
+  --ow-hover: light-dark(#e8ecf1, #262b33);
+  --ow-line: light-dark(#dce1e8, #303742);
+  --ow-text: light-dark(#202631, #e7e9ee);
+  --ow-muted: light-dark(#606b7b, #9fa9b9);
+  --ow-amber: light-dark(#986000, #f5a623);
+  --ow-amber-bg: light-dark(#fff3d9, #332819);
+  --ow-green: light-dark(#227145, #69c68a);
+  --ow-red: light-dark(#be353e, #fb8890);
+  --ow-blue: light-dark(#316bc2, #8db7f5);
+  --ow-scrim: light-dark(#18213066, #00000099);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--ow-text);
+  container-type: inline-size;
+  isolation: isolate;
+}
+#ow-actions-study * { box-sizing: border-box; }
+#ow-actions-study button, #ow-actions-study input, #ow-actions-study textarea, #ow-actions-study select { font: inherit; }
+#ow-actions-study button { color: inherit; }
+#ow-actions-study button:disabled { opacity: .45; cursor: not-allowed; }
+#ow-actions-study button, #ow-actions-study input, #ow-actions-study textarea, #ow-actions-study select { -webkit-tap-highlight-color: transparent; }
+#ow-actions-study svg { flex-shrink: 0; width: 17px; height: 17px; }
+#ow-actions-study h1, #ow-actions-study h2, #ow-actions-study h3, #ow-actions-study p { margin: 0; }
+#ow-actions-study h1 { font-size: 23px; font-weight: 500; letter-spacing: -.6px; line-height: 1.25; }
+#ow-actions-study h2 { font-size: 18px; font-weight: 500; letter-spacing: -.3px; }
+#ow-actions-study h3 { font-size: 14px; font-weight: 500; }
+#ow-actions-study small { font-size: 12px; }
+#ow-actions-study code, #ow-actions-study pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+#ow-actions-study code { font-size: 12px; overflow-wrap: anywhere; background: transparent; color: inherit; padding: 0; border: 0; border-radius: 0; }
+#ow-actions-study .ow-muted { color: var(--ow-muted); }
+#ow-actions-study .ow-good { color: var(--ow-green); }
+#ow-actions-study .ow-error { color: var(--ow-red); }
+#ow-actions-study .ow-grow { flex: 1; min-width: 0; }
+#ow-actions-study .ow-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+#ow-actions-study .ow-wrap { flex-wrap: wrap; }
+#ow-actions-study .ow-stack { display: grid; gap: 16px; }
+#ow-actions-study .ow-app { background: var(--ow-bg); border: 1px solid var(--ow-line); border-radius: 14px; overflow: clip; position: relative; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+#ow-actions-study .ow-screen { grid-area: 1 / 1; min-width: 0; }
+#ow-actions-study .ow-top { min-height: 61px; padding: 8px 16px; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--ow-line); background: var(--ow-panel); }
+#ow-actions-study .ow-brand { color: var(--ow-amber); display: flex; align-items: center; }
+#ow-actions-study .ow-brand svg { width: 23px; height: 23px; }
+#ow-actions-study .ow-project { font-size: 14px; font-weight: 500; }
+#ow-actions-study .ow-top small { display: block; color: var(--ow-muted); font-size: 11px; }
+#ow-actions-study .ow-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 13px; border: 1px solid var(--ow-line); background: var(--ow-panel); border-radius: 8px; font-weight: 500; text-decoration: none; white-space: nowrap; }
+#ow-actions-study .ow-button:hover { background: var(--ow-hover); }
+#ow-actions-study .ow-button.ow-primary { background: var(--ow-text); color: var(--ow-bg); border-color: transparent; }
+#ow-actions-study .ow-button.ow-quiet { border-color: transparent; background: transparent; }
+#ow-actions-study .ow-button.ow-quiet:hover { background: var(--ow-hover); }
+#ow-actions-study .ow-button.ow-icon { padding: 10px; width: 44px; flex-shrink: 0; }
+#ow-actions-study .ow-button.ow-danger { color: var(--ow-red); }
+#ow-actions-study .ow-body { display: flex; min-height: 625px; }
+#ow-actions-study .ow-nav { display: none; }
+#ow-actions-study .ow-work { min-width: 0; flex: 1; }
+#ow-actions-study .ow-session-head { padding: 19px 18px 12px; }
+#ow-actions-study .ow-breadcrumb { color: var(--ow-muted); font-size: 12px; margin-bottom: 9px; }
+#ow-actions-study .ow-session-head h1 { font-size: 20px; }
+#ow-actions-study .ow-session-tools { margin-top: 16px; display: flex; gap: 8px; }
+#ow-actions-study .ow-session-tools .ow-hub-toggle { flex: 1; justify-content: flex-start; }
+#ow-actions-study .ow-hub-toggle[aria-expanded=true] { background: var(--ow-raised); }
+#ow-actions-study .ow-dot { display: inline-block; width: 6px; height: 6px; background: currentColor; border-radius: 50%; flex-shrink: 0; }
+#ow-actions-study .ow-session-canvas { position: relative; padding: 4px 16px 20px; }
+#ow-actions-study .ow-hub { background: var(--ow-panel); border: 1px solid var(--ow-line); border-radius: 16px; margin: 0 0 20px; overflow: clip; }
+#ow-actions-study .ow-hub-heading { padding: 15px 16px 12px; display: flex; align-items: center; gap: 9px; }
+#ow-actions-study .ow-hub-section { padding: 11px 15px; border-top: 1px solid var(--ow-line); }
+#ow-actions-study .ow-section-label { display: flex; justify-content: space-between; gap: 8px; color: var(--ow-muted); font-size: 12px; margin-bottom: 8px; }
+#ow-actions-study .ow-hub-row { width: 100%; display: flex; align-items: center; gap: 11px; text-align: left; padding: 10px 0; background: none; border: 0; border-radius: 7px; min-height: 60px; }
+#ow-actions-study .ow-hub-row:hover { background: var(--ow-raised); }
+#ow-actions-study .ow-hub-row .ow-chevron { color: var(--ow-muted); }
+#ow-actions-study .ow-hub-row small { display: block; color: var(--ow-muted); margin-top: 2px; }
+#ow-actions-study .ow-run-symbol { width: 30px; height: 30px; background: var(--ow-raised); border-radius: 8px; display: flex; justify-content: center; align-items: center; }
+#ow-actions-study .ow-hub-footer { width: 100%; border: 0; border-top: 1px solid var(--ow-line); border-radius: 0; justify-content: flex-start; padding-left: 16px; color: var(--ow-muted); }
+#ow-actions-study .ow-chat { display: grid; gap: 19px; padding: 1px 2px 0; }
+#ow-actions-study .ow-user-message { background: var(--ow-raised); border-radius: 13px 13px 4px 13px; padding: 13px 15px; margin-left: 25px; }
+#ow-actions-study .ow-agent-message { padding: 0 4px; }
+#ow-actions-study .ow-agent-name { font-weight: 500; margin: 0 0 9px; }
+#ow-actions-study .ow-agent-message p { color: var(--ow-muted); }
+#ow-actions-study .ow-composer { border: 1px solid var(--ow-line); border-radius: 13px; background: var(--ow-panel); margin-top: 12px; padding: 13px; }
+#ow-actions-study .ow-composer p { color: var(--ow-muted); min-height: 28px; }
+#ow-actions-study .ow-composer small { color: var(--ow-muted); }
+#ow-actions-study .ow-composer .ow-send { display: flex; width: 27px; height: 27px; border-radius: 7px; justify-content: center; align-items: center; background: var(--ow-raised); }
+#ow-actions-study .ow-drawer { background: var(--ow-panel); width: 100%; min-width: 0; }
+#ow-actions-study .ow-has-drawer .ow-work { display: none; }
+#ow-actions-study .ow-drawer-head { padding: 13px 16px; border-bottom: 1px solid var(--ow-line); }
+#ow-actions-study .ow-drawer-content { padding: 20px 18px; }
+#ow-actions-study .ow-drawer-heading { margin-bottom: 17px; }
+#ow-actions-study .ow-drawer-heading small { color: var(--ow-muted); display: block; margin-top: 5px; }
+#ow-actions-study .ow-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ow-muted); }
+#ow-actions-study .ow-status.ow-ready, #ow-actions-study .ow-status.ow-passed { color: var(--ow-green); }
+#ow-actions-study .ow-status.ow-running { color: var(--ow-blue); }
+#ow-actions-study .ow-status.ow-failed { color: var(--ow-red); }
+#ow-actions-study .ow-run-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0; }
+#ow-actions-study .ow-run-controls .ow-wide { grid-column: 1 / -1; }
+#ow-actions-study .ow-address { display: flex; align-items: center; gap: 8px; border: 1px solid var(--ow-line); border-radius: 8px; padding-left: 11px; min-width: 0; }
+#ow-actions-study .ow-address code { flex: 1; }
+#ow-actions-study .ow-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--ow-line); margin: 18px 0; }
+#ow-actions-study .ow-tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--ow-muted); padding: 10px 0; min-height: 44px; font-weight: 500; }
+#ow-actions-study .ow-tab[aria-pressed=true] { border-bottom-color: var(--ow-amber); color: var(--ow-text); }
+#ow-actions-study .ow-output { background: var(--ow-bg); border: 1px solid var(--ow-line); border-radius: 9px; padding: 14px 12px; font: 12px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; min-height: 186px; }
+#ow-actions-study .ow-output-tools { display: flex; gap: 8px; justify-content: space-between; margin-top: 7px; }
+#ow-actions-study .ow-output-tools .ow-button { font-size: 12px; padding: 9px 6px; }
+#ow-actions-study .ow-definition-link { width: 100%; margin-top: 16px; justify-content: space-between; }
+#ow-actions-study .ow-meta { display: grid; gap: 15px; margin: 0; }
+#ow-actions-study .ow-meta dt { font-size: 12px; color: var(--ow-muted); margin-bottom: 4px; }
+#ow-actions-study .ow-meta dd { margin: 0; overflow-wrap: anywhere; }
+#ow-actions-study .ow-settings { max-width: 850px; margin: auto; padding: 22px 18px 32px; }
+#ow-actions-study .ow-settings-title { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 15px; }
+#ow-actions-study .ow-settings-title p { margin-top: 9px; color: var(--ow-muted); }
+#ow-actions-study .ow-activity-link { width: 100%; border-radius: 8px; padding: 9px 12px; text-align: left; justify-content: flex-start; background: var(--ow-raised); }
+#ow-actions-study .ow-activity-link .ow-grow { white-space: normal; }
+#ow-actions-study .ow-activity-link small { display: block; margin-top: 2px; font-size: 11px; }
+#ow-actions-study .ow-definition { display: flex; gap: 12px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--ow-line); }
+#ow-actions-study .ow-definition small { display: block; color: var(--ow-muted); margin-top: 3px; }
+#ow-actions-study .ow-ownership { display: flex; align-items: center; gap: 5px; color: var(--ow-muted); font-size: 11px; margin-top: 7px; }
+#ow-actions-study .ow-ownership svg { width: 12px; height: 12px; }
+#ow-actions-study .ow-settings-section { margin-top: 23px; }
+#ow-actions-study .ow-settings-section > p { margin-top: 7px; color: var(--ow-muted); }
+#ow-actions-study .ow-notice { display: flex; gap: 10px; background: var(--ow-amber-bg); color: var(--ow-amber); padding: 13px; border-radius: 9px; margin-top: 16px; font-size: 12px; }
+#ow-actions-study .ow-notice svg { margin-top: 2px; }
+#ow-actions-study .ow-life { padding: 18px 0; border-bottom: 1px solid var(--ow-line); }
+#ow-actions-study .ow-life > p { color: var(--ow-muted); font-size: 12px; margin: 8px 0 12px; }
+#ow-actions-study .ow-modal-overlay { grid-area: 1 / 1; z-index: 10; background: var(--ow-scrim); padding: 45px 20px; display: flex; justify-content: center; align-items: flex-start; }
+#ow-actions-study .ow-dialog { background: var(--ow-panel); border: 1px solid var(--ow-line); border-radius: 16px; width: 100%; max-width: 530px; overflow: clip; }
+#ow-actions-study .ow-dialog-head { padding: 13px 17px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--ow-line); }
+#ow-actions-study .ow-dialog-head h2 { font-size: 17px; }
+#ow-actions-study .ow-dialog-body { padding: 20px; }
+#ow-actions-study .ow-dialog-intro { color: var(--ow-muted); margin-top: 6px; font-size: 13px; }
+#ow-actions-study .ow-search { display: flex; gap: 10px; align-items: center; background: var(--ow-bg); border: 1px solid var(--ow-line); border-radius: 9px; padding: 0 12px; margin: 18px 0 20px; }
+#ow-actions-study input, #ow-actions-study textarea, #ow-actions-study select { width: 100%; min-height: 46px; border: 1px solid var(--ow-line); border-radius: 7px; padding: 10px 12px; background: var(--ow-bg); color: var(--ow-text); font-size: 16px; }
+#ow-actions-study .ow-search input { border: 0; background: transparent; padding-left: 0; min-width: 0; }
+#ow-actions-study .ow-input-label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 7px; }
+#ow-actions-study .ow-field { margin-bottom: 18px; }
+#ow-actions-study .ow-task-group { color: var(--ow-muted); font-size: 11px; margin: 15px 0 5px; }
+#ow-actions-study .ow-task { display: flex; align-items: center; gap: 12px; padding: 12px 1px; width: 100%; min-height: 61px; border: 0; border-bottom: 1px solid var(--ow-line); background: none; text-align: left; }
+#ow-actions-study .ow-task:hover { background: var(--ow-raised); }
+#ow-actions-study .ow-task code { display: block; color: var(--ow-muted); font-size: 11px; margin-top: 3px; }
+#ow-actions-study .ow-task-source { background: var(--ow-raised); padding: 13px; border-radius: 9px; margin: 17px 0; }
+#ow-actions-study .ow-task-source small { display: block; color: var(--ow-muted); margin-top: 4px; }
+#ow-actions-study .ow-custom-link { width: 100%; justify-content: flex-start; margin-top: 16px; padding-left: 0; color: var(--ow-muted); }
+#ow-actions-study .ow-storage { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#ow-actions-study .ow-storage label { padding: 12px 10px; border: 1px solid var(--ow-line); border-radius: 8px; display: flex; align-items: flex-start; gap: 7px; }
+#ow-actions-study .ow-storage label:has(input:checked) { border-color: var(--ow-amber); background: var(--ow-amber-bg); }
+#ow-actions-study .ow-storage input, #ow-actions-study .ow-check input { width: 16px; height: 16px; min-height: 16px; margin: 3px 0 0; accent-color: var(--ow-amber); flex-shrink: 0; }
+#ow-actions-study .ow-storage small { display: block; color: var(--ow-muted); font-size: 11px; margin-top: 4px; }
+#ow-actions-study .ow-check { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; min-height: 44px; }
+#ow-actions-study .ow-check small { display: block; color: var(--ow-muted); margin-top: 3px; }
+#ow-actions-study .ow-dialog-footer { padding: 14px 20px; display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--ow-line); }
+#ow-actions-study .ow-dialog-footer .ow-primary { margin-left: auto; }
+#ow-actions-study .ow-step { color: var(--ow-muted); font-size: 11px; margin-right: auto; }
+#ow-actions-study .ow-state-line { background: var(--ow-panel); border-top: 1px solid var(--ow-line); color: var(--ow-muted); font-size: 11px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#ow-actions-study .ow-state-line .ow-button { font-size: 11px; padding: 5px 8px; min-height: 36px; margin-left: auto; }
+#ow-actions-study .ow-preview { padding: 32px 22px; text-align: center; background: var(--ow-bg); border: 1px solid var(--ow-line); border-radius: 9px; }
+#ow-actions-study .ow-preview h2 { margin: 15px 0 8px; }
+#ow-actions-study .ow-copy-text { user-select: all; }
+#ow-actions-study .ow-alert { color: var(--ow-red); margin-top: 12px; }
+#ow-actions-study .ow-toast { padding: 11px 16px; background: var(--ow-amber-bg); color: var(--ow-amber); font-size: 12px; border-top: 1px solid var(--ow-line); }
+@container (max-width: 350px) {
+  #ow-actions-study .ow-hub-count { display: none; }
+  #ow-actions-study .ow-tabs { gap: 16px; }
+  #ow-actions-study .ow-tab { font-size: 12px; }
+}
+@container (max-width: 650px) {
+  #ow-actions-study .ow-is-modal .ow-screen { display: none; }
+  #ow-actions-study .ow-modal-overlay { position: relative; padding: 0; background: var(--ow-panel); }
+  #ow-actions-study .ow-dialog { border: 0; border-radius: 0; max-width: none; }
+  #ow-actions-study .ow-dialog-body { padding: 18px 16px; }
+  #ow-actions-study .ow-dialog-head { padding: 11px 12px; }
+  #ow-actions-study .ow-dialog-footer { padding: 14px 16px; }
+  #ow-actions-study .ow-dialog-head .ow-button { width: 44px; padding: 10px; }
+  #ow-actions-study .ow-dialog-head .ow-back-label { display: none; }
+  #ow-actions-study .ow-state-line { padding: 8px 12px; gap: 4px; }
+  #ow-actions-study .ow-state-line .ow-button { min-height: 44px; }
+}
+@container (min-width: 900px) {
+  #ow-actions-study .ow-body { min-height: 700px; }
+  #ow-actions-study .ow-nav { display: flex; flex-direction: column; width: 178px; flex-shrink: 0; background: var(--ow-panel); border-right: 1px solid var(--ow-line); padding: 15px 10px; gap: 8px; }
+  #ow-actions-study .ow-nav > small { color: var(--ow-muted); padding: 12px 10px 3px; }
+  #ow-actions-study .ow-nav .ow-button { justify-content: flex-start; font-size: 12px; white-space: normal; text-align: left; }
+  #ow-actions-study .ow-nav .ow-current { background: var(--ow-raised); }
+  #ow-actions-study .ow-nav .ow-nav-bottom { margin-top: auto; }
+  #ow-actions-study .ow-session-head { padding: 25px 28px 18px; display: flex; align-items: center; gap: 15px; }
+  #ow-actions-study .ow-session-tools { margin: 0 0 0 auto; }
+  #ow-actions-study .ow-session-head h1 { font-size: 21px; }
+  #ow-actions-study .ow-session-tools .ow-hub-toggle { flex: initial; }
+  #ow-actions-study .ow-hub-toggle .ow-hub-count { display: none; }
+  #ow-actions-study .ow-session-canvas { padding: 16px 28px 30px; min-height: 575px; }
+  #ow-actions-study .ow-chat { max-width: 650px; margin: 35px 0 0; padding: 0; gap: 25px; min-height: 500px; display: flex; flex-direction: column; }
+  #ow-actions-study .ow-hub { position: absolute; right: 25px; top: 7px; width: 285px; z-index: 2; box-shadow: 0 12px 38px light-dark(#17223816, #00000033); }
+  #ow-actions-study .ow-composer { margin-top: auto; }
+  #ow-actions-study .ow-has-drawer .ow-work { display: block; }
+  #ow-actions-study .ow-drawer { width: 365px; border-left: 1px solid var(--ow-line); flex-shrink: 0; }
+  #ow-actions-study .ow-has-drawer .ow-session-head { flex-wrap: wrap; }
+  #ow-actions-study .ow-has-drawer .ow-session-tools { margin-left: 0; }
+  #ow-actions-study .ow-has-drawer .ow-hub { display: none; }
+  #ow-actions-study .ow-has-drawer .ow-chat { max-width: 550px; margin-left: auto; }
+  #ow-actions-study .ow-settings { padding: 32px 38px; }
+  #ow-actions-study .ow-settings-title { margin-bottom: 22px; }
+  #ow-actions-study .ow-top-settings { display: none; }
+}
+</style>
+<div id="ow-actions-study" aria-label="OpenWaggle Project Actions prototype"></div>
+<script>
+(() => {
+  const root = document.getElementById('ow-actions-study');
+  const seed = [
+    { id: 'web', name: 'Website dev', task: 'dev', command: 'pnpm run dev', source: 'website/package.json', cwd: 'website', service: true, storage: 'local', preview: true },
+    { id: 'tests', name: 'Unit tests', task: 'test:unit', command: 'pnpm run test:unit', source: 'package.json', cwd: '.', service: false, storage: 'project', preview: false },
+    { id: 'build', name: 'Build app', task: 'build', command: 'pnpm run build', source: 'package.json', cwd: '.', service: false, storage: 'project', preview: false },
+    { id: 'types', name: 'Typecheck', task: 'typecheck', command: 'pnpm run typecheck', source: 'package.json', cwd: '.', service: false, storage: 'local', preview: false },
+  ];
+  const tasks = [
+    { task: 'dev', name: 'Development app', command: 'pnpm run dev', source: 'package.json', cwd: '.', service: true },
+    { task: 'test:unit', name: 'Unit tests', command: 'pnpm run test:unit', source: 'package.json', cwd: '.', service: false },
+    { task: 'build', name: 'Build app', command: 'pnpm run build', source: 'package.json', cwd: '.', service: false },
+    { task: 'typecheck', name: 'Typecheck', command: 'pnpm run typecheck', source: 'package.json', cwd: '.', service: false },
+    { task: 'dev', name: 'Website dev', command: 'pnpm run dev', source: 'website/package.json', cwd: 'website', service: true },
+    { task: 'build', name: 'Build website', command: 'pnpm run build', source: 'website/package.json', cwd: 'website', service: false },
+  ];
+  const state = { view: 'session', hub: true, selected: null, detail: 'output', settings: 'actions', modal: null, filter: '', draft: null, toast: '', actions: structuredClone(seed), runs: {
+    web: { status: 'ready', number: 1, output: '> pnpm run dev\n\nastro v5.13.2\n\nLocal  http://localhost:4321/\n\nready in 286 ms\nwatching for file changes…' },
+    tests: { status: 'running', number: 1, output: '> pnpm run test:unit\n\nRUN  v3.2.4\n\n✓ project-actions  12 tests\n✓ session-store     9 tests\n\nRunning remaining tests…' },
+    types: { status: 'failed', number: 1, output: '> pnpm run typecheck\n\nsrc/actions.ts:42:7\nerror TS2322:\nType string is not assignable\nto type ActionStatus.\n\nProcess exited with code 2.' },
+  }, prepared: true, cleanupEnabled: false, composer: '', copyValue: '', error: '' };
+  const design = { showRecent: true };
+  let returnFocus = '[data-do="hub"]';
+  let feedbackTimer;
+  const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const ico = name => `<i data-lucide="${name}" aria-hidden="true"></i>`;
+  const btn = (label, action, icon, extra = '', attrs = '') => `<button type="button" class="ow-button cursor-interaction ${extra}" data-do="${action}" ${attrs}>${icon ? ico(icon) : ''}${label}</button>`;
+  const iconBtn = (label, action, icon) => btn('', action, icon, 'ow-icon ow-quiet', `aria-label="${label}"`);
+  const active = run => run && ['ready', 'running'].includes(run.status);
+  const runningCount = () => Object.values(state.runs).filter(active).length;
+  const selectedAction = () => state.actions.find(a => a.id === state.selected);
+  const ownership = action => action.storage === 'local' ? 'Only you · this project' : 'In project · shared';
+  const statusText = status => ({ ready: 'Ready', running: 'Running', passed: 'Passed', failed: 'Failed', stopped: 'Stopped', idle: 'Not run' }[status]);
+  const status = run => `<span class="ow-status ow-${run?.status || 'idle'}"><span class="ow-dot"></span>${statusText(run?.status || 'idle')}</span>`;
+  function hub() {
+    if (!state.hub) return '';
+    const recent = state.actions.filter(a => state.runs[a.id] && (design.showRecent || active(state.runs[a.id])));
+    return `<aside class="ow-hub" aria-label="Session hub">
+      <div class="ow-hub-heading">${ico('panels-top-left')}<h3 class="ow-grow">Session hub</h3><small class="ow-muted">This workspace</small></div>
+      <div class="ow-hub-section"><div class="ow-section-label"><span>Environment</span><span class="ow-good">Prepared</span></div><div class="ow-row">${ico('git-branch')}<span>feature/project-actions</span></div></div>
+      <div class="ow-hub-section"><div class="ow-section-label"><span>Changes</span><span>3 files</span></div><div class="ow-row"><span class="ow-good">+84</span><span class="ow-error">−12</span><small class="ow-muted">Uncommitted changes</small></div></div>
+      <div class="ow-hub-section"><div class="ow-section-label"><span>Actions</span><span>${runningCount()} running</span></div>${recent.map(a => {
+        const r = state.runs[a.id];
+        return `<button type="button" class="ow-hub-row cursor-interaction" data-do="inspect:${a.id}"><span class="ow-run-symbol ${r.status === 'failed' ? 'ow-error' : active(r) ? 'ow-good' : 'ow-muted'}">${ico(a.service ? 'radio' : r.status === 'failed' ? 'circle-alert' : 'terminal')}</span><span class="ow-grow">${esc(a.name)}<small>${r.status === 'ready' ? 'Ready · localhost:4321' : r.status === 'running' ? 'Running · started by you' : r.status === 'failed' ? 'Failed · exit code 2' : statusText(r.status)}</small></span>${ico('chevron-right')}</button>`;
+      }).join('')}</div>
+      ${btn('Run an action', 'launcher', 'play', 'ow-hub-footer')}
+    </aside>`;
+  }
+  function session() {
+    return `<section class="ow-work"><header class="ow-session-head"><div class="ow-grow"><div class="ow-breadcrumb">OpenWaggle / Session</div><h1>Redesign project actions</h1></div><div class="ow-session-tools">${btn(`Session hub <span class="ow-hub-count ow-muted">· ${runningCount()} running</span>`, 'hub', 'panels-top-left', 'ow-hub-toggle', `aria-expanded="${state.hub && !state.selected}"`)}${btn('Action', 'add', 'plus')}</div></header>
+      <div class="ow-session-canvas ${state.hub ? 'ow-hub-visible' : ''}">${hub()}<div class="ow-chat"><div class="ow-user-message">Start the website and run the unit tests for this workspace.</div><div class="ow-agent-message"><div class="ow-agent-name ow-row"><span class="ow-brand">${ico('hexagon')}</span>OpenWaggle</div><p>The website is ready. I’m checking the tests while you review the changes.</p></div><div class="ow-composer"><p>${esc(state.composer || 'Continue the conversation…')}</p><div class="ow-row"><small class="ow-grow">${state.composer ? 'Draft · not sent' : 'Local · feature/project-actions'}</small><span class="ow-send">${ico('arrow-up')}</span></div></div></div></div></section>`;
+  }
+  function drawer() {
+    const a = selectedAction();
+    if (!a) return '';
+    const r = state.runs[a.id];
+    return `<aside class="ow-drawer" aria-label="Action details"><div class="ow-drawer-head ow-row">${btn('Session', 'back', 'arrow-left', 'ow-quiet')}<span class="ow-grow"></span><small class="ow-muted">Action run</small>${iconBtn('Close action details', 'back', 'x')}</div><div class="ow-drawer-content">
+      <div class="ow-drawer-heading"><div class="ow-row"><h2 class="ow-grow">${esc(a.name)}</h2>${status(r)}</div><small>feature/project-actions · Run ${r?.number || 1}</small></div>
+      ${a.service && r?.status === 'ready' ? `<div class="ow-address">${ico('globe')}<code>localhost:4321</code>${iconBtn('Copy preview URL', 'copy-url', 'copy')}</div>` : ''}
+      <div class="ow-run-controls">${a.service ? btn('Open preview', 'preview', 'external-link', 'ow-primary ow-wide', r?.status !== 'ready' ? 'disabled' : '') : ''}${active(r) ? btn('Stop', 'stop', 'square', 'ow-danger') + btn('Restart', 'restart', 'rotate-cw') : btn('Run again', 'restart', 'play', 'ow-primary ow-wide')}</div>
+      ${r?.status === 'failed' ? btn('Ask agent to fix', 'ask-agent', 'sparkles', 'ow-wide', 'style="width:100%"') : ''}
+      <div class="ow-tabs">${['output','details'].map(t => `<button class="ow-tab cursor-interaction" data-do="detail:${t}" aria-pressed="${state.detail === t}">${t === 'output' ? 'Output' : 'Run details'}</button>`).join('')}</div>
+      ${state.detail === 'output' ? `<pre class="ow-output">${esc(r?.output || 'This action has not run in this workspace.')}</pre><div class="ow-output-tools">${btn('Copy output', 'copy-output', 'copy', 'ow-quiet')}${btn('Copy command', 'copy-command', 'terminal', 'ow-quiet')}</div>` : `<dl class="ow-meta"><div><dt>Command</dt><dd><code>${esc(a.command)}</code></dd></div><div><dt>Working directory</dt><dd><code>${esc(a.cwd === '.' ? 'Project root' : a.cwd)}</code></dd></div><div><dt>Task source</dt><dd><code>${esc(a.source || 'Custom command')}</code></dd></div><div><dt>Started by</dt><dd>You · this workspace</dd></div><div><dt>Process lifetime</dt><dd>${a.service ? 'Keeps running when OpenWaggle closes. Reconnects when you return.' : 'Ends when the command finishes.'}</dd></div></dl>`}
+      ${btn('Edit saved action', `edit:${a.id}`, 'sliders-horizontal', 'ow-quiet ow-definition-link')}
+    </div></aside>`;
+  }
+  function settings() {
+    return `<section class="ow-work"><div class="ow-settings"><div class="ow-breadcrumb">Settings / OpenWaggle</div><div class="ow-settings-title"><div class="ow-grow"><h1>Project actions</h1><p>Save the commands you use in this project.</p></div>${btn('Action', 'add', 'plus')}</div>
+      ${btn(`<span class="ow-good ow-dot"></span><span class="ow-grow">${runningCount()} running in this workspace<small class="ow-muted">${state.actions.filter(a => active(state.runs[a.id])).map(a => esc(a.name)).join(' · ') || 'View recent runs in the session hub'}</small></span>${ico('arrow-up-right')}`, 'activity', '', 'ow-activity-link')}
+      <div class="ow-tabs">${['actions','preparation'].map(t => `<button class="ow-tab cursor-interaction" data-do="settings-tab:${t}" aria-pressed="${state.settings === t}">${t === 'actions' ? 'Saved actions' : 'Workspace preparation'}</button>`).join('')}</div>
+      ${state.settings === 'actions' ? `<div>${state.actions.map(a => `<div class="ow-definition"><span class="ow-run-symbol">${ico(a.service ? 'radio' : 'terminal')}</span><div class="ow-grow"><h3>${esc(a.name)}</h3><small><code>${esc(a.command)}</code>${a.cwd !== '.' ? ` · ${esc(a.cwd)}` : ''}</small><span class="ow-ownership">${ico(a.storage === 'local' ? 'lock-keyhole' : 'folder-git-2')}${ownership(a)}</span></div>${btn('Edit', `edit:${a.id}`, '', 'ow-quiet', `aria-label="Edit ${esc(a.name)}"`)}</div>`).join('')}</div><div class="ow-settings-section"><p><small>New actions are saved only for you. Choose “In project” on an action to share its definition.</small></p></div>` : preparation()}
+    </div></section>`;
+  }
+  function preparation() {
+    return `<div class="ow-settings-section"><div class="ow-row"><h3 class="ow-grow">Default profile</h3><small class="ow-muted">This project</small></div><p><small>Prepare new worktrees before the agent starts. Release their resources before removal.</small></p><div class="ow-life"><div class="ow-row">${ico('package-check')}<h3 class="ow-grow">Setup</h3><span class="ow-status ow-ready"><span class="ow-dot"></span>${state.prepared ? 'Enabled' : 'Disabled'}</span></div><p>Runs for new managed worktrees.</p><div class="ow-row ow-wrap"><code class="ow-grow">pnpm install --frozen-lockfile</code>${btn('Edit', 'setup', '', 'ow-quiet')}</div><span class="ow-ownership">${ico('lock-keyhole')}Only you · this project</span></div><div class="ow-life"><div class="ow-row">${ico('brush-cleaning')}<h3 class="ow-grow">Cleanup</h3><span class="ow-status ${state.cleanupEnabled ? 'ow-ready' : ''}">${state.cleanupEnabled ? 'Enabled' : 'Review required'}</span></div><p>Runs before the last session’s worktree is removed.</p><div class="ow-row ow-wrap"><code class="ow-grow">docker compose down</code>${btn(state.cleanupEnabled ? 'Review' : 'Review & enable', 'cleanup', '', 'ow-quiet')}</div><span class="ow-ownership">${ico('folder-git-2')}In project · shared</span></div>${!state.cleanupEnabled ? `<div class="ow-notice">${ico('circle-alert')}<span>A shared cleanup is available. Review it before enabling it on this machine.</span></div>` : ''}</div>`;
+  }
+  function taskList() {
+    const filtered = tasks.filter(t => `${t.task} ${t.name} ${t.source}`.toLowerCase().includes(state.filter.toLowerCase()));
+    return ['package.json', 'website/package.json'].map(source => {
+      const group = filtered.filter(t => t.source === source);
+      if (!group.length) return '';
+      return `<div class="ow-task-group">${source === 'package.json' ? 'PROJECT ROOT' : 'WEBSITE'} <span>· ${source}</span></div>${group.map(t => `<button class="ow-task cursor-interaction" data-do="choose:${tasks.indexOf(t)}"><span class="ow-run-symbol">${ico(t.service ? 'radio' : 'terminal')}</span><span class="ow-grow">${esc(t.task)}<code>${esc(t.command)}</code></span>${ico('chevron-right')}</button>`).join('')}`;
+    }).join('') || '<p class="ow-muted">No matching tasks.</p>';
+  }
+  function storageFields(d) {
+    return `<div class="ow-field"><span class="ow-input-label">Save this action</span><div class="ow-storage"><label class="cursor-interaction"><input type="radio" name="storage" value="local" ${d.storage === 'local' ? 'checked' : ''}><span>Only you<small>Local to this project</small></span></label><label class="cursor-interaction"><input type="radio" name="storage" value="project" ${d.storage === 'project' ? 'checked' : ''}><span>In project<small>Share through Git</small></span></label></div></div>`;
+  }
+  function editForm() {
+    const d = state.draft;
+    return `<form id="ow-action-form"><div class="ow-field"><label class="ow-input-label" for="ow-name">Action name</label><input id="ow-name" name="name" value="${esc(d.name)}" required></div>
+      ${d.source ? `<div class="ow-task-source"><div class="ow-row">${ico('file-code-2')}<code>${esc(d.source)} → ${esc(d.task)}</code></div><small>Uses this task’s current definition in your workspace.</small><code>${esc(d.command)}</code></div>` : `<div class="ow-field"><label class="ow-input-label" for="ow-command">Command</label><textarea id="ow-command" name="command" rows="2" required placeholder="e.g. python -m pytest">${esc(d.command)}</textarea></div><div class="ow-field"><label class="ow-input-label" for="ow-cwd">Working directory</label><input id="ow-cwd" name="cwd" value="${esc(d.cwd)}" placeholder="."></div>`}
+      ${storageFields(d)}<label class="ow-check cursor-interaction"><input type="checkbox" name="service" ${d.service ? 'checked' : ''}><span>Long-running process<small>For development servers and watchers.</small></span></label><label class="ow-check cursor-interaction"><input type="checkbox" name="preview" ${d.preview ? 'checked' : ''}><span>Open preview when ready<small>Wait for the server URL before opening.</small></span></label>${state.error ? `<p class="ow-alert" role="alert">${esc(state.error)}</p>` : ''}</form>`;
+  }
+  function modal() {
+    if (!state.modal) return '';
+    let title = '', body = '', footer = '', back = false;
+    if (state.modal === 'discover') {
+      title = 'Add an action';
+      body = `<h2>Start with a project task</h2><p class="ow-dialog-intro">Commands found in OpenWaggle.</p><label class="ow-search">${ico('search')}<input id="ow-search" aria-label="Find a project task" placeholder="Find a task…" value="${esc(state.filter)}"></label><div id="ow-task-list">${taskList()}</div>${btn('Write a custom command', 'custom', 'terminal', 'ow-quiet ow-custom-link')}`;
+      footer = '<span class="ow-step">1 of 2 · Choose a command</span>';
+    } else if (state.modal === 'configure' || state.modal === 'edit') {
+      title = state.modal === 'edit' ? 'Edit action' : 'Configure action'; back = state.modal === 'configure';
+      body = editForm();
+      footer = `${state.modal === 'configure' ? '<span class="ow-step">2 of 2</span>' : ''}${btn('Cancel', 'close-modal', '', 'ow-quiet')}${btn(state.modal === 'edit' ? 'Save changes' : 'Add action', 'save', 'check', 'ow-primary')}`;
+    } else if (state.modal === 'launcher') {
+      title = 'Run an action';
+      body = `<p class="ow-dialog-intro">feature/project-actions</p>${state.actions.map(a => `<button class="ow-task cursor-interaction" data-do="launch:${a.id}"><span class="ow-run-symbol">${ico(a.service ? 'radio' : 'terminal')}</span><span class="ow-grow">${esc(a.name)}<code>${esc(a.command)}</code></span>${active(state.runs[a.id]) ? status(state.runs[a.id]) : ico('play')}</button>`).join('')}`;
+      footer = btn('Add action', 'add', 'plus', 'ow-quiet');
+    } else if (state.modal === 'preview') {
+      title = 'Browser preview';
+      body = `<div class="ow-address">${ico('globe')}<code>localhost:4321</code></div><div class="ow-preview" style="margin-top:16px"><span class="ow-brand" style="justify-content:center">${ico('hexagon')}</span><h2>OpenWaggle</h2><p class="ow-muted">Your workspace for working with agents.</p><small class="ow-muted">Website preview · simulated</small></div>`;
+    } else if (state.modal === 'copy') {
+      title = 'Copy text';
+      body = `<p class="ow-dialog-intro">Select and copy this text.</p><textarea readonly class="ow-copy-text" rows="7" aria-label="Text to copy">${esc(state.copyValue)}</textarea>`;
+    } else if (state.modal === 'setup' || state.modal === 'cleanup') {
+      const cleanup = state.modal === 'cleanup';
+      title = cleanup ? 'Review workspace cleanup' : 'Workspace setup';
+      body = `<p class="ow-dialog-intro">${cleanup ? 'Shared by this project. Enabling is saved only for you.' : 'Runs before the first agent turn in a new managed worktree.'}</p><div class="ow-task-source"><code>${cleanup ? 'docker compose down' : 'pnpm install --frozen-lockfile'}</code><small>Working directory · project root</small></div><p class="ow-muted">${cleanup ? 'Stops the workspace containers before OpenWaggle removes the worktree.' : 'Existing checkouts run setup only when you ask. A failed setup pauses preparation.'}</p>`;
+      footer = btn('Cancel', 'close-modal', '', 'ow-quiet') + btn(cleanup ? 'Enable cleanup' : state.prepared ? 'Disable setup' : 'Enable setup', cleanup ? 'enable-cleanup' : 'toggle-setup', 'check', 'ow-primary');
+    }
+    return `<div class="ow-modal-overlay"><section class="ow-dialog" role="dialog" aria-modal="true" aria-labelledby="ow-dialog-title"><div class="ow-dialog-head">${back ? btn('<span class="ow-back-label">Back</span>', 'discover-back', 'arrow-left', 'ow-quiet') : ''}<h2 class="ow-grow" id="ow-dialog-title">${title}</h2>${iconBtn('Close dialog', 'close-modal', 'x')}</div><div class="ow-dialog-body">${body}</div>${footer ? `<div class="ow-dialog-footer">${footer}</div>` : ''}</section></div>`;
+  }
+  function render(focus) {
+    root.innerHTML = `<div class="ow-app ${state.selected ? 'ow-has-drawer' : ''} ${state.modal ? 'ow-is-modal' : ''}"><div class="ow-screen" ${state.modal ? 'inert' : ''}><header class="ow-top"><span class="ow-brand">${ico('hexagon')}</span><div class="ow-grow"><span class="ow-project">OpenWaggle</span><small>feature/project-actions</small></div>${btn(state.view === 'settings' ? 'Session' : 'Settings', state.view === 'settings' ? 'session' : 'settings', state.view === 'settings' ? 'messages-square' : 'settings-2', 'ow-quiet ow-top-settings')}</header><div class="ow-body"><nav class="ow-nav" aria-label="Project navigation"><small>PROJECT</small>${btn('OpenWaggle', 'session', 'folder', 'ow-quiet')}<small>SESSIONS</small>${btn('Redesign project actions', 'session', 'messages-square', state.view === 'session' ? 'ow-current ow-quiet' : 'ow-quiet')}${btn('Project settings', 'settings', 'settings-2', 'ow-quiet ow-nav-bottom')}</nav>${state.view === 'settings' ? settings() : session()}${state.view === 'session' ? drawer() : ''}</div></div>${modal()}${state.toast ? `<div class="ow-toast" role="status">${esc(state.toast)}</div>` : ''}<footer class="ow-state-line" ${state.modal ? 'inert' : ''}><span>Interactive prototype · simulated runs</span>${btn('Reset demo', 'reset', 'rotate-ccw', 'ow-quiet')}</footer></div>`;
+    if (globalThis.lucide) globalThis.lucide.createIcons({ attrs: { width: 17, height: 17 } });
+    if (focus) root.querySelector(focus)?.focus({ preventScroll: true });
+  }
+  function feedback(message) { state.toast = message; clearTimeout(feedbackTimer); feedbackTimer = setTimeout(() => { state.toast = ''; const toast = root.querySelector('.ow-toast'); toast?.remove(); }, 4500); }
+  function openModal(name, trigger) { state.modal = name; state.error = ''; returnFocus = trigger || returnFocus; }
+  function start(a, restart = false) {
+    if (active(state.runs[a.id]) && !restart) return;
+    const number = (state.runs[a.id]?.number || 0) + 1;
+    state.runs[a.id] = { status: 'running', number, output: `> ${a.command}\n\n${restart ? 'Previous process stopped.\nStarting a new run…' : 'Starting…'}` };
+    setTimeout(() => {
+      const r = state.runs[a.id];
+      if (r?.number !== number || r.status !== 'running') return;
+      r.status = a.service ? 'ready' : a.id === 'types' ? 'failed' : 'passed';
+      r.output += a.service ? '\n\nLocal  http://localhost:4321/\nReady. Watching for file changes…' : a.id === 'types' ? '\n\nerror TS2322: incompatible ActionStatus.\nProcess exited with code 2.' : '\n\nAll checks passed.\nProcess exited with code 0.';
+      render();
+    }, 1400);
+  }
+  function captureDraft() {
+    if (!state.draft) return;
+    const form = root.querySelector('#ow-action-form');
+    if (!form) return;
+    const data = new FormData(form);
+    Object.assign(state.draft, { name: String(data.get('name') || '').trim(), storage: data.get('storage') || 'local', service: data.has('service'), preview: data.has('preview') });
+    if (!state.draft.source) Object.assign(state.draft, { command: String(data.get('command') || '').trim(), cwd: String(data.get('cwd') || '.').trim() });
+  }
+  root.addEventListener('input', event => {
+    if (event.target.id === 'ow-search') { state.filter = event.target.value; root.querySelector('#ow-task-list').innerHTML = taskList(); if (globalThis.lucide) globalThis.lucide.createIcons(); }
+    else captureDraft();
+  });
+  root.addEventListener('change', captureDraft);
+  root.addEventListener('submit', event => { event.preventDefault(); root.querySelector('[data-do="save"]')?.click(); });
+  root.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && state.modal) { state.modal = null; render(returnFocus); }
+    if (event.key !== 'Tab' || !state.modal) return;
+    const controls = Array.from(root.querySelectorAll('.ow-dialog button:not(:disabled), .ow-dialog input, .ow-dialog textarea, .ow-dialog select'));
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  });
+  root.addEventListener('click', async event => {
+    const control = event.target.closest('[data-do]');
+    if (!control || !root.contains(control)) return;
+    const [action, arg] = control.dataset.do.split(':');
+    let focus;
+    if (action === 'hub') { state.selected = null; state.hub = !state.hub; }
+    if (action === 'session' || action === 'activity') { state.view = 'session'; state.selected = null; state.hub = true; }
+    if (action === 'settings') { state.view = 'settings'; state.selected = null; }
+    if (action === 'settings-tab') state.settings = arg;
+    if (action === 'inspect') { state.selected = arg; state.detail = 'output'; focus = '[data-do="back"]'; }
+    if (action === 'back') { const previous = state.selected; state.selected = null; state.hub = true; focus = `[data-do="inspect:${previous}"]`; }
+    if (action === 'detail') state.detail = arg;
+    if (action === 'stop') { const r = state.runs[state.selected]; if (r) { r.status = 'stopped'; r.output += '\n\nStopped by you. Output retained.'; } }
+    if (action === 'restart') start(selectedAction(), true);
+    if (action === 'add') { state.filter = ''; state.draft = null; openModal('discover', '[data-do="add"]'); focus = '[data-do="close-modal"]'; }
+    if (action === 'launcher') { openModal('launcher', '[data-do="launcher"]'); focus = '[data-do="close-modal"]'; }
+    if (action === 'launch') { const a = state.actions.find(a => a.id === arg); start(a); state.modal = null; state.view = 'session'; state.selected = a.id; state.detail = 'output'; }
+    if (action === 'choose') { state.draft = { ...tasks[Number(arg)], id: `action-${Date.now()}`, storage: 'local', preview: false }; state.modal = 'configure'; focus = '#ow-name'; }
+    if (action === 'custom') { state.draft = { id: `action-${Date.now()}`, name: '', task: '', command: '', source: '', cwd: '.', service: false, storage: 'local', preview: false }; state.modal = 'configure'; focus = '#ow-name'; }
+    if (action === 'discover-back') { state.modal = 'discover'; focus = '[data-do="close-modal"]'; }
+    if (action === 'edit') { state.draft = structuredClone(state.actions.find(a => a.id === arg)); openModal('edit', `[data-do="edit:${arg}"]`); focus = '#ow-name'; }
+    if (action === 'save') {
+      captureDraft();
+      if (!state.draft.name || !state.draft.command) state.error = 'Enter an action name and a command.';
+      else {
+        const index = state.actions.findIndex(a => a.id === state.draft.id);
+        if (index >= 0) state.actions[index] = structuredClone(state.draft); else state.actions.push(structuredClone(state.draft));
+        feedback(`${state.draft.name} ${index >= 0 ? 'updated' : 'added'} · ${state.draft.storage === 'local' ? 'only you, in this project' : 'saved in project'} · not started`);
+        state.modal = null; focus = returnFocus;
+      }
+    }
+    if (action === 'close-modal') { state.modal = null; focus = returnFocus; }
+    if (action === 'preview' || action === 'setup' || action === 'cleanup') { openModal(action, `[data-do="${action}"]`); focus = '[data-do="close-modal"]'; }
+    if (action === 'enable-cleanup') { state.cleanupEnabled = true; state.modal = null; feedback('Cleanup enabled for you on this machine.'); }
+    if (action === 'toggle-setup') { state.prepared = !state.prepared; state.modal = null; }
+    if (action === 'ask-agent') { state.composer = `Investigate the failed ${selectedAction().name} run and propose a fix. Exit code 2. Include the retained output.`; state.selected = null; state.hub = false; feedback('Failure added to the conversation draft.'); }
+    if (action.startsWith('copy-')) {
+      const a = selectedAction();
+      const value = action === 'copy-url' ? 'http://localhost:4321/' : action === 'copy-command' ? a.command : state.runs[a.id]?.output || '';
+      try {
+        const policy = document.permissionsPolicy || document.featurePolicy;
+        if (!navigator.clipboard || !policy?.allowsFeature('clipboard-write')) throw new Error('Clipboard unavailable in this preview');
+        await navigator.clipboard.writeText(value); feedback('Copied.');
+      }
+      catch { state.copyValue = value; openModal('copy', `[data-do="${action}"]`); focus = '.ow-copy-text'; }
+    }
+    if (action === 'reset') { state.actions = structuredClone(seed); state.view = 'session'; state.selected = null; state.modal = null; state.hub = true; state.toast = ''; state.filter = ''; state.composer = ''; state.prepared = true; state.cleanupEnabled = false; state.runs = { web: { status: 'ready', number: 1, output: '> pnpm run dev\n\nastro v5.13.2\n\nLocal  http://localhost:4321/\n\nready in 286 ms\nwatching for file changes…' }, tests: { status: 'running', number: 1, output: '> pnpm run test:unit\n\nRUN v3.2.4\n\n✓ project-actions  12 tests\n✓ session-store     9 tests\n\nRunning remaining tests…' }, types: { status: 'failed', number: 1, output: '> pnpm run typecheck\n\nerror TS2322: incompatible ActionStatus.\n\nProcess exited with code 2.' } }; }
+    render(focus);
+  });
+  render();
+  if (globalThis.Tweak) {
+    const tweak = new Tweak({ container: root, onChange: () => render() });
+    tweak.addToggle(design, 'showRecent', { label: 'Show finished actions in the hub' });
+  }
+})();
+</script>

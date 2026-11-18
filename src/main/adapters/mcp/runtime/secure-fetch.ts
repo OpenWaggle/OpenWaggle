@@ -1,0 +1,305 @@
+import { lookup } from 'node:dns/promises'
+import { BlockList, isIP, type LookupFunction } from 'node:net'
+import type { FetchLike } from '@modelcontextprotocol/client'
+import { Agent, Dispatcher1Wrapper } from 'undici'
+import {
+  assertSecureMcpProtocol,
+  isAllowedMcpHostname,
+  isLoopbackMcpHostname,
+  normalizeMcpAllowedHosts,
+} from './mcp-network-hosts'
+import { limitMcpResponseBytes } from './response-byte-limit'
+import { McpFetchRequests } from './secure-fetch-close'
+import { assertResolvedLoopbackAllowed, isLoopbackAddress } from './secure-fetch-loopback'
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+const MAX_REDIRECTS = 5
+const IP_FAMILY_V4 = 4
+const IP_FAMILY_V6 = 6
+const HTTP_MOVED_PERMANENTLY = 301
+const HTTP_FOUND = 302
+const HTTP_SEE_OTHER = 303
+
+export type HostnameResolver = (
+  hostname: string,
+  options: { readonly all: true; readonly verbatim: true },
+) => Promise<readonly { readonly address: string; readonly family: number }[]>
+
+export interface ValidatedMcpNetworkTarget {
+  readonly hostname: string
+  readonly address: string
+  readonly family: 4 | 6
+}
+
+export type PinnedFetch = (
+  url: URL,
+  init: RequestInit,
+  target: ValidatedMcpNetworkTarget,
+) => Promise<Response>
+
+interface DispatcherRequestInit extends RequestInit {
+  readonly dispatcher: Dispatcher1Wrapper
+}
+
+const resolveHostname: HostnameResolver = (hostname, options) => lookup(hostname, options)
+
+const blockedIpv4Addresses = new BlockList()
+for (const [network, prefix] of [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.0.2.0', 24],
+  ['192.88.99.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['198.51.100.0', 24],
+  ['203.0.113.0', 24],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
+] as const) {
+  blockedIpv4Addresses.addSubnet(network, prefix, 'ipv4')
+}
+const blockedIpv6Addresses = new BlockList()
+for (const [network, prefix] of [
+  ['::', 96],
+  ['::ffff:0:0', 96],
+  ['64:ff9b:1::', 48],
+  ['100::', 64],
+  ['2001:2::', 48],
+  ['2001:10::', 28],
+  ['2001:20::', 28],
+  ['2001:db8::', 32],
+  ['fc00::', 7],
+  ['fe80::', 10],
+  ['fec0::', 10],
+  ['ff00::', 8],
+] as const) {
+  blockedIpv6Addresses.addSubnet(network, prefix, 'ipv6')
+}
+
+function isPrivateAddress(address: string) {
+  const family = isIP(address)
+  if (family === IP_FAMILY_V4) return blockedIpv4Addresses.check(address, 'ipv4')
+  if (family === IP_FAMILY_V6) return blockedIpv6Addresses.check(address, 'ipv6')
+  return true
+}
+
+function privateNetworkPermitted(input: {
+  readonly allowInsecurePrivateNetwork: boolean
+  readonly allowLoopback?: boolean
+  readonly url: URL
+}) {
+  return (
+    input.allowInsecurePrivateNetwork ||
+    (input.allowLoopback !== false && isLoopbackMcpHostname(input.url.hostname))
+  )
+}
+
+function assertLoopbackAllowed(url: URL, allowLoopback: boolean | undefined) {
+  if (allowLoopback === false && isLoopbackMcpHostname(url.hostname)) {
+    throw new Error(`MCP loopback target is not permitted: ${url.hostname}.`)
+  }
+}
+
+function assertProtocolAllowed(input: {
+  readonly url: URL
+  readonly allowPlainHttp?: boolean
+  readonly websocket?: boolean
+}) {
+  const plain = ['http:', 'ws:'].includes(input.url.protocol)
+  if (input.allowPlainHttp === true && plain) return
+  assertSecureMcpProtocol(input.url, input.websocket === true)
+}
+
+export async function validateMcpNetworkTarget(input: {
+  readonly url: URL
+  readonly allowedHosts: ReadonlySet<string>
+  readonly allowInsecurePrivateNetwork: boolean
+  readonly allowLoopback?: boolean
+  /** Plain `http:` (or `ws:`) to any host: only for an endpoint the user configured, as Pi allows. */
+  readonly allowPlainHttp?: boolean
+  readonly websocket?: boolean
+  readonly resolveHostname?: HostnameResolver
+}) {
+  if (input.url.username || input.url.password) {
+    throw new Error('MCP network URLs cannot contain credentials.')
+  }
+  assertLoopbackAllowed(input.url, input.allowLoopback)
+  assertProtocolAllowed(input)
+  if (!isAllowedMcpHostname(input.allowedHosts, input.url.hostname)) {
+    throw new Error(`MCP redirect target is not allowlisted: ${input.url.hostname}.`)
+  }
+
+  const addresses = await (input.resolveHostname ?? resolveHostname)(input.url.hostname, {
+    all: true,
+    verbatim: true,
+  })
+  if (addresses.length === 0) {
+    throw new Error(`MCP hostname did not resolve: ${input.url.hostname}.`)
+  }
+  assertResolvedLoopbackAllowed(input.url.hostname, addresses, input.allowLoopback)
+  const permitsPrivate = privateNetworkPermitted(input)
+  if (!permitsPrivate && addresses.some(({ address }) => isPrivateAddress(address))) {
+    throw new Error(
+      `MCP hostname resolves to a private or reserved address: ${input.url.hostname}.`,
+    )
+  }
+  if (
+    isLoopbackMcpHostname(input.url.hostname) &&
+    addresses.some(({ address }) => !isLoopbackAddress(address))
+  ) {
+    throw new Error(`Loopback MCP hostname resolved outside loopback: ${input.url.hostname}.`)
+  }
+
+  const selected = addresses[0]
+  if (!selected) throw new Error(`MCP hostname did not resolve: ${input.url.hostname}.`)
+  const family = isIP(selected.address)
+  if (family !== IP_FAMILY_V4 && family !== IP_FAMILY_V6) {
+    throw new Error(`MCP hostname resolved to an invalid address: ${input.url.hostname}.`)
+  }
+  return {
+    hostname: input.url.hostname,
+    address: selected.address,
+    family,
+  } satisfies ValidatedMcpNetworkTarget
+}
+
+export function createPinnedMcpLookup(target: ValidatedMcpNetworkTarget) {
+  return ((_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [{ address: target.address, family: target.family }])
+      return
+    }
+    callback(null, target.address, target.family)
+  }) satisfies LookupFunction
+}
+
+function dispatcherFor(
+  target: ValidatedMcpNetworkTarget,
+  dispatchers: Map<string, Dispatcher1Wrapper>,
+) {
+  const key = `${target.hostname.toLowerCase()}\0${target.address}\0${String(target.family)}`
+  const existing = dispatchers.get(key)
+  if (existing) return existing
+  const dispatcher = new Dispatcher1Wrapper(
+    new Agent({
+      allowH2: false,
+      connect: {
+        lookup: createPinnedMcpLookup(target),
+        ...(isIP(target.hostname) === 0 ? { servername: target.hostname } : {}),
+      },
+    }),
+  )
+  dispatchers.set(key, dispatcher)
+  return dispatcher
+}
+
+export type SecureMcpFetch = FetchLike & { readonly close: () => Promise<void> }
+
+export { MCP_FETCH_CLOSE_GRACE_MS } from './secure-fetch-close'
+
+function redirectRequestInit(status: number, init: RequestInit) {
+  if (
+    status !== HTTP_SEE_OTHER &&
+    !((status === HTTP_MOVED_PERMANENTLY || status === HTTP_FOUND) && init.method === 'POST')
+  ) {
+    return init
+  }
+  const headers = new Headers(init.headers)
+  headers.delete('content-length')
+  headers.delete('content-type')
+  return { ...init, method: 'GET', body: null, headers } satisfies RequestInit
+}
+
+function redirectCredentials(originChanged: boolean, init: RequestInit) {
+  if (!originChanged) return init
+  const headers = new Headers(init.headers)
+  headers.delete('authorization')
+  headers.delete('cookie')
+  headers.delete('proxy-authorization')
+  return { ...init, headers }
+}
+
+export function createSecureMcpFetch(input: {
+  readonly baseUrl: URL
+  readonly allowedDomains?: readonly string[]
+  /** Allow redirect hosts discovered at runtime; every hop still passes protocol and SSRF validation. */
+  readonly allowPublicRedirects?: boolean
+  readonly allowInsecurePrivateNetwork?: boolean
+  readonly allowLoopback?: boolean
+  readonly allowPlainHttp?: boolean
+  readonly maxResponseBytes?: number
+  readonly fetchFn?: PinnedFetch
+  readonly resolveHostname?: HostnameResolver
+}) {
+  const allowedHosts = normalizeMcpAllowedHosts([
+    input.baseUrl.hostname,
+    ...(input.allowedDomains ?? []),
+  ])
+  const dispatchers = new Map<string, Dispatcher1Wrapper>()
+  const requests = new McpFetchRequests()
+  // Closing can end a request, or a body still streaming, that would otherwise wait out a host.
+  const pinnedFetch: PinnedFetch = (url, init, target) =>
+    requests.send(init, (signal) => {
+      const requestInit: DispatcherRequestInit = {
+        ...init,
+        signal,
+        dispatcher: dispatcherFor(target, dispatchers),
+      }
+      return fetch(url, requestInit)
+    })
+
+  return Object.assign(
+    async (urlInput: Parameters<FetchLike>[0], requestInit: RequestInit = {}) => {
+      requests.assertOpen()
+      let url = new URL(typeof urlInput === 'string' ? urlInput : urlInput.toString())
+      let init: RequestInit = { ...requestInit, redirect: 'manual' }
+
+      for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
+        const target = await validateMcpNetworkTarget({
+          url,
+          allowedHosts,
+          allowInsecurePrivateNetwork: input.allowInsecurePrivateNetwork === true,
+          ...(input.allowLoopback !== undefined ? { allowLoopback: input.allowLoopback } : {}),
+          ...(input.allowPlainHttp ? { allowPlainHttp: true } : {}),
+          ...(input.resolveHostname ? { resolveHostname: input.resolveHostname } : {}),
+        })
+        const response = await (input.fetchFn ?? pinnedFetch)(url, init, target)
+        if (!REDIRECT_STATUSES.has(response.status)) {
+          return input.maxResponseBytes === undefined
+            ? response
+            : limitMcpResponseBytes(response, input.maxResponseBytes)
+        }
+        void response.body?.cancel().catch(() => undefined)
+        if (redirectCount === MAX_REDIRECTS) throw new Error('MCP HTTP redirect limit exceeded.')
+        const location = response.headers.get('location')
+        if (!location) throw new Error('MCP HTTP redirect did not include a Location header.')
+        const nextUrl = new URL(location, url)
+        if (input.allowPublicRedirects === true && nextUrl.hostname !== url.hostname) {
+          allowedHosts.add(nextUrl.hostname.toLowerCase())
+        }
+        init = {
+          ...redirectCredentials(
+            nextUrl.origin !== url.origin,
+            redirectRequestInit(response.status, init),
+          ),
+          redirect: 'manual',
+        }
+        url = nextUrl
+      }
+
+      throw new Error('MCP HTTP redirect limit exceeded.')
+    },
+    {
+      async close() {
+        const activeDispatchers = [...dispatchers.values()]
+        dispatchers.clear()
+        await requests.close(activeDispatchers)
+      },
+    },
+  )
+}

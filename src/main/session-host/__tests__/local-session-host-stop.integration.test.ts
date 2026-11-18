@@ -1,0 +1,140 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { Schema } from '@shared/schema'
+import { LOCAL_SESSION_CURRENT_REVISION } from '@shared/types/local-session-protocol'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { encodeLocalSessionFrame } from '../local-session-framing'
+import { type LocalSessionHostRuntime, startLocalSessionHost } from '../local-session-host-runtime'
+import { connectLocalSessionTestClient, TestFrameReader } from './local-session-server-test-client'
+
+const localHostContractSchema = Schema.Struct({ contract: Schema.Literal('local-host-v1') })
+
+const STOP_TIMEOUT_MS = 2_000
+
+async function negotiatedClient(endpoint: string) {
+  const socket = await connectLocalSessionTestClient(endpoint)
+  const reader = new TestFrameReader(socket)
+  socket.write(
+    encodeLocalSessionFrame({
+      protocol: 'openwaggle-local-session',
+      supportedRevisions: [LOCAL_SESSION_CURRENT_REVISION],
+      clientKind: 'cli',
+      clientVersion: 'test',
+    }),
+  )
+  await expect(reader.next()).resolves.toMatchObject({ accepted: true })
+  let requests = 0
+  const send = async (payload: unknown) => {
+    requests += 1
+    socket.write(encodeLocalSessionFrame({ kind: 'command', requestId: `r-${requests}`, payload }))
+    return reader.next()
+  }
+  return { socket, send }
+}
+
+function stopped(runtime: LocalSessionHostRuntime) {
+  return Promise.race([
+    runtime.waitUntilStopped().then(() => 'stopped'),
+    new Promise((resolve) => setTimeout(() => resolve('still running'), STOP_TIMEOUT_MS)),
+  ])
+}
+
+describe('stopping a live Session Host', () => {
+  let temporaryRoot = ''
+  let runtime: LocalSessionHostRuntime | null = null
+
+  beforeEach(async () => {
+    temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-host-stop-'))
+  })
+
+  afterEach(async () => {
+    if (runtime) await runtime.stop()
+    await fs.rm(temporaryRoot, { recursive: true, force: true })
+  })
+
+  it('answers the stop, keeps answering work-ending commands, and exits when work ends', async () => {
+    const endpoint = path.join(temporaryRoot, 'host.sock')
+    runtime = await startLocalSessionHost({
+      endpoint,
+      databasePath: path.join(temporaryRoot, 'session-host.sqlite'),
+      idleGracePeriodMs: 60_000,
+      authenticate: async () => ({ callerId: 'local-user:test' }),
+      dispatch: async (input) =>
+        Schema.is(localHostContractSchema)(input.payload)
+          ? { stopping: input.requestHostStop() }
+          : { accepted: true },
+    })
+    const releaseRun = runtime.liveness.acquire('run')
+    const client = await negotiatedClient(endpoint)
+
+    await expect(client.send({ contract: 'local-host-v1' })).resolves.toMatchObject({
+      kind: 'response',
+      payload: { stopping: { runningActions: 0 } },
+    })
+    await expect(
+      client.send({
+        contract: 'session-control-v2',
+        request: { command: { operation: 'interrupt' } },
+      }),
+    ).resolves.toMatchObject({ kind: 'response', payload: { accepted: true } })
+    await expect(client.send({ contract: 'session-lifecycle-v2' })).resolves.toMatchObject({
+      kind: 'error',
+      message: expect.stringContaining('The Session Host is stopping'),
+    })
+
+    releaseRun()
+    await expect(stopped(runtime)).resolves.toBe('stopped')
+    client.socket.destroy()
+  })
+
+  it('exits at the stop deadline even while an Action still holds it', async () => {
+    const endpoint = path.join(temporaryRoot, 'host.sock')
+    runtime = await startLocalSessionHost({
+      endpoint,
+      databasePath: path.join(temporaryRoot, 'session-host.sqlite'),
+      idleGracePeriodMs: 60_000,
+      authenticate: async () => ({ callerId: 'gui:local-user' }),
+      dispatch: async (input) => ({ stopping: input.requestHostStop({ deadlineMs: 200 }) }),
+    })
+    // A dev server started as a project Action never ends on its own.
+    runtime.liveness.acquire('action-run')
+    const client = await negotiatedClient(endpoint)
+
+    await expect(client.send({ contract: 'local-host-v1' })).resolves.toMatchObject({
+      kind: 'response',
+      payload: { stopping: { runningActions: 1 } },
+    })
+
+    await expect(stopped(runtime)).resolves.toBe('stopped')
+    client.socket.destroy()
+  })
+
+  it('interrupts its Runs at the stop deadline and exits once they end', async () => {
+    const endpoint = path.join(temporaryRoot, 'host.sock')
+    let releaseRun: () => void = () => undefined
+    let interrupted = 0
+    runtime = await startLocalSessionHost({
+      endpoint,
+      databasePath: path.join(temporaryRoot, 'session-host.sqlite'),
+      idleGracePeriodMs: 60_000,
+      authenticate: async () => ({ callerId: 'gui:local-user' }),
+      dispatch: async (input) => ({ stopping: input.requestHostStop({ deadlineMs: 100 }) }),
+      // The Session Host bootstrap passes interruptAllSessionRuns here.
+      interruptRunsAtDrainDeadline: async () => {
+        interrupted += 1
+        releaseRun()
+      },
+    })
+    releaseRun = runtime.liveness.acquire('run')
+    const client = await negotiatedClient(endpoint)
+
+    await expect(client.send({ contract: 'local-host-v1' })).resolves.toMatchObject({
+      kind: 'response',
+    })
+
+    await expect(stopped(runtime)).resolves.toBe('stopped')
+    expect(interrupted).toBe(1)
+    client.socket.destroy()
+  })
+})

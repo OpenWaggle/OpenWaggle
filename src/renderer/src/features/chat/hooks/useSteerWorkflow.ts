@@ -1,58 +1,94 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
-import { useState } from 'react'
-import { useMessageQueueStore } from '@/features/chat/state'
+import type { SessionControlSteeringReceipt } from '@shared/types/session-control'
+import {
+  selectPendingSteerFollowUps,
+  useOptimisticSteerStore,
+  userStopCount,
+} from '@/features/chat/state'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { reportQueuedSteerFailure } from '../lib/queue-failure-feedback'
+import type { AgentChatReturn } from './useAgentChat.types'
+import type { OptimisticSteerPreviewController } from './useOptimisticSteeredTurn'
+import type { SessionFollowUpQueueItem } from './useSessionFollowUpQueue'
 
 const logger = createRendererLogger('chat-panel')
 
 interface SteerWorkflowDeps {
   readonly activeSessionId: SessionId | null
-  readonly steer: () => Promise<void>
-  readonly previewSteeredUserTurn: (payload: AgentSendPayload) => () => void
+  readonly followUps: readonly SessionFollowUpQueueItem[]
+  readonly isCompacting: boolean
+  readonly previewSteeredUserTurn: AgentChatReturn['previewSteeredUserTurn']
+  readonly promoteFollowUp: (followUpId: string) => Promise<SessionControlSteeringReceipt>
   readonly withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
-  readonly handleSendWithWaggle: (payload: AgentSendPayload) => Promise<void>
   readonly showToast: (message: string) => void
 }
 
-interface SteerWorkflowReturn {
-  readonly isSteering: boolean
-  readonly handleSteer: (messageId: string) => Promise<void>
+/** Promotes a queued Follow-up into the active Run; kept out of the hook (see `withFinally`). */
+async function steerQueuedFollowUp(
+  activeSessionId: SessionId,
+  messageId: string,
+  deps: SteerWorkflowDeps,
+) {
+  const { promoteFollowUp, withDeferredSnapshotRefresh, showToast } = deps
+  const item = deps.followUps.find((candidate) => candidate.id === messageId)
+  if (!item || !useOptimisticSteerStore.getState().beginPromotion(activeSessionId, messageId)) {
+    return
+  }
+  let preview: OptimisticSteerPreviewController | undefined
+  const stopsBefore = userStopCount(activeSessionId)
+  try {
+    // This is display-only: the Host still resolves the original immutable attachments and
+    // intent by Follow-up ID. Never reconstruct a delivery payload from the queue preview.
+    const attachmentSummary =
+      item.attachmentCount > 0 ? `[${item.attachmentCount} attachments]` : ''
+    preview = deps.previewSteeredUserTurn(
+      {
+        text: [item.text, attachmentSummary].filter(Boolean).join('\n\n'),
+        attachments: [],
+      },
+      deps.isCompacting ? 'waiting-for-compaction' : 'sending',
+      // The delivered row shows the item's own text and attachments, not the summary above.
+      { text: item.text.trim(), attachmentCount: item.attachmentCount },
+    )
+    preview.setReceipt(null)
+    const receipt = await withDeferredSnapshotRefresh(() => promoteFollowUp(messageId))
+    const acceptedPreview = preview
+    matchBy(receipt, 'delivery')
+      .with('handled', () => acceptedPreview.clear())
+      .with('queued', (queued) => {
+        acceptedPreview.setReceipt(queued)
+        acceptedPreview.setDeliveryState('sending')
+      })
+      .with('unavailable', () => acceptedPreview.setDeliveryState('sending'))
+      .exhaustive()
+  } catch (error) {
+    preview?.clear()
+    // The user stopped the Run while the promotion was pending: the Host rejects it and the
+    // message goes back to the queue, which is what Stop asked for, not a failure to report.
+    if (userStopCount(activeSessionId) !== stopsBefore) {
+      logger.info('A Stop ended the Run a queued message was steering into', {
+        sessionId: activeSessionId,
+        messageId,
+      })
+    } else {
+      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
+    }
+  } finally {
+    // The Host has removed an accepted Follow-up, or retained a refused one. A queued receipt
+    // keeps its preview until the actual user node arrives, which can follow a long tool call.
+    useOptimisticSteerStore.getState().finishPromotion(activeSessionId, messageId)
+  }
 }
 
-export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
-  const [isSteering, setIsSteering] = useState(false)
-  const {
-    activeSessionId,
-    steer,
-    previewSteeredUserTurn,
-    withDeferredSnapshotRefresh,
-    handleSendWithWaggle,
-    showToast,
-  } = deps
+export function useSteerWorkflow(deps: SteerWorkflowDeps) {
+  const { activeSessionId } = deps
+  const pendingPromotions = useOptimisticSteerStore(selectPendingSteerFollowUps(activeSessionId))
 
   async function handleSteer(messageId: string) {
     if (!activeSessionId) return
-    const queue = useMessageQueueStore.getState().queues.get(activeSessionId)
-    const item = queue?.find((i) => i.id === messageId)
-    if (!item) return
-    setIsSteering(true)
-    useMessageQueueStore.getState().dismiss(activeSessionId, messageId)
-    const clearOptimisticSteeredTurn = previewSteeredUserTurn(item.payload)
-    try {
-      await withDeferredSnapshotRefresh(async () => {
-        await steer()
-        await handleSendWithWaggle(item.payload)
-      })
-    } catch (error) {
-      clearOptimisticSteeredTurn()
-      useMessageQueueStore.getState().enqueue(activeSessionId, item.payload)
-      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
-    } finally {
-      setIsSteering(false)
-    }
+    await steerQueuedFollowUp(activeSessionId, messageId, deps)
   }
 
-  return { isSteering, handleSteer }
+  return { isSteering: pendingPromotions.length > 0, handleSteer }
 }

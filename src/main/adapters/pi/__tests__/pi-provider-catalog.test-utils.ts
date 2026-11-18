@@ -1,13 +1,16 @@
-import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { onTestFinished } from 'vitest'
 import { createPiRuntimeServices } from '../pi-provider-catalog'
 
-export { existsSync, fs, path }
+export { fs, path }
 
+/** A temporary project removed when the calling test finishes. */
 export async function createTempProject() {
-  return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-skills-'))
+  const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-skills-'))
+  onTestFinished(() => fs.rm(projectPath, { recursive: true, force: true }))
+  return projectPath
 }
 
 export async function writeSkill(projectPath: string, root: string, id: string) {
@@ -63,6 +66,28 @@ export async function writeProviderPackage(
 ) {
   const packageDir = path.join(baseDir, packageSource)
   await writeJson(path.join(packageDir, 'package.json'), {
+    pi: {
+      extensions: ['extensions/provider.js'],
+    },
+  })
+  await fs.mkdir(path.join(packageDir, 'extensions'), { recursive: true })
+  await fs.writeFile(
+    path.join(packageDir, 'extensions', 'provider.js'),
+    providerExtensionModule(providerId),
+    'utf8',
+  )
+}
+
+export async function writeNpmProviderPackage(
+  agentDir: string,
+  packageName: string,
+  version: string,
+  providerId: string,
+) {
+  const packageDir = path.join(agentDir, 'npm', 'node_modules', packageName)
+  await writeJson(path.join(packageDir, 'package.json'), {
+    name: packageName,
+    version,
     pi: {
       extensions: ['extensions/provider.js'],
     },

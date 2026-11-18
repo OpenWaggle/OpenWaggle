@@ -1,38 +1,27 @@
 import { match } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionContributions } from '@shared/schemas/extensions'
 import type {
-  ExtensionContributionFamily,
-  ExtensionContributionMatchView,
-  ExtensionContributionRuntime,
-  ExtensionContributionTargetView,
-  ExtensionExecutionPlacement,
-} from '@shared/types/extensions'
+  ExtensionContributions,
+  ExtensionSessionSummaryContribution,
+} from '@shared/schemas/extensions'
+import type { ExtensionContributionFamily } from '@shared/types/extensions'
 
-export interface ManifestCommandContribution {
-  readonly id: string
-  readonly title: string
-  readonly category?: string
-  readonly target?: ExtensionContributionTargetView
-  readonly capability?: string
-  readonly method?: string
-  readonly methods?: readonly string[]
-}
+/** A decoded manifest command or slash command. */
+export type ManifestCommandContribution = NonNullable<ExtensionContributions['commands']>[number]
 
-export interface ManifestEntryContribution {
-  readonly id: string
-  readonly title: string
-  readonly runtime: ExtensionContributionRuntime
-  readonly execution: ExtensionExecutionPlacement
-  readonly entry: string
-  readonly target?: ExtensionContributionTargetView
-  readonly matches?: ExtensionContributionMatchView
-  readonly capability?: string
-  readonly method?: string
-  readonly methods?: readonly string[]
-}
+/** A decoded manifest entry contribution; only side panels declare an `icon` (ADR 0043). */
+export type ManifestEntryContribution = NonNullable<ExtensionContributions['sidePanels']>[number]
 
-export type ManifestContribution = ManifestCommandContribution | ManifestEntryContribution
+/** A decoded manifest target. */
+export type ManifestContributionTarget = NonNullable<ManifestEntryContribution['target']>
+
+export type ManifestContributionMatches = NonNullable<ManifestEntryContribution['matches']>
+
+export type ManifestSessionSummaryContribution = ExtensionSessionSummaryContribution
+export type ManifestContribution =
+  | ManifestCommandContribution
+  | ManifestEntryContribution
+  | ManifestSessionSummaryContribution
 
 interface CommandFamilyDescriptor {
   readonly family: (typeof OPENWAGGLE_EXTENSION.COMMAND_CONTRIBUTION_FAMILIES)[number]
@@ -94,15 +83,15 @@ export const ENTRY_FAMILY_DESCRIPTORS = [
   },
 ] satisfies readonly EntryFamilyDescriptor[]
 
-export const CONTRIBUTION_FAMILY_DESCRIPTORS = [
-  ...COMMAND_FAMILY_DESCRIPTORS,
-  ...ENTRY_FAMILY_DESCRIPTORS,
-] satisfies readonly (CommandFamilyDescriptor | EntryFamilyDescriptor)[]
+export const SESSION_SUMMARY_FAMILY_DESCRIPTOR = {
+  family: CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS,
+  contributions: (contributions: ExtensionContributions) => contributions.sessionSummarySections,
+} as const
 
 export function getManifestFamilyContributions(
   contributions: ExtensionContributions,
   family: ExtensionContributionFamily,
-): readonly ManifestContribution[] | undefined {
+) {
   return match(family)
     .with(CONTRIBUTION_FAMILY.COMMANDS, () => contributions.commands)
     .with(CONTRIBUTION_FAMILY.SLASH_COMMANDS, () => contributions.slashCommands)
@@ -115,6 +104,7 @@ export function getManifestFamilyContributions(
     .with(CONTRIBUTION_FAMILY.CUSTOM_MESSAGE_RENDERERS, () => contributions.customMessageRenderers)
     .with(CONTRIBUTION_FAMILY.INTERACTION_RENDERERS, () => contributions.interactionRenderers)
     .with(CONTRIBUTION_FAMILY.STATUS_WIDGETS, () => contributions.statusWidgets)
+    .with(CONTRIBUTION_FAMILY.SESSION_SUMMARY_SECTIONS, () => contributions.sessionSummarySections)
     .exhaustive()
 }
 
@@ -122,4 +112,10 @@ export function isEntryContribution(
   contribution: ManifestContribution,
 ): contribution is ManifestEntryContribution {
   return 'entry' in contribution
+}
+
+export function isSessionSummaryContribution(
+  contribution: ManifestContribution,
+): contribution is ManifestSessionSummaryContribution {
+  return 'rows' in contribution
 }

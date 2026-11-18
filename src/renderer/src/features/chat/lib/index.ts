@@ -2,7 +2,17 @@ export { isTerminalTransportEvent } from './agent-stream-utils'
 export { createBranchDraftSelectionFromNode } from './branch-from-message'
 export { maybeOpenBranchSummaryPrompt } from './branch-summary-prompt-controller'
 export { setComposerTextValue } from './composer-text'
+export { resolveCurrentConversationNode } from './current-conversation-node'
 export {
-  isScrollContainerNearBottom,
-  scrollElementToBottom,
-} from './scroll-to-bottom'
+  createdSessionIdOf,
+  FirstSendFailed,
+  isReportableSendFailure,
+  MessageDeliveredRunFailed,
+  MessageNotDelivered,
+  sendFailureText,
+  wasMessageDelivered,
+} from './message-delivery'
+export { focusPendingRequest } from './pending-request-focus'
+export { isScrollContainerNearBottom, scrollElementToBottom } from './scroll-to-bottom'
+export { isSessionModelActionable } from './session-answered-by'
+export { runSessionCopyOnce } from './session-copy-in-flight'

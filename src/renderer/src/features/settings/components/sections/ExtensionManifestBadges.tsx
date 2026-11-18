@@ -11,11 +11,11 @@ export function ManifestBadges({
   }
 
   return (
-    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-text-muted">
+    <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-muted">
       <span>{manifest.sourceFileCount} source files</span>
       <span>{manifest.builtArtifactCount} artifacts</span>
       <span>{manifest.capabilityCount} capabilities</span>
-      <span>{manifest.piResourceRootCount} Pi resource roots</span>
+      <span>{manifest.piResourceRootCount} agent resource roots</span>
       <span>{manifest.runtimeRequirementCount} runtime requirements</span>
       {extensionPackage.buildPlan ? (
         <span>{extensionPackage.buildPlan.outputCount} build outputs</span>

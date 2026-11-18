@@ -1,7 +1,6 @@
 import {
   $applyNodeReplacement,
   DecoratorNode,
-  type DOMExportOutput,
   type EditorConfig,
   type NodeKey,
   type SerializedLexicalNode,
@@ -23,11 +22,11 @@ export class SymbolMentionNode extends DecoratorNode<ReactNode> {
   __filePath: string
   __kind: SymbolKind
 
-  static getType() {
+  static override getType() {
     return 'symbol-mention'
   }
 
-  static clone(node: SymbolMentionNode) {
+  static override clone(node: SymbolMentionNode) {
     return new SymbolMentionNode(node.__symbolName, node.__filePath, node.__kind, node.__key)
   }
 
@@ -38,27 +37,27 @@ export class SymbolMentionNode extends DecoratorNode<ReactNode> {
     this.__kind = kind
   }
 
-  createDOM(_config: EditorConfig) {
+  override createDOM(_config: EditorConfig) {
     const span = document.createElement('span')
     span.style.display = 'inline'
     return span
   }
 
-  updateDOM() {
+  override updateDOM() {
     return false
   }
 
-  exportDOM(): DOMExportOutput {
+  override exportDOM() {
     const element = document.createElement('span')
     element.textContent = `@#${this.__symbolName}`
     return { element }
   }
 
-  static importDOM() {
+  static override importDOM() {
     return null
   }
 
-  static importJSON(serializedNode: SerializedSymbolMentionNode) {
+  static override importJSON(serializedNode: SerializedSymbolMentionNode) {
     return $createSymbolMentionNode(
       serializedNode.symbolName,
       serializedNode.filePath,
@@ -66,7 +65,7 @@ export class SymbolMentionNode extends DecoratorNode<ReactNode> {
     )
   }
 
-  exportJSON() {
+  override exportJSON() {
     return {
       ...super.exportJSON(),
       symbolName: this.__symbolName,
@@ -77,26 +76,23 @@ export class SymbolMentionNode extends DecoratorNode<ReactNode> {
     }
   }
 
-  getTextContent() {
+  override getTextContent() {
     return `@#${this.__symbolName}`
   }
 
-  isInline() {
+  override isInline() {
     return true
   }
 
-  decorate(): ReactNode {
-    return createElement(SymbolMentionChip, {
+  override decorate() {
+    const node: ReactNode = createElement(SymbolMentionChip, {
       symbolName: this.__symbolName,
       kind: this.__kind,
     })
+    return node
   }
 }
 
-export function $createSymbolMentionNode(
-  symbolName: string,
-  filePath: string,
-  kind: SymbolKind,
-): SymbolMentionNode {
+export function $createSymbolMentionNode(symbolName: string, filePath: string, kind: SymbolKind) {
   return $applyNodeReplacement(new SymbolMentionNode(symbolName, filePath, kind))
 }

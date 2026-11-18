@@ -52,12 +52,15 @@ function handleMentionKeyDown({
   onSelect,
   onClose,
 }: MentionKeyDownInput) {
-  if (event.key === 'ArrowDown')
+  if (event.key === 'ArrowDown') {
     return moveHighlight(event, setHighlightIndex, 1, suggestions.length)
-  if (event.key === 'ArrowUp')
+  }
+  if (event.key === 'ArrowUp') {
     return moveHighlight(event, setHighlightIndex, -1, suggestions.length)
-  if (event.key === 'Enter' || event.key === 'Tab')
+  }
+  if (event.key === 'Enter' || event.key === 'Tab') {
     return selectHighlighted(event, suggestions[highlightIndex], onSelect)
+  }
   if (event.key === 'Escape') return closeTypeahead(event, onClose)
   return false
 }

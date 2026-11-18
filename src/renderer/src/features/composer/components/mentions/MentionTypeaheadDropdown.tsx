@@ -56,7 +56,7 @@ export function MentionTypeaheadDropdown({
     <div
       ref={containerRef}
       className={cn(
-        'fixed z-50 min-w-[280px] max-w-[400px] rounded-lg border border-border-light bg-bg-secondary',
+        'fixed z-50 min-w-70 max-w-100 rounded-lg border border-border-light bg-bg-secondary',
         'shadow-lg overflow-y-auto py-1',
       )}
       style={{
@@ -75,7 +75,7 @@ export function MentionTypeaheadDropdown({
             key={item.path}
             type="button"
             className={cn(
-              'flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-left',
+              'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
               index === highlightIndex ? 'bg-bg-hover' : 'hover:bg-bg-hover',
             )}
             onMouseDown={(e) => {

@@ -4,7 +4,7 @@ export interface Deferred {
   readonly reject: (error: unknown) => void
 }
 
-export function createDeferred(): Deferred {
+export function createDeferred() {
   let resolveCurrent: (() => void) | undefined
   let rejectCurrent: ((error: unknown) => void) | undefined
   const promise = new Promise<void>((resolve, reject) => {
@@ -16,5 +16,5 @@ export function createDeferred(): Deferred {
     promise,
     resolve: () => resolveCurrent?.(),
     reject: (error) => rejectCurrent?.(error),
-  }
+  } satisfies Deferred
 }

@@ -10,11 +10,15 @@ import {
   type AgentKernelSessionSnapshot,
   isAgentKernelMissingEntryError,
 } from '../ports/agent-kernel-service'
-import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
+import { reserveSessionTreeMutation } from './active-session-runs'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
+import { isSessionModelRunnable } from './session-model-availability'
+
+export { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
 
 const logger = createLogger('agent-session-service')
 
@@ -61,9 +65,7 @@ function loadSessionForCommand(input: AgentSessionCommandInput) {
       return yield* Effect.fail(new Error('Session not found'))
     }
 
-    const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, session.projectPath)
-    if (!isKnown) {
+    if (!(yield* isSessionModelRunnable(input.model, session))) {
       return yield* Effect.fail(new Error(`Unknown model: ${input.model}`))
     }
 
@@ -74,12 +76,17 @@ function loadSessionForCommand(input: AgentSessionCommandInput) {
 function loadValidatedAgentSession(input: AgentSessionCommandInput) {
   return Effect.gen(function* () {
     const session = yield* loadSessionForCommand(input)
-    const skillToggles = yield* getSkillToggles(session.projectPath)
+    const settingsService = yield* SettingsService
+    const settings = yield* settingsService.get()
+    const skillToggles = session.projectPath
+      ? settings.skillTogglesByProject[session.projectPath]
+      : undefined
     const enabledOpenWaggleExtensionPackagePaths = session.projectPath
       ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
       : undefined
     return {
       session,
+      compactionThresholdPercent: settings.compactionThresholdPercent,
       ...(skillToggles ? { skillToggles } : {}),
       ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
     }
@@ -94,7 +101,10 @@ function persistKernelSnapshot(sessionId: SessionId, result: KernelSnapshotResul
       nodes: result.sessionSnapshot.nodes,
       activeNodeId: result.sessionSnapshot.activeNodeId,
       piSessionId: result.piSessionId,
-      piSessionFile: result.piSessionFile,
+      ...(result.piSessionFile === undefined ? {} : { piSessionFile: result.piSessionFile }),
+      ...(result.sessionSnapshot.piProjection === undefined
+        ? {}
+        : { piProjection: result.sessionSnapshot.piProjection }),
     })
   })
 }
@@ -107,9 +117,7 @@ export function getAgentContextUsage(input: AgentSessionCommandInput) {
       return null
     }
 
-    const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, session.projectPath)
-    if (!isKnown) {
+    if (!(yield* isSessionModelRunnable(input.model, session))) {
       return null
     }
 
@@ -125,60 +133,91 @@ export function getAgentContextUsage(input: AgentSessionCommandInput) {
     return yield* agentKernel.getContextUsage({
       session,
       model: input.model,
+      compactionThresholdPercent: settings.compactionThresholdPercent,
       ...(skillToggles ? { skillToggles } : {}),
       ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
     })
-  })
-}
-
-function getSkillToggles(projectPath: string | null | undefined) {
-  return Effect.gen(function* () {
-    const settingsService = yield* SettingsService
-    const settings = yield* settingsService.get()
-    return projectPath ? settings.skillTogglesByProject[projectPath] : undefined
   })
 }
 
 function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
-      yield* loadValidatedAgentSession(input)
+    const writer = yield* Effect.sync(() => reserveSessionTreeMutation(input.sessionId))
+    return yield* Effect.gen(function* () {
+      const {
+        session,
+        compactionThresholdPercent,
+        skillToggles,
+        enabledOpenWaggleExtensionPackagePaths,
+      } = yield* loadValidatedAgentSession(input)
 
-    if (!session.projectPath) {
-      return yield* Effect.fail(new Error('No project path set on the session.'))
-    }
+      if (!session.projectPath) {
+        return yield* Effect.fail(new Error('No project path set on the session.'))
+      }
 
-    const agentKernel = yield* AgentKernelService
-    const result = yield* agentKernel.forkSession({
-      session,
-      model: input.model,
-      targetNodeId: String(input.targetNodeId),
-      position: input.position,
-      ...(skillToggles ? { skillToggles } : {}),
-      ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
-    })
+      const agentKernel = yield* AgentKernelService
+      const sessionRepo = yield* SessionRepository
+      const sourceTree = yield* sessionRepo.getTree(input.sessionId)
+      if (!sourceTree) {
+        return yield* Effect.fail(new Error('Session tree not found'))
+      }
+      const result = yield* agentKernel.forkSession({
+        session,
+        model: input.model,
+        compactionThresholdPercent,
+        targetNodeId: String(input.targetNodeId),
+        position: input.position,
+        copy: input.position === 'at' ? 'clone' : 'fork',
+        ...(skillToggles ? { skillToggles } : {}),
+        ...(enabledOpenWaggleExtensionPackagePaths
+          ? { enabledOpenWaggleExtensionPackagePaths }
+          : {}),
+      })
 
-    if (result.cancelled) {
-      return { cancelled: true }
-    }
+      if (result.cancelled) {
+        return { cancelled: true }
+      }
 
-    const sessionProjectionRepo = yield* SessionProjectionRepository
-    const createdProjection = yield* sessionProjectionRepo.create({
-      projectPath: session.projectPath,
-      piSessionId: result.piSessionId,
-      piSessionFile: result.piSessionFile,
-    })
+      const sessionProjectionRepo = yield* SessionProjectionRepository
+      /*
+       * The fork inherits the source session's isolation.
+       *
+       * Omitting it defaulted the copy to local mode, so a fork of a worktree-mode session ran in the
+       * user's opened checkout - the agent editing exactly the tree worktree mode exists to protect -
+       * and the context row that would have shown it is hidden for a fork, because it only appears
+       * before the first message. The copy gets its own worktree at its own deterministic path on the
+       * first send; nothing is shared with the session it came from.
+       */
+      const createdProjection = yield* sessionProjectionRepo.create({
+        projectPath: session.projectPath,
+        piSessionId: result.piSessionId,
+        ...(result.piSessionFile === undefined ? {} : { piSessionFile: result.piSessionFile }),
+        // A fork inherits both: this branch's environment mode, and main's authorization mode.
+        ...(session.environmentMode ? { environmentMode: session.environmentMode } : {}),
+        ...(session.authorizationMode === undefined
+          ? {}
+          : { authorizationMode: session.authorizationMode }),
+        // And the source Session's MCP switch: a copy of a Session with MCP off stays off.
+        copyMcpSwitchFrom: session.id,
+      })
 
-    yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), result)
+      yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), {
+        ...result,
+        sessionSnapshot: attributeCopiedVisualizationSources(result.sessionSnapshot, {
+          id: session.id,
+          nodes: sourceTree.nodes,
+        }),
+      })
 
-    const persistedSession = yield* sessionProjectionRepo.get(
-      SessionId(String(createdProjection.id)),
-    )
-    return {
-      session: persistedSession,
-      cancelled: false,
-      ...(result.editorText ? { editorText: result.editorText } : {}),
-    }
+      const persistedSession = yield* sessionProjectionRepo.get(
+        SessionId(String(createdProjection.id)),
+      )
+      return {
+        session: persistedSession,
+        cancelled: false,
+        ...(result.editorText ? { editorText: result.editorText } : {}),
+      }
+    }).pipe(Effect.ensuring(Effect.sync(writer.release)))
   })
 }
 
@@ -192,13 +231,20 @@ export function cloneAgentSessionToNewSession(input: AgentSessionForkInput) {
 
 export function compactAgentSession(input: AgentSessionCompactInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
-      yield* loadValidatedAgentSession(input)
+    const {
+      session,
+      compactionThresholdPercent,
+      skillToggles,
+      enabledOpenWaggleExtensionPackagePaths,
+    } = yield* loadValidatedAgentSession(input)
     const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.compact({
       session,
       model: input.model,
-      customInstructions: input.customInstructions,
+      compactionThresholdPercent,
+      ...(input.customInstructions === undefined
+        ? {}
+        : { customInstructions: input.customInstructions }),
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onEvent ? { onEvent: input.onEvent } : {}),
       ...(skillToggles ? { skillToggles } : {}),
@@ -217,51 +263,62 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
 
 export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles, enabledOpenWaggleExtensionPackagePaths } =
-      yield* loadValidatedAgentSession(input)
-    const agentKernel = yield* AgentKernelService
-    const navigation = yield* agentKernel
-      .navigateTree({
+    const writer = yield* Effect.sync(() => reserveSessionTreeMutation(input.sessionId))
+    return yield* Effect.gen(function* () {
+      const {
         session,
-        model: input.model,
-        targetNodeId: String(input.targetNodeId),
-        summarize: input.summarize,
-        customInstructions: input.customInstructions,
-        ...(skillToggles ? { skillToggles } : {}),
-        ...(enabledOpenWaggleExtensionPackagePaths
-          ? { enabledOpenWaggleExtensionPackagePaths }
-          : {}),
-      })
-      .pipe(
-        Effect.map(
-          (result): NavigateTreeOutcome => ({
-            type: 'success',
-            result,
+        compactionThresholdPercent,
+        skillToggles,
+        enabledOpenWaggleExtensionPackagePaths,
+      } = yield* loadValidatedAgentSession(input)
+      const agentKernel = yield* AgentKernelService
+      const navigation = yield* agentKernel
+        .navigateTree({
+          session,
+          model: input.model,
+          compactionThresholdPercent,
+          targetNodeId: String(input.targetNodeId),
+          ...(input.summarize === undefined ? {} : { summarize: input.summarize }),
+          ...(input.customInstructions === undefined
+            ? {}
+            : { customInstructions: input.customInstructions }),
+          ...(skillToggles ? { skillToggles } : {}),
+          ...(enabledOpenWaggleExtensionPackagePaths
+            ? { enabledOpenWaggleExtensionPackagePaths }
+            : {}),
+        })
+        .pipe(
+          Effect.map(
+            (result) =>
+              ({
+                type: 'success',
+                result,
+              }) satisfies NavigateTreeOutcome,
+          ),
+          Effect.catchAll((error) => {
+            if (isAgentKernelMissingEntryError(error)) {
+              logger.warn('Skipped Pi tree navigation because the target entry is absent', {
+                sessionId: String(input.sessionId),
+                targetNodeId: String(input.targetNodeId),
+              })
+              return Effect.succeed<NavigateTreeOutcome>({ type: 'missing-entry' })
+            }
+
+            return Effect.fail(error)
           }),
-        ),
-        Effect.catchAll((error) => {
-          if (isAgentKernelMissingEntryError(error)) {
-            logger.warn('Skipped Pi tree navigation because the target entry is absent', {
-              sessionId: String(input.sessionId),
-              targetNodeId: String(input.targetNodeId),
-            })
-            return Effect.succeed<NavigateTreeOutcome>({ type: 'missing-entry' })
-          }
+        )
 
-          return Effect.fail(error)
-        }),
-      )
+      if (navigation.type === 'missing-entry') {
+        return { cancelled: true }
+      }
 
-    if (navigation.type === 'missing-entry') {
-      return { cancelled: true }
-    }
+      const { result } = navigation
+      yield* persistKernelSnapshot(input.sessionId, result)
 
-    const { result } = navigation
-    yield* persistKernelSnapshot(input.sessionId, result)
-
-    return {
-      editorText: result.editorText,
-      cancelled: result.cancelled,
-    }
+      return {
+        ...(result.editorText === undefined ? {} : { editorText: result.editorText }),
+        cancelled: result.cancelled,
+      }
+    }).pipe(Effect.ensuring(Effect.sync(writer.release)))
   })
 }

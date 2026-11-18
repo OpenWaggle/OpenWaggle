@@ -1,0 +1,293 @@
+import { HOST_UI_REVISION_11_REQUIRED_CHANNELS } from '@shared/types/host-ui-protocol'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { fromAny, fromPartial } from '@total-typescript/shoehorn'
+import * as Effect from 'effect/Effect'
+import { describe, expect, it } from 'vitest'
+import { McpConfigurationService } from '../../ports/mcp-configuration-service'
+import { McpSecretVaultService } from '../../ports/mcp-secret-vault-service'
+import { ProviderService } from '../../ports/provider-service'
+import { SettingsService } from '../../services/settings-service'
+import { dispatchHostUiRequest } from '../host-ui-request-dispatcher'
+
+const settingsService = SettingsService.of({
+  get: () => Effect.succeed(DEFAULT_SETTINGS),
+  update: () => Effect.void,
+  initialize: () => Effect.void,
+  flushForTests: () => Effect.void,
+})
+
+const mcpSecretVaultService = McpSecretVaultService.of({
+  list: () => Effect.succeed([]),
+  resolve: () => Effect.fail(fromAny(new Error('not used'))),
+  set: () => Effect.succeed([]),
+  remove: () => Effect.succeed([]),
+})
+
+function request(channel: 'settings:get' | 'providers:get-models', args: readonly unknown[] = []) {
+  return {
+    contractVersion: 1,
+    requestId: 'request-host-ui',
+    channel,
+    args: args.map((argument) =>
+      argument === undefined
+        ? { kind: 'undefined' as const }
+        : { kind: 'value' as const, value: argument },
+    ),
+  } as const
+}
+
+function runWithoutRequirements<A>(effect: Effect.Effect<A, unknown, unknown>) {
+  return Effect.runPromise(fromAny<Effect.Effect<A, unknown>, typeof effect>(effect))
+}
+
+function revisionGateArgs(channel: string) {
+  const project = { kind: 'value' as const, value: '/project' }
+  const name = { kind: 'value' as const, value: 'reviewer' }
+  if (channel === 'agent-definitions:list-display') return [project]
+  if (channel === 'agent-definitions:get-preview') return [project, name]
+  if (channel === 'agent-definitions:set-enabled') {
+    return [project, name, { kind: 'value' as const, value: false }]
+  }
+  return []
+}
+
+describe('Host UI request dispatcher', () => {
+  it.each([15, 16])(
+    'rejects native actions from a revision-%i GUI before dispatch',
+    async (revision) => {
+      await expect(
+        runWithoutRequirements(
+          dispatchHostUiRequest({
+            caller: { callerId: 'gui:local-user' },
+            negotiatedRevision: revision,
+            request: {
+              contractVersion: 1,
+              requestId: 'old-native-actions-client',
+              channel: 'project-actions:manage',
+              args: [],
+            },
+          }),
+        ),
+      ).rejects.toThrow('protocol revision 17')
+    },
+  )
+
+  it.each(HOST_UI_REVISION_11_REQUIRED_CHANNELS)(
+    'requires revision 11 before executing %s',
+    async (channel) => {
+      await expect(
+        runWithoutRequirements(
+          dispatchHostUiRequest({
+            caller: { callerId: 'gui:local-user' },
+            negotiatedRevision: 10,
+            request: {
+              contractVersion: 1,
+              requestId: 'old-project-actions-client',
+              channel,
+              args: revisionGateArgs(channel),
+            },
+          }),
+        ),
+      ).rejects.toThrow('protocol revision 11')
+    },
+  )
+
+  it('does not authorize external callers to mutate project config through GUI channels', async () => {
+    await expect(
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'local-user:machine' },
+          negotiatedRevision: 11,
+          request: {
+            contractVersion: 1,
+            requestId: 'external-project-actions',
+            channel: 'project-actions:manage',
+            args: [],
+          },
+        }),
+      ),
+    ).rejects.toThrow('only available to the local OpenWaggle GUI')
+  })
+  it('returns a correlated result for an authorized local GUI caller', async () => {
+    const result = await runWithoutRequirements(
+      dispatchHostUiRequest({
+        caller: { callerId: 'gui:local-user' },
+        request: request('settings:get'),
+      }).pipe(Effect.provideService(SettingsService, settingsService)),
+    )
+
+    expect(result).toEqual({
+      contract: 'host-ui-v1',
+      response: {
+        contractVersion: 1,
+        requestId: 'request-host-ui',
+        channel: 'settings:get',
+        result: { kind: 'value', value: DEFAULT_SETTINGS },
+      },
+    })
+  })
+
+  it('rejects callers that merely claim another local Session identity', async () => {
+    await expect(
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'cli:external' },
+          request: request('settings:get'),
+        }),
+      ),
+    ).rejects.toThrow('only available to the local OpenWaggle GUI')
+  })
+
+  it('allows the authenticated local-machine CLI to invoke MCP owner operations', async () => {
+    const result = await runWithoutRequirements(
+      dispatchHostUiRequest({
+        caller: { callerId: 'local-user:machine' },
+        request: {
+          contractVersion: 1,
+          requestId: 'request-mcp-secrets',
+          channel: 'mcp:list-secrets',
+          args: [],
+        },
+      }).pipe(Effect.provideService(McpSecretVaultService, mcpSecretVaultService)),
+    )
+
+    expect(result).toMatchObject({
+      contract: 'host-ui-v1',
+      response: {
+        requestId: 'request-mcp-secrets',
+        channel: 'mcp:list-secrets',
+        result: { kind: 'value', value: [] },
+      },
+    })
+  })
+
+  it('lets the local-machine CLI read the MCP configuration, but not a named profile', async () => {
+    const view = { projectPath: null, files: [], servers: [], errors: [] }
+    const configuration = McpConfigurationService.of(
+      fromPartial({ getView: () => Effect.succeed(view) }),
+    )
+    const mcpRequest = {
+      contractVersion: 1,
+      requestId: 'request-mcp-configuration',
+      channel: 'mcp:get-configuration',
+      args: [{ kind: 'value', value: { projectPath: null } }],
+    } as const
+
+    const result = await runWithoutRequirements(
+      dispatchHostUiRequest({
+        caller: { callerId: 'local-user:machine' },
+        request: mcpRequest,
+      }).pipe(Effect.provideService(McpConfigurationService, configuration)),
+    )
+    expect(result).toMatchObject({ response: { result: { kind: 'value', value: view } } })
+    await expect(
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'local-user:machine', profileAuthority: fromPartial({}) },
+          request: mcpRequest,
+        }).pipe(Effect.provideService(McpConfigurationService, configuration)),
+      ),
+    ).rejects.toThrow('only available to the local OpenWaggle GUI')
+  })
+
+  it('returns only runnable models for the available provider catalog scope', async () => {
+    const providerService = fromPartial<ProviderService['Type']>({
+      getAll: () =>
+        Effect.succeed([
+          fromPartial({
+            id: 'openai',
+            displayName: 'OpenAI',
+            auth: fromPartial({ configured: true }),
+            models: [
+              fromPartial({ id: 'openai/gpt-5', modelId: 'gpt-5', available: true }),
+              fromPartial({ id: 'openai/o9', modelId: 'o9', available: false }),
+            ],
+          }),
+        ]),
+    })
+    const dispatch = (args: readonly unknown[]) =>
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'gui:local-user' },
+          request: request('providers:get-models', args),
+        }).pipe(Effect.provideService(ProviderService, providerService)),
+      )
+
+    await expect(dispatch([null, 'available'])).resolves.toMatchObject({
+      response: { result: { value: [{ provider: 'openai', models: [{ id: 'openai/gpt-5' }] }] } },
+    })
+    await expect(dispatch([null, 'everything'])).rejects.toThrow('Provider catalog scope')
+  })
+
+  it('validates the Host transport argument count before executing an operation', async () => {
+    await expect(
+      runWithoutRequirements(
+        dispatchHostUiRequest({
+          caller: { callerId: 'gui:local-user' },
+          request: request('settings:get', ['unexpected']),
+        }).pipe(Effect.provideService(SettingsService, settingsService)),
+      ),
+    ).rejects.toThrow('Expected 0 Host UI arguments')
+  })
+
+  it('interrupts an in-flight Host operation when its client disconnects', async () => {
+    const controller = new AbortController()
+    const neverSettles = SettingsService.of({
+      ...settingsService,
+      get: () => Effect.never,
+    })
+    const pending = runWithoutRequirements(
+      dispatchHostUiRequest({
+        caller: { callerId: 'gui:local-user' },
+        request: request('settings:get'),
+        signal: controller.signal,
+      }).pipe(Effect.provideService(SettingsService, neverSettles)),
+    )
+
+    controller.abort(new Error('client disconnected'))
+
+    await expect(pending).rejects.toThrow('client disconnected')
+  })
+
+  it('finishes a secret write after a client disconnects during the durable write', async () => {
+    let releaseWrite: (() => void) | undefined
+    let reportWriteStarted: (() => void) | undefined
+    const writeStarted = new Promise<void>((resolve) => {
+      reportWriteStarted = resolve
+    })
+    const writeRelease = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    let writeFinished = false
+    const vault = McpSecretVaultService.of({
+      ...mcpSecretVaultService,
+      set: () =>
+        Effect.promise(async () => {
+          reportWriteStarted?.()
+          await writeRelease
+          writeFinished = true
+          return []
+        }),
+    })
+    const controller = new AbortController()
+    const pending = runWithoutRequirements(
+      dispatchHostUiRequest({
+        caller: { callerId: 'gui:local-user' },
+        request: {
+          contractVersion: 1,
+          requestId: 'request-mcp-secret-write',
+          channel: 'mcp:set-secret',
+          args: [{ kind: 'value', value: { name: 'TOKEN', value: 'changed' } }],
+        },
+        signal: controller.signal,
+      }).pipe(Effect.provideService(McpSecretVaultService, vault)),
+    )
+
+    await writeStarted
+    controller.abort(new Error('client disconnected'))
+    releaseWrite?.()
+
+    await expect(pending).rejects.toThrow('client disconnected')
+    expect(writeFinished).toBe(true)
+  })
+})

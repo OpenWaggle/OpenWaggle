@@ -18,13 +18,6 @@ interface RuntimeContributionRegistrationCacheEntry {
   readonly registrations: readonly ContributionRegistrationEntry[]
 }
 
-interface ContributionRegistrationCacheStats {
-  readonly hits: number
-  readonly misses: number
-  readonly invalidations: number
-  readonly size: number
-}
-
 const CONTRIBUTION_REGISTRY_CACHE_VERSION = 1
 
 const contributionRegistrationCache = new Map<string, ContributionRegistrationCacheEntry>()
@@ -65,9 +58,7 @@ function packageValidationCacheKey(extensionPackage: DiscoveredExtensionPackage)
   ].join(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
 }
 
-function runtimeRegistrationEntry(
-  extensionPackage: DiscoveredExtensionPackage,
-): RuntimeContributionRegistrationCacheEntry | null {
+function runtimeRegistrationEntry(extensionPackage: DiscoveredExtensionPackage) {
   const identityKey = packageIdentityCacheKey(extensionPackage)
   const validationKey = packageValidationCacheKey(extensionPackage)
   const cached = runtimeContributionRegistrationCache.get(identityKey)
@@ -84,10 +75,10 @@ function runtimeRegistrationEntry(
   return null
 }
 
-function runtimeRegistrations(
-  extensionPackage: DiscoveredExtensionPackage,
-): readonly ContributionRegistrationEntry[] {
-  return runtimeRegistrationEntry(extensionPackage)?.registrations ?? []
+function runtimeRegistrations(extensionPackage: DiscoveredExtensionPackage) {
+  const entry: readonly ContributionRegistrationEntry[] =
+    runtimeRegistrationEntry(extensionPackage)?.registrations ?? []
+  return entry
 }
 
 function uniqueTrimmedValues(values: readonly string[] | undefined) {
@@ -145,7 +136,7 @@ function runtimeRegistrationMatchesInvocationScope(input: {
 function mergeRuntimeRegistrations(input: {
   readonly staticResult: ContributionRegistrationResult
   readonly runtime: readonly ContributionRegistrationEntry[]
-}): ContributionRegistrationResult {
+}) {
   if (input.runtime.length === 0) {
     return input.staticResult
   }
@@ -153,12 +144,12 @@ function mergeRuntimeRegistrations(input: {
   return {
     registrations: [...input.staticResult.registrations, ...input.runtime],
     diagnostics: input.staticResult.diagnostics,
-  }
+  } satisfies ContributionRegistrationResult
 }
 
 export function getCachedPackageContributionRegistrations(
   extensionPackage: DiscoveredExtensionPackage,
-): ContributionRegistrationResult {
+) {
   const identityKey = packageIdentityCacheKey(extensionPackage)
   const validationKey = packageValidationCacheKey(extensionPackage)
   const cached = contributionRegistrationCache.get(identityKey)
@@ -187,7 +178,7 @@ export function getCachedPackageContributionRegistrations(
 export function registerRuntimePackageContribution(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly registration: ContributionRegistrationEntry
-}): void {
+}) {
   const identityKey = packageIdentityCacheKey(input.extensionPackage)
   const validationKey = packageValidationCacheKey(input.extensionPackage)
   const current = runtimeRegistrationEntry(input.extensionPackage)
@@ -208,7 +199,7 @@ export function unregisterRuntimePackageContribution(input: {
   readonly family: ContributionRegistrationEntry['family']
   readonly contributionId: string
   readonly invocationScope: ExtensionInvokeScope
-}): boolean {
+}) {
   const identityKey = packageIdentityCacheKey(input.extensionPackage)
   const current = runtimeRegistrationEntry(input.extensionPackage)
   if (!current) {
@@ -242,7 +233,7 @@ export function unregisterRuntimePackageContribution(input: {
 
 export function clearCachedPackageContributionRegistrations(
   extensionPackage: DiscoveredExtensionPackage,
-): void {
+) {
   try {
     const identityKey = packageIdentityCacheKey(extensionPackage)
     const staticDeleted = contributionRegistrationCache.delete(identityKey)
@@ -257,7 +248,7 @@ export function clearCachedPackageContributionRegistrations(
 
 export function pruneCachedPackageContributionRegistrations(
   extensionPackages: readonly DiscoveredExtensionPackage[],
-): void {
+) {
   try {
     const activePackageKeys = new Set(extensionPackages.map(packageIdentityCacheKey))
 
@@ -288,7 +279,7 @@ export function clearExtensionContributionRegistryCacheForTests() {
   contributionRegistrationCacheInvalidations = 0
 }
 
-export function getExtensionContributionRegistryCacheStatsForTests(): ContributionRegistrationCacheStats {
+export function getExtensionContributionRegistryCacheStatsForTests() {
   return {
     hits: contributionRegistrationCacheHits,
     misses: contributionRegistrationCacheMisses,

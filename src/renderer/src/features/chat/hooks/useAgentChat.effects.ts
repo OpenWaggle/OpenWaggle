@@ -1,11 +1,23 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import { isAgentErrorCode, makeErrorInfo } from '@shared/types/errors'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SessionDetail } from '@shared/types/session'
-import { useEffect } from 'react'
+import { SESSION_QUERY_CONTRACT_VERSION } from '@shared/types/session-query'
+import { useEffect, useLayoutEffect, useState } from 'react'
+import { setLastAgentErrorInfo } from '@/features/chat/lib/agent-error-store'
+import { useAgentLoopEventStore } from '@/features/chat/state/agent-loop-event-store'
+import type { RunRenderSnapshot } from '@/features/chat/state/background-run-render-state'
+import { declareShownSessions, subscribeAgentEvents } from '@/shared/lib/agent-event-hub'
 import { api } from '@/shared/lib/ipc'
+import { hiveWakeRunError } from '../lib/hive-wake-run-error'
+import { isPiSessionFileRefusal } from '../lib/message-delivery'
 import { sessionToUIMessages } from '../lib/useAgentChat.utils'
-import { hydrateSessionMessages, resetMissingSessionHydration } from './useAgentChat.hydration'
+import {
+  cachedRunSnapshotInput,
+  hydrateSessionMessages,
+  resetMissingSessionHydration,
+} from './useAgentChat.hydration'
 import { handleAgentStreamPayload } from './useAgentChat.stream-events'
 import type {
   AgentRunActions,
@@ -20,9 +32,16 @@ interface UseSessionHydrationEffectsParams {
   readonly isSessionIdle: boolean
   readonly optimisticUserMessages: readonly UIMessage[]
   readonly hasActiveRun: (sessionId: SessionId) => boolean
-  readonly getRunRenderSnapshot: (
-    sessionId: SessionId,
-  ) => { readonly messages: readonly UIMessage[] } | null
+  /** Runs the monitor learned of from what they streamed (`noteUnannouncedRun`): rehydrate. */
+  readonly unannouncedRunNotice: number
+  /**
+   * Counts restores of the activity in progress when the renderer started. A Session the route
+   * restored before the monitor learned its Run hydrates again then, or it showed the Run's
+   * messages only from its next start. A Run that starts live streams into the transcript, so
+   * activity changes otherwise do not rehydrate (a manual compaction of an idle Session stays one).
+   */
+  readonly activityRestoreRevision: number
+  readonly getRunRenderSnapshot: (sessionId: SessionId) => RunRenderSnapshot | null
   readonly removeMatchedOptimisticUserMessages: (
     sessionId: SessionId,
     persistedMessages: readonly UIMessage[],
@@ -49,7 +68,8 @@ interface RunCompletionContext {
   readonly statusRef: MutableValueRef<string>
   readonly setBackgroundStreaming: (backgroundStreaming: boolean) => void
   readonly setCompactionStatus: (status: null) => void
-  readonly setStatus: (status: 'ready') => void
+  readonly setStatus: (status: 'ready' | 'error') => void
+  readonly setError: (error: Error | undefined) => void
   readonly agentRunActionsRef: MutableValueRef<AgentRunActions | null>
 }
 
@@ -74,6 +94,35 @@ function shouldFlushCompletedRunSnapshot(context: RunCompletionContext) {
   )
 }
 
+/**
+ * A Run the Host settled as failed although no failure reached this renderer: it failed after a
+ * clean `agent_end` (the turn could not be saved), or before it reported anything.
+ */
+function settlementFailure(payload: IpcEventPayload<'agent:run-completed'>) {
+  if (payload.terminalStatus !== 'failed') return undefined
+  const code =
+    payload.failureCode && isAgentErrorCode(payload.failureCode) ? payload.failureCode : 'unknown'
+  const info = makeErrorInfo(code, 'The Run failed without reporting an error.')
+  setLastAgentErrorInfo(payload.sessionId, { message: info.userMessage, code })
+  return new Error(info.userMessage)
+}
+
+/**
+ * The error this completion puts on screen, if any. A failure only the settlement reported has not
+ * been shown yet, and a Hive wake's card is shown again marked so that it offers no Retry. A Pi
+ * session file refusal has no card: the Session's notice says why.
+ */
+function errorToShow(
+  payload: IpcEventPayload<'agent:run-completed'>,
+  terminalError: Error | undefined,
+  reportedError: Error | undefined,
+) {
+  if (!terminalError) return undefined
+  if (!reportedError) return payload.hiveWake ? hiveWakeRunError(terminalError) : terminalError
+  if (!payload.hiveWake || isPiSessionFileRefusal(reportedError)) return undefined
+  return hiveWakeRunError(terminalError)
+}
+
 function handleRunCompletedPayload(
   payload: IpcEventPayload<'agent:run-completed'>,
   context: RunCompletionContext,
@@ -82,22 +131,43 @@ function handleRunCompletedPayload(
     return
   }
 
-  const terminalError = context.terminalRunErrorRef.current
+  const reportedError = context.terminalRunErrorRef.current
+  const terminalError = reportedError ?? settlementFailure(payload)
+  const routing =
+    context.agentRunActionsRef.current?.settlePendingRun(terminalError, payload.runId) ?? 'settled'
+  if (routing !== 'held') context.terminalRunErrorRef.current = undefined
+  // The Host went straight on to a queued Follow-up, or this was an earlier Run settling after a
+  // new send began: the Session is not idle, so its run state stays as it is.
+  if (payload.continues || routing === 'forwarded') return
+
   context.foregroundStreamActiveRef.current = false
   context.foregroundSessionIdRef.current = null
   context.setBackgroundStreaming(false)
   context.backgroundStreamingRef.current = false
   context.backgroundReconnectSessionIdRef.current = null
-  context.setCompactionStatus(null)
-  if (!terminalError) {
-    context.setStatus('ready')
+  if (!terminalError) context.setStatus('ready')
+  const shownError = errorToShow(payload, terminalError, reportedError)
+  if (shownError) {
+    context.setError(shownError)
+    context.setStatus('error')
   }
-  context.agentRunActionsRef.current?.settlePendingRun(terminalError)
-  context.terminalRunErrorRef.current = undefined
   context.deferredRefreshSessionIdRef.current = context.subscribedSessionId
   if (shouldFlushCompletedRunSnapshot(context)) {
     context.agentRunActionsRef.current?.flushDeferredSessionSnapshot()
   }
+}
+
+/**
+ * Counts Host event-stream resyncs. Events published before one may never have arrived, and a
+ * refetched detail that did not change does not rehydrate, so a Run streaming then would keep
+ * missing them (a steer Pi incorporated during a stall) until the Session was opened again.
+ */
+function useSessionHostResyncRevision() {
+  const [revision, setRevision] = useState(0)
+  useEffect(() => {
+    return api.onSessionHostResyncRequired(() => setRevision((current) => current + 1))
+  }, [])
+  return revision
 }
 
 export function useSessionHydrationEffects(params: UseSessionHydrationEffectsParams) {
@@ -107,30 +177,46 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
     isSessionIdle,
     optimisticUserMessages,
     hasActiveRun,
+    unannouncedRunNotice,
+    activityRestoreRevision,
     getRunRenderSnapshot,
     removeMatchedOptimisticUserMessages,
     context,
   } = params
+  const resyncRevision = useSessionHostResyncRevision()
 
   useEffect(() => {
     if (!sessionId || !session) {
-      resetMissingSessionHydration(context)
+      resetMissingSessionHydration(context, sessionId ?? null)
       return
     }
 
     const activeRun = hasActiveRun(sessionId)
-    const cachedRenderSnapshot = activeRun ? getRunRenderSnapshot(sessionId) : null
+    const cachedRenderSnapshot = getRunRenderSnapshot(sessionId)
     hydrateSessionMessages(
       {
         sessionId,
         session,
         optimisticUserMessages,
         hasActiveRun: activeRun,
-        cachedRenderMessages: cachedRenderSnapshot?.messages ?? null,
+        ...cachedRunSnapshotInput(activeRun, cachedRenderSnapshot),
+        resyncRevision,
+        activityRestoreRevision,
+        unannouncedRunNotice,
       },
       context,
     )
-  }, [sessionId, session, hasActiveRun, getRunRenderSnapshot, optimisticUserMessages, context])
+  }, [
+    sessionId,
+    session,
+    hasActiveRun,
+    unannouncedRunNotice,
+    activityRestoreRevision,
+    getRunRenderSnapshot,
+    optimisticUserMessages,
+    resyncRevision,
+    context,
+  ])
 
   useEffect(() => {
     if (!sessionId || !session || !isSessionIdle) {
@@ -144,13 +230,15 @@ export function useSessionHydrationEffects(params: UseSessionHydrationEffectsPar
 export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
   const { sessionId, streamEventContext, runCompletionContext } = params
 
-  useEffect(() => {
+  // Subscribe in the commit phase. A passive effect leaves a one-frame window where the active
+  // chat is already visible but a main-process event can still be dropped during session changes.
+  useLayoutEffect(() => {
     if (!sessionId) {
       return
     }
 
     const subscribedSessionId = sessionId
-    const unsubscribeStream = api.onAgentEvent((payload) => {
+    const unsubscribeStream = subscribeAgentEvents((payload) => {
       handleAgentStreamPayload(payload, { ...streamEventContext, subscribedSessionId })
     })
     const unsubscribeCompleted = api.onRunCompleted((payload) => {
@@ -162,6 +250,63 @@ export function useAgentEventEffects(params: UseAgentEventEffectsParams) {
       unsubscribeCompleted()
     }
   }, [sessionId, streamEventContext, runCompletionContext])
+
+  // The Session on screen gets its streamed deltas about 30 times a second; others on a slower beat.
+  useEffect(() => {
+    declareShownSessions(sessionId ? [sessionId] : [])
+    return () => declareShownSessions([])
+  }, [sessionId])
+
+  useEffect(() => {
+    if (!sessionId) return
+    let cancelled = false
+    const hydratePendingInteractions = async () => {
+      while (!cancelled) {
+        const beforeQuery = useAgentLoopEventStore.getState().sessionsById.get(sessionId)
+        const response = await api.querySessionControl({
+          contractVersion: SESSION_QUERY_CONTRACT_VERSION,
+          requestId: crypto.randomUUID(),
+          query: { operation: 'requests-list', sessionId },
+        })
+        if (cancelled) return
+        if (response.outcome.operation !== 'requests-list' || 'error' in response.outcome) return
+        const store = useAgentLoopEventStore.getState()
+        if (store.sessionsById.get(sessionId) !== beforeQuery) continue
+        const pendingIds = new Set(
+          response.outcome.requests.map((interaction) => interaction.interactionId),
+        )
+        const currentIds = new Set(
+          beforeQuery?.interactions.map((interaction) => interaction.interactionId) ?? [],
+        )
+        for (const interaction of beforeQuery?.interactions ?? []) {
+          if (!pendingIds.has(interaction.interactionId)) {
+            store.applyEvent(sessionId, {
+              type: 'agent_interaction_resolved',
+              runId: interaction.runId,
+              interactionId: interaction.interactionId,
+              kind: interaction.kind,
+              status: 'resolved',
+              timestamp: Date.now(),
+            })
+          }
+        }
+        for (const interaction of response.outcome.requests) {
+          if (!currentIds.has(interaction.interactionId)) {
+            store.applyEvent(sessionId, {
+              type: 'agent_interaction_request',
+              interaction,
+              timestamp: interaction.createdAt,
+            })
+          }
+        }
+        return
+      }
+    }
+    void hydratePendingInteractions().catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [sessionId])
 
   useEffect(() => {
     if (!sessionId) {

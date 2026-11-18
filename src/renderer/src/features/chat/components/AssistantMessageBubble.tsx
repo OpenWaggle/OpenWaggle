@@ -3,33 +3,23 @@ import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { NestedToolCalls } from '@shared/types/tools'
 import type { WaggleAgentColor } from '@shared/types/waggle'
-import { GitBranch } from 'lucide-react'
-import React from 'react'
+import { GitCompare } from 'lucide-react'
+import React, { type ComponentProps } from 'react'
+import { SessionMessageImages } from '@/features/session-summary'
 import { Button } from '@/shared/ui/Button'
-import { useMessageCollapse } from '../hooks/useMessageCollapse'
+import { StructuredPayload } from '@/shared/ui/StructuredPayload'
+import { getLastRenderableTextPartIndex } from '../lib/message-bubble-utils'
+import { showsOnlyHiddenSessionsToolCalls } from '../lib/sessions-tool-visibility'
+import { useLiveStreamMessage } from '../state/live-stream-message-store'
 import { AgentLabel } from './AgentLabel'
-import { CollapsibleDetails } from './CollapsibleDetails'
 import { StreamingText } from './StreamingText'
 import { ToolCallRouter } from './ToolCallRouter'
-
-const JSON_STRINGIFY_INDENT = 2
 
 export interface WaggleInfo {
   agentLabel: string
   agentColor: WaggleAgentColor
-}
-
-function stringifyToolResultContent(content: unknown) {
-  if (typeof content === 'string') {
-    return content
-  }
-
-  try {
-    return JSON.stringify(content, null, JSON_STRINGIFY_INDENT)
-  } catch {
-    return String(content)
-  }
 }
 
 function StandaloneToolResult({
@@ -40,35 +30,93 @@ function StandaloneToolResult({
   readonly state: string
 }) {
   return (
-    <div className="rounded-lg border border-border bg-bg-secondary p-3 text-[13px] text-text-secondary">
-      <div className="mb-2 text-[11px] uppercase tracking-wide text-text-tertiary">
+    <div className="rounded-lg border border-border bg-bg-secondary p-3 text-sm text-text-secondary">
+      <div className="mb-2 text-xs uppercase tracking-wide text-text-tertiary">
         Tool result · {state}
       </div>
-      <StreamingText text={stringifyToolResultContent(content)} />
+      {typeof content === 'string' ? (
+        <StreamingText text={content} />
+      ) : (
+        <StructuredPayload value={content} className="max-h-80" />
+      )}
     </div>
   )
 }
 
-function BranchFromMessageButton({
+function ViewTurnDiffButton({
   messageId,
-  onBranchFromMessage,
-  className,
+  onViewTurnDiff,
 }: {
   readonly messageId: string
-  readonly onBranchFromMessage: (messageId: string) => void
-  readonly className: string
+  readonly onViewTurnDiff: (messageId: string) => void
 }) {
   return (
     <Button
       variant="unstyled"
       type="button"
-      title="Branch from message"
-      onClick={() => onBranchFromMessage(messageId)}
-      className={className}
+      title="View turn diff"
+      aria-label="View turn diff"
+      onClick={() => onViewTurnDiff(messageId)}
+      className="opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
     >
-      <GitBranch className="size-3.5" />
+      <GitCompare className="size-3.5" />
     </Button>
   )
+}
+
+interface MessageActions {
+  readonly onViewTurnDiff?: (messageId: string) => void
+}
+
+/**
+ * The header's View turn diff, for a message that anchors a turn's diff but is not its reply. A
+ * reply's actions sit at the end of its turn (`TurnReplyActions`), and a folded turn shows its diff
+ * in the changed-files card.
+ */
+function MessageActionButtons({
+  messageId,
+  actions,
+  className,
+  turnFolded,
+}: {
+  readonly messageId: string
+  readonly actions: MessageActions
+  readonly className: string
+  readonly turnFolded?: boolean
+}) {
+  const onViewTurnDiff = turnFolded ? undefined : actions.onViewTurnDiff
+  if (!onViewTurnDiff) return null
+  return (
+    <div className={className}>
+      <ViewTurnDiffButton messageId={messageId} onViewTurnDiff={onViewTurnDiff} />
+    </div>
+  )
+}
+
+interface ToolResultEntry {
+  content: unknown
+  state: string
+  error?: string
+  nestedCalls?: NestedToolCalls
+}
+
+function collectMessageToolState(message: UIMessage) {
+  const toolResults = new Map<string, ToolResultEntry>()
+  const messageToolCallIds = new Set<string>()
+  for (const part of message.parts) {
+    if (part.type === 'tool-call') {
+      messageToolCallIds.add(part.id)
+      continue
+    }
+    if (part.type !== 'tool-result') continue
+    toolResults.set(part.toolCallId, {
+      content: part.content,
+      state: part.state,
+      ...(part.error === undefined ? {} : { error: part.error }),
+      ...(part.nestedCalls === undefined ? {} : { nestedCalls: part.nestedCalls }),
+    })
+  }
+  return { toolResults, messageToolCallIds }
 }
 
 interface AssistantMessageBubbleProps {
@@ -88,14 +136,25 @@ interface AssistantMessageBubbleProps {
   waggle?: WaggleInfo
   presentation?: {
     readonly hideAgentLabel?: boolean
+    /** Terminal message of a folded turn: render only its final text part. */
+    readonly turnFolded?: boolean
   }
-  actions?: {
-    readonly onBranchFromMessage?: (messageId: string) => void
+  actions?: MessageActions
+}
+
+function agentLabelProps(
+  assistantModel: SupportedModelId | undefined,
+  waggle: WaggleInfo | undefined,
+) {
+  const props: ComponentProps<typeof AgentLabel> = {
+    ...(assistantModel === undefined ? {} : { assistantModel }),
+    ...(waggle === undefined ? {} : { waggle }),
   }
+  return props
 }
 
 export function AssistantMessageBubble({
-  message,
+  message: shownMessage,
   runtime,
   run,
   waggle,
@@ -103,69 +162,47 @@ export function AssistantMessageBubble({
   actions,
 }: AssistantMessageBubbleProps) {
   const isStreaming = run?.isStreaming
+  // Only this bubble re-renders for a streamed token; the transcript commits the message later.
+  const message = useLiveStreamMessage(runtime.sessionId, shownMessage)
   const isRunActive = run?.isRunActive
-  const assistantModel = run?.assistantModel
   const hideAgentLabel = presentation?.hideAgentLabel
-  const onBranchFromMessage = actions?.onBranchFromMessage
-  const collapse = useMessageCollapse(message, isStreaming, isRunActive, !!waggle)
+  const turnFolded = presentation?.turnFolded === true
+  // ADR 0034: the turn fold owns collapsing. While active or in an expanded
+  // turn every part renders; a folded terminal message renders only its final text.
+  const renderAllParts = !turnFolded || !!isStreaming || !!isRunActive
+  const lastRenderableTextPartIndex = getLastRenderableTextPartIndex(message.parts)
 
-  const toolResults = new Map<
-    string,
-    { content: unknown; state: string; sourceMessageId?: string; error?: string }
-  >()
-  const messageToolCallIds = new Set<string>()
-  for (const part of message.parts) {
-    if (part.type === 'tool-call') {
-      messageToolCallIds.add(part.id)
-      continue
-    }
-
-    if (part.type === 'tool-result') {
-      toolResults.set(part.toolCallId, {
-        content: part.content,
-        state: part.state,
-        sourceMessageId: part.sourceMessageId,
-        error: part.error,
-      })
-    }
-  }
+  const { toolResults, messageToolCallIds } = collectMessageToolState(message)
+  if (showsOnlyHiddenSessionsToolCalls(message.parts)) return null
 
   return (
     <div className="group/assistant-msg relative w-full">
-      {hideAgentLabel && onBranchFromMessage ? (
-        <BranchFromMessageButton
+      {hideAgentLabel ? (
+        <MessageActionButtons
           messageId={message.id}
-          onBranchFromMessage={onBranchFromMessage}
-          className="absolute right-0 top-0 opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
+          actions={actions ?? {}}
+          className="absolute right-0 top-0 flex items-center gap-1"
+          turnFolded={turnFolded}
         />
       ) : null}
       <div className="flex flex-col gap-2">
         {!hideAgentLabel ? (
           <div className="flex items-center justify-between gap-2">
-            <AgentLabel assistantModel={assistantModel} waggle={waggle} />
-            {onBranchFromMessage ? (
-              <BranchFromMessageButton
-                messageId={message.id}
-                onBranchFromMessage={onBranchFromMessage}
-                className="ml-auto opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
-              />
-            ) : null}
+            <AgentLabel {...agentLabelProps(run?.assistantModel, waggle)} />
+            <MessageActionButtons
+              messageId={message.id}
+              actions={actions ?? {}}
+              className="ml-auto flex items-center gap-1"
+              turnFolded={turnFolded}
+            />
           </div>
         ) : null}
 
-        {message.parts.map((part, i) => {
-          const divider =
-            collapse.canCollapseDetails && i === collapse.lastRenderableTextPartIndex ? (
-              <CollapsibleDetails
-                key={`${message.id}-divider`}
-                showDetails={collapse.showDetails}
-                collapseLabel={collapse.collapseLabel}
-                onToggle={collapse.toggleDetails}
-              />
-            ) : null
+        <SessionMessageImages messageId={message.metadata?.sessionNodeId ?? message.id} />
 
+        {message.parts.map((part, i) => {
           const content =
-            !collapse.renderAllParts && i !== collapse.lastRenderableTextPartIndex
+            !renderAllParts && i !== lastRenderableTextPartIndex
               ? null
               : matchBy(part, 'type')
                   .with('text', (value) =>
@@ -174,6 +211,10 @@ export function AssistantMessageBubble({
                         key={`${message.id}-text-${String(i)}`}
                         text={value.content}
                         isStreaming={!!isStreaming}
+                        visualizationSessionId={
+                          message.metadata?.visualizationSessionId ?? runtime.sessionId
+                        }
+                        visualizationInteractionSessionId={runtime.sessionId}
                       />
                     ) : null,
                   )
@@ -186,7 +227,6 @@ export function AssistantMessageBubble({
                       isStreaming={!!isStreaming}
                       extensionRegistry={runtime.extensions.registry}
                       extensionProjectPaths={runtime.extensions.projectPaths}
-                      onBranchFromMessage={onBranchFromMessage}
                     />
                   ))
                   .with('thinking', (value) =>
@@ -206,12 +246,9 @@ export function AssistantMessageBubble({
                   )
                   .otherwise(() => null)
 
-          if (divider !== null || content !== null) {
+          if (content !== null) {
             return (
-              <React.Fragment key={`${message.id}-part-${String(i)}`}>
-                {divider}
-                {content}
-              </React.Fragment>
+              <React.Fragment key={`${message.id}-part-${String(i)}`}>{content}</React.Fragment>
             )
           }
           return null

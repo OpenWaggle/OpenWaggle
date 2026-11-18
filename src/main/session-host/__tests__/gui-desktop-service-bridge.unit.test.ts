@@ -1,0 +1,270 @@
+import {
+  LOCAL_SESSION_CURRENT_REVISION,
+  LOCAL_SESSION_DESKTOP_SERVICE_REVISION,
+  LOCAL_SESSION_SUPPORTED_REVISIONS,
+} from '@shared/types/local-session-protocol'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  DesktopNativeQuarantinedError,
+  DesktopNativeRecoveryError,
+  DesktopServiceAttachmentError,
+  startGuiDesktopServiceBridge,
+} from '../gui-desktop-service-bridge'
+import { DESKTOP_SHUTDOWN_DRAIN_MS } from '../gui-desktop-service-lifecycle'
+import { executeLocalSessionCommand } from '../local-session-client'
+import { negotiateLocalSessionProtocol } from '../local-session-negotiation'
+import { refreshLocalSessionHostEndpoint } from '../local-session-paths'
+import {
+  bridgeHarness,
+  DESKTOP_TEST_GUI_ID,
+  stopBridge,
+} from './gui-desktop-service-bridge.test-harness'
+
+vi.mock('../local-session-client', () => ({ executeLocalSessionCommand: vi.fn() }))
+vi.mock('../local-session-paths', () => ({ refreshLocalSessionHostEndpoint: vi.fn() }))
+vi.mock('../../logger', () => ({ createLogger: () => ({ warn: vi.fn() }) }))
+
+beforeEach(() => vi.useFakeTimers())
+afterEach(() => {
+  vi.clearAllTimers()
+  vi.useRealTimers()
+})
+
+describe('GUI desktop bridge lifecycle', () => {
+  it('requires stopped transport before accepting an exact clean native receipt', async () => {
+    const instance = bridgeHarness()
+    const lifecycle = await startGuiDesktopServiceBridge(instance.input)
+    await expect(lifecycle.markClosed()).rejects.toThrow('must drain')
+    await stopBridge(lifecycle)
+    await lifecycle.markClosed()
+    expect(instance.calls.at(-1)).toEqual({
+      operation: 'markClosed',
+      guiInstanceId: DESKTOP_TEST_GUI_ID,
+      hostInstanceId: 'host-one',
+    })
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('retains cleanup authority when initial registration succeeds but readiness fails', async () => {
+    const instance = bridgeHarness()
+    instance.state.readyFailures = 1
+    const error: unknown = await startGuiDesktopServiceBridge(instance.input).catch(
+      (error: unknown) => error,
+    )
+    expect(error).toBeInstanceOf(DesktopServiceAttachmentError)
+    if (!(error instanceof DesktopServiceAttachmentError)) {
+      throw new Error('Missing attachment cleanup handle')
+    }
+    await stopBridge(error.lifecycle)
+    await error.lifecycle.markClosed()
+    expect(instance.calls.at(-1)).toEqual({
+      operation: 'markClosed',
+      guiInstanceId: DESKTOP_TEST_GUI_ID,
+      hostInstanceId: 'host-one',
+    })
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not adopt or clean another uncertain native owner during quarantine', async () => {
+    const instance = bridgeHarness()
+    instance.state.quarantined = true
+    await expect(startGuiDesktopServiceBridge(instance.input)).rejects.toBeInstanceOf(
+      DesktopNativeQuarantinedError,
+    )
+    expect(instance.calls).toEqual([{ operation: 'register', guiInstanceId: DESKTOP_TEST_GUI_ID }])
+    expect(instance.reconcile).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('sends the recovery attestation once, in place of the first registration', async () => {
+    const instance = bridgeHarness()
+    instance.state.quarantined = true
+    instance.state.readyFailures = 1
+    const error: unknown = await startGuiDesktopServiceBridge({
+      ...instance.input,
+      recoverPreviousOwner: true,
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(DesktopServiceAttachmentError)
+    if (!(error instanceof DesktopServiceAttachmentError)) {
+      throw new Error('Missing attachment cleanup handle')
+    }
+    expect(error.lifecycle.attachment()).toBe('reconnecting')
+    // The Host accepted it; the pump reattaches with a plain registration.
+    await vi.advanceTimersByTimeAsync(1500)
+    const operations = instance.calls.map((call) => call.operation)
+    expect(operations.slice(0, 4)).toEqual(['recoverOwner', 'ready', 'register', 'ready'])
+    expect(operations.filter((operation) => operation === 'recoverOwner')).toHaveLength(1)
+    expect(instance.calls[0]).toEqual({
+      operation: 'recoverOwner',
+      guiInstanceId: DESKTOP_TEST_GUI_ID,
+    })
+    expect(error.lifecycle.attachment()).toBe('attached')
+    await stopBridge(error.lifecycle)
+    expect(error.lifecycle.attachment()).toBe('stopped')
+  })
+
+  it('stops instead of retrying a recovery the Host refused', async () => {
+    const instance = bridgeHarness()
+    instance.state.quarantined = true
+    instance.state.rejectRecovery = true
+    const error: unknown = await startGuiDesktopServiceBridge({
+      ...instance.input,
+      recoverPreviousOwner: true,
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(DesktopNativeRecoveryError)
+    expect(error).toHaveProperty('message', expect.stringContaining('still settling'))
+    expect(error).toHaveProperty('message', expect.stringContaining('openwaggle host stop --wait'))
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(instance.calls.map((call) => call.operation)).toEqual(['recoverOwner'])
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('ends a recovering bridge on an unexpected registration reply', async () => {
+    const instance = bridgeHarness()
+    const error: unknown = await startGuiDesktopServiceBridge({
+      ...instance.input,
+      request: async (request) => {
+        instance.calls.push(request)
+        return { operation: 'heartbeat', accepted: true }
+      },
+      recoverPreviousOwner: true,
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(DesktopNativeRecoveryError)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(instance.calls.map((call) => call.operation)).toEqual(['recoverOwner'])
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('never replays the attestation after an endpoint refresh failure', async () => {
+    const instance = bridgeHarness()
+    vi.mocked(refreshLocalSessionHostEndpoint).mockRejectedValueOnce(
+      new Error('Capability file missing'),
+    )
+    const { request: _injected, ...transportInput } = instance.input
+    const error: unknown = await startGuiDesktopServiceBridge({
+      ...transportInput,
+      recoverPreviousOwner: true,
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(DesktopNativeRecoveryError)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(executeLocalSessionCommand).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('waits for a fresh post-drain poll rather than treating an older snapshot as cleanup proof', async () => {
+    const instance = bridgeHarness()
+    const lifecycle = await startGuiDesktopServiceBridge(instance.input)
+    const stopping = lifecycle.stop()
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(instance.calls.filter((request) => request.operation === 'poll')).toHaveLength(2)
+    expect(instance.calls.some((request) => request.operation === 'disconnect')).toBe(false)
+    await vi.advanceTimersByTimeAsync(3000)
+    await stopping
+    expect(instance.calls.some((request) => request.operation === 'disconnect')).toBe(true)
+  })
+
+  it('bounds a failed drain without releasing ownership, then supports a later clean retry', async () => {
+    const instance = bridgeHarness()
+    instance.state.activeFence = true
+    const lifecycle = await startGuiDesktopServiceBridge(instance.input)
+    const result = lifecycle.stop().then(
+      () => null,
+      (error: unknown) => error,
+    )
+    await vi.advanceTimersByTimeAsync(DESKTOP_SHUTDOWN_DRAIN_MS + 1)
+    expect(await result).toBeInstanceOf(Error)
+    expect(instance.calls.some((request) => request.operation === 'resumeDesktop')).toBe(true)
+    expect(instance.calls.some((request) => request.operation === 'disconnect')).toBe(false)
+    expect(instance.calls.some((request) => request.operation === 'markClosed')).toBe(false)
+    await expect(lifecycle.markClosed()).rejects.toThrow('must drain')
+    instance.state.activeFence = false
+    await stopBridge(lifecycle)
+    await lifecycle.markClosed()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('uses the latest authenticated Host identity after a transport restart', async () => {
+    const instance = bridgeHarness()
+    const lifecycle = await startGuiDesktopServiceBridge(instance.input)
+    instance.state.hostInstanceId = 'host-two'
+    instance.state.pollFailures = 1
+    await vi.advanceTimersByTimeAsync(2500)
+    expect(instance.calls.filter((request) => request.operation === 'register')).toHaveLength(2)
+    await stopBridge(lifecycle)
+    await lifecycle.markClosed()
+    expect(instance.calls.at(-1)).toEqual({
+      operation: 'markClosed',
+      guiInstanceId: DESKTOP_TEST_GUI_ID,
+      hostInstanceId: 'host-two',
+    })
+  })
+
+  it('keeps a rejected clean receipt explicit and retryable', async () => {
+    const instance = bridgeHarness()
+    const lifecycle = await startGuiDesktopServiceBridge(instance.input)
+    await stopBridge(lifecycle)
+    instance.state.rejectReceipt = true
+    await expect(lifecycle.markClosed()).rejects.toThrow('was not acknowledged')
+    instance.state.rejectReceipt = false
+    await expect(lifecycle.markClosed()).resolves.toBeUndefined()
+  })
+
+  it('does not stop transport when shutdown admission was explicitly rejected', async () => {
+    const instance = bridgeHarness()
+    instance.state.rejectPreparation = true
+    const lifecycle = await startGuiDesktopServiceBridge(instance.input)
+    const result = lifecycle.stop().then(
+      () => null,
+      (error: unknown) => error,
+    )
+    await vi.advanceTimersByTimeAsync(4000)
+    try {
+      expect(await result).toBeInstanceOf(Error)
+      expect(instance.calls.some((request) => request.operation === 'disconnect')).toBe(false)
+    } finally {
+      instance.state.rejectPreparation = false
+      await stopBridge(lifecycle)
+    }
+  })
+
+  it('reports rejected admission recovery separately from the original drain failure', async () => {
+    const instance = bridgeHarness()
+    instance.state.activeFence = true
+    instance.state.rejectResume = true
+    const lifecycle = await startGuiDesktopServiceBridge(instance.input)
+    const result = lifecycle.stop().then(
+      () => null,
+      (error: unknown) => error,
+    )
+    await vi.advanceTimersByTimeAsync(DESKTOP_SHUTDOWN_DRAIN_MS + 1)
+    try {
+      expect(await result).toBeInstanceOf(AggregateError)
+      expect(instance.calls.some((request) => request.operation === 'disconnect')).toBe(false)
+    } finally {
+      instance.state.activeFence = false
+      instance.state.rejectResume = false
+      await stopBridge(lifecycle)
+    }
+  })
+
+  it('negotiates the transport within the supported revision window, not the desktop contract revision', () => {
+    // The bridge once pinned the handshake to LOCAL_SESSION_DESKTOP_SERVICE_REVISION (11); once
+    // the window moved to [13, 12] every launch failed before the window. The desktop contract
+    // is revision-gated per command, so the transport handshake must use the standard revisions.
+    const hello = (supportedRevisions: readonly number[]) => ({
+      protocol: 'openwaggle-local-session' as const,
+      supportedRevisions,
+      clientKind: 'gui' as const,
+      clientVersion: 'desktop-bridge',
+    })
+    expect(
+      negotiateLocalSessionProtocol(
+        hello([LOCAL_SESSION_DESKTOP_SERVICE_REVISION]),
+        'host-current',
+      ),
+    ).toMatchObject({ accepted: false, code: 'incompatible_protocol' })
+    expect(
+      negotiateLocalSessionProtocol(hello([...LOCAL_SESSION_SUPPORTED_REVISIONS]), 'host-current'),
+    ).toMatchObject({ accepted: true, revision: LOCAL_SESSION_CURRENT_REVISION })
+  })
+})

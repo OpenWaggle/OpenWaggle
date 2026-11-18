@@ -7,6 +7,10 @@ import { useAuthStore, useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state/preferences-store'
 import { ConnectionsSection } from '../sections/ConnectionsSection'
 
+vi.mock('../sections/connections/SourceControlSection', () => ({
+  SourceControlSection: () => <h3>Source control</h3>,
+}))
+
 const PROVIDER_MODELS: ProviderInfo[] = [
   {
     provider: 'openai-codex',
@@ -80,6 +84,12 @@ describe('ConnectionsSection', () => {
     })
   })
 
+  it('includes the Source control group', () => {
+    render(<ConnectionsSection />)
+
+    expect(screen.getByRole('heading', { name: 'Source control' })).toBeInTheDocument()
+  })
+
   it('renders auth method groups collapsed by default', () => {
     render(<ConnectionsSection />)
 
@@ -89,7 +99,7 @@ describe('ConnectionsSection', () => {
     expect(screen.queryByText('Connected')).not.toBeInTheDocument()
   })
 
-  it('renders API-key provider rows from the Pi catalog when expanded', () => {
+  it('renders API-key provider rows from the catalog when expanded', () => {
     render(<ConnectionsSection />)
 
     fireEvent.click(screen.getByRole('button', { name: /API Key Providers/i }))
@@ -172,6 +182,71 @@ describe('ConnectionsSection', () => {
     expect(cancelOAuth).toHaveBeenCalledWith('openai-codex')
   })
 
+  it("shows a copy-code sign-in's own prompt and the link to open in another browser", () => {
+    useAuthStore.setState({
+      authAccounts: {
+        'openai-codex': { provider: 'openai-codex', connected: false, label: 'Not connected' },
+      },
+      oauthStatuses: {
+        'openai-codex': {
+          type: 'awaiting-code',
+          provider: 'openai-codex',
+          authUrl: 'https://example.test/authorize',
+          instructions: 'Open the link in any browser, then paste the code it shows.',
+          prompt: { message: 'Paste the authorization code', placeholder: 'code#state' },
+        },
+      },
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+
+    expect(
+      screen.getByText('Open the link in any browser, then paste the code it shows.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy sign-in link' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Paste the authorization code' })).toHaveAttribute(
+      'placeholder',
+      'code#state',
+    )
+  })
+
+  it('masks a secret the sign-in asks for', () => {
+    useAuthStore.setState({
+      authAccounts: {
+        'openai-codex': { provider: 'openai-codex', connected: false, label: 'Not connected' },
+      },
+      oauthStatuses: {
+        'openai-codex': {
+          type: 'awaiting-code',
+          provider: 'openai-codex',
+          prompt: { message: 'Paste your token', secret: true },
+        },
+      },
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+
+    expect(screen.getByLabelText('Paste your token')).toHaveAttribute('type', 'password')
+  })
+
+  it('keeps OAuth error text at full contrast', () => {
+    useAuthStore.setState({
+      oauthStatuses: {
+        'openai-codex': { type: 'error', message: 'Sign in failed' },
+      },
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+
+    expect(screen.getByText('Sign in failed')).toHaveClass('text-error-text')
+    const retry = screen.getByRole('button', { name: 'Try again' })
+    expect(retry).toHaveClass('text-error-text')
+    expect(retry).not.toHaveClass('hover:text-error-text/80')
+  })
+
   it('renders Pi OAuth selection choices and submits the selected option', () => {
     const submitAuthCode = vi.fn()
     useAuthStore.setState({
@@ -207,18 +282,17 @@ describe('ConnectionsSection', () => {
     expect(submitAuthCode).toHaveBeenCalledWith('openai-codex', 'device-code')
   })
 
-  it('renders all Pi catalog models in settings regardless of availability', () => {
+  it('renders all catalog models in settings regardless of availability', () => {
     render(<ConnectionsSection />)
 
     expect(screen.getByRole('heading', { name: 'Available Models' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /OpenAI Codex.*selected/i }))
-    fireEvent.click(screen.getByRole('button', { name: /OpenRouter.*selected/i }))
+    fireEvent.click(screen.getByRole('button', { name: /All providers/ }))
 
     expect(screen.getAllByText('GPT 5.4')).toHaveLength(2)
     expect(screen.getByText('Auth required')).toBeInTheDocument()
   })
 
-  it('renders an empty Pi catalog message when no providers are reported', () => {
+  it('renders an empty catalog message when no providers are reported', () => {
     useProviderStore.setState({
       ...useProviderStore.getInitialState(),
       providerModels: [],
@@ -226,6 +300,18 @@ describe('ConnectionsSection', () => {
 
     render(<ConnectionsSection />)
 
-    expect(screen.getByText(/pi did not report any providers or models/i)).toBeInTheDocument()
+    expect(screen.getByText(/no providers or models were reported/i)).toBeInTheDocument()
+  })
+
+  it('says no sign-in providers are available without naming the runtime', () => {
+    useProviderStore.setState({
+      ...useProviderStore.getInitialState(),
+      providerModels: PROVIDER_MODELS.filter((info) => !info.auth.supportsOAuth),
+    })
+
+    render(<ConnectionsSection />)
+    fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
+
+    expect(screen.getByText('No sign-in providers are available.')).toBeInTheDocument()
   })
 })

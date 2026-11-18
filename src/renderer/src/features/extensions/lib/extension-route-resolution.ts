@@ -5,6 +5,7 @@ import type {
   ExtensionContributionRuntime,
   ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
+import { isBlockedExtensionEntry } from './extension-entry-eligibility'
 
 export interface ResolvedExtensionRouteContribution {
   readonly entry: ExtensionContributionRegistryEntry
@@ -49,37 +50,6 @@ function routeEntriesForExtension(
   )
 }
 
-function disabledForRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const disabledProjectPaths = new Set(entry.eligibility.disabledProjectPaths)
-  return requestedProjectPaths.some((projectPath) => disabledProjectPaths.has(projectPath))
-}
-
-function missingRequestedProject(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  const availableProjectPaths = new Set(entry.projectPaths)
-  return requestedProjectPaths.some((projectPath) => !availableProjectPaths.has(projectPath))
-}
-
-function isBlockedRouteEntry(
-  entry: ExtensionContributionRegistryEntry,
-  requestedProjectPaths: readonly string[],
-) {
-  return (
-    !entry.eligibility.runtimeEnabled ||
-    !entry.eligibility.enabled ||
-    !entry.eligibility.trusted ||
-    entry.eligibility.sdkCompatible === false ||
-    entry.eligibility.updateAvailable ||
-    disabledForRequestedProject(entry, requestedProjectPaths) ||
-    missingRequestedProject(entry, requestedProjectPaths)
-  )
-}
-
 export function resolveExtensionRouteContribution({
   registry,
   extensionId,
@@ -90,7 +60,7 @@ export function resolveExtensionRouteContribution({
   readonly extensionId: string
   readonly routeId: string
   readonly requestedProjectPaths: readonly string[]
-}): ExtensionRouteResolution {
+}) {
   const normalizedRouteId = normalizeRouteId(routeId)
 
   if (extensionId.trim().length === 0 || normalizedRouteId.length === 0) {
@@ -99,7 +69,7 @@ export function resolveExtensionRouteContribution({
       title: 'Invalid extension route',
       message:
         'Extension route URLs must include both an extension id and a route contribution id.',
-    }
+    } satisfies ExtensionRouteResolution
   }
 
   const extensionRouteEntries = routeEntriesForExtension(registry, extensionId)
@@ -109,7 +79,7 @@ export function resolveExtensionRouteContribution({
       title: 'Extension route not available',
       message:
         'No registered route contributions match this extension in the active extension registry.',
-    }
+    } satisfies ExtensionRouteResolution
   }
 
   const entry = extensionRouteEntries.find(
@@ -121,16 +91,16 @@ export function resolveExtensionRouteContribution({
       title: 'Route contribution not available',
       message:
         'The requested route id is not registered for this extension in the active extension registry.',
-    }
+    } satisfies ExtensionRouteResolution
   }
 
-  if (isBlockedRouteEntry(entry, requestedProjectPaths)) {
+  if (isBlockedExtensionEntry(entry, requestedProjectPaths)) {
     return {
       status: 'blocked',
       title: 'Extension route blocked',
       message:
         'This route is disabled, untrusted, SDK-incompatible, pending update approval, or outside the active project scope.',
-    }
+    } satisfies ExtensionRouteResolution
   }
 
   if (!entry.runtime || !entry.execution || !entry.entryPath) {
@@ -139,7 +109,7 @@ export function resolveExtensionRouteContribution({
       title: 'Route contribution incomplete',
       message:
         'The route contribution is missing its renderer runtime, execution placement, or entry path.',
-    }
+    } satisfies ExtensionRouteResolution
   }
 
   return {
@@ -150,5 +120,5 @@ export function resolveExtensionRouteContribution({
       execution: entry.execution,
       entryPath: entry.entryPath,
     },
-  }
+  } satisfies ExtensionRouteResolution
 }

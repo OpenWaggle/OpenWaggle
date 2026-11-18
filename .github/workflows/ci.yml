@@ -5,27 +5,53 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+    branches: [main]
   workflow_dispatch:
     inputs:
       head_sha:
-        description: Exact release PR head SHA to validate.
+        description: Exact commit SHA to validate.
         required: true
         type: string
+      ci_tier:
+        description: Check tier for the dispatched run.
+        required: false
+        type: choice
+        default: full
+        options:
+          - full
+          - fast
 
 permissions:
   contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Makes `bun run check:installer` fail when NSIS is absent instead of skipping, so the
+  # installer compile check cannot silently stop running in CI.
+  REQUIRE_NSIS: '1'
 
+# Pull-request runs cancel superseded runs for the same PR. Merge-queue runs are never
+# cancelled here: each queue entry validates one speculative merge result, and killing it
+# would fail the queue instead of yielding a useful signal.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
+  session-performance:
+    name: Session Performance
+    if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
+    uses: ./.github/workflows/session-performance.yml
+    with:
+      head_sha: ${{ inputs.head_sha }}
+    permissions:
+      contents: read
+
   commit-policy:
     name: Commit Policy
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -41,29 +67,101 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.6.0
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/bun-install
 
-      - run: pnpm exec tsx scripts/release-ci-policy.ts
+      - run: bun scripts/release-ci-policy.ts
+
+      - name: Verify generated desktop app release files
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'app-release-v') && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          BASE_SHA=$(git merge-base "$HEAD_SHA" refs/remotes/origin/main)
+          VERSION=$(git show "${HEAD_SHA}:package.json" | jq -er '.version')
+          bun scripts/app-release-state.ts verify-release-tree \
+            --base "$BASE_SHA" --candidate "$HEAD_SHA" --version "$VERSION"
 
       - name: Validate Conventional Commits
         env:
           COMMIT_POLICY_FROM: ${{ github.event_name == 'push' && github.event.before || github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           COMMIT_POLICY_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          COMMIT_POLICY_EVENT: ${{ github.event_name }}
           PR_TITLE: ${{ github.event_name == 'pull_request' && github.event.pull_request.title || '' }}
-        run: pnpm exec tsx scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
+        run: |
+          if [ "$COMMIT_POLICY_EVENT" = workflow_dispatch ]; then
+            git fetch --no-tags origin main:refs/remotes/origin/main
+            COMMIT_POLICY_FROM="$(git merge-base "$COMMIT_POLICY_TO" refs/remotes/origin/main)"
+            test -n "$COMMIT_POLICY_FROM"
+            git merge-base --is-ancestor "$COMMIT_POLICY_FROM" "$COMMIT_POLICY_TO"
+            git merge-base --is-ancestor "$COMMIT_POLICY_FROM" refs/remotes/origin/main
+          fi
+          bun scripts/check-conventional-commits.ts --from "$COMMIT_POLICY_FROM" --to "$COMMIT_POLICY_TO" --pr-title "$PR_TITLE"
 
   check:
     name: Typecheck & Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - uses: ./.github/actions/bun-install
+        with:
+          electron-binary: 'true'
+
+      - name: Install NSIS for the installer script check
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update || echo "::warning::apt-get update could not refresh every package source (attempt $attempt)."
+            if sudo apt-get install --yes nsis; then break; fi
+            sleep 15
+          done
+          makensis -VERSION
+
+      - run: bun scripts/check/output-budget.ts check
+
+      - name: Publish check step times
+        if: always()
+        run: bun scripts/check/job-summary.ts
+
+  test-unit:
+    name: Unit Tests
+    # Skip on the Release Please version-bump PR: it carries no source changes, so the
+    # suite would re-validate a tree already proven on the feature PRs and on push to main.
+    # The release-pr gate tier accepts this skip; every ordinary PR still runs it.
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -78,21 +176,30 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.6.0
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      - uses: ./.github/actions/bun-install
+        with:
+          electron-binary: 'true'
 
-  test:
-    name: Unit & Component Tests
+      - run: bun run test:unit
+
+      - name: Unit tests of shipped Node.js code on Node.js
+        run: bun run test:node-runtime:raw
+
+  test-integration-component:
+    name: Integration & Component Tests
+    # Skipped on the Release Please version-bump PR (see test-unit).
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Verify dispatched commit identity
         if: github.event_name == 'workflow_dispatch'
@@ -107,35 +214,133 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          version: 11.6.0
+          bun-version-file: package.json
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+      - uses: ./.github/actions/bun-install
+        with:
+          electron-binary: 'true'
 
-  package-release-rehearsal:
-    name: Package release rehearsal (Node ${{ matrix.node }})
+      - name: Install terminal integration shells
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update || echo "::warning::apt-get update could not refresh every package source (attempt $attempt)."
+            if sudo apt-get install --yes zsh; then break; fi
+            sleep 15
+          done
+          /bin/zsh --version
+          while IFS= read -r insecure_path; do
+            [ -n "$insecure_path" ] || continue
+            sudo chown root -- "$insecure_path"
+            sudo chmod go-w -- "$insecure_path"
+          done < <(/bin/zsh -f -c 'autoload -Uz compaudit; compaudit')
+          /bin/zsh -f -c 'autoload -Uz compaudit; compaudit'
+
+      - run: bun run test:integration && bun run test:component
+
+      - name: Integration tests of the main process on Node.js
+        run: bun run test:node-runtime:integration:raw
+
+  test-mcp-conformance:
+    name: MCP Conformance
+    # Skipped on the Release Please version-bump PR (see test-unit).
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - 22.19.0
-          - 24.14.0
+    timeout-minutes: 15
+    steps:
+      - name: Verify dispatched commit identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISPATCHED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.head_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$DISPATCHED_SHA" = "$EXPECTED_SHA"
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - uses: ./.github/actions/bun-install
+
+      - run: bun run prepare:native:node && bun run test:mcp:conformance
+
+  changes:
+    name: Detect Changed Surfaces
+    timeout-minutes: 10
+    # Push runs never trigger path-scoped jobs, so change detection is only needed for
+    # pull requests, merge-queue validation, and dispatched runs.
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.filter.outputs.package }}
+      website-docs: ${{ steps.filter.outputs.website-docs }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - name: Resolve changed surfaces
+        id: filter
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="${PR_BASE_SHA}"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse origin/main)"
+          fi
+          merge_base="$(git merge-base "$base" HEAD)"
+          changed="$(git diff --name-only "$merge_base" HEAD)"
+          echo "Changed files relative to $merge_base:"
+          printf '%s\n' "$changed"
+
+          package_pattern='^(packages/|bun\.lock$|bunfig\.toml$|scripts/package-|release-please-config\.json$|\.release-please-manifest\.json$|tests/fixtures/package-smoke/)'
+          website_docs_pattern='^(website/|docs/|packages/|scripts/package-documentation\.ts$|scripts/generate-installed-docs\.ts$)'
+
+          if printf '%s\n' "$changed" | grep -qE "$package_pattern"; then
+            echo "package=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "package=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if printf '%s\n' "$changed" | grep -qE "$website_docs_pattern"; then
+            echo "website-docs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "website-docs=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  package-release-rehearsal-package:
+    name: Package Consumer Rehearsal (Node 22.19.0)
+    needs: changes
+    # Runs on a pull request or full dispatch whose changes touch packages. The release branch
+    # always rehearses so the coordinated package release path is never under-validated.
+    if: >-
+      (github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
+      (needs.changes.outputs.package == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
 
       - name: Checkout immutable package consumer tooling
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.workflow_sha }}
@@ -143,61 +348,113 @@ jobs:
           sparse-checkout: scripts/package-consumer-tools.ts
           sparse-checkout-cone-mode: false
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
+      # pnpm only for the pnpm consumer of the packed packages; the repository installs with Bun.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
         with:
-          version: 11.6.0
+          version: 11.15.1
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
         with:
-          node-version: ${{ matrix.node }}
-          cache: pnpm
+          node-version: 22.19.0
+          package-manager-cache: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
 
-      - if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/bun-install
 
       - name: Install pinned package manager consumers
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"
 
       - name: Verify package manager consumer versions
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts verify --tool-root "$RUNNER_TEMP/package-managers"
 
-      - name: Rehearse static, docs, website, and API gates
-        if: ${{ matrix.node == '24.14.0' && !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
-        env:
-          YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
-        run: |
-          pnpm check:fast
-          pnpm package-release:validate
-          pnpm api:snapshot:check
-          pnpm package-docs:check
-          pnpm --filter @openwaggle/website build
-          pnpm website:test
-          pnpm docs:generate
+      - name: Cache Playwright browsers
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
 
       - name: Install Chromium for package browser smoke
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
-        run: pnpm exec playwright install chromium
+        run: bunx playwright install chromium
 
       - name: Rehearse npm, pnpm, Yarn, Bun, and browser consumers
-        if: ${{ matrix.node == '22.19.0' || !startsWith(github.head_ref || github.ref_name, 'release-please--branches--main') }}
         env:
           OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'
           OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'
           YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
-        run: pnpm package:smoke
+        run: bun run package:smoke
+
+  package-release-rehearsal-website:
+    name: Website & Docs Rehearsal (Node 24.14.0)
+    timeout-minutes: 25
+    needs: changes
+    if: >-
+      (github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full')) &&
+      (needs.changes.outputs.website-docs == 'true' || (github.head_ref || github.ref_name) == 'release-please--branches--main')
+    runs-on: ubuntu-latest
+    env:
+      YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - uses: ./.github/actions/bun-install
+
+      - name: Rehearse website and documentation gates
+        run: |
+          bun run website:build
+          bun run website:test
+          bun run docs:generate
+
+  classify-package-release:
+    name: Classify Package Release Candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      prepare: ${{ steps.candidate.outputs.prepare }}
+    steps:
+      - name: Classify package release candidate
+        id: candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REF_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          branch="$HEAD_REF"
+          if [[ -z "$branch" ]]; then
+            branch="$REF_NAME"
+          fi
+          if [[ "$branch" != "release-please--branches--main" ]]; then
+            echo "prepare=false" >> "$GITHUB_OUTPUT"
+            echo "This pull request does not contain a coordinated package release candidate."
+            exit 0
+          fi
+          if [[ "$EVENT_NAME" == "pull_request" && ( "$HEAD_REPOSITORY" != "$REPOSITORY" || "$PR_AUTHOR" != "github-actions[bot]" ) ]]; then
+            echo "Release candidate pull requests must belong to this repository and the GitHub Actions bot." >&2
+            exit 1
+          fi
+          echo "prepare=true" >> "$GITHUB_OUTPUT"
 
   prepare-package-release:
-    name: Prepare immutable package release artifacts
-    if: ${{ (github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--branches--main')) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release-please--branches--main')) }}
+    name: Build and attest package artifacts (Release Please PR only)
+    timeout-minutes: 40
+    needs: classify-package-release
+    if: needs.classify-package-release.outputs.prepare == 'true'
     runs-on: ubuntu-latest
     permissions:
       attestations: write
@@ -209,9 +466,10 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.head_sha }}
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      # pnpm only for the pnpm consumer of the packed packages; the repository installs with Bun.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
         with:
-          version: 11.6.0
+          version: 11.15.1
 
       - name: Checkout immutable package consumer tooling
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -224,13 +482,16 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.14.0
-          cache: pnpm
+          package-manager-cache: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: package.json
 
-      - run: pnpm install --frozen-lockfile
+      # This job attests the tarballs it builds, so it installs without the package cache.
+      - uses: ./.github/actions/bun-install
+        with:
+          package-cache: 'false'
 
       - name: Install pinned package manager consumers
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON .release-tooling/scripts/package-consumer-tools.ts install --tool-root "$RUNNER_TEMP/package-managers" --github-path "$GITHUB_PATH"
@@ -242,32 +503,32 @@ jobs:
         env:
           YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
         run: |
-          pnpm check:fast
-          pnpm package-release:validate
-          pnpm api:snapshot:check
-          pnpm package-docs:check
-          pnpm --filter @openwaggle/website build
-          pnpm website:test
-          pnpm docs:generate
+          bun run check:fast
+          bun run package-release:validate
+          bun run api:snapshot:check
+          bun run package-docs:check
+          bun run --filter @openwaggle/website build
+          bun run website:test
+          bun run docs:generate
 
-      - run: pnpm build:packages
+      - run: bun run build:packages
 
       - name: Resolve exact Release Please package plan
         id: plan
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-plan.ts "${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'origin/main' }}" "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.head_sha }}" "$RUNNER_TEMP/package-release-plan.json"
 
       - name: Build and verify exact package tarballs
-        run: pnpm exec tsx scripts/package-release-artifacts.ts prepare "$RUNNER_TEMP/package-release-plan.json" "$RUNNER_TEMP/package-release-artifacts"
+        run: bun scripts/package-release-artifacts.ts prepare "$RUNNER_TEMP/package-release-plan.json" "$RUNNER_TEMP/package-release-artifacts"
 
       - name: Install Chromium for canonical package browser smoke
-        run: pnpm exec playwright install chromium
+        run: bunx playwright install chromium
 
       - name: Smoke exact canonical npm, pnpm, Yarn, Bun, and browser consumers
         env:
           OPENWAGGLE_PACKAGE_BROWSER_SMOKE: '1'
           OPENWAGGLE_PACKAGE_SMOKE_REQUIRED_MANAGERS: 'npm,pnpm,yarn,bun'
           YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
-        run: pnpm package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"
+        run: bun run package:smoke --tarball-dir "$RUNNER_TEMP/package-release-artifacts"
 
       - name: Attest package tarballs and release manifest
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
@@ -283,16 +544,14 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-  package-release-gate:
-    name: Package Release Gate
+  package-release-candidate:
+    name: Package Release Candidate
     needs:
-      - commit-policy
-      - check
-      - test
-      - package-release-rehearsal
+      - classify-package-release
       - prepare-package-release
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -303,5 +562,42 @@ jobs:
           node-version: 24.14.0
           package-manager-cache: false
 
-      - name: Enforce complete package release readiness
-        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.test.result }}" "${{ needs.package-release-rehearsal.result }}" "${{ needs.prepare-package-release.result }}" "${{ github.head_ref || github.ref_name }}"
+      - name: Enforce package release candidate readiness
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-candidate-gate.ts "${{ needs.classify-package-release.result }}" "${{ needs.prepare-package-release.result }}" "${{ github.head_ref || github.ref_name }}"
+
+  package-release-gate:
+    name: Package Release Gate
+    timeout-minutes: 10
+    needs:
+      - session-performance
+      - commit-policy
+      - check
+      - test-unit
+      - test-integration-component
+      - test-mcp-conformance
+      - changes
+      - package-release-rehearsal-package
+      - package-release-rehearsal-website
+      - package-release-candidate
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    env:
+      CI_TIER: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_tier || github.event_name == 'merge_group' && 'full' || github.event_name == 'push' && 'fast' || (github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main' && github.event.pull_request.head.repo.full_name == github.repository) && 'release-pr' || 'fast' }}
+    steps:
+      - name: Require selected Session Performance result
+        if: github.event_name == 'workflow_dispatch' && inputs.ci_tier == 'full'
+        env:
+          SESSION_PERFORMANCE_RESULT: ${{ needs.session-performance.result }}
+        run: test "$SESSION_PERFORMANCE_RESULT" = success
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - name: Enforce package release readiness
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-release-gate.ts "$CI_TIER" "${{ needs.commit-policy.result }}" "${{ needs.check.result }}" "${{ needs.changes.result }}" "${{ needs.test-unit.result }}" "${{ needs.test-integration-component.result }}" "${{ needs.test-mcp-conformance.result }}" "${{ needs.package-release-rehearsal-package.result }}" "${{ needs.package-release-rehearsal-website.result }}" "${{ needs.package-release-candidate.result }}"

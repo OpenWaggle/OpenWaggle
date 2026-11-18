@@ -1,171 +1,19 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import * as SqlClient from '@effect/sql/SqlClient'
-import { SupportedModelId } from '@shared/types/brand'
-import * as Effect from 'effect/Effect'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { DEFAULT_SHORTCUT_BINDINGS } from '@shared/types/shortcuts'
+import { describe, expect, it } from 'vitest'
+import {
+  dropSettingsStoreForFailureTest,
+  installSettingsStoreTestLifecycle,
+  loadSettingsModule,
+  readRemovedPersistenceNames,
+  readTableColumns,
+  seedRemovedPersistenceForCleanup,
+  writeRawSetting,
+  writeRawSettingJson,
+} from './settings-test-harness'
 
-const state = vi.hoisted(() => ({
-  userDataDir: '',
-  encryptionAvailable: false,
-  encryptThrows: false,
-}))
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => state.userDataDir,
-  },
-  safeStorage: {
-    isEncryptionAvailable: () => state.encryptionAvailable,
-    encryptString: (value: string) => {
-      if (state.encryptThrows) {
-        throw new Error('encrypt failed')
-      }
-      return Buffer.from(value, 'utf8')
-    },
-    decryptString: (value: Buffer) => value.toString('utf8'),
-  },
-}))
-
-interface SettingsStoreRow {
-  readonly key: string
-}
-
-interface TableRow {
-  readonly name: string
-}
-
-interface TableColumnRow {
-  readonly name: string
-}
-
-const REMOVED_PERSISTENCE_MIGRATION_IDS = [8, 11] as const
-const REMOVED_PERSISTENCE_TABLES = [
-  'session_message_parts',
-  'pinned_context',
-  'session_messages',
-  'orchestration_run_tasks',
-  'orchestration_runs',
-  'orchestration_events',
-  'provider_session_runtime',
-  'team_presets',
-  'waggle_presets',
-  'team_runtime_state',
-  'auth_tokens',
-] as const
-const REMOVED_SETTINGS_KEYS = ['providers', 'executionMode', 'qualityPreset', 'mcpServers'] as const
-
-async function disposeRuntime() {
-  const { disposeAppRuntime } = await import('../../runtime')
-  await disposeAppRuntime()
-}
-
-async function loadSettingsModule() {
-  const module = await import('../settings')
-  await module.initializeSettingsStore()
-  return module
-}
-
-async function writeRawSetting(key: string, value: unknown) {
-  const { runAppEffect } = await import('../../runtime')
-  await runAppEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      yield* sql`
-        INSERT INTO settings_store (key, value_json, updated_at)
-        VALUES (${key}, ${JSON.stringify(value)}, ${Date.now()})
-        ON CONFLICT(key) DO UPDATE SET
-          value_json = excluded.value_json,
-          updated_at = excluded.updated_at
-      `
-    }),
-  )
-}
-
-async function seedRemovedPersistenceForCleanup() {
-  const { resetAppRuntimeForTests, runAppEffect } = await import('../../runtime')
-  await runAppEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      for (const tableName of REMOVED_PERSISTENCE_TABLES) {
-        yield* sql.unsafe(`CREATE TABLE IF NOT EXISTS ${tableName} (id TEXT PRIMARY KEY)`)
-      }
-      for (const key of REMOVED_SETTINGS_KEYS) {
-        yield* sql`
-          INSERT INTO settings_store (key, value_json, updated_at)
-          VALUES (${key}, ${JSON.stringify({ removed: true })}, ${Date.now()})
-          ON CONFLICT(key) DO UPDATE SET
-            value_json = excluded.value_json,
-            updated_at = excluded.updated_at
-        `
-      }
-      for (const migrationId of REMOVED_PERSISTENCE_MIGRATION_IDS) {
-        yield* sql`
-          DELETE FROM _migrations
-          WHERE id = ${migrationId}
-        `
-      }
-    }),
-  )
-  await resetAppRuntimeForTests()
-}
-
-async function readRemovedPersistenceNames() {
-  const { runAppEffect } = await import('../../runtime')
-  return runAppEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const tableRows = yield* sql<TableRow>`
-        SELECT name
-        FROM sqlite_master
-        WHERE type = ${'table'}
-          AND name IN ${sql.in([...REMOVED_PERSISTENCE_TABLES])}
-        ORDER BY name ASC
-      `
-      const settingRows = yield* sql<SettingsStoreRow>`
-        SELECT key
-        FROM settings_store
-        WHERE key IN ${sql.in([...REMOVED_SETTINGS_KEYS])}
-        ORDER BY key ASC
-      `
-      return {
-        tables: tableRows.map((row) => row.name),
-        settingsKeys: settingRows.map((row) => row.key),
-      }
-    }),
-  )
-}
-
-async function readTableColumns(tableName: string) {
-  const { runAppEffect } = await import('../../runtime')
-  return runAppEffect(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient
-      const rows = yield* sql<TableColumnRow>`
-        SELECT name
-        FROM pragma_table_info(${tableName})
-      `
-      return rows.map((row) => row.name)
-    }),
-  )
-}
-
-describe('settings store', () => {
-  beforeEach(async () => {
-    await disposeRuntime()
-    vi.resetModules()
-    state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-settings-test-'))
-    state.encryptionAvailable = false
-    state.encryptThrows = false
-  })
-
-  afterEach(async () => {
-    await disposeRuntime()
-    if (state.userDataDir) {
-      await fs.rm(state.userDataDir, { recursive: true, force: true })
-    }
-  })
+describe('settings store loading', () => {
+  installSettingsStoreTestLifecycle()
 
   it('drops removed pre-Pi persistence tables and settings keys during database bootstrap', async () => {
     await seedRemovedPersistenceForCleanup()
@@ -192,90 +40,229 @@ describe('settings store', () => {
     )
   })
 
-  it('sanitizes and limits recent projects from persisted settings', async () => {
-    await writeRawSetting('recentProjects', [
-      '/tmp/repo-1',
-      '/tmp/repo-1',
-      '   /tmp/repo-2   ',
-      '/tmp/repo-3',
-      '/tmp/repo-4',
-      '/tmp/repo-5',
-      '/tmp/repo-6',
-      '/tmp/repo-7',
-      '/tmp/repo-8',
-      '/tmp/repo-9',
-      '/tmp/repo-10',
-      '/tmp/repo-11',
-    ])
-
+  it('uses defaults only after a successful read confirms that no settings are stored', async () => {
     const { getSettings } = await loadSettingsModule()
-    const settings = getSettings()
 
-    expect(settings.recentProjects).toEqual([
-      '/tmp/repo-1',
-      '/tmp/repo-2',
-      '/tmp/repo-3',
-      '/tmp/repo-4',
-      '/tmp/repo-5',
-      '/tmp/repo-6',
-      '/tmp/repo-7',
-      '/tmp/repo-8',
-      '/tmp/repo-9',
-      '/tmp/repo-10',
-    ])
+    expect(getSettings()).toMatchObject({
+      projectPath: null,
+      browserLinkTarget: 'system',
+      updateChannel: 'stable',
+    })
+    // The thinking level is Session state with Pi's default, never an app setting.
+    expect(getSettings()).not.toHaveProperty('thinkingLevel')
   })
 
-  it('falls back to medium thinking level when persisted value is invalid', async () => {
+  it('ignores a stored thinkingLevel, which is no longer an app setting', async () => {
     await writeRawSetting('thinkingLevel', 'ultra')
 
     const { getSettings } = await loadSettingsModule()
-    const settings = getSettings()
 
-    expect(settings.thinkingLevel).toBe('medium')
+    expect(getSettings()).not.toHaveProperty('thinkingLevel')
   })
 
-  it('sanitizes and limits favorite models from persisted settings', async () => {
-    await writeRawSetting('favoriteModels', [
-      'openai/gpt-4.1-mini',
-      'openai/gpt-4.1-mini',
-      ' anthropic/claude-sonnet-4-5 ',
-      '',
-      ...Array.from({ length: 110 }, (_value, index) => `openrouter/model-${String(index)}`),
-    ])
-
-    const { getSettings } = await loadSettingsModule()
-    const settings = getSettings()
-
-    expect(settings.favoriteModels[0]).toBe('openai/gpt-4.1-mini')
-    expect(settings.favoriteModels[1]).toBe('anthropic/claude-sonnet-4-5')
-    expect(settings.favoriteModels).toHaveLength(100)
-  })
-
-  it('sanitizes skill toggles by project', async () => {
-    await writeRawSetting('skillTogglesByProject', {
-      ' /tmp/repo ': {
-        ' code-review ': false,
-        '': true,
-      },
-      '': {
-        'frontend-design': true,
-      },
+  it('accepts the explicit legacy diff-wrap and pre-terminal-palette formats', async () => {
+    await writeRawSetting('diffWrapLines', 'true')
+    await writeRawSetting('appearancePreferences', {
+      typography: DEFAULT_SETTINGS.appearancePreferences.typography,
+      motion: DEFAULT_SETTINGS.appearancePreferences.motion,
     })
 
     const { getSettings } = await loadSettingsModule()
-    const settings = getSettings()
 
-    expect(settings.skillTogglesByProject).toEqual({
-      '/tmp/repo': {
-        'code-review': false,
+    expect(getSettings()).toMatchObject({
+      diffWrapLines: true,
+      appearancePreferences: {
+        terminalPalette: DEFAULT_SETTINGS.appearancePreferences.terminalPalette,
       },
     })
   })
 
-  it('roundtrips valid thinkingLevel through updateSettings', async () => {
-    const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({ thinkingLevel: 'high' })
-    expect(getSettings().thinkingLevel).toBe('high')
+  it('fails closed when a present current setting has an invalid value', async () => {
+    await writeRawSetting('browserLinkTarget', 'ultra')
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(() => getSettings()).toThrow(/Saved settings are invalid.*browserLinkTarget/u)
+  })
+
+  it('fails closed on an unknown persisted update channel', async () => {
+    await writeRawSetting('updateChannel', 'nightly')
+    const { getSettings } = await loadSettingsModule()
+    expect(() => getSettings()).toThrow(/updateChannel/u)
+  })
+
+  it('preserves the compaction threshold alongside legacy shortcut migration', async () => {
+    await writeRawSetting('compactionThresholdPercent', 73)
+    await writeRawSetting('shortcutBindings', { 'diff.toggle': { key: 'G', mod: true } })
+    const { getSettings } = await loadSettingsModule()
+    expect(getSettings().compactionThresholdPercent).toBe(73)
+    expect(getSettings().shortcutBindings['diff.toggle']).toEqual({ key: 'G', mod: true })
+  })
+
+  it('fails closed on an invalid persisted compaction threshold', async () => {
+    await writeRawSetting('compactionThresholdPercent', 0)
+    const { getSettings } = await loadSettingsModule()
+    expect(() => getSettings()).toThrow(/compactionThresholdPercent/u)
+  })
+
+  it('loads pre-terminal shortcut bindings without losing custom shortcuts', async () => {
+    await writeRawSetting('shortcutBindings', {
+      'commandPalette.toggle': { key: 'K', mod: true },
+      'filePicker.toggle': { key: 'P', mod: true },
+      'chat.new': { key: 'N', mod: true },
+      'terminal.toggle': { key: 'J', mod: true },
+      'sidebar.toggle': { key: 'B', mod: true },
+      'diff.toggle': { key: 'G', mod: true },
+      'sessionTree.toggle': { key: 'Y', mod: true, shift: true },
+      'request.focus': { key: 'A', mod: true, shift: true },
+    })
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(getSettings().shortcutBindings['diff.toggle']).toEqual({ key: 'G', mod: true })
+    expect(getSettings().shortcutBindings['terminal.new']).toEqual(
+      DEFAULT_SHORTCUT_BINDINGS['terminal.new'],
+    )
+  })
+
+  it('still rejects malformed bindings in an older shortcut map', async () => {
+    await writeRawSetting('shortcutBindings', { 'terminal.toggle': { key: 42 } })
+    const { getSettings } = await loadSettingsModule()
+    expect(() => getSettings()).toThrow(/shortcutBindings/u)
+  })
+
+  it('fails closed on conflicting persisted shortcut bindings', async () => {
+    await writeRawSetting('shortcutBindings', {
+      ...DEFAULT_SHORTCUT_BINDINGS,
+      'commandPalette.toggle': { key: 'P', mod: true },
+      'filePicker.toggle': { key: 'P', mod: true },
+    })
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(() => getSettings()).toThrow(/Shortcut Mod\+P is already assigned/u)
+  })
+
+  it('fails closed on malformed persisted JSON', async () => {
+    await writeRawSettingJson('browserLinkTarget', '{not-json')
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(() => getSettings()).toThrow(/browserLinkTarget.*not valid JSON/u)
+  })
+
+  it('ignores malformed JSON in unknown retired setting rows', async () => {
+    await writeRawSettingJson('retiredSettingFromOldRelease', '{not-json')
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(getSettings().browserLinkTarget).toBe('system')
+  })
+
+  it.each([
+    ['browserLinkTarget', 'embedded'],
+    [
+      'browserProfiles',
+      [{ id: 'default', name: 'Conflicting default', kind: 'persistent' as const }],
+    ],
+    ['browserDefaultViewport', { mode: 'fixed', width: 10, height: 10, presetId: null }],
+    ['browserDefaultProfileId', 'missing-profile'],
+  ])('fails closed on an invalid persisted %s setting', async (key, value) => {
+    await writeRawSetting(key, value)
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(() => getSettings()).toThrow()
+  })
+
+  it('fails closed instead of clamping an out-of-range terminal preference', async () => {
+    await writeRawSetting('appearancePreferences', {
+      ...DEFAULT_SETTINGS.appearancePreferences,
+      typography: {
+        ...DEFAULT_SETTINGS.appearancePreferences.typography,
+        terminalFontSize: 999,
+      },
+    })
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(() => getSettings()).toThrow(/terminalFontSize/u)
+  })
+
+  it('surfaces SQLite query failures instead of publishing defaults', async () => {
+    await dropSettingsStoreForFailureTest()
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(() => getSettings()).toThrow(/could not read the saved settings database/u)
+  })
+
+  it('refreshes Session Host policy changed by another process', async () => {
+    const { getSettings, refreshSettingsStore } = await loadSettingsModule()
+    expect(getSettings().sessionHostRunCeiling).not.toBe(73)
+
+    await writeRawSetting('sessionHostRunCeiling', 73)
+    await writeRawSetting('multiAgentEnabled', false)
+    await refreshSettingsStore()
+
+    expect(getSettings()).toMatchObject({
+      sessionHostRunCeiling: 73,
+      multiAgentEnabled: false,
+    })
+  })
+
+  it('hydrates an attached GUI cache from a normalized Host snapshot', async () => {
+    const { getSettings, hydrateSettingsStoreFromHost } = await loadSettingsModule()
+
+    hydrateSettingsStoreFromHost({
+      ...getSettings(),
+      sessionHostRunCeiling: 91,
+      recentProjects: [' /tmp/host-project ', '/tmp/host-project'],
+    })
+
+    expect(getSettings()).toMatchObject({
+      sessionHostRunCeiling: 91,
+      recentProjects: ['/tmp/host-project'],
+    })
+  })
+
+  it('marks an isolated GUI ready only after a complete valid Host snapshot', async () => {
+    const settingsModule = await import('../settings')
+    expect(() => settingsModule.getSettings()).toThrow(/not finished loading/u)
+    expect(() => settingsModule.hydrateSettingsStoreFromHost({})).toThrow(/incomplete/u)
+    expect(() => settingsModule.getSettings()).toThrow(/not finished loading/u)
+    expect(() =>
+      settingsModule.hydrateSettingsStoreFromHost({
+        ...DEFAULT_SETTINGS,
+        sessionHostRunCeiling: 0,
+      }),
+    ).toThrow(/sessionHostRunCeiling/u)
+    expect(() => settingsModule.getSettings()).toThrow(/not finished loading/u)
+
+    settingsModule.hydrateSettingsStoreFromHost({
+      ...DEFAULT_SETTINGS,
+      sessionHostRunCeiling: 91,
+    })
+    expect(settingsModule.getSettings().sessionHostRunCeiling).toBe(91)
+  })
+
+  it('invalidates readiness on corrupt refresh and recovers only after a valid reread', async () => {
+    const settingsModule = await loadSettingsModule()
+    await writeRawSetting('sessionHostRunCeiling', 0)
+
+    await expect(settingsModule.refreshSettingsStore()).rejects.toThrow(/sessionHostRunCeiling/u)
+    expect(() => settingsModule.getSettings()).toThrow(/sessionHostRunCeiling/u)
+    expect(() => settingsModule.updateSettings({ updateChannel: 'beta' })).toThrow()
+    await writeRawSetting('sessionHostRunCeiling', 72)
+    await settingsModule.refreshSettingsStore()
+    expect(settingsModule.getSettings().sessionHostRunCeiling).toBe(72)
+  })
+
+  it('does not publish defaults after a refresh query failure', async () => {
+    const settingsModule = await loadSettingsModule()
+    await dropSettingsStoreForFailureTest()
+    await expect(settingsModule.refreshSettingsStore()).rejects.toThrow(/could not read/u)
+    expect(() => settingsModule.getSettings()).toThrow(/could not read/u)
   })
 
   it('roundtrips recentProjects through updateSettings', async () => {
@@ -284,43 +271,94 @@ describe('settings store', () => {
     expect(getSettings().recentProjects).toEqual(['/tmp/a', '/tmp/b'])
   })
 
-  it('roundtrips favoriteModels through updateSettings', async () => {
-    const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({
-      favoriteModels: [
-        SupportedModelId('openai/gpt-4.1-mini'),
-        SupportedModelId('openai/gpt-4.1-mini'),
-        SupportedModelId(' anthropic/claude-sonnet-4-5 '),
-        SupportedModelId(''),
-      ],
-    })
-    expect(getSettings().favoriteModels).toEqual([
-      'openai/gpt-4.1-mini',
-      'anthropic/claude-sonnet-4-5',
+  it('retries the underlying read and publishes saved settings only after recovery', async () => {
+    await writeRawSettingJson('browserLinkTarget', '{not-json')
+    const settingsModule = await loadSettingsModule()
+    expect(() => settingsModule.getSettings()).toThrow(/not valid JSON/u)
+
+    await writeRawSetting('browserLinkTarget', 'app')
+    await settingsModule.initializeSettingsStore()
+
+    expect(settingsModule.getSettings().browserLinkTarget).toBe('app')
+  })
+
+  it('blocks writes while the saved settings snapshot is unreadable', async () => {
+    await writeRawSetting('browserLinkTarget', 'ultra')
+    const settingsModule = await loadSettingsModule()
+
+    expect(() => settingsModule.updateSettings({ updateChannel: 'beta' })).toThrow(
+      /Saved settings are invalid/u,
+    )
+    await writeRawSetting('browserLinkTarget', 'app')
+    await settingsModule.initializeSettingsStore()
+
+    expect(settingsModule.getSettings().browserLinkTarget).toBe('app')
+  })
+
+  it('preserves concurrent skill toggles for the same project', async () => {
+    const {
+      getSettings,
+      initializeSettingsStore,
+      resetSettingsStoreForTests,
+      updateSkillToggleDurably,
+    } = await loadSettingsModule()
+
+    await Promise.all([
+      updateSkillToggleDurably('/tmp/concurrent', 'code-review', true),
+      updateSkillToggleDurably('/tmp/concurrent', 'frontend-design', false),
     ])
+
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().skillTogglesByProject['/tmp/concurrent']).toEqual({
+      'code-review': true,
+      'frontend-design': false,
+    })
   })
 
-  it('normalizes selectedModel through updateSettings', async () => {
-    const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({
-      enabledModels: [SupportedModelId('openai-codex/gpt-5.4')],
-      selectedModel: SupportedModelId('openai-codex/gpt-5.4'),
-    })
-    expect(getSettings().selectedModel).toBe('openai-codex/gpt-5.4')
+  it('sets, clears, and migrates project models without losing entries', async () => {
+    const {
+      getSettings,
+      initializeSettingsStore,
+      migrateSelectedModelDurably,
+      resetSettingsStoreForTests,
+      updateSelectedModelDurably,
+    } = await loadSettingsModule()
 
-    updateSettings({ selectedModel: SupportedModelId('gpt-5.4') })
-    expect(getSettings().selectedModel).toBe('')
+    await updateSelectedModelDurably('/tmp/model-a', 'openai/gpt-4.1')
+    // Insert-if-absent must not overwrite an explicit choice made after the legacy read.
+    expect(await migrateSelectedModelDurably('/tmp/model-a', 'legacy/file')).toBe(false)
+    expect(await migrateSelectedModelDurably('/tmp/model-b', 'legacy/file')).toBe(true)
+    await updateSelectedModelDurably('/tmp/model-a', null)
+    // The clear tombstones the entry: a stale legacy read must not resurrect it.
+    expect(await migrateSelectedModelDurably('/tmp/model-a', 'legacy/file')).toBe(false)
+
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().selectedModelsByProject).toEqual({
+      '/tmp/model-a': '',
+      '/tmp/model-b': 'legacy/file',
+    })
   })
 
-  it('roundtrips skillTogglesByProject through updateSettings', async () => {
-    const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({
-      skillTogglesByProject: {
-        '/tmp/repo': { 'code-review': true, 'frontend-design': false },
-      },
-    })
-    expect(getSettings().skillTogglesByProject).toEqual({
-      '/tmp/repo': { 'code-review': true, 'frontend-design': false },
-    })
+  it('deletes a project model entry durably for removed project references', async () => {
+    const {
+      deleteSelectedModelDurably,
+      getSettings,
+      initializeSettingsStore,
+      resetSettingsStoreForTests,
+      updateSelectedModelDurably,
+    } = await loadSettingsModule()
+
+    await updateSelectedModelDurably('/tmp/gone', 'openai/gpt-4.1')
+    await updateSelectedModelDurably('/tmp/kept', 'openai/gpt-4.1')
+    await deleteSelectedModelDurably('/tmp/gone')
+
+    await resetSettingsStoreForTests()
+    await initializeSettingsStore()
+
+    expect(getSettings().selectedModelsByProject).toEqual({ '/tmp/kept': 'openai/gpt-4.1' })
   })
 })

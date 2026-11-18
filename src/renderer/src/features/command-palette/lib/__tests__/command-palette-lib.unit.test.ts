@@ -1,56 +1,45 @@
+import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { describe, expect, it, vi } from 'vitest'
-import type { CommandPaletteItem } from '../../model'
 import { buildCommandPaletteEntries } from '../command-palette-entries'
-import { createBaseCommands } from '../command-palette-items'
+import {
+  createBuiltInCommandItems,
+  createSkillItems,
+  skillOwnedCommandNames,
+} from '../command-palette-items'
 import { normalizeCommandQuery, truncateCommandDescription } from '../command-palette-text'
 
 const {
-  closeCommandPaletteMock,
-  compactCommandTextMock,
-  focusEditorMock,
-  getComposerStateMock,
+  closeSlashCommandMenuMock,
+  consumeActiveSlashCommandMock,
   getUiStateMock,
+  insertSlashCommandTextAtActiveSlashMock,
   openFeedbackModalMock,
-  setCursorIndexMock,
-  setEditorTextMock,
-  setInputMock,
 } = vi.hoisted(() => ({
-  closeCommandPaletteMock: vi.fn(),
-  compactCommandTextMock: vi.fn(() => '/compact'),
-  focusEditorMock: vi.fn(),
-  getComposerStateMock: vi.fn(),
+  closeSlashCommandMenuMock: vi.fn(),
+  consumeActiveSlashCommandMock: vi.fn(),
   getUiStateMock: vi.fn(),
+  insertSlashCommandTextAtActiveSlashMock: vi.fn(),
   openFeedbackModalMock: vi.fn(),
-  setCursorIndexMock: vi.fn(),
-  setEditorTextMock: vi.fn(),
-  setInputMock: vi.fn(),
-}))
-
-vi.mock('@/features/composer/commands', () => ({
-  compactCommandText: compactCommandTextMock,
 }))
 
 vi.mock('@/features/composer/lib', () => ({
-  setEditorText: setEditorTextMock,
-}))
-
-vi.mock('@/features/composer/state', () => ({
-  useComposerStore: { getState: getComposerStateMock },
+  consumeActiveSlashCommand: consumeActiveSlashCommandMock,
+  insertSlashCommandTextAtActiveSlash: insertSlashCommandTextAtActiveSlashMock,
 }))
 
 vi.mock('@/shell/ui-store', () => ({
   useUIStore: { getState: getUiStateMock },
 }))
 
-const { createOptionalCommandPaletteAction, insertCompactCommand, openFeedbackModal } =
+const { createOptionalCommandPaletteAction, openFeedbackModal } =
   await import('../command-palette-actions')
 
-function item(id: string, section?: string): CommandPaletteItem {
+function item(id: string, section?: string) {
   return {
     id,
     label: id,
     icon: id,
-    section,
+    ...(section === undefined ? {} : { section }),
     action: vi.fn(),
   }
 }
@@ -96,32 +85,156 @@ describe('buildCommandPaletteEntries', () => {
   })
 })
 
-describe('createBaseCommands', () => {
-  it('does not expose commands that only close the palette without backing behavior', () => {
-    const closeCommandPalette = vi.fn()
-    const commands = createBaseCommands({
-      closeCommandPalette,
-      configureWaggle: vi.fn(),
-      insertCompactCommand: vi.fn(),
-      selectPreset: vi.fn(),
-      selectSkill: vi.fn(),
-      startWaggle: vi.fn(),
+describe('createBuiltInCommandItems', () => {
+  it('lists the GUI-only built-in commands for an empty query', () => {
+    const items = createBuiltInCommandItems('', vi.fn())
+
+    expect(items.map((command) => command.trailing)).toEqual(['/compact', '/fork', '/clone'])
+    expect(items.every((command) => command.section === 'Commands')).toBe(true)
+    expect(items.some((command) => command.submitsOnEnter)).toBe(false)
+  })
+
+  it('completes a partially typed command so instructions can follow it', () => {
+    const insertCommand = vi.fn()
+    const items = createBuiltInCommandItems('comp', insertCommand)
+
+    expect(items.map((command) => command.id)).toEqual(['command-compact'])
+    expect(items[0]?.submitsOnEnter).toBe(false)
+    items[0]?.action()
+    expect(insertCommand).toHaveBeenCalledWith('/compact')
+  })
+
+  it('submits a fully typed command on Enter instead of completing it', () => {
+    const items = createBuiltInCommandItems('compact', vi.fn())
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({ id: 'command-compact', submitsOnEnter: true })
+  })
+
+  it('matches command names only, so short queries still reach skills', () => {
+    expect(createBuiltInCommandItems('visualize', vi.fn())).toEqual([])
+    expect(createBuiltInCommandItems('se', vi.fn())).toEqual([])
+    expect(createBuiltInCommandItems('c', vi.fn()).map((command) => command.trailing)).toEqual([
+      '/compact',
+      '/clone',
+    ])
+  })
+})
+
+describe('createSkillItems', () => {
+  it('always exposes the bundled Visualize skill through /visualize discovery', () => {
+    const selectSkill = vi.fn()
+
+    const items = createSkillItems([], 'visualize', selectSkill)
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 'skill-visualize',
+      label: 'Visualize',
+      section: 'Skills',
+      trailing: '/skill:visualize',
     })
 
-    expect(commands.map((command) => command.id)).not.toContain('code-review')
-    expect(commands.map((command) => command.id)).not.toContain('new-worktree')
-    expect(commands.map((command) => command.id)).not.toContain('personality')
-    expect(commands.some((command) => command.action === closeCommandPalette)).toBe(false)
+    items[0]?.action()
+    expect(selectSkill).toHaveBeenCalledWith('visualize', 'Visualize')
+  })
+
+  it('invokes a project skill by the name Pi resolves, not by its folder id', () => {
+    const selectSkill = vi.fn()
+
+    const items = createSkillItems(
+      [
+        {
+          id: 'handoff-folder',
+          name: 'handoff',
+          description: 'Compact the current conversation into a handoff document',
+          folderPath: '/project/.agents/skills/handoff-folder',
+          skillPath: '/project/.agents/skills/handoff-folder/SKILL.md',
+          hasScripts: false,
+          enabled: true,
+          loadStatus: 'ok',
+        },
+      ],
+      '',
+      selectSkill,
+    )
+
+    items.find((item) => item.id === 'skill-handoff-folder')?.action()
+    expect(selectSkill).toHaveBeenCalledWith('handoff', 'handoff')
+  })
+
+  it('shows a disabled diagnostic instead of selecting an unavailable bundled skill', () => {
+    const selectSkill = vi.fn()
+    const items = createSkillItems(
+      [
+        {
+          id: 'visualize',
+          name: 'Visualize',
+          description: 'Built-in visualization authoring is unavailable',
+          folderPath: '/agent/visualize',
+          skillPath: '/agent/visualize/SKILL.md',
+          hasScripts: true,
+          enabled: false,
+          loadStatus: 'error',
+          loadError: 'Read-only agent directory',
+        },
+      ],
+      'visualize',
+      selectSkill,
+    )
+
+    expect(items[0]).toMatchObject({
+      id: 'skill-visualize',
+      disabled: true,
+      description: 'Unavailable: Read-only agent directory',
+    })
+    items[0]?.action()
+    expect(selectSkill).not.toHaveBeenCalled()
+  })
+})
+
+describe('skillOwnedCommandNames', () => {
+  const skillBase: SkillDiscoveryItem = {
+    id: 'handoff',
+    name: 'handoff',
+    description: 'Compact the current conversation into a handoff document',
+    folderPath: '/project/.agents/skills/handoff',
+    skillPath: '/project/.agents/skills/handoff/SKILL.md',
+    hasScripts: false,
+    enabled: true,
+    loadStatus: 'ok',
+  }
+  const skill = (overrides: Partial<SkillDiscoveryItem> = {}) => ({ ...skillBase, ...overrides })
+
+  it('claims the name an enabled skill is offered under, not the folder it lives in', () => {
+    // The two tokens differ: Pi matches a skill by its frontmatter name alone, so a Pi command
+    // named after the folder still runs and keeps its row.
+    const names = skillOwnedCommandNames([
+      skill({ id: 'handoff-folder', name: 'handoff' }),
+      skill({ id: 'qa', name: 'qa' }),
+    ])
+
+    expect([...names].sort()).toEqual(['handoff', 'qa'])
+  })
+
+  it('leaves the name of a disabled or broken skill to the Pi extension command', () => {
+    const names = skillOwnedCommandNames([
+      skill({ enabled: false }),
+      skill({ id: 'broken', name: 'broken', loadStatus: 'error' }),
+    ])
+
+    expect([...names]).toEqual([])
   })
 })
 
 describe('command palette actions', () => {
-  it('wraps optional actions by closing the palette before running the action', () => {
+  it('wraps optional actions by consuming the slash token and closing the menu', () => {
     const close = vi.fn()
     const action = vi.fn()
 
     createOptionalCommandPaletteAction(close, action)?.()
 
+    expect(consumeActiveSlashCommandMock).toHaveBeenCalledBefore(close)
     expect(close).toHaveBeenCalledBefore(action)
   })
 
@@ -129,41 +242,15 @@ describe('command palette actions', () => {
     expect(createOptionalCommandPaletteAction(vi.fn())).toBeUndefined()
   })
 
-  it('inserts the compact command into plain composer state when no editor is mounted', () => {
-    getComposerStateMock.mockReturnValue({
-      lexicalEditor: null,
-      setCursorIndex: setCursorIndexMock,
-      setInput: setInputMock,
-    })
-
-    insertCompactCommand()
-
-    expect(setInputMock).toHaveBeenCalledWith('/compact ')
-    expect(setCursorIndexMock).toHaveBeenCalledWith('/compact '.length)
-    expect(setEditorTextMock).not.toHaveBeenCalled()
-  })
-
-  it('inserts the compact command into Lexical and focuses the editor when mounted', () => {
-    getComposerStateMock.mockReturnValue({
-      lexicalEditor: { focus: focusEditorMock },
-      setCursorIndex: setCursorIndexMock,
-      setInput: setInputMock,
-    })
-
-    insertCompactCommand()
-
-    expect(setEditorTextMock).toHaveBeenCalledWith({ focus: focusEditorMock }, '/compact ')
-    expect(focusEditorMock).toHaveBeenCalled()
-  })
-
-  it('opens feedback through shell state after closing the command palette', () => {
+  it('opens feedback after consuming the slash token and closing the menu', () => {
     getUiStateMock.mockReturnValue({
-      closeCommandPalette: closeCommandPaletteMock,
+      closeSlashCommandMenu: closeSlashCommandMenuMock,
       openFeedbackModal: openFeedbackModalMock,
     })
 
     openFeedbackModal()
 
-    expect(closeCommandPaletteMock).toHaveBeenCalledBefore(openFeedbackModalMock)
+    expect(consumeActiveSlashCommandMock).toHaveBeenCalledBefore(closeSlashCommandMenuMock)
+    expect(closeSlashCommandMenuMock).toHaveBeenCalledBefore(openFeedbackModalMock)
   })
 })

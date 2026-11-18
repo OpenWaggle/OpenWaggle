@@ -34,7 +34,7 @@ async function copyGithubIssuesFixture(projectPath: string) {
 
 function expectGithubFixtureContributions(contributions: ExtensionContributions) {
   expect(contributions.settingsSections).toHaveLength(1)
-  expect(contributions.sidePanels).toHaveLength(1)
+  expect(contributions.sidePanels).toHaveLength(2)
   expect(contributions.transcriptRenderers).toHaveLength(1)
   expect(contributions.toolRenderers).toHaveLength(1)
   expect(contributions.customMessageRenderers).toHaveLength(1)

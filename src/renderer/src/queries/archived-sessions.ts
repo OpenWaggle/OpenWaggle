@@ -1,39 +1,59 @@
-import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import type {
+  ArchivedItemsChange,
+  ArchivedItemsFilter,
+  ArchivedItemsSort,
+} from '@shared/types/archived-items'
+import type { SessionId } from '@shared/types/brand'
+import {
+  infiniteQueryOptions,
+  keepPreviousData,
+  type QueryClient,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
+import { deleteWorkspaceOwner } from '@/shell/workspace-panel-cleanup'
 import { queryKeys } from './query-keys'
-import type { OpenWaggleQueryOptions } from './query-options'
 
-type ArchivedSessions = Awaited<ReturnType<typeof api.listArchivedSessions>>
-type ArchivedSessionBranches = Awaited<ReturnType<typeof api.listArchivedSessionBranches>>
+const ARCHIVED_ITEMS_PAGE_SIZE = 50
+const INITIAL_CURSOR: string | null = null
 
-export function archivedSessionsQueryOptions(): OpenWaggleQueryOptions<
-  ArchivedSessions,
-  Error,
-  ArchivedSessions,
-  typeof queryKeys.archivedSessions
-> {
-  return queryOptions({
-    queryKey: queryKeys.archivedSessions,
-    queryFn: () => api.listArchivedSessions(),
+export function refreshArchivedSessions(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.archivedSessions,
+      exact: true,
+    }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.archivedItems }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessionHives }),
+  ])
+}
+
+export function archivedItemsQueryOptions(filter: ArchivedItemsFilter, sort: ArchivedItemsSort) {
+  return infiniteQueryOptions({
+    queryKey: [...queryKeys.archivedItems, filter, sort],
+    queryFn: ({ pageParam }) =>
+      api.queryArchivedItems({
+        ...filter,
+        sort,
+        limit: ARCHIVED_ITEMS_PAGE_SIZE,
+        ...(pageParam === null ? {} : { cursor: pageParam }),
+      }),
+    initialPageParam: INITIAL_CURSOR,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? null,
+    placeholderData: keepPreviousData,
   })
 }
 
-export function archivedSessionBranchesQueryOptions(): OpenWaggleQueryOptions<
-  ArchivedSessionBranches,
-  Error,
-  ArchivedSessionBranches,
-  typeof queryKeys.archivedSessionBranches
-> {
-  return queryOptions({
-    queryKey: queryKeys.archivedSessionBranches,
-    queryFn: () => api.listArchivedSessionBranches(),
-  })
-}
+/** Restores many Archived items at once, or archives them again to undo a restore. */
+export function useSetArchivedItemsMutation() {
+  const queryClient = useQueryClient()
 
-interface RestoreSessionBranchInput {
-  readonly sessionId: SessionId
-  readonly branchId: SessionBranchId
+  return useMutation({
+    mutationFn: (change: ArchivedItemsChange) => api.setArchivedItems(change),
+    // Some items may have changed even when the call fails part-way.
+    onSettled: () => refreshArchivedSessions(queryClient),
+  })
 }
 
 export function useUnarchiveSessionMutation() {
@@ -41,40 +61,53 @@ export function useUnarchiveSessionMutation() {
 
   return useMutation({
     mutationFn: (sessionId: SessionId) => api.unarchiveSession(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedSessions,
-        exact: true,
-      })
-    },
+    // A restored Worker leaves the Hive "Archived" group; its branches may reappear too.
+    onSuccess: () => refreshArchivedSessions(queryClient),
   })
 }
 
-export function useRestoreSessionBranchMutation() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ sessionId, branchId }: RestoreSessionBranchInput) =>
-      api.restoreSessionBranch(sessionId, branchId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedSessionBranches,
-        exact: true,
-      })
-    },
-  })
+export interface ArchivedSessionsDeletion {
+  readonly deleted: readonly SessionId[]
+  /** No longer archived when its turn came, so kept. */
+  readonly skipped: readonly SessionId[]
+  /** Already deleted elsewhere. */
+  readonly missing: readonly SessionId[]
+  readonly failed: readonly { readonly sessionId: SessionId; readonly message: string }[]
+  /** Deleted, but this window could not clean up its local layout. */
+  readonly cleanupFailed: readonly { readonly sessionId: SessionId; readonly message: string }[]
 }
 
-export function useArchivedDeleteSessionMutation() {
-  const queryClient = useQueryClient()
+/** Storage failures arrive as DOMExceptions, which are not always `instanceof Error`. */
+function describe(error: unknown) {
+  const message =
+    typeof error === 'object' && error !== null && 'message' in error ? error.message : null
+  return typeof message === 'string' && message.trim() ? message : 'Cleanup failed.'
+}
 
+/**
+ * Permanently deletes the selected sessions that are still archived. The Host skips any that left
+ * the archive since they were selected, so a stale selection can never delete an active session.
+ * A deleted session's local workspace layout is cleaned up after; a cleanup failure is reported
+ * but the session still counts as deleted.
+ */
+export function useArchivedDeleteSessionsMutation() {
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (sessionId: SessionId) => api.deleteSession(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedSessions,
-        exact: true,
-      })
+    mutationFn: async (sessionIds: readonly SessionId[]) => {
+      const result = await api.deleteArchivedSessions([...sessionIds])
+      const cleanups = await Promise.all(
+        result.deleted.map((sessionId) =>
+          deleteWorkspaceOwner(String(sessionId)).then(
+            () => null,
+            (error: unknown) => ({ sessionId, message: describe(error) }),
+          ),
+        ),
+      )
+      return {
+        ...result,
+        cleanupFailed: cleanups.filter((cleanup) => cleanup !== null),
+      }
     },
+    onSettled: () => refreshArchivedSessions(queryClient),
   })
 }

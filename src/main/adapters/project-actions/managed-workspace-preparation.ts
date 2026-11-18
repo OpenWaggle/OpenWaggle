@@ -1,0 +1,293 @@
+import type { ActionInvocation } from '@shared/types/action-definitions'
+import type { PreparationPhase, WorkspacePreparation } from '@shared/types/workspace-preparation'
+import { enqueueProjectConfigWrite } from '../../config/project-config-write-queue'
+import { preparationReview } from '../../domain/preparation-review-context'
+import type { ActionRunWorkspace } from '../../ports/action-run-service'
+import { PreparationCancellation } from './preparation-cancellation'
+import type { PreparationDependencies } from './preparation-dependencies'
+
+export type { PreparationDependencies } from './preparation-dependencies'
+
+import { completeRunWorktreeBirth } from './preparation-birth-recovery'
+import { executeWorkspacePreparation } from './preparation-execution'
+import type { StoredWorkspacePreparation } from './preparation-persistence'
+import { recoverPreparationAfterHostLoss } from './preparation-recovery'
+import { commitReviewedSnapshot } from './preparation-review-commit'
+import {
+  completePreparationBirth,
+  freshPreparationState,
+  inspectPreparationGeneration,
+  isPendingPreparationBirth,
+  owesRunBirthSetup,
+  refreshPendingBirth,
+  resetPreparationForBirth,
+  settleRunBirthSetup,
+} from './preparation-workspace-generation'
+import {
+  capturePreparationSnapshot,
+  EMPTY_PREPARATION_EXECUTION,
+  preparationProjection,
+  requirePreparationRevision,
+} from './workspace-preparation-model'
+
+export class ManagedWorkspacePreparation {
+  private readonly running = new Set<Promise<WorkspacePreparation>>()
+  private readonly cancellation = new PreparationCancellation()
+  private readonly live = new Map<string, StoredWorkspacePreparation>()
+  private readonly deps: PreparationDependencies
+
+  constructor(deps: PreparationDependencies) {
+    this.deps = deps
+  }
+  private serial<T>(workspaceId: string, operation: () => Promise<T>) {
+    return enqueueProjectConfigWrite(`preparation:${workspaceId}`, operation)
+  }
+  private state(workspaceId: string) {
+    return this.live.get(workspaceId) ?? this.deps.persistence.read(workspaceId)
+  }
+  private async project(workspace: ActionRunWorkspace, state: StoredWorkspacePreparation) {
+    try {
+      return preparationProjection(state, await this.deps.catalog(workspace))
+    } catch (error) {
+      // Current definitions only inform update availability. Execution uses the reviewed snapshot.
+      return preparationProjection(
+        state,
+        null,
+        error instanceof Error ? error.message : 'Could not read current preparation definitions.',
+      )
+    }
+  }
+  private async save(state: StoredWorkspacePreparation, previousRevision: number) {
+    const settled = settleRunBirthSetup(state)
+    await this.deps.persistence.write(settled, previousRevision)
+    this.live.delete(settled.workspaceId)
+    return settled
+  }
+  /** Saves the next revision of a state read at `state.revision`. */
+  private saveNext(state: StoredWorkspacePreparation) {
+    return this.save({ ...state, revision: state.revision + 1 }, state.revision)
+  }
+  async read(workspace: ActionRunWorkspace) {
+    const state = await this.state(workspace.workspaceId)
+    return state ? this.project(workspace, state) : null
+  }
+  async inspectWorkspaceGeneration(workspace: ActionRunWorkspace) {
+    return inspectPreparationGeneration(workspace, await this.state(workspace.workspaceId))
+  }
+  async owesSetupAfterRunBirth(workspace: ActionRunWorkspace) {
+    return owesRunBirthSetup(await this.state(workspace.workspaceId))
+  }
+  completeWorktreeBirth(workspace: ActionRunWorkspace) {
+    return this.serial(workspace.workspaceId, async () =>
+      completeRunWorktreeBirth(workspace, await this.state(workspace.workspaceId), {
+        save: (state, revision) => this.save(state, revision),
+        inspectLinkedWorktree: this.deps.inspectLinkedWorktree,
+      }),
+    )
+  }
+  capture(workspace: ActionRunWorkspace, profileId?: string) {
+    return this.serial(workspace.workspaceId, async () => {
+      const existing = await this.state(workspace.workspaceId)
+      if (existing) {
+        return this.project(
+          workspace,
+          await completePreparationBirth(workspace, existing, (state, revision) =>
+            this.save(state, revision),
+          ),
+        )
+      }
+      const snapshot = capturePreparationSnapshot(await this.deps.catalog(workspace), profileId)
+      const state = await this.save(await freshPreparationState(workspace, snapshot, 1), 0)
+      return this.project(workspace, state)
+    })
+  }
+  async prepareBirth(workspace: ActionRunWorkspace) {
+    await this.capture(workspace)
+    return this.serial(workspace.workspaceId, async () => {
+      const state = await this.requireState(workspace.workspaceId)
+      // Git creates the folder after this, so the time bounds the folder a run may record.
+      const next = isPendingPreparationBirth(state)
+        ? refreshPendingBirth(state)
+        : resetPreparationForBirth(state)
+      return this.project(workspace, await this.save(next, state.revision))
+    })
+  }
+  async stopSetup(workspace: ActionRunWorkspace, attemptId: string) {
+    await this.cancellation.stopSetup(workspace.workspaceId, attemptId)
+    return this.project(workspace, await this.requireState(workspace.workspaceId))
+  }
+  select(workspace: ActionRunWorkspace, profileId: string, expectedRevision: number) {
+    return this.serial(workspace.workspaceId, async () => {
+      const previous = await this.state(workspace.workspaceId)
+      requirePreparationRevision(previous, expectedRevision)
+      if (previous && (previous.setup.status !== 'idle' || previous.cleanup.status !== 'idle')) {
+        throw new Error(
+          'Preparation has already started. Adopt an updated snapshot explicitly instead.',
+        )
+      }
+      const snapshot = capturePreparationSnapshot(await this.deps.catalog(workspace), profileId)
+      return this.project(
+        workspace,
+        await this.save(
+          await freshPreparationState(workspace, snapshot, expectedRevision + 1, previous),
+          expectedRevision,
+        ),
+      )
+    })
+  }
+  adopt(workspace: ActionRunWorkspace, expectedRevision: number) {
+    return this.serial(workspace.workspaceId, async () => {
+      const previous = await this.requireState(workspace.workspaceId, expectedRevision)
+      const snapshot = capturePreparationSnapshot(
+        await this.deps.catalog(workspace),
+        previous.snapshot.profile.id,
+      )
+      return this.project(
+        workspace,
+        await this.saveNext({
+          ...previous,
+          snapshot,
+          setup: EMPTY_PREPARATION_EXECUTION,
+          cleanup: EMPTY_PREPARATION_EXECUTION,
+          environment: {},
+        }),
+      )
+    })
+  }
+  private async requireState(workspaceId: string, revision?: number) {
+    const state = await this.state(workspaceId)
+    if (!state) throw new Error('Choose a Preparation profile first.')
+    if (revision !== undefined) requirePreparationRevision(state, revision)
+    return state
+  }
+  review(
+    workspace: ActionRunWorkspace,
+    definitionId: string,
+    enabled: boolean,
+    expectedRevision: number,
+  ) {
+    return this.serial(workspace.workspaceId, async () => {
+      const state = await this.requireState(workspace.workspaceId, expectedRevision)
+      const entry = state.snapshot.definitions.find(
+        ({ definition }) => definition.id === definitionId,
+      )
+      if (!entry) throw new Error('This definition is not part of the Workspace snapshot.')
+      const definitions = state.snapshot.definitions.map((value) =>
+        value === entry
+          ? {
+              ...entry,
+              review: enabled ? ('enabled' as const) : ('disabled' as const),
+              previous: preparationReview(entry.definition, enabled, state.snapshot.profile.name),
+            }
+          : value,
+      )
+      const undoReview = await this.deps.rememberReview?.(workspace, entry.definition, enabled)
+      const saved = await commitReviewedSnapshot(
+        () => this.saveNext({ ...state, snapshot: { ...state.snapshot, definitions } }),
+        undoReview,
+      )
+      return this.project(workspace, saved)
+    })
+  }
+  skip(workspace: ActionRunWorkspace, phase: PreparationPhase, expectedRevision: number) {
+    return this.serial(workspace.workspaceId, async () => {
+      const state = await this.requireState(workspace.workspaceId, expectedRevision)
+      return this.project(
+        workspace,
+        await this.saveNext({
+          ...state,
+          [phase]: { ...state[phase], status: 'skipped', finishedAt: Date.now(), error: null },
+        }),
+      )
+    })
+  }
+  run(
+    workspace: ActionRunWorkspace,
+    phase: PreparationPhase,
+    expectedRevision?: number,
+    onStarted?: (state: WorkspacePreparation) => void,
+  ) {
+    const pending = this.serial(workspace.workspaceId, async () => {
+      const state = await this.requireState(workspace.workspaceId, expectedRevision)
+      if (
+        expectedRevision === undefined &&
+        (state[phase].status === 'succeeded' || state[phase].status === 'skipped')
+      ) {
+        return this.project(workspace, state)
+      }
+      const entry = state.snapshot.definitions.find(({ definition }) => definition.phase === phase)
+      if (entry?.review !== 'enabled') {
+        const status = entry?.review === 'required' ? 'review-required' : 'skipped'
+        return this.project(
+          workspace,
+          await this.saveNext({
+            ...state,
+            [phase]: {
+              ...EMPTY_PREPARATION_EXECUTION,
+              status,
+              error:
+                status === 'review-required'
+                  ? 'Review this Workspace’s preparation snapshot before execution.'
+                  : null,
+            },
+          }),
+        )
+      }
+      return this.execute(workspace, state, phase, entry.definition.invocation, onStarted)
+    })
+    this.running.add(pending)
+    void pending.finally(() => this.running.delete(pending)).catch(() => {})
+    return pending
+  }
+  private async execute(
+    workspace: ActionRunWorkspace,
+    previous: StoredWorkspacePreparation,
+    phase: PreparationPhase,
+    invocation: ActionInvocation,
+    onStarted?: (state: WorkspacePreparation) => void,
+  ) {
+    const cancellation = this.cancellation.begin(workspace.workspaceId, phase)
+    try {
+      const state = await executeWorkspacePreparation({
+        workspace,
+        previous,
+        phase,
+        invocation,
+        deps: this.deps,
+        signal: cancellation.signal,
+        onStarted: async (state) => {
+          cancellation.started(state[phase].attemptId)
+          onStarted?.(await this.project(workspace, state))
+        },
+        publish: (state) => {
+          if (state) this.live.set(workspace.workspaceId, state)
+          else this.live.delete(workspace.workspaceId)
+        },
+      })
+      return await this.project(workspace, state)
+    } finally {
+      cancellation.finish()
+    }
+  }
+  async requireSetup(workspace: ActionRunWorkspace) {
+    let state = await this.read(workspace)
+    if (!state) return
+    if (state.setup.status === 'idle' || state.setup.status === 'running') {
+      state = await this.run(workspace, 'setup')
+    }
+    if (state.setup.status !== 'succeeded' && state.setup.status !== 'skipped') {
+      throw new Error(
+        `Workspace setup is ${state.setup.status}. Open Workspace preparation to retry, review, or Continue anyway.`,
+      )
+    }
+  }
+  async environment(workspaceId: string) {
+    return (await this.state(workspaceId))?.environment ?? {}
+  }
+  async waitForRuns() {
+    await Promise.allSettled([...this.running])
+  }
+  recoverAfterHostLoss() {
+    return recoverPreparationAfterHostLoss(this.deps.persistence, this.deps.listLocalWorkspaceIds)
+  }
+}

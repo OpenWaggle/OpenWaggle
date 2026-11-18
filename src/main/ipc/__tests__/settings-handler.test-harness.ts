@@ -6,7 +6,6 @@ import { ProviderProbeService } from '../../ports/provider-probe-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionTreePreferencesService } from '../../ports/session-tree-preferences-service'
 import { SettingsService } from '../../services/settings-service'
-import type * as SettingsHandler from '../settings-handler'
 
 type TestMock = Mock
 
@@ -44,9 +43,13 @@ export const getTreeFilterModeMock: TestMock = mocks.getTreeFilterModeMock
 export const setTreeFilterModeMock: TestMock = mocks.setTreeFilterModeMock
 export const getBranchSummarySkipPromptMock: TestMock = mocks.getBranchSummarySkipPromptMock
 
-vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
-}))
+vi.mock('../typed-ipc', async () => {
+  const { withLegacyHostOperation } = await import('./legacy-host-operations')
+  return {
+    hostHandle: withLegacyHostOperation(typedHandleMock),
+    typedHandle: typedHandleMock,
+  }
+})
 
 vi.mock('../../store/settings', () => ({
   getSettings: getSettingsMock,
@@ -117,6 +120,21 @@ export function getTypedEffectInvokeHandler(name: string) {
   return (...args: unknown[]) => Effect.runPromise(Effect.provide(handler(...args), TestLayer))
 }
 
+/** The `afterRemote` follow-up a Host-backed registration passed, run against the test layer. */
+export function getHostAfterRemote(name: string) {
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === name,
+  )
+  const options: unknown = call?.[2]
+  if (typeof options !== 'object' || options === null || !('afterRemote' in options)) {
+    return undefined
+  }
+  const afterRemote: unknown = options.afterRemote
+  if (typeof afterRemote !== 'function') return undefined
+  return (...args: unknown[]) =>
+    Effect.runPromise(Effect.provide(Reflect.apply(afterRemote, undefined, args), TestLayer))
+}
+
 export function resetSettingsHandlerMocks() {
   typedHandleMock.mockReset()
   getSettingsMock.mockReset()
@@ -129,6 +147,6 @@ export function resetSettingsHandlerMocks() {
   getBranchSummarySkipPromptMock.mockReset()
 }
 
-export function loadSettingsHandlers(): Promise<typeof SettingsHandler> {
+export function loadSettingsHandlers() {
   return import('../settings-handler')
 }

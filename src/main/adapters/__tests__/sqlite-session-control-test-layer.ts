@@ -1,0 +1,124 @@
+import * as SqlClient from '@effect/sql/SqlClient'
+import { SqliteClient } from '@effect/sql-sqlite-node'
+import { FollowUpId, ReportCorrelationId, ReportId, RunId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import { NoopActionRunServiceLayer } from '../../application/__tests__/action-run-service-test-layer'
+import { NoopSessionDesktopLayer } from '../../application/__tests__/desktop-service-test-layer'
+import { SessionControlIdentityService } from '../../ports/session-control-identity-service'
+import {
+  SessionWorkspaceHandoffService,
+  type SessionWorkspaceHandoffServiceShape,
+} from '../../ports/session-workspace-handoff-service'
+import { SQLITE_PREPARE_CACHE_SIZE } from '../../services/database-constants'
+import { CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS } from '../../services/database-session-lineage-schema'
+import { PINNED_SESSIONS_MIGRATION } from '../../services/pinned-sessions-migration'
+import { SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS } from '../../services/session-host-target-schema'
+import { SqliteExplicitWaggleOperationJournalLive } from '../sqlite-explicit-waggle-operation-journal'
+import { SqliteSessionControlOperationJournalLive } from '../sqlite-session-control-operation-journal'
+import { SqliteSessionControlRepositoryLive } from '../sqlite-session-control-repository'
+import { SqliteSessionControlRunLifecycleRepositoryLive } from '../sqlite-session-control-run-lifecycle-repository'
+import { SqliteSessionOrganizationRepositoryLive } from '../sqlite-session-organization-repository'
+import { SqliteSessionWorkspaceResourceRepositoryLive } from '../sqlite-session-workspace-resource-repository'
+
+export function makeSessionControlTestLayer(
+  databasePath: string,
+  handoffService?: SessionWorkspaceHandoffServiceShape,
+  /** The real handoff service, for a test that has to capture or refuse a seed. */
+  handoffServiceLayer?: Layer.Layer<SessionWorkspaceHandoffService, never, SqlClient.SqlClient>,
+) {
+  const sqliteLayer = SqliteClient.layer({
+    filename: databasePath,
+    prepareCacheSize: SQLITE_PREPARE_CACHE_SIZE,
+  })
+  const schemaLayer = Layer.effectDiscard(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql.unsafe(`CREATE TABLE sessions (
+        id TEXT PRIMARY KEY,
+        project_path TEXT,
+        title TEXT NOT NULL DEFAULT '',
+        title_source TEXT NOT NULL DEFAULT 'manual', title_needs_refinement INTEGER NOT NULL DEFAULT 0,
+        archived INTEGER NOT NULL DEFAULT 0,
+        environment_mode TEXT NOT NULL DEFAULT 'local',
+        worktree_path TEXT,
+        worktree_base_ref TEXT,
+        worktree_start_from_origin INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL DEFAULT 0
+      )`)
+      for (const statement of SESSION_CONTROL_TARGET_SCHEMA_STATEMENTS) {
+        yield* sql.unsafe(statement)
+      }
+      for (const statement of CURRENT_SESSION_LINEAGE_SCHEMA_STATEMENTS) {
+        yield* sql.unsafe(statement)
+      }
+      for (const statement of PINNED_SESSIONS_MIGRATION.statements) {
+        yield* sql.unsafe(statement)
+      }
+      yield* sql`
+        INSERT INTO sessions (id, project_path) VALUES (${'session-target'}, ${'/project'})
+      `
+      yield* sql`
+        INSERT INTO workspace_resources (
+          id, project_path, kind, working_path, lifecycle_state,
+          worktree_start_from_origin, created_at, updated_at
+        ) VALUES (
+          ${'workspace-local'}, ${'/project'}, ${'local'}, ${'/project'}, ${'ready'},
+          ${0}, ${1000}, ${1000}
+        )
+      `
+      yield* sql`
+        INSERT INTO session_workspace_bindings (session_id, workspace_id, bound_at)
+        VALUES (${'session-target'}, ${'workspace-local'}, ${1000})
+      `
+      yield* sql`
+        INSERT INTO session_control_states (
+          session_id, state_revision, active_run_id, queue_state, queue_revision, updated_at
+        ) VALUES (${'session-target'}, ${0}, ${null}, ${'running'}, ${0}, ${1000})
+      `
+    }).pipe(Effect.provide(sqliteLayer)),
+  )
+  const repositoryLayer = SqliteSessionControlRepositoryLive.pipe(Layer.provide(sqliteLayer))
+  const operationJournalLayer = SqliteSessionControlOperationJournalLive.pipe(
+    Layer.provide(sqliteLayer),
+  )
+  const waggleOperationJournalLayer = SqliteExplicitWaggleOperationJournalLive.pipe(
+    Layer.provide(sqliteLayer),
+  )
+  const organizationLayer = SqliteSessionOrganizationRepositoryLive.pipe(Layer.provide(sqliteLayer))
+  const runLifecycleLayer = SqliteSessionControlRunLifecycleRepositoryLive.pipe(
+    Layer.provide(sqliteLayer),
+  )
+  const identityLayer = Layer.succeed(SessionControlIdentityService, {
+    nextRunId: Effect.succeed(RunId('run-next')),
+    nextFollowUpId: Effect.succeed(FollowUpId('follow-up-next')),
+    nextReportId: Effect.succeed(ReportId('report-next')),
+    nextReportCorrelationId: Effect.succeed(ReportCorrelationId('correlation-next')),
+    now: Effect.succeed(1234),
+  })
+  const handoffLayer = handoffServiceLayer
+    ? handoffServiceLayer.pipe(Layer.provide(sqliteLayer))
+    : Layer.succeed(
+        SessionWorkspaceHandoffService,
+        handoffService ?? {
+          prepare: () => Effect.succeed(undefined),
+          apply: () => Effect.void,
+          rollback: () => Effect.void,
+          complete: () => Effect.void,
+        },
+      )
+  return Layer.mergeAll(
+    NoopSessionDesktopLayer,
+    NoopActionRunServiceLayer,
+    SqliteSessionWorkspaceResourceRepositoryLive.pipe(Layer.provide(sqliteLayer)),
+    sqliteLayer,
+    schemaLayer,
+    repositoryLayer,
+    operationJournalLayer,
+    waggleOperationJournalLayer,
+    organizationLayer,
+    runLifecycleLayer,
+    handoffLayer,
+    identityLayer,
+  )
+}

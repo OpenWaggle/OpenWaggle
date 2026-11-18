@@ -1,3 +1,4 @@
+import { Schema } from '@shared/schema'
 import {
   PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
   parsePiWaggleModeState,
@@ -22,13 +23,16 @@ function getNodePath(input: {
   return path
 }
 
+const modeStateContentSchema = Schema.Struct({
+  customType: Schema.Literal(PI_WAGGLE_MODE_STATE_CUSTOM_TYPE),
+  data: Schema.Unknown,
+})
+
 function modeStateFromNode(node: ProjectedSessionNodeInput) {
   if (node.piEntryType !== 'custom') return null
 
   const content = parseJsonValue(node.contentJson)
-  if (!isRecord(content) || content.customType !== PI_WAGGLE_MODE_STATE_CUSTOM_TYPE) {
-    return null
-  }
+  if (!isRecord(content) || !Schema.is(modeStateContentSchema)(content)) return null
 
   const state = parsePiWaggleModeState(content.data)
   if (!state) return null

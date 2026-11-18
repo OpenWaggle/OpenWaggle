@@ -1,41 +1,41 @@
-import type { RefObject } from 'react'
+import type { ComponentProps, ReactNode, RefObject } from 'react'
 import type { VoiceCaptureController } from '../hooks/useVoiceCapture'
 import { ComposerToolbar } from './ComposerToolbar'
 import { VoiceRecorder } from './VoiceRecorder'
 
 interface ComposerModeControlsProps {
+  readonly disabled?: boolean
+  readonly accessControl?: ReactNode
   readonly fileInputRef: RefObject<HTMLInputElement | null>
   readonly voice: VoiceCaptureController
-  readonly onSubmit: () => void
-  readonly onCancel: () => void
-  readonly isLoading: boolean
-  readonly canSend: boolean
-  readonly sendTitle?: string
+  readonly submission: ComponentProps<typeof ComposerToolbar>['submission']
 }
 
 export function ComposerModeControls({
+  disabled,
+  accessControl,
   fileInputRef,
   voice,
-  onSubmit,
-  onCancel,
-  isLoading,
-  canSend,
-  sendTitle,
+  submission,
 }: ComposerModeControlsProps) {
   if (voice.isActive) {
-    return <VoiceRecorder fileInputRef={fileInputRef} voice={voice} />
+    return (
+      <VoiceRecorder
+        fileInputRef={fileInputRef}
+        voice={voice}
+        {...(disabled === undefined ? {} : { disabled })}
+      />
+    )
   }
 
   return (
     <ComposerToolbar
-      onSend={onSubmit}
-      onCancel={onCancel}
-      isLoading={isLoading}
-      canSend={canSend}
+      {...(disabled === undefined ? {} : { disabled })}
+      accessControl={accessControl}
+      submission={submission}
       onToggleVoice={voice.toggleVoice}
       voiceMode={voice.mode}
       fileInputRef={fileInputRef}
-      sendTitle={sendTitle}
     />
   )
 }

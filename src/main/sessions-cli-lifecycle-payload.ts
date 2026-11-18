@@ -1,0 +1,139 @@
+import { randomUUID } from 'node:crypto'
+import type { LocalSessionCommandPayload } from '@shared/types/local-session-protocol'
+import { SESSION_LIFECYCLE_CONTRACT_VERSION } from '@shared/types/session-lifecycle'
+import { resolveCliProjectPath } from './cli-project-path'
+import { option, type ParsedArguments } from './mcp-cli-arguments'
+import {
+  forkWorkspace,
+  launchWorkspace,
+  positiveInteger,
+  required,
+  requiredSessionId,
+  runAuthorization,
+  spawnWorkspace,
+  specialization,
+  optionEntry,
+} from './sessions-cli-arguments'
+
+function lifecycleRequest(arguments_: ParsedArguments) {
+  return {
+    contractVersion: SESSION_LIFECYCLE_CONTRACT_VERSION,
+    requestId: randomUUID(),
+    idempotencyKey: option(arguments_, 'idempotency-key') ?? randomUUID(),
+  }
+}
+
+export function rootLifecyclePayload(
+  command: 'create' | 'launch',
+  arguments_: ParsedArguments,
+  workingDirectory = process.cwd(),
+) {
+  const projectPath = resolveCliProjectPath(
+    required(arguments_.positionals[0], 'Project path'),
+    workingDirectory,
+  )
+  const workspace = launchWorkspace(arguments_)
+  const selectedSpecialization = specialization(arguments_)
+  if (command === 'create') {
+    const payload: LocalSessionCommandPayload = {
+      contract: 'session-lifecycle-v2',
+      request: {
+        ...lifecycleRequest(arguments_),
+        command: {
+          operation: command,
+          projectPath,
+          ...optionEntry(arguments_, 'title', 'title'),
+          ...(workspace ? { workspace } : {}),
+          ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
+        },
+      },
+    }
+    return payload
+  }
+  const authorization = runAuthorization(arguments_)
+  const interactionTimeoutMs = option(arguments_, 'interaction-timeout-ms')
+    ? positiveInteger(option(arguments_, 'interaction-timeout-ms'), '--interaction-timeout-ms')
+    : undefined
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-lifecycle-v2',
+    ...(arguments_.options.has('attach')
+      ? { transport: { attachmentPaths: arguments_.options.get('attach') ?? [] } }
+      : {}),
+    request: {
+      ...lifecycleRequest(arguments_),
+      command: {
+        operation: command,
+        projectPath,
+        objective: required(option(arguments_, 'text'), 'Objective input'),
+        attachmentIds: [],
+        ...(interactionTimeoutMs !== undefined ? { interactionTimeoutMs } : {}),
+        ...(workspace ? { workspace } : {}),
+        ...optionEntry(arguments_, 'title', 'title'),
+        ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
+        ...(authorization ? { runAuthorizationOverride: authorization } : {}),
+      },
+    },
+  }
+  return payload
+}
+
+export function spawnLifecyclePayload(arguments_: ParsedArguments) {
+  const workspace = spawnWorkspace(arguments_)
+  const selectedSpecialization = specialization(arguments_)
+  const authorization = runAuthorization(arguments_)
+  const interactionTimeoutMs = option(arguments_, 'interaction-timeout-ms')
+    ? positiveInteger(option(arguments_, 'interaction-timeout-ms'), '--interaction-timeout-ms')
+    : undefined
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-lifecycle-v2',
+    ...(arguments_.options.has('attach')
+      ? { transport: { attachmentPaths: arguments_.options.get('attach') ?? [] } }
+      : {}),
+    request: {
+      ...lifecycleRequest(arguments_),
+      command: {
+        operation: 'spawn',
+        parentSessionId: requiredSessionId(arguments_.positionals[0], 'Parent Session ID'),
+        expectedParentRunId: required(option(arguments_, 'expected-run'), '--expected-run'),
+        ...optionEntry(arguments_, 'title', 'title'),
+        ...(workspace ? { workspace } : {}),
+        ...(selectedSpecialization ? { specialization: selectedSpecialization } : {}),
+        ...(authorization ? { runAuthorizationOverride: authorization } : {}),
+        ...(interactionTimeoutMs !== undefined ? { interactionTimeoutMs } : {}),
+        attachmentIds: [],
+        delegation: {
+          objective: required(option(arguments_, 'text'), 'Objective input'),
+          deliverables: arguments_.options.get('deliverable') ?? [],
+          acceptanceCriteria: arguments_.options.get('accept') ?? [],
+          dependencies: [],
+          resourceReferences: arguments_.options.get('resource') ?? [],
+        },
+      },
+    },
+  }
+  return payload
+}
+
+export function forkLifecyclePayload(arguments_: ParsedArguments) {
+  const workspace = forkWorkspace(arguments_)
+  const position = option(arguments_, 'position')
+  if (position && position !== 'before' && position !== 'at') {
+    throw new Error('--position must be before or at.')
+  }
+  const selectedPosition = position === 'before' || position === 'at' ? position : undefined
+  const payload: LocalSessionCommandPayload = {
+    contract: 'session-lifecycle-v2',
+    request: {
+      ...lifecycleRequest(arguments_),
+      command: {
+        operation: 'fork',
+        sourceSessionId: requiredSessionId(arguments_.positionals[0], 'Source Session ID'),
+        ...optionEntry(arguments_, 'target-node', 'targetNodeId'),
+        ...(selectedPosition ? { position: selectedPosition } : {}),
+        ...optionEntry(arguments_, 'title', 'title'),
+        ...(workspace ? { workspace } : {}),
+      },
+    },
+  }
+  return payload
+}

@@ -15,10 +15,11 @@ import type {
 import * as Effect from 'effect/Effect'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
+import { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import { SettingsService } from '../services/settings-service'
 import { auditedSuccess } from './extension-capability-broker-audit'
-import type { BrokerRouteInput } from './extension-capability-broker-openwaggle-common'
 import {
+  type BrokerRouteInput,
   invalidPayload,
   payloadDecodeFailure,
   unsupportedMethod,
@@ -81,7 +82,10 @@ function loadOpenWaggleStateSnapshot(input: BrokerRouteInput) {
           ? toBranchView(tree, input.invocation.scope.branchId)
           : null,
       recentProjects: [...settings.recentProjects],
-      modelPreferences: toExtensionModelPrefs(settings),
+      modelPreferences: toExtensionModelPrefs(
+        settings,
+        yield* (yield* ThinkingLevelDefaultService).getDefault(),
+      ),
     } satisfies OpenWaggleStateSnapshot
   })
 }
@@ -90,7 +94,7 @@ function selectedStateReadResult(input: {
   readonly invocation: ExtensionInvokeInput
   readonly payload: ExtensionStateReadPayload
   readonly snapshot: OpenWaggleStateSnapshot
-}): ExtensionStateSelectedReadResult {
+}) {
   const base = {
     extensionId: input.invocation.extensionId,
     contributionId: input.invocation.contributionId,
@@ -99,7 +103,7 @@ function selectedStateReadResult(input: {
     scope: input.invocation.scope,
   }
 
-  return match(input.payload.selector)
+  const result: ExtensionStateSelectedReadResult = match(input.payload.selector)
     .with(OPENWAGGLE_EXTENSION_BROKER.STATE_SELECTOR.CURRENT_PROJECT, (selector) => ({
       ...base,
       selector,
@@ -126,6 +130,7 @@ function selectedStateReadResult(input: {
       value: input.snapshot.modelPreferences,
     }))
     .exhaustive()
+  return result
 }
 
 function runSelectedStateRead(input: BrokerRouteInput, payload: ExtensionStateReadPayload) {

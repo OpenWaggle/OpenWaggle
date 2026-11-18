@@ -1,19 +1,30 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import type { Message, PreparedAttachment } from '@shared/types/agent'
-import { MessageId, SessionId } from '@shared/types/brand'
+import { MessageId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionProjectionRepositoryError } from '../../errors'
+import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-projection-pin-stub'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
+import { required } from '../../test-support/required'
 
-const { emitTransportEventMock, updateTitleMock, hydrateAttachmentSourcesMock } = vi.hoisted(
-  () => ({
-    emitTransportEventMock: vi.fn(),
-    updateTitleMock: vi.fn(),
-    hydrateAttachmentSourcesMock: vi.fn<() => Promise<unknown[]>>(async () => []),
-  }),
-)
+const {
+  emitTransportEventMock,
+  assignProvisionalTitleMock,
+  requestInitialSessionTitleMock,
+  hydrateAttachmentSourcesMock,
+} = vi.hoisted(() => ({
+  emitTransportEventMock: vi.fn(),
+  assignProvisionalTitleMock: vi.fn<(id: unknown, title: string) => boolean>(() => true),
+  requestInitialSessionTitleMock: vi.fn(),
+  hydrateAttachmentSourcesMock: vi.fn<() => Promise<unknown[]>>(async () => []),
+}))
+
+vi.mock('../../application/session-title-scheduler', () => ({
+  requestInitialSessionTitle: requestInitialSessionTitleMock,
+}))
 
 vi.mock('../../utils/stream-bridge', () => ({
   emitErrorAndFinish(sessionId: unknown, message: string, code: string, runId = '') {
@@ -46,10 +57,16 @@ const makeTestSessionProjectionLayer = () =>
     archive: () => Effect.void,
     unarchive: () => Effect.void,
     listArchived: () => Effect.succeed([]),
-    updateTitle: (id, title) =>
-      Effect.sync(() => {
-        updateTitleMock(id, title)
-      }),
+    updateTitle: () => Effect.void,
+    assignProvisionalTitle: (id, title) => Effect.sync(() => assignProvisionalTitleMock(id, title)),
+    setWorktreePlan: () => Effect.void,
+    setAuthorizationMode: () => Effect.void,
+    listTurnCheckpoints: () => Effect.succeed([]),
+    getTurnDiff: () => Effect.succeed(null),
+    getTurnDiffFiles: () => Effect.succeed([]),
+    listTurnDiffFiles: () => Effect.succeed({}),
+    setTurnCheckpointAnchor: () => Effect.void,
+    ...PINNED_SESSION_REPOSITORY_STUB,
   })
 
 const TestRuntimeLayer = makeTestSessionProjectionLayer()
@@ -66,18 +83,18 @@ import {
 
 const CONV_ID = SessionId('test-conv-id')
 
-function makeMessage(overrides: Partial<Message> = {}): Message {
+function makeMessage(overrides: Partial<Message> = {}) {
   return {
     id: MessageId('m1'),
     role: 'user',
     parts: [{ type: 'text', text: 'Existing' }],
     createdAt: Date.now(),
     ...overrides,
-  }
+  } satisfies Message
 }
 
-function makeSessionDetail(overrides: Partial<SessionDetail> = {}): SessionDetail {
-  return {
+function makeSessionDetail(overrides: Partial<SessionDetail> = {}) {
+  const detail: SessionDetail = {
     id: CONV_ID,
     title: 'New session',
     messages: [],
@@ -86,9 +103,10 @@ function makeSessionDetail(overrides: Partial<SessionDetail> = {}): SessionDetai
     projectPath: '/test',
     ...overrides,
   }
+  return detail
 }
 
-function makeAttachment(overrides: Partial<PreparedAttachment> = {}): PreparedAttachment {
+function makeAttachment(overrides: Partial<PreparedAttachment> = {}) {
   return {
     id: 'a1',
     kind: 'text',
@@ -98,12 +116,21 @@ function makeAttachment(overrides: Partial<PreparedAttachment> = {}): PreparedAt
     sizeBytes: 100,
     extractedText: '',
     ...overrides,
-  }
+  } satisfies PreparedAttachment
 }
 
-function runTitleAssignment(session: SessionDetail, text: string) {
+const TITLE_MODEL = SupportedModelId('openai/gpt-5')
+
+function runTitleAssignment(
+  session: SessionDetail,
+  text: string,
+  attachments: readonly PreparedAttachment[] = [],
+) {
   return Effect.runPromise(
-    Effect.provide(assignSessionTitleFromUserText(CONV_ID, session, text), TestRuntimeLayer),
+    Effect.provide(
+      assignSessionTitleFromUserText(CONV_ID, session, { text, attachments, model: TITLE_MODEL }),
+      TestRuntimeLayer,
+    ),
   )
 }
 
@@ -117,7 +144,10 @@ describe('emitErrorAndFinish', () => {
 
     expect(emitTransportEventMock).toHaveBeenCalledTimes(1)
 
-    const finishChunk = emitTransportEventMock.mock.calls[0]
+    const finishChunk = required(
+      emitTransportEventMock.mock.calls[0],
+      'emitTransportEventMock call 0',
+    )
     expect(finishChunk[0]).toBe(CONV_ID)
     expect(finishChunk[1].type).toBe('agent_end')
     expect(finishChunk[1].runId).toBe('')
@@ -128,7 +158,10 @@ describe('emitErrorAndFinish', () => {
   it('propagates optional runId', () => {
     emitErrorAndFinish(CONV_ID, 'Error', 'code', 'waggle-123')
 
-    const finishChunk = emitTransportEventMock.mock.calls[0]
+    const finishChunk = required(
+      emitTransportEventMock.mock.calls[0],
+      'emitTransportEventMock call 0',
+    )
     expect(finishChunk[1].runId).toBe('waggle-123')
   })
 })
@@ -144,38 +177,100 @@ describe('hydratePayloadAttachments', () => {
     expect(hydrateAttachmentSourcesMock).toHaveBeenCalledWith(attachments)
     expect(result).toBe(hydratedResult)
   })
+
+  it('rejects more than the send-boundary attachment count before hydration', async () => {
+    const attachments = Array.from({ length: ATTACHMENT.MAX_COUNT + 1 }, (_, index) =>
+      makeAttachment({ id: `attachment-${String(index)}` }),
+    )
+
+    await expect(hydratePayloadAttachments(attachments)).rejects.toThrow(
+      `A maximum of ${String(ATTACHMENT.MAX_COUNT)} attachments`,
+    )
+    expect(hydrateAttachmentSourcesMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate prepared attachment capability ids before hydration', async () => {
+    const attachments = [
+      makeAttachment({ id: 'duplicate', name: 'first.txt' }),
+      makeAttachment({ id: 'duplicate', name: 'second.txt' }),
+    ]
+
+    await expect(hydratePayloadAttachments(attachments)).rejects.toThrow(
+      'Duplicate prepared attachment capability',
+    )
+    expect(hydrateAttachmentSourcesMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an excessive aggregate attachment size before hydration', async () => {
+    const attachments = Array.from({ length: 3 }, (_, index) =>
+      makeAttachment({
+        id: `attachment-${String(index)}`,
+        sizeBytes: ATTACHMENT.MAX_SIZE_BYTES,
+      }),
+    )
+
+    await expect(hydratePayloadAttachments(attachments)).rejects.toThrow(
+      'Total document size exceeds',
+    )
+    expect(hydrateAttachmentSourcesMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('assignSessionTitleFromUserText', () => {
-  it('assigns a deterministic title for a new session projection', async () => {
-    const conv = makeSessionDetail()
-    const title = await runTitleAssignment(conv, 'Hello world')
+  it('writes the Provisional title and asks for a generated one on the first message', async () => {
+    const title = await runTitleAssignment(makeSessionDetail(), '  Hello world  ', [
+      makeAttachment({ id: 'shot', name: 'shot.png', mimeType: 'image/png' }),
+    ])
 
     expect(title).toBe('Hello world')
-    expect(updateTitleMock).toHaveBeenCalledWith(CONV_ID, 'Hello world')
+    expect(assignProvisionalTitleMock).toHaveBeenCalledWith(CONV_ID, 'Hello world')
+    expect(requestInitialSessionTitleMock).toHaveBeenCalledWith({
+      sessionId: CONV_ID,
+      text: 'Hello world',
+      model: TITLE_MODEL,
+      attachments: [{ id: 'shot', name: 'shot.png', mimeType: 'image/png' }],
+    })
   })
 
-  it('skips when title is already set', async () => {
-    const conv = makeSessionDetail({ title: 'Existing title' })
-    const title = await runTitleAssignment(conv, 'Hello world')
+  it('still asks for a generated title when the Session already has its Provisional title', async () => {
+    assignProvisionalTitleMock.mockReturnValueOnce(false)
+    const title = await runTitleAssignment(
+      makeSessionDetail({ title: 'Review auth' }),
+      'Review auth',
+    )
 
     expect(title).toBeNull()
-    expect(updateTitleMock).not.toHaveBeenCalled()
+    expect(requestInitialSessionTitleMock).toHaveBeenCalledTimes(1)
   })
 
-  it('skips when messages already exist', async () => {
-    const conv = makeSessionDetail({ messages: [makeMessage()] })
-    const title = await runTitleAssignment(conv, 'Hello world')
+  it('titles a Session whose messages came from an extension command, which left no title', async () => {
+    const title = await runTitleAssignment(
+      makeSessionDetail({ titleSource: 'default', messages: [makeMessage()] }),
+      'Hello world',
+    )
 
-    expect(title).toBeNull()
-    expect(updateTitleMock).not.toHaveBeenCalled()
+    expect(title).toBe('Hello world')
+    expect(requestInitialSessionTitleMock).toHaveBeenCalledTimes(1)
   })
 
-  it('skips when text is empty or whitespace', async () => {
-    const conv = makeSessionDetail()
-    const title = await runTitleAssignment(conv, '   ')
+  it.each(['provisional', 'generated', 'manual'] as const)(
+    'does nothing once a Session with messages has a %s title',
+    async (source) => {
+      const title = await runTitleAssignment(
+        makeSessionDetail({ titleSource: source, messages: [makeMessage()] }),
+        'Hello world',
+      )
+
+      expect(title).toBeNull()
+      expect(assignProvisionalTitleMock).not.toHaveBeenCalled()
+      expect(requestInitialSessionTitleMock).not.toHaveBeenCalled()
+    },
+  )
+
+  it('writes no Provisional title for blank text', async () => {
+    const title = await runTitleAssignment(makeSessionDetail(), '   ')
 
     expect(title).toBeNull()
-    expect(updateTitleMock).not.toHaveBeenCalled()
+    expect(assignProvisionalTitleMock).not.toHaveBeenCalled()
   })
 })

@@ -1,23 +1,50 @@
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
+import type { WagglePreset } from '@shared/types/waggle'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
-import { useSelectedModelThinkingLevel } from '@/features/providers/hooks'
-import { usePreferencesStore } from '@/features/settings/state'
-import { clearEditor } from '../lib/lexical-utils'
-import { consumeSendResult } from '../lib/send-result'
+import { GUI_COMMAND_REQUIRES_IDLE_MESSAGE, isGuiOnlyComposerCommand } from '../commands'
+import { clearEditor, setEditorDraft } from '../lib/lexical-utils'
+import { consumeSendResult, logExpectedSendRefusal, logShownSendFailure } from '../lib/send-result'
+import { trackComposerSubmission } from '../state/composer-activity-store'
+import {
+  discardSessionResourceAttachments,
+  markAttachmentsSubmitted,
+  unmarkAttachmentsSubmitted,
+} from '../state/composer-attachment-lifecycle'
 import { useComposerStore } from '../state/composer-store'
+import {
+  attachmentLimitMessage,
+  attachmentLimitReason,
+  type ComposerDraftSnapshot,
+  callAsPromise,
+  canSend,
+  captureCurrentComposerDraft,
+  clearInactiveComposerDraft,
+  getSubmitBlock,
+  isCurrentComposerDraft,
+  queuedSubmissionKey,
+} from './composer-submission-support'
+import { useComposerModel } from './useComposerModel'
 
-const SILENT_SUBMIT_BLOCK = { type: 'silent' } as const
+const pendingQueuedSubmissions = new Map<string, Promise<boolean>>()
 
 interface UseComposerSubmissionInput {
-  readonly onSend: (payload: AgentSendPayload) => Promise<void> | void
-  readonly onEnqueue: (payload: AgentSendPayload) => Promise<void> | void
+  readonly onSend: (payload: AgentSendPayload) => Promise<void> | void | false
+  readonly onEnqueue: (
+    payload: AgentSendPayload,
+  ) => Promise<boolean | undefined> | boolean | undefined
+  readonly onSendFailure?: (cause: unknown) => SendFailureDisposition
   readonly isLoading: boolean
   readonly disabled?: boolean
   readonly requiresText: boolean
   readonly clearOnSubmit: boolean
   readonly recordHistory: boolean
   readonly allowEnqueue: boolean
+  /**
+   * Queue an explicit Waggle even when idle: the queue waits on a Follow-up edit, and starting the
+   * Waggle now would overtake the held message.
+   */
+  readonly enqueueWaggle?: boolean
   readonly onToast?: (message: string) => void
   readonly editorRef: RefObject<LexicalEditor | null>
   readonly projectPath: string | null
@@ -25,23 +52,80 @@ interface UseComposerSubmissionInput {
   readonly hasPreparingTextAttachment: boolean
 }
 
-interface SubmitBlockInput {
-  readonly payload: AgentSendPayload
-  readonly disabled?: boolean
-  readonly requiresText: boolean
-  readonly projectPath: string | null
-  readonly selectedModel: string
+/**
+ * What becomes of the draft of a send that failed. `notice`: what a toast tells the user. The
+ * failure is logged as a warning, being expected, as a refusal the Host explained; `unexpected`
+ * logs it as an error, for a call that failed where the user is not otherwise told.
+ */
+export type SendFailureDisposition =
+  | {
+      readonly kind: 'restore'
+      readonly contextKey?: string | null
+      readonly notice?: string
+      readonly unexpected?: boolean
+    }
+  | { readonly kind: 'discard' | 'retain' }
+
+type DispatchResult =
+  | { readonly type: 'blocked' }
+  | { readonly type: 'sent'; readonly completion?: Promise<void> }
+  | { readonly type: 'queued'; readonly completion: Promise<boolean | undefined> }
+
+function mergeDraftText(submitted: string, current: string) {
+  if (!submitted || submitted === current) return current
+  return current ? `${submitted}\n\n${current}` : submitted
+}
+
+function mergeDraftAttachments(
+  submitted: readonly PreparedAttachment[],
+  current: readonly PreparedAttachment[],
+) {
+  return [
+    ...new Map(
+      [...submitted, ...current].map((attachment) => [attachment.id, attachment]),
+    ).values(),
+  ]
+}
+
+function restoreFailedSendDraft(
+  payload: AgentSendPayload,
+  contextKey: string | null,
+  submittedPreset: WagglePreset | null,
+  editor: LexicalEditor | null,
+) {
+  const state = useComposerStore.getState()
+  if (state.activeDraftContextKey === contextKey) {
+    const input = mergeDraftText(payload.text, state.input)
+    const preset = state.selectedWagglePreset ?? submittedPreset
+    const attachments = mergeDraftAttachments(payload.attachments, state.attachments)
+    state.setInput(input)
+    state.replaceAttachments(attachments)
+    state.setSelectedWagglePreset(preset)
+    if (editor) setEditorDraft(editor, input, preset)
+    return attachmentLimitReason(attachments)
+  }
+  if (!contextKey) return null
+  const current = state.getScopedDraft(contextKey)
+  const attachments = mergeDraftAttachments(payload.attachments, current?.attachments ?? [])
+  state.saveScopedDraft(contextKey, {
+    input: mergeDraftText(payload.text, current?.input ?? ''),
+    attachments,
+    wagglePreset: current?.wagglePreset ?? submittedPreset,
+  })
+  return attachmentLimitReason(attachments)
 }
 
 export function useComposerSubmission({
   onSend,
   onEnqueue,
+  onSendFailure,
   isLoading,
-  disabled,
+  disabled = false,
   requiresText,
   clearOnSubmit,
   recordHistory,
   allowEnqueue,
+  enqueueWaggle = false,
   onToast,
   editorRef,
   projectPath,
@@ -49,58 +133,166 @@ export function useComposerSubmission({
   hasPreparingTextAttachment,
 }: UseComposerSubmissionInput) {
   const input = useComposerStore((s) => s.input)
+  const selectedWagglePreset = useComposerStore((s) => s.selectedWagglePreset)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
-  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel()
+  const selectedModel = useComposerModel().model
 
-  function clearComposerInput() {
+  function clearComposerInput(snapshot?: ComposerDraftSnapshot) {
+    if (snapshot && !isCurrentComposerDraft(snapshot)) {
+      clearInactiveComposerDraft(snapshot)
+      return
+    }
     reset()
-    if (editorRef.current) {
-      clearEditor(editorRef.current)
+    const activeEditor = useComposerStore.getState().lexicalEditor ?? editorRef.current
+    if (activeEditor) {
+      clearEditor(activeEditor)
     }
   }
 
   function dispatchPayload(payload: AgentSendPayload) {
     const block = getSubmitBlock({ payload, disabled, requiresText, projectPath, selectedModel })
-    if (!block) {
-      consumeSendResult(isLoading && allowEnqueue ? onEnqueue(payload) : onSend(payload))
-      return true
+    if (block) {
+      if (block.type === 'toast') onToast?.(block.message)
+      return { type: 'blocked' } satisfies DispatchResult
     }
-    if (block.type === 'toast') onToast?.(block.message)
-    return false
+    if (allowEnqueue && (isLoading || (enqueueWaggle && payload.waggle !== undefined))) {
+      if (isGuiOnlyComposerCommand(payload.text)) {
+        onToast?.(GUI_COMMAND_REQUIRES_IDLE_MESSAGE)
+        return { type: 'blocked' } satisfies DispatchResult
+      }
+      const completion = callAsPromise(() => onEnqueue(payload))
+      consumeSendResult(completion)
+      return { type: 'queued', completion } satisfies DispatchResult
+    }
+    const result = onSend(payload)
+    if (result === false) return { type: 'blocked' } satisfies DispatchResult
+    return {
+      type: 'sent',
+      ...(result instanceof Promise ? { completion: result } : {}),
+    } satisfies DispatchResult
   }
 
   function submitPayload(payload: AgentSendPayload) {
-    const sent = dispatchPayload(payload)
-    if (!sent) return false
+    const draftSnapshot = captureCurrentComposerDraft()
+    const pendingKey = queuedSubmissionKey(draftSnapshot, payload)
+    const pending = pendingQueuedSubmissions.get(pendingKey)
+    if (pending) return pending
+    const dispatch = dispatchPayload(payload)
+    if (dispatch.type === 'blocked') return false
+    if (dispatch.type === 'sent') {
+      if (clearOnSubmit) markAttachmentsSubmitted(payload.attachments)
+      finishSuccessfulSubmission(payload)
+      if (dispatch.completion) {
+        const completion = dispatch.completion.catch((cause: unknown) => {
+          const disposition = onSendFailure?.(cause) ?? { kind: 'retain' as const }
+          if (clearOnSubmit && disposition.kind === 'restore') {
+            unmarkAttachmentsSubmitted(payload.attachments)
+            const limitReason = restoreFailedSendDraft(
+              payload,
+              disposition.contextKey === undefined
+                ? draftSnapshot.activeDraftContextKey
+                : disposition.contextKey,
+              selectedWagglePreset,
+              useComposerStore.getState().lexicalEditor ?? editorRef.current,
+            )
+            if (limitReason) onToast?.(attachmentLimitMessage(limitReason))
+          }
+          if (clearOnSubmit && disposition.kind === 'discard') {
+            unmarkAttachmentsSubmitted(payload.attachments)
+            discardSessionResourceAttachments(payload.attachments)
+          }
+          if (disposition.kind === 'restore' && disposition.notice) {
+            onToast?.(disposition.notice)
+            if (disposition.unexpected) logShownSendFailure(cause)
+            else logExpectedSendRefusal(cause)
+            return
+          }
+          throw cause
+        })
+        consumeSendResult(completion)
+      }
+      return true
+    }
+    const result = dispatch.completion.then(
+      (accepted) => {
+        if (accepted === false) return false
+        if (clearOnSubmit) markAttachmentsSubmitted(payload.attachments)
+        finishSuccessfulSubmission(payload, draftSnapshot)
+        return true
+      },
+      () => false,
+    )
+    pendingQueuedSubmissions.set(pendingKey, result)
+    // A Follow-up edit waits for this: acknowledgement clears the draft that submitted it.
+    // `result` settles to false on a refusal and never rejects.
+    void trackComposerSubmission(draftSnapshot.activeDraftContextKey, result)
+    void result.then(() => {
+      if (pendingQueuedSubmissions.get(pendingKey) === result) {
+        pendingQueuedSubmissions.delete(pendingKey)
+      }
+    })
+    return result
+  }
+
+  function finishSuccessfulSubmission(
+    payload: AgentSendPayload,
+    draftSnapshot?: ComposerDraftSnapshot,
+  ) {
     if (recordHistory && payload.text) pushHistory(payload.text)
-    if (clearOnSubmit) clearComposerInput()
-    return true
+    if (clearOnSubmit) clearComposerInput(draftSnapshot)
   }
 
   function handleSubmit(text?: string) {
-    submitPayload({
+    return submitPayload({
       text: (text ?? input).trim(),
-      thinkingLevel: effectiveThinkingLevel,
       attachments,
+      ...(selectedWagglePreset
+        ? {
+            waggle: {
+              presetId: selectedWagglePreset.id,
+              presetName: selectedWagglePreset.name,
+              source: 'user',
+              config: selectedWagglePreset.config,
+            },
+          }
+        : {}),
     })
   }
 
   function sendComposed(text: string) {
+    const state = useComposerStore.getState()
     return submitPayload({
       text,
-      thinkingLevel: effectiveThinkingLevel,
-      attachments: useComposerStore.getState().attachments,
+      attachments: state.attachments,
+      ...(state.selectedWagglePreset
+        ? {
+            waggle: {
+              presetId: state.selectedWagglePreset.id,
+              presetName: state.selectedWagglePreset.name,
+              source: 'user',
+              config: state.selectedWagglePreset.config,
+            },
+          }
+        : {}),
     })
   }
 
   function submitCurrentDraft() {
     const state = useComposerStore.getState()
-    submitPayload({
+    void submitPayload({
       text: state.input.trim(),
-      thinkingLevel: effectiveThinkingLevel,
       attachments: state.attachments,
+      ...(state.selectedWagglePreset
+        ? {
+            waggle: {
+              presetId: state.selectedWagglePreset.id,
+              presetName: state.selectedWagglePreset.name,
+              source: 'user',
+              config: state.selectedWagglePreset.config,
+            },
+          }
+        : {}),
     })
   }
 
@@ -120,54 +312,4 @@ export function useComposerSubmission({
     sendComposed,
     submitCurrentDraft,
   }
-}
-
-function getSubmitBlock({
-  payload,
-  disabled,
-  requiresText,
-  projectPath,
-  selectedModel,
-}: SubmitBlockInput) {
-  if (requiresText && !payload.text) return SILENT_SUBMIT_BLOCK
-  if (disabled || (!payload.text && payload.attachments.length === 0)) return SILENT_SUBMIT_BLOCK
-  if (!projectPath) return toastSubmitBlock('Select a project before sending.')
-  if (!selectedModel.trim()) return toastSubmitBlock('Select a model in Settings before sending.')
-  return null
-}
-
-function toastSubmitBlock(message: string) {
-  return { type: 'toast' as const, message }
-}
-
-interface CanSendInput {
-  readonly input: string
-  readonly attachments: readonly PreparedAttachment[]
-  readonly disabled?: boolean
-  readonly hasPreparingTextAttachment: boolean
-  readonly projectPath: string | null
-  readonly selectedModel: string
-  readonly requiresText: boolean
-}
-
-function canSend({
-  input,
-  attachments,
-  disabled,
-  hasPreparingTextAttachment,
-  projectPath,
-  selectedModel,
-  requiresText,
-}: CanSendInput) {
-  const hasSubmitContent = requiresText
-    ? input.trim().length > 0
-    : input.trim().length > 0 || attachments.length > 0
-
-  return (
-    hasSubmitContent &&
-    !disabled &&
-    !hasPreparingTextAttachment &&
-    Boolean(projectPath) &&
-    selectedModel.trim().length > 0
-  )
 }

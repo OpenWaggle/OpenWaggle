@@ -1,45 +1,54 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import {
-  consumeUserMessageTextCount,
-  countUserMessagesByText,
-  getNonEmptyUserMessageText,
-  getUIMessageText,
-} from './chat-message-text'
+import { getNonEmptyUserMessageText, getUIMessageText, savedSendIds } from './chat-message-text'
 
-function findMissingOptimisticUserMessages(
-  snapshotUserCountsByText: Map<string, number>,
-  optimisticUserMessages: readonly UIMessage[],
+function messageCreatedAtMs(message: UIMessage) {
+  if (!(message.createdAt instanceof Date)) return null
+  const timestamp = message.createdAt.getTime()
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+function mergeMissingOptimisticMessagesByTime(
+  snapshotMessages: UIMessage[],
+  missingOptimisticMessages: readonly UIMessage[],
 ) {
-  const missingMessages: UIMessage[] = []
-  for (const message of optimisticUserMessages) {
-    const text = getNonEmptyUserMessageText(message)
-    if (!text || consumeUserMessageTextCount(snapshotUserCountsByText, text)) {
-      continue
-    }
-    missingMessages.push(message)
+  const mergedMessages = [...snapshotMessages]
+  for (const message of missingOptimisticMessages) {
+    const createdAt = messageCreatedAtMs(message)
+    const insertionIndex =
+      createdAt === null
+        ? -1
+        : mergedMessages.findIndex((candidate) => {
+            const candidateCreatedAt = messageCreatedAtMs(candidate)
+            return candidateCreatedAt !== null && candidateCreatedAt > createdAt
+          })
+    if (insertionIndex < 0) mergedMessages.push(message)
+    else mergedMessages.splice(insertionIndex, 0, message)
   }
-  return missingMessages
+  return mergedMessages
 }
 
 /**
  * Keeps optimistic user rows visible until the persisted session snapshot catches up.
- * Matching is text-based because optimistic and persisted IDs are intentionally different.
+ * Matching is text-based because optimistic and persisted IDs are intentionally different, and
+ * takes only a saved prompt as new as the send (`savedSendIds`).
+ * Missing rows use their client timestamp so a newer replacement snapshot cannot move an
+ * older optimistic turn below the assistant reply that followed it.
  */
 export function appendMissingOptimisticUserMessages(
   snapshotMessages: UIMessage[],
   optimisticUserMessages: readonly UIMessage[],
-): UIMessage[] {
+) {
   if (optimisticUserMessages.length === 0) {
     return snapshotMessages
   }
 
-  const missingOptimisticMessages = findMissingOptimisticUserMessages(
-    countUserMessagesByText(snapshotMessages),
-    optimisticUserMessages,
+  const saved = savedSendIds(snapshotMessages, optimisticUserMessages)
+  const missingOptimisticMessages = optimisticUserMessages.filter(
+    (message) => getNonEmptyUserMessageText(message) !== null && !saved.has(message.id),
   )
 
   return missingOptimisticMessages.length > 0
-    ? [...snapshotMessages, ...missingOptimisticMessages]
+    ? mergeMissingOptimisticMessagesByTime(snapshotMessages, missingOptimisticMessages)
     : snapshotMessages
 }
 
@@ -63,6 +72,73 @@ function buildExistingUserQueuesByText(existingMessages: readonly UIMessage[]) {
   return existingUserQueuesByText
 }
 
+interface SnapshotLogIdentity {
+  readonly sessionNodeId?: string
+  readonly sessionNodeCreatedOrder?: number
+  readonly durableTextSha256?: string
+  readonly liveIncorporated?: true
+}
+
+function snapshotLogIdentity(current: UIMessage, snapshot: UIMessage) {
+  const snapshotIsLive = snapshot.metadata?.liveIncorporated === true
+  const sessionNodeId =
+    snapshot.metadata?.sessionNodeId ??
+    (snapshotIsLive ? current.metadata?.sessionNodeId : snapshot.id)
+  const { sessionNodeCreatedOrder, durableTextSha256 } = snapshot.metadata ?? {}
+  return {
+    ...(sessionNodeId === undefined ? {} : { sessionNodeId }),
+    ...(sessionNodeCreatedOrder === undefined ? {} : { sessionNodeCreatedOrder }),
+    ...(durableTextSha256 === undefined ? {} : { durableTextSha256 }),
+    // Still only live: no persisted node is known yet, so the row's id must not become one later.
+    ...(snapshotIsLive && sessionNodeId === undefined ? { liveIncorporated: true } : {}),
+  } satisfies SnapshotLogIdentity
+}
+
+function hasLogIdentity(message: UIMessage, identity: SnapshotLogIdentity) {
+  const metadata = message.metadata
+  return (
+    metadata?.sessionNodeCreatedOrder === identity.sessionNodeCreatedOrder &&
+    metadata?.sessionNodeId === identity.sessionNodeId &&
+    metadata?.durableTextSha256 === identity.durableTextSha256 &&
+    metadata?.liveIncorporated === identity.liveIncorporated
+  )
+}
+
+/**
+ * Gives a row the log identity of the snapshot row it stands for. A persisted snapshot row names
+ * its Session node by id; a live incorporated row has only a stream id, so it contributes its log
+ * order and digest but never a node id.
+ */
+export function retainSnapshotMessageOrder(current: UIMessage, snapshot: UIMessage) {
+  const identity = snapshotLogIdentity(current, snapshot)
+  if (hasLogIdentity(current, identity)) return current
+  const { liveIncorporated: _live, sessionNodeId: _nodeId, ...metadata } = current.metadata ?? {}
+  return { ...current, metadata: { ...metadata, ...identity } }
+}
+
+/**
+ * The row of `candidates` (same text, in transcript order) that may stand for `message`. Two rows
+ * the Session log places at different orders are different prompts, however alike their text: a
+ * repeated "continue" must not take the identity of the first one. A row at the same order wins
+ * over one the Host has not recorded yet (an optimistic send).
+ */
+function matchingUserMessageIndex(candidates: readonly UIMessage[], message: UIMessage) {
+  const order = message.metadata?.sessionNodeCreatedOrder
+  if (order === undefined) return candidates.length > 0 ? 0 : -1
+  const sameOrderIndex = candidates.findIndex(
+    (candidate) => candidate.metadata?.sessionNodeCreatedOrder === order,
+  )
+  if (sameOrderIndex >= 0) return sameOrderIndex
+  return candidates.findIndex(
+    (candidate) => candidate.metadata?.sessionNodeCreatedOrder === undefined,
+  )
+}
+
+function takeMatchingUserMessage(candidates: UIMessage[], message: UIMessage) {
+  const index = matchingUserMessageIndex(candidates, message)
+  return index < 0 ? undefined : candidates.splice(index, 1)[0]
+}
+
 /**
  * Replaces persisted user rows with matching in-memory optimistic rows so React row
  * identity remains stable across the post-run snapshot refresh.
@@ -70,7 +146,7 @@ function buildExistingUserQueuesByText(existingMessages: readonly UIMessage[]) {
 export function reconcileSnapshotUserMessages(
   snapshotMessages: UIMessage[],
   existingMessages: UIMessage[],
-): UIMessage[] {
+) {
   const existingUserQueuesByText = buildExistingUserQueuesByText(existingMessages)
   if (existingUserQueuesByText.size === 0) {
     return snapshotMessages
@@ -86,15 +162,17 @@ export function reconcileSnapshotUserMessages(
       return message
     }
 
-    const replacement = existingUserQueuesByText.get(text)?.shift()
+    const candidates = existingUserQueuesByText.get(text)
+    const replacement = candidates ? takeMatchingUserMessage(candidates, message) : undefined
     if (!replacement) {
       return message
     }
     didReplace = true
-    return replacement
+    // Preserve the React row identity, but retain the authoritative source boundary for steering.
+    return retainSnapshotMessageOrder(replacement, message)
   })
 
-  return didReplace ? reconciled : snapshotMessages
+  return (didReplace ? reconciled : snapshotMessages) satisfies UIMessage[]
 }
 
 function messagesRepresentSameTurn(snapshotMessage: UIMessage, existingMessage: UIMessage) {
@@ -109,28 +187,39 @@ function messagesRepresentSameTurn(snapshotMessage: UIMessage, existingMessage: 
   return snapshotText.length > 0 && snapshotText === getUIMessageText(existingMessage)
 }
 
+/**
+ * Where the last snapshot message sits among the existing ones, each matched after the one before
+ * it; `null` when one has no match. One forward scan: a transcript holds a Session's whole history.
+ */
 function findAlignedSnapshotEndIndex(
   snapshotMessages: readonly UIMessage[],
   existingMessages: readonly UIMessage[],
 ) {
-  let existingIndex = -1
+  let cursor = 0
   for (const snapshotMessage of snapshotMessages) {
-    const nextIndex = existingMessages.findIndex(
-      (existingMessage, index) =>
-        index > existingIndex && messagesRepresentSameTurn(snapshotMessage, existingMessage),
-    )
-    if (nextIndex < 0) {
+    const index = indexOfTurnFrom(existingMessages, snapshotMessage, cursor)
+    if (index < 0) {
       return null
     }
-    existingIndex = nextIndex
+    cursor = index + 1
   }
-  return existingIndex
+  return cursor - 1
+}
+
+function indexOfTurnFrom(messages: readonly UIMessage[], message: UIMessage, from: number) {
+  for (let index = from; index < messages.length; index += 1) {
+    const candidate = messages[index]
+    if (candidate && messagesRepresentSameTurn(message, candidate)) {
+      return index
+    }
+  }
+  return -1
 }
 
 export function appendUnpersistedAssistantTail(
   snapshotMessages: UIMessage[],
   existingMessages: readonly UIMessage[],
-): UIMessage[] {
+) {
   if (snapshotMessages.length === 0 || existingMessages.length <= snapshotMessages.length) {
     return snapshotMessages
   }
@@ -141,9 +230,24 @@ export function appendUnpersistedAssistantTail(
   }
 
   const snapshotMessageIds = new Set(snapshotMessages.map((message) => message.id))
+  const lastSnapshotOrder = snapshotMessages.reduce(
+    (last, message) => Math.max(last, message.metadata?.sessionNodeCreatedOrder ?? -1),
+    -1,
+  )
+  // A user message Pi incorporated (it has a log order) after all the snapshot holds is the unsaved
+  // Run's too: a prompt repeating an earlier text aligned with nothing to keep it. One the snapshot
+  // holds entries after was never saved (Pi took it, then lost it), so the saved Session wins.
+  const isUnsavedIncorporatedUser = (message: UIMessage) => {
+    const order = message.metadata?.sessionNodeCreatedOrder
+    return message.role === 'user' && order !== undefined && order > lastSnapshotOrder
+  }
   const tail = existingMessages
     .slice(alignedEndIndex + 1)
-    .filter((message) => message.role === 'assistant' && !snapshotMessageIds.has(message.id))
+    .filter(
+      (message) =>
+        (message.role === 'assistant' || isUnsavedIncorporatedUser(message)) &&
+        !snapshotMessageIds.has(message.id),
+    )
 
-  return tail.length > 0 ? [...snapshotMessages, ...tail] : snapshotMessages
+  return (tail.length > 0 ? [...snapshotMessages, ...tail] : snapshotMessages) satisfies UIMessage[]
 }

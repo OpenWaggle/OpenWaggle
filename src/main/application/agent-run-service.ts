@@ -6,11 +6,13 @@
  * (abort controllers, active run tracking, stream buffers, IPC emission).
  */
 
+import type { SessionNode } from '@shared/types/session-node'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import type { ProjectedSessionNodeInput } from '../ports/session-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { clearDurableActiveRun, recordDurableActiveRun } from './agent-run/active-run'
 import {
@@ -21,12 +23,52 @@ import {
 import { hydrateAgentRunPayload, runAgentKernel } from './agent-run/kernel'
 import { buildAgentRunOutcome, recoverAgentRunFailure } from './agent-run/outcome'
 import { loadAgentRunPreflight } from './agent-run/preflight'
-import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
+import type { ActiveRunIdentity, AgentRunInput } from './agent-run/types'
+import { createWorktreeLaunchEventCollector } from './agent-run/worktree-launch-event'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
+import { announceReplacedPiTranscript } from './pi-session-deleted-files'
+import {
+  mapPersistedRunResourceNodes,
+  type PersistedRunResourceNodes,
+} from './session-resource-node-mapping'
 
-export type { AgentRunInput, AgentRunResult } from './agent-run/types'
+export type { AgentRunInput } from './agent-run/types'
 
 const logger = createLogger('agent-run-service')
+
+/** The persisted assistant node with the greatest created order (the run's final assistant turn). */
+export function resolveLatestAssistantNodeId(
+  nodes: readonly ProjectedSessionNodeInput[],
+  persistedNodes?:
+    | readonly (Pick<SessionNode, 'createdOrder' | 'role'> & { readonly id: string })[]
+    | null,
+) {
+  let latest: ProjectedSessionNodeInput | null = null
+  for (const node of nodes) {
+    if (node.role === 'assistant' && (latest === null || node.createdOrder > latest.createdOrder)) {
+      latest = node
+    }
+  }
+  if (!latest || !persistedNodes) {
+    const result: string | null = latest?.id ?? null
+    return result
+  }
+  /*
+   * Saving can rename an entry whose id another Session already held (ADR 0049); the saved node
+   * keeps the snapshot's created order. Anchoring to the snapshot's id would name the other
+   * Session's node.
+   */
+  const anchor = latest
+  if (persistedNodes.some((node) => node.id === anchor.id)) {
+    const result: string | null = anchor.id
+    return result
+  }
+  const renamed = persistedNodes.find(
+    (node) => node.createdOrder === anchor.createdOrder && node.role === 'assistant',
+  )
+  const result: string | null = renamed?.id ?? anchor.id
+  return result
+}
 
 /**
  * Validate preconditions, execute the agent run, and persist results.
@@ -38,7 +80,11 @@ const logger = createLogger('agent-run-service')
 export function executeAgentRun(input: AgentRunInput) {
   let assignedTitle: string | undefined
   let activeRunIdentity: ActiveRunIdentity | null = null
+  // Whether the agent got the message: a failure after that point is not a refused send.
+  let reachedAgent = false
+  let persistedResources: PersistedRunResourceNodes | null = null
   const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
+  const worktreeLaunchEvents = createWorktreeLaunchEventCollector()
 
   return Effect.gen(function* () {
     const preflight = yield* loadAgentRunPreflight(input)
@@ -46,12 +92,17 @@ export function executeAgentRun(input: AgentRunInput) {
     assignedTitle = preflight.assignedTitle
 
     const { sessionRepo, identity } = yield* recordDurableActiveRun(input)
+    const sessionProjectionRepo = yield* SessionProjectionRepository
     activeRunIdentity = identity
 
-    const hydratedPayload = yield* hydrateAgentRunPayload(input.payload)
+    const hydratedPayload = yield* hydrateAgentRunPayload(input.payload, input.hydratedAttachments)
     const agentResult = yield* runAgentKernel(
       {
         ...input,
+        onWorktreeLaunch: (progress) => {
+          input.onWorktreeLaunch?.(progress)
+          worktreeLaunchEvents.record(progress)
+        },
         onEvent: (event) => {
           if (isDurableAgentLoopEvent(event)) {
             durableAgentLoopEvents.push(event)
@@ -62,6 +113,19 @@ export function executeAgentRun(input: AgentRunInput) {
       hydratedPayload,
       preflight,
     )
+    /*
+     * Whether the agent actually took a turn, which is not the same as the kernel returning: a run whose signal
+     * was already aborted returns without prompting at all. Everything below this point is persistence, and a
+     * database write failure there is a typed failure that the recovery turns into an ordinary error outcome -
+     * reported to the caller as "the agent never received this", which made it restore a review the agent
+     * already held. Marking it on the kernel merely returning had the opposite fault: a cancelled-before-prompt
+     * run whose persistence then failed was reported as delivered, and the submitted review was discarded.
+     */
+    reachedAgent = agentResult.aborted !== true && agentResult.newMessages.length > 0
+    const worktreeCreatedEvent = worktreeLaunchEvents.createdEvent()
+    if (reachedAgent && worktreeCreatedEvent) {
+      durableAgentLoopEvents.unshift(worktreeCreatedEvent)
+    }
     const existingTree = yield* sessionRepo.getTree(input.sessionId)
     const sessionSnapshot = appendDurableAgentLoopEvents({
       snapshot: agentResult.sessionSnapshot,
@@ -73,28 +137,62 @@ export function executeAgentRun(input: AgentRunInput) {
       sessionId: input.sessionId,
       nodes: sessionSnapshot.nodes,
       activeNodeId: sessionSnapshot.activeNodeId,
+      ...(sessionSnapshot.piProjection === undefined
+        ? {}
+        : { piProjection: sessionSnapshot.piProjection }),
       piSessionId: agentResult.piSessionId,
-      piSessionFile: agentResult.piSessionFile,
+      ...(agentResult.piSessionFile === undefined
+        ? {}
+        : { piSessionFile: agentResult.piSessionFile }),
     })
+    announceReplacedPiTranscript(preflight.session, agentResult.piSessionFile)
+
+    const persistedTree = yield* sessionRepo.getTree(input.sessionId).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          logger.warn('Failed to reload persisted run tree for resource provenance', {
+            sessionId: input.sessionId,
+            runId: input.runId,
+            error: formatErrorMessage(error),
+          })
+          return null
+        }),
+      ),
+    )
+    persistedResources = mapPersistedRunResourceNodes(existingTree, persistedTree)
+
+    // WS6b: anchor this turn's checkpoint to the run's final assistant node so
+    // the transcript can reveal its Turn diff (no-op when no checkpoint/anchor).
+    const anchorNodeId = resolveLatestAssistantNodeId(sessionSnapshot.nodes, persistedTree?.nodes)
+    if (anchorNodeId) {
+      yield* sessionProjectionRepo.setTurnCheckpointAnchor(
+        input.sessionId,
+        input.runId,
+        anchorNodeId,
+      )
+    }
 
     return buildAgentRunOutcome({
       agentResult,
       signal: input.signal,
-      assignedTitle,
+      ...(assignedTitle === undefined ? {} : { assignedTitle }),
       sessionId: input.sessionId,
       runId: input.runId,
       model: input.model,
+      ...persistedResources,
     })
   }).pipe(
-    Effect.catchAll(
-      (error): Effect.Effect<AgentRunResult> =>
-        recoverAgentRunFailure({
-          error,
-          assignedTitle,
-          sessionId: input.sessionId,
-          runId: input.runId,
-          model: input.model,
-        }),
+    Effect.catchAll((error) =>
+      recoverAgentRunFailure({
+        reachedAgent,
+        error,
+        signal: input.signal,
+        ...(assignedTitle === undefined ? {} : { assignedTitle }),
+        sessionId: input.sessionId,
+        runId: input.runId,
+        model: input.model,
+        ...(persistedResources ? { resources: persistedResources } : {}),
+      }),
     ),
     Effect.ensuring(clearDurableActiveRun(() => activeRunIdentity)),
   )
@@ -143,8 +241,13 @@ export function reconcileInterruptedAgentRuns() {
                 sessionId: activeRun.sessionId,
                 nodes: sessionSnapshot.nodes,
                 activeNodeId: sessionSnapshot.activeNodeId,
+                ...(sessionSnapshot.piProjection === undefined
+                  ? {}
+                  : { piProjection: sessionSnapshot.piProjection }),
                 piSessionId: result.piSessionId,
-                piSessionFile: result.piSessionFile,
+                ...(result.piSessionFile === undefined
+                  ? {}
+                  : { piSessionFile: result.piSessionFile }),
               })
             }),
           ),

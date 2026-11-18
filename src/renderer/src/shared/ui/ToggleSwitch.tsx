@@ -71,7 +71,7 @@ export function ToggleSwitch({
       <span
         className={cn(
           'block rounded-full transition-transform',
-          checked ? 'bg-white' : 'bg-text-tertiary',
+          checked ? 'bg-text-primary' : 'bg-text-tertiary',
           THUMB_CLASS[size],
           checked ? THUMB_OFFSET_CLASS[size].on : THUMB_OFFSET_CLASS[size].off,
         )}

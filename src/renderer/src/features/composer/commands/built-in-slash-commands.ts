@@ -2,6 +2,7 @@ export const BUILT_IN_COMPOSER_SLASH_COMMAND = {
   COMPACT: '/compact',
   FORK: '/fork',
   CLONE: '/clone',
+  VISUALIZE: '/visualize',
 } as const
 
 export const BUILT_IN_COMPOSER_SLASH_COMMANDS: readonly string[] = Object.freeze(

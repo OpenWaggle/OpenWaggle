@@ -12,14 +12,14 @@ export function FileMentionChip({ path, basename }: FileMentionChipProps) {
   return (
     <span
       className={cn(
-        'bg-accent/10 text-accent rounded px-1.5 py-0.5 text-[13px]',
+        'bg-accent/10 text-accent rounded px-1.5 py-0.5 text-sm',
         'inline-flex items-center gap-1',
         'select-none cursor-default',
       )}
       title={path}
     >
       <FileText size={ICON_SIZE} className="shrink-0" />
-      <span className="truncate max-w-[200px]">{basename}</span>
+      <span className="max-w-50 truncate">{basename}</span>
     </span>
   )
 }

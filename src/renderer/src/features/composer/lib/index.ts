@@ -1,2 +1,12 @@
-export { buildComposerDraftContextKey } from './composer-draft-context'
-export { setEditorText } from './lexical-utils'
+export {
+  buildComposerDraftContextKey,
+  buildPendingSessionDraftContextKey,
+} from './composer-draft-context'
+export {
+  consumeActiveSlashCommand,
+  insertComposerInvocation,
+  insertSkillReferenceAtActiveSlash,
+  insertSlashCommandTextAtActiveSlash,
+  insertWagglePresetAtActiveSlash,
+} from './composer-editor-text'
+export { setEditorDraft, setEditorText } from './lexical-utils'

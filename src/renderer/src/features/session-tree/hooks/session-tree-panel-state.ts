@@ -8,7 +8,7 @@ export const INITIAL_SESSION_TREE_PANEL_STATE: SessionTreePanelState = {
 export function sessionTreePanelReducer(
   state: SessionTreePanelState,
   action: SessionTreePanelAction,
-): SessionTreePanelState {
+) {
   if (action.type === 'set-expanded-node-ids-override') {
     return { ...state, expandedNodeIdsOverride: action.value }
   }

@@ -8,12 +8,13 @@ import {
   mainBranchId,
 } from './branch-utils'
 import { MAIN_BRANCH_NAME } from './constants'
-import type { DerivedSessionBranch, SessionBranchRow } from './types'
+import type { SessionBranchRow } from './types'
 
 interface BranchForHeadInput {
   readonly sessionId: string
   readonly headId: string
-  readonly index: number
+  /** Name for a new branch whose messages give no preview; unique among the Session's branches. */
+  readonly fallbackName: string
   readonly mainHeadId: string | null
   readonly mainBranchRow: SessionBranchRow | undefined
   readonly existingBranches: readonly SessionBranchRow[]
@@ -58,7 +59,7 @@ function existingBranchForHead(input: BranchForHeadInput, branchStartNodeId: str
   })
 }
 
-function buildBranchHeadContext(input: BranchForHeadInput): DerivedBranchHeadContext {
+function buildBranchHeadContext(input: BranchForHeadInput) {
   const pathIds = getPathIds(input.nodeById, input.headId)
   const startNodeId = branchStartNodeId(input, pathIds)
 
@@ -92,21 +93,24 @@ function branchName(input: BranchForHeadInput, context: DerivedBranchHeadContext
       sourceNodeId: context.sourceNodeId,
       headNodeId: input.headId,
       nodeById: input.nodeById,
-      fallback: `Branch ${input.index + 1}`,
+      fallback: input.fallbackName,
     })
   )
 }
 
-export function deriveBranchForHead(input: BranchForHeadInput): DerivedSessionBranch {
+export function deriveBranchForHead(input: BranchForHeadInput) {
   const context = buildBranchHeadContext(input)
 
   return {
-    id: branchId(input, context),
-    sourceNodeId: context.sourceNodeId,
-    headNodeId: input.headId,
-    name: branchName(input, context),
-    isMain: context.isMain,
-    archivedAt: context.existingBranch?.archived_at ?? null,
-    createdAt: context.existingBranch?.created_at ?? Date.now(),
+    branch: {
+      id: branchId(input, context),
+      sourceNodeId: context.sourceNodeId,
+      headNodeId: input.headId,
+      name: branchName(input, context),
+      isMain: context.isMain,
+      archivedAt: context.existingBranch?.archived_at ?? null,
+      createdAt: context.existingBranch?.created_at ?? Date.now(),
+    },
+    continuesSavedBranch: context.isMain || Boolean(context.existingBranch),
   }
 }

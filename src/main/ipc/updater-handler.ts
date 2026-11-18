@@ -1,22 +1,120 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import { SessionId } from '@shared/types/brand'
+import { isUpdateChannel } from '@shared/types/update-channel'
+import type { UpdateStatus } from '@shared/types/updater'
 import * as Effect from 'effect/Effect'
-import { app } from 'electron'
-import { checkForUpdates, getUpdateStatus, installUpdate } from '../updater'
+import {
+  dispatchGuiSessionCommand,
+  GuiSessionCommandNotAttachedError,
+} from '../application/gui-session-command'
+import { invokeConfiguredHostUi } from '../application/gui-session-command-router'
+import { interruptSessionRunThrough } from '../application/session-run-interruption-command'
+import { appLifecycle } from '../desktop-shell/app-lifecycle'
+import { getAllBrowserWindows, showMessageBox } from '../desktop-ui'
+import { runGuiEffect } from '../gui-runtime'
+import { createLogger } from '../logger'
+import { createUpdateRestartController, type UpdateRestartChoice } from '../update-restart'
+import { getUpdateStatus, setUpdateWaitingForRuns } from '../update-status'
+import { lazyModule } from '../utils/lazy-module'
 import { typedHandle } from './typed-ipc'
 
-export function registerUpdaterHandlers(): void {
-  typedHandle('updater:check', () =>
-    Effect.sync(() => {
-      checkForUpdates()
+const logger = createLogger('update-restart')
+/**
+ * The updater brings electron-updater, which took the GUI ≈40–60 ms (and seconds on a busy
+ * machine) to load while it registered IPC handlers, before the window opened (A-F4). The status
+ * lives in update-status.ts, so only a check or an install loads it.
+ */
+const loadUpdater = lazyModule(() => import('../updater'))
+const UPDATE_RESTART_POLL_INTERVAL_MS = 3_000
+const UPDATE_RESTART_INTERRUPT_SETTLE_TIMEOUT_MS = 30_000
+const RESTART_CHOICES: readonly UpdateRestartChoice[] = ['when-idle', 'now', 'cancel']
+const CANCEL_CHOICE_INDEX = 2
+// Only the Session id is read, so a new activity kind from the Host still counts and is stopped
+// instead of making Restart to update fail.
+const activeActivitiesSchema = Schema.Array(Schema.Struct({ sessionId: Schema.String }))
+
+function updateRestartState(status: UpdateStatus) {
+  if (status.type === 'downloaded') return 'installable' as const
+  // Already handed over to the installer; a further Restart to update has nothing to do.
+  if (status.type === 'installing') return 'none' as const
+  // A failed re-check is usually transient; the next check restores the downloaded update.
+  if (
+    status.type === 'checking' ||
+    status.type === 'available' ||
+    status.type === 'downloading' ||
+    status.type === 'error'
+  ) {
+    return 'pending' as const
+  }
+  return 'none' as const
+}
+
+function parseUpdateChannel(value: unknown) {
+  if (value === undefined || isUpdateChannel(value)) return value
+  throw new Error('Invalid update channel')
+}
+
+/** Active runs and compactions across every Session the Session Host owns. */
+async function listActiveActivities() {
+  const remote = await invokeConfiguredHostUi('agent:list-active-runs', [])
+  if (!remote.handled) throw new GuiSessionCommandNotAttachedError()
+  return decodeUnknownOrThrow(activeActivitiesSchema, remote.result)
+}
+
+/** Stops every active run and compaction; interruptSessionRun handles both. */
+async function interruptActiveRuns() {
+  const sessionIds = new Set((await listActiveActivities()).map((activity) => activity.sessionId))
+  await Promise.all(
+    [...sessionIds].map((sessionId) =>
+      runGuiEffect(interruptSessionRunThrough(dispatchGuiSessionCommand, SessionId(sessionId))),
+    ),
+  )
+}
+
+async function chooseRestart(activeRuns: number) {
+  const runs = activeRuns === 1 ? '1 agent run is' : `${activeRuns} agent runs are`
+  const { response } = await showMessageBox(getAllBrowserWindows()[0] ?? null, {
+    type: 'question',
+    buttons: ['Restart when idle', 'Restart now', 'Cancel'],
+    defaultId: 0,
+    cancelId: CANCEL_CHOICE_INDEX,
+    message: `${runs} still working.`,
+    detail:
+      'Restarting now will stop them. Restart when idle installs the update as soon as no agent run is active.',
+  })
+  return RESTART_CHOICES[response] ?? 'cancel'
+}
+
+const updateRestart = createUpdateRestartController({
+  // One Session with both a run and a compaction counts once.
+  countActiveRuns: async () =>
+    new Set((await listActiveActivities()).map((activity) => activity.sessionId)).size,
+  chooseRestart,
+  interruptActiveRuns,
+  updateState: () => updateRestartState(getUpdateStatus()),
+  reportWaiting: setUpdateWaitingForRuns,
+  install: async () => (await loadUpdater()).installUpdate(),
+  wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  pollIntervalMs: UPDATE_RESTART_POLL_INTERVAL_MS,
+  interruptSettleTimeoutMs: UPDATE_RESTART_INTERRUPT_SETTLE_TIMEOUT_MS,
+  logError: (message, error) => {
+    logger.error(message, { error: error instanceof Error ? error.message : String(error) })
+  },
+})
+
+export function registerUpdaterHandlers() {
+  typedHandle('updater:check', (_event, rawChannel?: unknown) =>
+    Effect.promise(async () => {
+      const channel = parseUpdateChannel(rawChannel)
+      ;(await loadUpdater()).checkForUpdates(channel)
     }),
   )
 
-  typedHandle('updater:install', () =>
-    Effect.sync(() => {
-      installUpdate()
-    }),
-  )
+  typedHandle('updater:install', () => Effect.promise(() => updateRestart.requestRestart()))
+
+  typedHandle('updater:install-now', () => Effect.promise(() => updateRestart.restartNow()))
 
   typedHandle('updater:get-status', () => Effect.sync(() => getUpdateStatus()))
 
-  typedHandle('app:get-version', () => Effect.sync(() => app.getVersion()))
+  typedHandle('app:get-version', () => Effect.sync(() => appLifecycle.version()))
 }

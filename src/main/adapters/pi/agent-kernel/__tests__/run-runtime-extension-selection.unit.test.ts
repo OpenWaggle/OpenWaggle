@@ -20,7 +20,7 @@ const runMocks = vi.hoisted(() => ({
   createSessionManagerForSession: vi.fn(),
   disposeOpenWagglePiSession: vi.fn(),
   getPiModelAvailableThinkingLevels: vi.fn(),
-  resolveSessionProjectPath: vi.fn(),
+  resolveSessionWorkingPath: vi.fn(),
 }))
 
 vi.mock('../../pi-provider-catalog', () => ({
@@ -39,14 +39,15 @@ vi.mock('../session-listener', () => ({
 
 vi.mock('../session-manager', () => ({
   createSessionManagerForSession: runMocks.createSessionManagerForSession,
-  resolveSessionProjectPath: runMocks.resolveSessionProjectPath,
+  resolveSessionWorkingPath: runMocks.resolveSessionWorkingPath,
+  requireSessionProjectPath: runMocks.resolveSessionWorkingPath,
 }))
 
-function runtimePackage(): RuntimeEnabledOpenWaggleExtensionPackage {
+function runtimePackage() {
   const packagePath = '/repo/.openwaggle/extensions/sample-runtime-extension'
   const scope = { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: '/repo' } as const
 
-  return {
+  const result: RuntimeEnabledOpenWaggleExtensionPackage = {
     packagePath,
     extensionPackage: {
       id: 'sample-runtime-extension',
@@ -90,6 +91,7 @@ function runtimePackage(): RuntimeEnabledOpenWaggleExtensionPackage {
       updatedAt: 2,
     },
   }
+  return result
 }
 
 describe('Pi run OpenWaggle extension selection', () => {
@@ -100,8 +102,8 @@ describe('Pi run OpenWaggle extension selection', () => {
     runMocks.createSessionManagerForSession.mockReset()
     runMocks.disposeOpenWagglePiSession.mockReset()
     runMocks.getPiModelAvailableThinkingLevels.mockReset()
-    runMocks.resolveSessionProjectPath.mockReset()
-    runMocks.resolveSessionProjectPath.mockReturnValue('/repo')
+    runMocks.resolveSessionWorkingPath.mockReset()
+    runMocks.resolveSessionWorkingPath.mockReturnValue('/repo')
     runMocks.createSessionManagerForSession.mockReturnValue({
       buildSessionContext: () => ({ messages: [] }),
     })
@@ -121,6 +123,8 @@ describe('Pi run OpenWaggle extension selection', () => {
 
     await runPiSession({
       session: sessionDetail(),
+      // The kernel resolves (and births) this before calling the run functions.
+      workingPath: '/repo',
       runId: 'run-with-runtime-extension',
       payload: payload('Run with extension'),
       model: PRIMARY_MODEL,
@@ -130,13 +134,17 @@ describe('Pi run OpenWaggle extension selection', () => {
       recordOpenWaggleExtensionRuntimeFailure: vi.fn(),
     })
 
-    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
-      projectPath: '/repo',
-      modelReference: PRIMARY_MODEL,
-      enabledOpenWaggleExtensionPackagePaths: [selectedPackage.packagePath],
-      enabledOpenWaggleExtensionResourceRoots: [
-        { packagePath: selectedPackage.packagePath, resourceRoot: 'pi' },
-      ],
-    })
+    expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectPath: '/repo',
+        modelReference: PRIMARY_MODEL,
+        compactionThresholdPercent: 80,
+        enabledOpenWaggleExtensionPackagePaths: [selectedPackage.packagePath],
+        enabledOpenWaggleExtensionResourceRoots: [
+          { packagePath: selectedPackage.packagePath, resourceRoot: 'pi' },
+        ],
+        extensionFactories: expect.any(Array),
+      }),
+    )
   })
 })

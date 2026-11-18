@@ -29,11 +29,13 @@ interface BranchMenuController {
   readonly setBranchId: (branchId: string | null) => void
 }
 
-function DraftBranchRow({ sourceNodeId }: { readonly sourceNodeId: string }) {
+function DraftBranchRow({ sourceLabel }: { readonly sourceLabel: string | null }) {
   return (
-    <div className="mx-2 flex h-7 w-[calc(100%-16px)] items-center gap-2 rounded-md border border-dashed border-border pl-11 pr-3 text-left text-text-tertiary">
+    <div className="mx-2 flex h-7 items-center gap-2 rounded-md border border-dashed border-border pl-11 pr-3 text-left text-text-tertiary">
       <GitBranch className="size-3 shrink-0" />
-      <span className="min-w-0 flex-1 truncate text-[12px]">Draft branch from {sourceNodeId}</span>
+      <span className="min-w-0 flex-1 truncate text-xs" title={sourceLabel ?? undefined}>
+        {sourceLabel ? `Draft branch from “${sourceLabel}”` : 'Draft branch'}
+      </span>
     </div>
   )
 }
@@ -71,7 +73,7 @@ function BranchRenameInput({
       }}
       variant="transparent"
       inputSize="sm"
-      className="min-w-0 flex-1 px-0 text-[12px]"
+      className="min-w-0 flex-1 px-0 text-xs"
     />
   )
 }
@@ -94,7 +96,7 @@ function BranchActionsPopover({
       open={isOpen}
       onOpenChange={(open) => menu.setBranchId(open ? String(branch.id) : null)}
       placement="bottom-end"
-      className="min-w-[132px] py-1"
+      className="min-w-33 py-1"
       trigger={({ isOpen: triggerOpen, toggle }) => (
         <Button
           variant="unstyled"
@@ -116,7 +118,7 @@ function BranchActionsPopover({
           variant="unstyled"
           type="button"
           onClick={() => rename.start(branch)}
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-secondary transition-colors hover:bg-bg-hover"
         >
           <Edit3 className="size-3 shrink-0" />
           <span>Rename</span>
@@ -126,7 +128,7 @@ function BranchActionsPopover({
         variant="unstyled"
         type="button"
         onClick={onArchive}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-secondary transition-colors hover:bg-bg-hover"
       >
         <Archive className="size-3 shrink-0" />
         <span>{branch.isMain ? 'Archive session' : 'Archive'}</span>
@@ -154,14 +156,14 @@ function SidebarBranchItem({
   return (
     <div
       className={cn(
-        'group mx-2 flex h-7 w-[calc(100%-16px)] items-center gap-2 rounded-md pl-11 pr-1.5 text-left transition-colors',
+        'group mx-2 flex h-7 items-center gap-2 rounded-md pl-11 pr-1.5 text-left transition-colors',
         row.isActive
           ? 'bg-bg-active text-text-primary'
           : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary',
       )}
     >
       {row.branch.interruptedRun ? (
-        <AlertTriangle className="size-3 shrink-0 text-amber-400" aria-label="Interrupted run" />
+        <AlertTriangle className="size-3 shrink-0 text-warning" aria-label="Interrupted run" />
       ) : (
         <GitBranch className="size-3 shrink-0" />
       )}
@@ -179,7 +181,7 @@ function SidebarBranchItem({
           variant="unstyled"
           type="button"
           onClick={() => actions.select(sessionId, row.branch)}
-          className="min-w-0 flex-1 truncate text-left text-[12px]"
+          className="min-w-0 flex-1 truncate text-left text-xs"
         >
           {row.branch.name}
         </Button>
@@ -243,7 +245,7 @@ export function SidebarBranchRows({ sessionId, rows, actions }: SidebarBranchRow
     <div className="mb-1 space-y-0.5">
       {rows.map((row) =>
         row.type === 'draft' ? (
-          <DraftBranchRow key="draft" sourceNodeId={String(row.sourceNodeId)} />
+          <DraftBranchRow key="draft" sourceLabel={row.sourceLabel} />
         ) : (
           <SidebarBranchItem
             key={String(row.branch.id)}

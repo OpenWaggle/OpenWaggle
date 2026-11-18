@@ -10,8 +10,9 @@ import type {
 } from '@shared/types/extensions'
 import type { AgentTransportInteractionRequestEvent } from '@shared/types/stream'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AgentInteractionsPanel } from '../AgentInteractionsPanel'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { COLD_IMPORT_TIMEOUT_MS } from '@/test-utils/cold-import'
+import { AgentCustomInteractionComposerFallback } from '../AgentCustomInteractionComposerFallback'
 import { InteractionEventRow } from '../AgentLoopInteractionEventRow'
 import { ChatComposerExtensionDialogs } from '../ChatComposerExtensionDialogs'
 
@@ -27,7 +28,7 @@ vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
 }))
 
-function pendingConfirmInteraction(): AgentLoopInteraction {
+function pendingConfirmInteraction() {
   return {
     interactionId: 'interaction-1',
     sessionId: SessionId('session-1'),
@@ -37,17 +38,16 @@ function pendingConfirmInteraction(): AgentLoopInteraction {
     createdAt: 1,
     title: 'Approve action?',
     message: 'The extension wants to proceed.',
-  }
+    purpose: 'user-input',
+  } satisfies AgentLoopInteraction
 }
 
-function interactionRequestEvent(
-  interaction: AgentLoopInteraction,
-): AgentTransportInteractionRequestEvent {
+function interactionRequestEvent(interaction: AgentLoopInteraction) {
   return {
     type: 'agent_interaction_request',
     timestamp: 1,
     interaction,
-  }
+  } satisfies AgentTransportInteractionRequestEvent
 }
 
 function extensionEntry(input: {
@@ -55,8 +55,8 @@ function extensionEntry(input: {
   readonly contributionId: string
   readonly title: string
   readonly entryPath: string
-}): ExtensionContributionRegistryEntry {
-  return {
+}) {
+  const entry: ExtensionContributionRegistryEntry = {
     extensionId: 'github-fixture',
     extensionName: 'GitHub Fixture',
     extensionVersion: '1.0.0',
@@ -88,9 +88,10 @@ function extensionEntry(input: {
     },
     diagnostics: [],
   }
+  return entry
 }
 
-function multiSurfaceInteractionRegistry(): ExtensionContributionRegistryView {
+function multiSurfaceInteractionRegistry() {
   return {
     projectPaths: [PROJECT_PATH],
     entries: [
@@ -119,7 +120,7 @@ function multiSurfaceInteractionRegistry(): ExtensionContributionRegistryView {
         entryPath: 'dist/status.js',
       }),
     ],
-  }
+  } satisfies ExtensionContributionRegistryView
 }
 
 function AgentLoopExtensionSurfaceHarness({
@@ -138,8 +139,11 @@ function AgentLoopExtensionSurfaceHarness({
 
   return (
     <>
-      <InteractionEventRow event={interactionRequestEvent(interaction)} extensions={extensions} />
-      <AgentInteractionsPanel
+      <InteractionEventRow
+        item={{ request: interactionRequestEvent(interaction) }}
+        extensions={extensions}
+      />
+      <AgentCustomInteractionComposerFallback
         extensionProjectPaths={[PROJECT_PATH]}
         extensionRegistry={registry}
         interactions={[interaction]}
@@ -156,6 +160,11 @@ function AgentLoopExtensionSurfaceHarness({
 }
 
 describe('agent-loop extension surfaces', () => {
+  // Composer extension dialogs are a lazy chunk; load it once so the dialog renders on first await.
+  beforeAll(async () => {
+    await import('@/features/extensions/components')
+  }, COLD_IMPORT_TIMEOUT_MS)
+
   beforeEach(() => {
     apiMock.registerExtensionFrame.mockReset()
     apiMock.unregisterExtensionFrame.mockReset()
@@ -168,7 +177,7 @@ describe('agent-loop extension surfaces', () => {
     apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
   })
 
-  it('renders the same pending Pi interaction across transcript, live, status, and composer extension surfaces', async () => {
+  it('renders a native transcript row with live, status, and composer extension surfaces', async () => {
     const interaction = pendingConfirmInteraction()
     const registry = multiSurfaceInteractionRegistry()
 
@@ -180,13 +189,17 @@ describe('agent-loop extension surfaces', () => {
       />,
     )
 
-    expect(screen.getByText('Interaction requested')).toBeInTheDocument()
+    expect(screen.getByText('Confirmation requested')).toBeInTheDocument()
+    // Once, in the transcript row. The composer fallback renders only custom interactions, so a
+    // confirm is no longer echoed a second time beneath it.
+    expect(screen.getAllByText('The extension wants to proceed.')).toHaveLength(1)
+
+    // OpenWaggle owns the prompt for the built-in kinds, so an extension gets no inline renderer
+    // for a confirm. It still reaches the user through the dialog and the side panel below.
     await waitFor(() => {
-      expect(screen.getAllByTitle('Extension module: GitHub interaction renderer')).toHaveLength(2)
-      expect(screen.getByTitle('Extension module: GitHub status widget')).toHaveAttribute(
-        'src',
-        expect.stringContaining(EXTENSION_FRAME_URL_PREFIX),
-      )
+      expect(
+        screen.queryByTitle('Extension module: GitHub interaction renderer'),
+      ).not.toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
@@ -196,14 +209,16 @@ describe('agent-loop extension surfaces', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /github approval dialog/i }))
 
-    expect(screen.getByRole('dialog', { name: 'GitHub approval dialog' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('dialog', { name: 'GitHub approval dialog' }),
+    ).toBeInTheDocument()
     expect(screen.getByTitle('Extension module: GitHub approval dialog')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close extension dialog' }))
     fireEvent.click(screen.getByRole('button', { name: /extensions/i }))
     fireEvent.click(screen.getByRole('button', { name: /github approval side panel/i }))
 
-    expect(screen.getByLabelText('Extension side panel')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Extension side panel')).toBeInTheDocument()
     expect(screen.getByTitle('Extension module: GitHub approval side panel')).toBeInTheDocument()
   })
 })

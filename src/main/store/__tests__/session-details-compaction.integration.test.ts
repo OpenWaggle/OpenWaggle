@@ -40,7 +40,7 @@ afterEach(async () => {
 })
 
 describe('session-details compaction projection', () => {
-  it('loads the active post-compaction working context instead of the pre-compaction history', async () => {
+  it('loads the whole active branch with each compaction marker where it happened', async () => {
     const session = await createSession({
       projectPath: '/tmp/project-post-compaction-context',
       piSessionId: 'pi-session-post-compaction-context',
@@ -52,7 +52,7 @@ describe('session-details compaction projection', () => {
       sessionId,
       piSessionId: 'pi-session-post-compaction-context',
       piSessionFile: '/tmp/pi-session-post-compaction-context.jsonl',
-      activeNodeId: 'assistant-after-compaction',
+      activeNodeId: 'compaction-summary-2',
       nodes: [
         {
           id: 'old-user',
@@ -125,6 +125,18 @@ describe('session-details compaction projection', () => {
             summary: 'Summarized the old request and answer.',
             firstKeptEntryId: 'kept-user',
             tokensBefore: 123456,
+            reason: 'threshold',
+            details: {
+              schemaVersion: 1,
+              mechanism: 'native',
+              identity: {
+                api: 'openai-responses',
+                provider: 'openai',
+                baseUrl: 'https://api.openai.com/v1',
+                modelId: 'gpt-5.2',
+              },
+              items: [{ type: 'compaction', encrypted_content: 'opaque' }],
+            },
           }),
           metadataJson: '{}',
           pathDepth: 4,
@@ -160,29 +172,46 @@ describe('session-details compaction projection', () => {
           pathDepth: 6,
           createdOrder: 6,
         },
+        {
+          id: 'compaction-summary-2',
+          parentId: 'assistant-after-compaction',
+          piEntryType: 'compaction',
+          kind: 'compaction_summary',
+          role: null,
+          timestampMs: 80,
+          contentJson: JSON.stringify({
+            summary: 'Summarized the continued work.',
+            firstKeptEntryId: 'user-after-compaction',
+            tokensBefore: 150000,
+            reason: 'overflow',
+          }),
+          metadataJson: '{}',
+          pathDepth: 7,
+          createdOrder: 7,
+        },
       ],
     })
 
     const reloaded = await getSessionDetail(session.id)
     const workspace = await getSessionWorkspace(sessionId)
 
-    expect(reloaded?.messages.map((message) => String(message.id))).toEqual([
-      'compaction-summary',
+    // The history both compactions summarized stays visible for the user (ADR 0048).
+    const fullBranch = [
+      'old-user',
+      'old-assistant',
       'kept-user',
       'kept-assistant',
-      'user-after-compaction',
-      'assistant-after-compaction',
-    ])
-    expect(workspace?.transcriptPath.map((entry) => String(entry.node.id))).toEqual([
       'compaction-summary',
-      'kept-user',
-      'kept-assistant',
       'user-after-compaction',
       'assistant-after-compaction',
-    ])
-    expect(workspace?.transcriptPath[0]?.node.message?.metadata?.compactionSummary).toEqual({
-      summary: 'Summarized the old request and answer.',
-      tokensBefore: 123456,
+      'compaction-summary-2',
+    ]
+    expect(reloaded?.messages.map((message) => String(message.id))).toEqual(fullBranch)
+    expect(workspace?.transcriptPath.map((entry) => String(entry.node.id))).toEqual(fullBranch)
+    expect(workspace?.transcriptPath[7]?.node.message?.metadata?.compactionSummary).toEqual({
+      summary: 'Summarized the continued work.',
+      tokensBefore: 150000,
+      reason: 'overflow',
     })
   })
 })

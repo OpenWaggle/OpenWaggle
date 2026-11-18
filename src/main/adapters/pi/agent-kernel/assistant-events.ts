@@ -15,7 +15,7 @@ import type {
 } from './listener-types'
 import { emitEvent } from './transport-emitter'
 
-function getToolCallFromAssistantEvent(event: AgentSessionEvent): PiAssistantToolCall | null {
+function getToolCallFromAssistantEvent(event: AgentSessionEvent) {
   return matchBy(event, 'type')
     .with('message_update', (value) =>
       matchBy(value.assistantMessageEvent, 'type')
@@ -207,6 +207,17 @@ function emitToolCallDeltaUpdate(
   }
 
   emitToolCallStart(state, messageId, assistantEvent.contentIndex, toolCall)
+  // Pi replaces a streaming tool call's `arguments` object whenever it re-parses the partial
+  // JSON, which it does at a bounded rate. Until it does, the input is unchanged, so hold the
+  // raw delta back instead of copying and sending the whole input again for every delta.
+  const stream = state.toolCallStreams.get(toolCall.id)
+  if (stream !== undefined && stream.arguments === toolCall.arguments) {
+    stream.pendingDelta += assistantEvent.delta
+    return
+  }
+
+  const delta = (stream?.pendingDelta ?? '') + assistantEvent.delta
+  state.toolCallStreams.set(toolCall.id, { arguments: toolCall.arguments, pendingDelta: '' })
   const toolInput = toJsonValue(toolCall.arguments)
   state.toolCallInputs.set(toolCall.id, toolInput)
   emitEvent(state.input.onEvent, {
@@ -217,7 +228,7 @@ function emitToolCallDeltaUpdate(
       type: 'toolcall_delta',
       contentIndex: assistantEvent.contentIndex,
       toolCallId: toolCall.id,
-      delta: assistantEvent.delta,
+      delta,
       input: toolInput,
     },
     timestamp: Date.now(),
@@ -237,6 +248,8 @@ function emitToolCallEndUpdate(
   }
 
   emitToolCallStart(state, messageId, assistantEvent.contentIndex, toolCall)
+  // The end event carries the exact final input, which supersedes any held-back delta.
+  state.toolCallStreams.delete(toolCall.id)
   const toolInput = toJsonValue(toolCall.arguments)
   state.toolCallInputs.set(toolCall.id, toolInput)
   emitEvent(state.input.onEvent, {

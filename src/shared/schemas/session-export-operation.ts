@@ -1,0 +1,159 @@
+import { Schema } from '@shared/schema'
+import { sessionExportBranchSelectionIsValid } from '@shared/session-export-selection'
+import { SESSION_EXPORT_SCHEMA_VERSION } from '@shared/types/session-export'
+import {
+  SESSION_EXPORT_FORMATS,
+  SESSION_EXPORT_OPERATION_QUERY_LIMIT,
+  SESSION_EXPORT_OPERATION_STATUSES,
+  SESSION_EXPORT_RESOURCE_LIMIT,
+} from '@shared/types/session-export-operation'
+import {
+  SESSION_QUERY_MAX_CURSOR_LENGTH,
+  SESSION_QUERY_MAX_PATH_LENGTH,
+} from '@shared/types/session-query'
+import { SESSION_QUERY_MAX_WAIT_MS } from '@shared/types/session-wait'
+import { sessionHostEventCursorSchema } from './session-host-event-cursor'
+import { sessionInputIdSchema } from './session-input'
+
+const boundedPath = Schema.String.pipe(Schema.maxLength(SESSION_QUERY_MAX_PATH_LENGTH))
+const boundedCursor = Schema.String.pipe(Schema.maxLength(SESSION_QUERY_MAX_CURSOR_LENGTH))
+
+export const exportResourceInputSchema = Schema.Struct({
+  kind: Schema.Literal('workspace-file'),
+  path: boundedPath,
+})
+
+export const exportResourcesSchema = Schema.Array(exportResourceInputSchema).pipe(
+  Schema.maxItems(SESSION_EXPORT_RESOURCE_LIMIT),
+)
+
+export const sessionExportBranchScopeSchema = Schema.Literal('active-branch', 'tree')
+
+export const sessionExportManifestSchema = Schema.Struct({
+  schemaVersion: Schema.Literal(SESSION_EXPORT_SCHEMA_VERSION),
+  sessionId: sessionInputIdSchema,
+  title: Schema.String,
+  branchScope: sessionExportBranchScopeSchema,
+  activeBranchId: Schema.NullOr(Schema.String),
+  selectedBranchId: Schema.NullOr(Schema.String),
+  snapshot: Schema.Struct({
+    nodeHighWaterMark: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    stateRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    queueRevision: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    capturedAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    /**
+     * Monotonic guard against node mutation or deletion during paginated foreground exports.
+     * Optional so schema-v1 artifacts written before node-mutation pinning remain readable.
+     */
+    nodeMutationRevision: Schema.optionalWith(
+      Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+      { exact: true },
+    ),
+    /**
+     * Present for active-branch exports created by snapshot-aware clients. Optional so schema-v1
+     * artifacts written before branch-head pinning remain readable.
+     */
+    selectedHeadNodeId: Schema.optionalWith(Schema.String, { exact: true }),
+  }),
+  activeRunId: Schema.NullOr(Schema.String),
+  activeTurnIncomplete: Schema.Boolean,
+  queue: Schema.Struct({
+    state: Schema.Literal('running', 'paused'),
+    pendingCount: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    bodyScope: Schema.Literal('included', 'omitted-by-choice'),
+    omittedBodyCount: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+    items: Schema.Array(
+      Schema.Struct({
+        followUpId: Schema.String,
+        position: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+        createdAt: Schema.Number.pipe(Schema.int(), Schema.nonNegative()),
+        deliveryState: Schema.Literal('pending', 'needs_attention'),
+        attentionReason: Schema.optionalWith(
+          Schema.Literal('profile_revoked', 'authority_changed'),
+          { exact: true },
+        ),
+        intent: Schema.optionalWith(Schema.Unknown, { exact: true }),
+      }),
+    ),
+  }),
+})
+
+export const exportCreateCommandSchema = Schema.Struct({
+  operation: Schema.Literal('export-create'),
+  sessionId: sessionInputIdSchema,
+  format: Schema.Literal(...SESSION_EXPORT_FORMATS),
+  destinationPath: boundedPath,
+  /** Canonical root injected by a scoped adapter; never populated from user-facing CLI flags. */
+  destinationRoot: Schema.optionalWith(boundedPath, { exact: true }),
+  overwriteExisting: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  branchScope: Schema.optionalWith(sessionExportBranchScopeSchema, { exact: true }),
+  branchId: Schema.optionalWith(sessionInputIdSchema, { exact: true }),
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
+  resources: Schema.optionalWith(exportResourcesSchema, { exact: true }),
+}).pipe(
+  Schema.filter(
+    (command) =>
+      sessionExportBranchSelectionIsValid(command.branchScope, command.branchId) ||
+      'A Session branch can be selected only for an active-branch export.',
+  ),
+)
+
+export const exportCancelCommandSchema = Schema.Struct({
+  operation: Schema.Literal('export-cancel'),
+  sessionId: sessionInputIdSchema,
+  exportOperationId: sessionInputIdSchema,
+})
+
+export const exportOperationStatusSchema = Schema.Literal(...SESSION_EXPORT_OPERATION_STATUSES)
+
+export const exportOperationErrorSchema = Schema.Struct({
+  code: Schema.String,
+  message: Schema.String,
+})
+
+export const exportCreateOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('export-create'),
+  effect: Schema.Literal('export-accepted'),
+  sessionId: sessionInputIdSchema,
+  exportOperationId: Schema.String,
+  status: exportOperationStatusSchema,
+})
+
+export const exportCancelOutcomeSchema = Schema.Struct({
+  operation: Schema.Literal('export-cancel'),
+  effect: Schema.Literal('export-cancellation-requested'),
+  sessionId: sessionInputIdSchema,
+  exportOperationId: sessionInputIdSchema,
+  status: exportOperationStatusSchema,
+})
+
+export const exportListQuerySchema = Schema.Struct({
+  operation: Schema.Literal('exports-list'),
+  sessionId: sessionInputIdSchema,
+  limit: Schema.Number.pipe(Schema.int(), Schema.between(1, SESSION_EXPORT_OPERATION_QUERY_LIMIT)),
+  cursor: Schema.optionalWith(boundedCursor, { exact: true }),
+  statuses: Schema.optionalWith(
+    Schema.Array(exportOperationStatusSchema).pipe(
+      Schema.minItems(1),
+      Schema.maxItems(SESSION_EXPORT_OPERATION_STATUSES.length),
+    ),
+    { exact: true },
+  ),
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
+})
+
+export const exportReadQuerySchema = Schema.Struct({
+  operation: Schema.Literal('exports-read'),
+  sessionId: sessionInputIdSchema,
+  exportOperationId: sessionInputIdSchema,
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
+})
+
+export const exportWaitQuerySchema = Schema.Struct({
+  operation: Schema.Literal('exports-wait'),
+  sessionId: sessionInputIdSchema,
+  exportOperationId: sessionInputIdSchema,
+  timeoutMs: Schema.Number.pipe(Schema.int(), Schema.between(0, SESSION_QUERY_MAX_WAIT_MS)),
+  after: Schema.optionalWith(sessionHostEventCursorSchema, { exact: true }),
+  includeQueueBodies: Schema.optionalWith(Schema.Boolean, { exact: true }),
+})

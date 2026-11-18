@@ -1,186 +1,93 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
-import type { ExtensionOperationSuccess } from '@shared/extension-sdk-core'
-import { invalidOperationResult } from '@shared/extension-sdk-core'
 import type {
-  ExtensionActionSelectProjectResult,
-  ExtensionInvokeFailure,
-  ExtensionInvokeResult,
-  ExtensionSettingsGetResult,
-  ExtensionSettingsUpdateResult,
-  ExtensionStateReadResult,
-  ExtensionStorageDeleteResult,
-  ExtensionStorageGetResult,
-  ExtensionStorageListResult,
-  ExtensionStorageSetResult,
-} from '@shared/types/extension-broker'
-import { isRecord } from '@shared/utils/validation'
-import { isJsonValue, stringArray } from './extension-frame-bootstrap-json'
+  OpenWaggleExtensionSyntaxHighlightInput,
+  OpenWaggleExtensionSyntaxHighlightResult,
+} from '@shared/extension-sdk'
+import { createPlainExtensionSyntaxResult } from '@shared/extension-sdk'
+import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
+import { createRendererLogger } from '@/shared/lib/logger'
+import type { ExtensionFrameParentMessage } from './extension-frame-bootstrap-validation'
 
-function hasBrokerValueBase(value: unknown, capability: string, method: string) {
-  return (
-    isRecord(value) &&
-    typeof value.extensionId === 'string' &&
-    typeof value.contributionId === 'string' &&
-    value.capability === capability &&
-    value.method === method
-  )
+const logger = createRendererLogger('extension-frame')
+
+export interface PendingFrameSyntaxHighlight {
+  readonly input: OpenWaggleExtensionSyntaxHighlightInput
+  readonly resolve: (result: OpenWaggleExtensionSyntaxHighlightResult) => void
+  readonly removeAbortListener: () => void
 }
 
-function isAudit(value: unknown) {
-  return (
-    isRecord(value) &&
-    typeof value.extensionId === 'string' &&
-    typeof value.contributionId === 'string' &&
-    typeof value.capability === 'string' &&
-    typeof value.method === 'string' &&
-    isRecord(value.scope) &&
-    typeof value.outcome === 'string' &&
-    typeof value.timestamp === 'number' &&
-    (value.failureCode === undefined || typeof value.failureCode === 'string')
-  )
+/** The frame's calls that wait on a result from the parent window, by request id. */
+export interface PendingFrameCalls {
+  readonly invocations: Map<string, (result: ExtensionInvokeResult) => void>
+  readonly syntaxHighlights: Map<string, PendingFrameSyntaxHighlight>
 }
 
-function isInvokeFailure(value: unknown): value is ExtensionInvokeFailure {
-  if (!isRecord(value) || value.ok !== false || !isRecord(value.error)) {
-    return false
-  }
+type FrameResultMessage = Extract<
+  ExtensionFrameParentMessage,
+  { readonly type: 'invoke-result' | 'syntax-highlight-result' | 'invalid-result' }
+>
 
-  return (
-    typeof value.error.code === 'string' &&
-    typeof value.error.message === 'string' &&
-    (value.error.issues === undefined || stringArray(value.error.issues)) &&
-    (value.audit === undefined || isAudit(value.audit))
-  )
-}
-
-export function isInvokeResult(value: unknown): value is ExtensionInvokeResult {
-  if (isInvokeFailure(value)) {
-    return true
-  }
-
-  return isRecord(value) && value.ok === true && isAudit(value.audit) && isRecord(value.value)
-}
-
-export function isStorageGetResult(value: unknown): value is ExtensionStorageGetResult {
-  return (
-    hasBrokerValueBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.GET,
-    ) &&
-    isRecord(value) &&
-    typeof value.storageKind === 'string' &&
-    isRecord(value.storageScope) &&
-    typeof value.key === 'string' &&
-    isJsonValue(value.value)
-  )
-}
-
-export function isStorageSetResult(value: unknown): value is ExtensionStorageSetResult {
-  return (
-    hasBrokerValueBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.SET,
-    ) &&
-    isRecord(value) &&
-    typeof value.storageKind === 'string' &&
-    isRecord(value.storageScope) &&
-    typeof value.key === 'string' &&
-    isJsonValue(value.value) &&
-    typeof value.createdAt === 'number' &&
-    typeof value.updatedAt === 'number'
-  )
-}
-
-export function isStorageDeleteResult(value: unknown): value is ExtensionStorageDeleteResult {
-  return (
-    hasBrokerValueBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE,
-    ) &&
-    isRecord(value) &&
-    typeof value.storageKind === 'string' &&
-    isRecord(value.storageScope) &&
-    typeof value.key === 'string' &&
-    value.deleted === true
-  )
-}
-
-export function isStorageListResult(value: unknown): value is ExtensionStorageListResult {
-  return (
-    hasBrokerValueBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST,
-    ) &&
-    isRecord(value) &&
-    typeof value.storageKind === 'string' &&
-    isRecord(value.storageScope) &&
-    stringArray(value.keys)
-  )
-}
-
-export function isStateReadResult(value: unknown): value is ExtensionStateReadResult {
-  return hasBrokerValueBase(
-    value,
-    OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE,
-    OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE,
-  )
-}
-
-export function isSelectProjectResult(value: unknown): value is ExtensionActionSelectProjectResult {
-  return (
-    hasBrokerValueBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT,
-    ) &&
-    isRecord(value) &&
-    typeof value.projectPath === 'string' &&
-    stringArray(value.recentProjects)
-  )
-}
-
-export function isSettingsGetResult(value: unknown): value is ExtensionSettingsGetResult {
-  return (
-    hasBrokerValueBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
-    ) &&
-    isRecord(value) &&
-    isRecord(value.settings)
-  )
-}
-
-export function isSettingsUpdateResult(value: unknown): value is ExtensionSettingsUpdateResult {
-  return (
-    hasBrokerValueBase(
-      value,
-      OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-      OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
-    ) &&
-    isRecord(value) &&
-    isRecord(value.settings)
-  )
-}
-
-export function operationResult<TValue>(
+function settleInvocation(
+  pending: PendingFrameCalls,
+  requestId: string,
   result: ExtensionInvokeResult,
-  isValue: (value: unknown) => value is TValue,
-  message: string,
-): ExtensionOperationSuccess<TValue> | ExtensionInvokeFailure {
-  if (!result.ok) {
-    return result
-  }
+) {
+  const resolve = pending.invocations.get(requestId)
+  if (!resolve) return
+  pending.invocations.delete(requestId)
+  resolve(result)
+}
 
-  return isValue(result.value)
-    ? { ok: true, value: result.value, audit: result.audit }
-    : invalidOperationResult({
-        audit: result.audit,
-        issues: ['Host returned a payload that does not match the expected extension SDK result.'],
-        message,
-      })
+function settleSyntaxHighlight(
+  pending: PendingFrameCalls,
+  requestId: string,
+  result: (
+    input: OpenWaggleExtensionSyntaxHighlightInput,
+  ) => OpenWaggleExtensionSyntaxHighlightResult,
+) {
+  const call = pending.syntaxHighlights.get(requestId)
+  if (!call) return
+  pending.syntaxHighlights.delete(requestId)
+  call.removeAbortListener()
+  call.resolve(result(call.input))
+}
+
+function settleInvalidResult(
+  pending: PendingFrameCalls,
+  message: Extract<FrameResultMessage, { readonly type: 'invalid-result' }>,
+) {
+  logger.warn('Extension frame received a result it cannot decode', {
+    resultType: message.resultType,
+    requestId: message.requestId,
+    issuePaths: message.issuePaths,
+  })
+  if (message.resultType === 'invoke-result') {
+    settleInvocation(pending, message.requestId, {
+      ok: false,
+      error: {
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
+        message: 'The host sent an invalid extension capability result.',
+        ...(message.issuePaths.length === 0 ? {} : { issues: message.issuePaths }),
+      },
+    })
+    return
+  }
+  settleSyntaxHighlight(pending, message.requestId, (input) =>
+    createPlainExtensionSyntaxResult({
+      ...input,
+      diagnostic: 'The host sent an invalid syntax highlight result.',
+    }),
+  )
+}
+
+/** Settle the pending call a result message names; a result that failed its decode settles too. */
+export function settleFrameResult(pending: PendingFrameCalls, message: FrameResultMessage) {
+  matchBy(message, 'type')
+    .with('invoke-result', (result) => settleInvocation(pending, result.requestId, result.result))
+    .with('syntax-highlight-result', (result) =>
+      settleSyntaxHighlight(pending, result.requestId, () => result.result),
+    )
+    .with('invalid-result', (result) => settleInvalidResult(pending, result))
+    .exhaustive()
 }

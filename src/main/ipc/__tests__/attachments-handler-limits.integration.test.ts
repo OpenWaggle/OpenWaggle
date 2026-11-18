@@ -22,6 +22,16 @@ describe('registerAttachmentHandlers limits and hydration', () => {
     ;({ hydrateAttachmentSources, registerAttachmentHandlers } = await loadAttachmentHandlers())
   })
 
+  it.each([
+    ['an empty project path', '', [], 'Project path must be a non-empty string.'],
+    ['paths that are not a list', '/tmp/repo', 'a.txt', 'Attachment paths must be a list of'],
+  ])('names the argument it refuses: %s', async (_case, projectPath, paths, message) => {
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+
+    await expect(handler?.({}, projectPath, paths)).rejects.toThrow(message)
+  })
+
   it('rejects unsupported attachment types', async () => {
     registerFile('/tmp/repo/archive.zip', Buffer.from('zip-data'))
 
@@ -45,15 +55,16 @@ describe('registerAttachmentHandlers limits and hydration', () => {
   })
 
   it('rejects payloads that exceed total size limit', async () => {
-    registerFile('/tmp/repo/a.txt', Buffer.from('a'), 12 * 1024 * 1024)
-    registerFile('/tmp/repo/b.txt', Buffer.from('b'), 12 * 1024 * 1024)
+    registerFile('/tmp/repo/a.txt', Buffer.alloc(7 * 1024 * 1024))
+    registerFile('/tmp/repo/b.txt', Buffer.alloc(7 * 1024 * 1024))
+    registerFile('/tmp/repo/c.txt', Buffer.alloc(7 * 1024 * 1024))
 
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare')
 
     await expect(
-      handler?.({}, '/tmp/repo', ['/tmp/repo/a.txt', '/tmp/repo/b.txt']),
-    ).rejects.toThrow('Total attachment size exceeds 20 MB')
+      handler?.({}, '/tmp/repo', ['/tmp/repo/a.txt', '/tmp/repo/b.txt', '/tmp/repo/c.txt']),
+    ).rejects.toThrow('Total document size exceeds 20 MB')
   })
 
   it('accepts user-selected screenshot files outside the selected project root', async () => {
