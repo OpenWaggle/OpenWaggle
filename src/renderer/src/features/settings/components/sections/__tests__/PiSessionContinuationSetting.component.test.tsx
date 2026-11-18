@@ -41,6 +41,14 @@ describe('PiSessionContinuationSetting', () => {
       ),
     )
 
+    // The whole list stays inert while the first save is in flight and its re-render can lag the
+    // mock's resolution under load, so a click before the busy state clears is silently dropped.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('radiogroup', { name: 'Continue pi sessions of legacy in' }),
+      ).not.toHaveAttribute('aria-busy'),
+    )
+
     fireEvent.click(radio('Ask', 1))
     await waitFor(() =>
       expect(setProjectPiSessionContinuation).toHaveBeenCalledWith('/projects/legacy', null),
