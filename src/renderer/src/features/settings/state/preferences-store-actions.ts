@@ -125,14 +125,25 @@ async function readProjectPreferences(projectPath: string) {
   }
 }
 
-async function loadProjectPreferences(projectPath: string, set: PreferencesSet) {
+async function loadProjectPreferences(
+  projectPath: string,
+  set: PreferencesSet,
+  get: PreferencesGet,
+) {
   const prefs = await readProjectPreferences(projectPath)
+  useProviderStore.getState().setProjectProviderOverride(prefs?.providers)
   if (!prefs) return
 
   if (!prefs.model) return
   const patch = { selectedModel: SupportedModelId(prefs.model) }
   await api.updateSettings(patch)
   mergeSettings(set, patch)
+  // The project file's own scope arrived with the preferences, so a model it disallows is
+  // replaced before the composer can offer it; the picker explains when nothing replaces it.
+  const reconciled = await useProviderStore
+    .getState()
+    .reconcileProjectSelection({ ...get().settings })
+  if (reconciled) mergeSettings(set, { selectedModel: reconciled })
 }
 
 async function persistShortcutBindings(shortcutBindings: ShortcutBindings, set: PreferencesSet) {
@@ -297,6 +308,6 @@ export function createPreferencesActions(set: PreferencesSet, get: PreferencesGe
       )
       mergeSettings(set, references)
     },
-    loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set),
+    loadProjectPreferences: (projectPath) => loadProjectPreferences(projectPath, set, get),
   } satisfies PreferencesActions
 }

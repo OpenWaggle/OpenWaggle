@@ -34,6 +34,7 @@ function resetProviderStore() {
     testingProviders: {},
     testResults: {},
     loadError: null,
+    projectProviderOverride: undefined,
   })
 }
 

@@ -1,55 +1,18 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderCatalogScope, ProviderInfo } from '@shared/types/llm'
 import { generateDisplayName, parseModelRef } from '@shared/types/llm'
-import { DEFAULT_SETTINGS, type Provider, type Settings } from '@shared/types/settings'
+import type { Provider, Settings } from '@shared/types/settings'
 import { create } from 'zustand'
+import type { ProviderRestrictionScope } from '@shared/utils/provider-restriction'
+import {
+  catalogModel,
+  type ProjectSelectionReconciler,
+  selectionAfterRestriction,
+} from './project-model-selection'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
 
 const logger = createRendererLogger('provider-store')
-
-function buildAvailableModelSet(providerModels: readonly ProviderInfo[]) {
-  const available = new Set<string>()
-  for (const group of providerModels) {
-    for (const model of group.models) {
-      if (model.available) {
-        available.add(model.id)
-      }
-    }
-  }
-  return available
-}
-
-/** The first of `models` the catalog lists and can run. */
-export function firstRunnableModel(
-  providerModels: readonly ProviderInfo[],
-  models: readonly SupportedModelId[],
-) {
-  const available = buildAvailableModelSet(providerModels)
-  return models.find((model) => available.has(model))
-}
-
-/**
- * Whether the stored selection may stay. Enabled models a catalog does not list stay enabled and
- * are only not shown, since enabledModels holds every project's choices. The selection is
- * project-scoped work, though:
- * - one the catalog lists must be enabled and available;
- * - a project's catalog lists everything that project can run, so one it lacks is unusable there;
- * - without a project, one the catalog lacks may be another project's extension or virtual model,
- *   unless the catalog lists its provider but not the model: Pi dropped that model (0.x ids).
- */
-function selectionUsable(
-  providerModels: readonly ProviderInfo[],
-  settings: Pick<Settings, 'enabledModels' | 'selectedModel' | 'projectPath'>,
-) {
-  const selected = settings.selectedModel
-  if (!selected) return false
-  const listed = catalogModel(providerModels, selected)
-  if (listed) return listed.available && settings.enabledModels.includes(selected)
-  if (settings.projectPath) return false
-  const provider = parseModelRef(selected)?.provider
-  return !providerModels.some((group) => group.provider === provider)
-}
 
 /** The model of a Session's latest response, which a gone selection's Runs fall back to. */
 export function latestAnsweringModel(
@@ -102,14 +65,6 @@ export function isModelActionable(
 ): model is SupportedModelId {
   const state = useProviderStore.getState()
   return isSelectableModel(state.providerModels, model, state.catalogHydrated, lastAnsweringModel)
-}
-
-function catalogModel(providerModels: readonly ProviderInfo[], model: SupportedModelId) {
-  for (const group of providerModels) {
-    const found = group.models.find((candidate) => candidate.id === model)
-    if (found) return { ...found, providerName: group.displayName }
-  }
-  return undefined
 }
 
 function signInMessage(modelName: string, providerName: string) {
@@ -193,6 +148,11 @@ interface ProviderState {
   testingProviders: Partial<Record<Provider, boolean>>
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
   loadError: string | null
+  /** The opened project's own settings-file restriction scope, refreshed on project open. */
+  projectProviderOverride: ProviderRestrictionScope | undefined
+  setProjectProviderOverride: (override: ProviderRestrictionScope | undefined) => void
+  /** Moves a disallowed selection back inside the project's restriction; resolves to the replacement. */
+  reconcileProjectSelection: ProjectSelectionReconciler
 
   loadProviderModels: (settingsSnapshot?: Settings) => Promise<Settings | null>
   /** Loads every provider's full model list unless the store already holds it. */
@@ -211,6 +171,20 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   testingProviders: {},
   testResults: {},
   loadError: null,
+  projectProviderOverride: undefined,
+
+  setProjectProviderOverride: (override) => set({ projectProviderOverride: override }),
+
+  reconcileProjectSelection: async (settings) => {
+    const next = selectionAfterRestriction(
+      get().providerModels,
+      settings,
+      get().projectProviderOverride,
+    )
+    if (next === null) return null
+    await api.updateSettings({ selectedModel: next.selectedModel })
+    return next.selectedModel
+  },
 
   async loadProviderModels(settingsSnapshot?: Settings) {
     latestCatalogLoad += 1
@@ -233,13 +207,16 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       if (baseProviderModels.length === 0) {
         return null
       }
-      const { enabledModels, selectedModel: selected } = currentSettings
-      if (selectionUsable(baseProviderModels, currentSettings)) return null
-      const selectedModel =
-        firstRunnableModel(baseProviderModels, enabledModels) ?? DEFAULT_SETTINGS.selectedModel
-      if (selectedModel === selected) return null
-      await api.updateSettings({ selectedModel })
-      return { ...currentSettings, selectedModel }
+      // A provider restriction moves a disallowed selection back inside the project first: the
+      // composer names its model at launch, so its pick must already be one the project allows.
+      const next = selectionAfterRestriction(
+        baseProviderModels,
+        currentSettings,
+        get().projectProviderOverride,
+      )
+      if (next === null) return null
+      await api.updateSettings({ selectedModel: next.selectedModel })
+      return { ...currentSettings, ...next }
     } catch (error) {
       if (load !== latestCatalogLoad) return null
       const message = error instanceof Error ? error.message : String(error)
