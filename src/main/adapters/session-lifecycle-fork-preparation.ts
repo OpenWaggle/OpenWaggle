@@ -7,6 +7,7 @@ import { reserveSessionTreeMutation } from '../application/active-session-runs'
 import { attributeCopiedVisualizationSources } from '../application/inline-visualization-ownership'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { AgentKernelServiceShape } from '../ports/agent-kernel-service'
+import type { PrepareSessionLifecycleInput } from '../ports/session-lifecycle-preparation-service'
 import { discoveredPiEntryNodeIdPrefix } from '../store/session-details/discovered-pi-entry-node-ids'
 
 interface ForkSourceRow {
@@ -162,4 +163,29 @@ export function prepareLifecycleFork(input: {
       return { result: { ...result, sessionSnapshot }, targetNodeId }
     }).pipe(Effect.ensuring(Effect.sync(writer.release)))
   })
+}
+
+/** Prepares the fork's Pi session file when the command is a fork, else nothing. */
+export function prepareForkWhenForking(input: {
+  readonly sql: SqlClient.SqlClient
+  readonly kernel: AgentKernelServiceShape
+  readonly command: PrepareSessionLifecycleInput['request']['command']
+  readonly callerId: string
+  readonly forkModelId: string | undefined
+  readonly attemptId: string
+  readonly onForkFile: (file: string) => void
+}) {
+  return Effect.suspend(() =>
+    input.command.operation === 'fork'
+      ? prepareLifecycleFork({
+          sql: input.sql,
+          kernel: input.kernel,
+          command: input.command,
+          callerId: input.callerId,
+          modelId: input.forkModelId ?? '',
+          attemptId: input.attemptId,
+          onForkFile: input.onForkFile,
+        })
+      : Effect.succeed(undefined),
+  )
 }
