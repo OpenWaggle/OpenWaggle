@@ -58,7 +58,7 @@
       "quantum": 1024
     },
     "renderer.initial.bytes": {
-      "value": 1744896,
+      "value": 1753088,
       "quantum": 8192
     },
     "renderer.chat-surface.bytes": {
@@ -82,7 +82,7 @@
       "quantum": 4
     },
     "renderer.assets.bytes": {
-      "value": 22413312,
+      "value": 22478848,
       "quantum": 65536
     },
     "renderer.chat-ready.requests": {
