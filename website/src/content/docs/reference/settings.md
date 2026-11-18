@@ -160,6 +160,7 @@ Lists archived sessions and branches, with **Search**, filters for **Project**, 
 | **Source control** | Hosts, each with a provider and accounts | None | Which hosts use GitHub or GitLab, through the `gh` and `glab` CLIs. **Add host…** adds one. |
 | **Open pull and merge requests in** | **OpenWaggle**, **Provider website** | **OpenWaggle** | Where a click on a pull or merge request opens. Cmd or Ctrl-click opens the other one. |
 | **Available Models** | A checkbox per model | None | Which models appear in the model selector. |
+| **Provider Restrictions** | Per provider: **Inherited**, **Allowed**, **Blocked**; scopes with an "only" toggle | All providers allowed | Which providers each project's sessions may use. The app-wide scope covers every project; a folder scope covers every project inside it. See [Per-project configuration](/docs/configuration/per-project-config#providers). |
 | **Title model** | **Automatic**, **Off**, or any enabled model | **Automatic** | Which model writes session titles. |
 
 A key test sends one short prompt and gives up after 15 seconds. See [API keys](/docs/providers/api-key-auth) and [Browser sign-in](/docs/providers/oauth-auth). For source control hosts and accounts, see [Pull and merge requests](/docs/developer-workflow/pull-requests#how-openwaggle-recognizes-a-host).

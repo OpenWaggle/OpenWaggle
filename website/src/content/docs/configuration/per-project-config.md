@@ -35,6 +35,23 @@ Create `.openwaggle/settings.json` in the project root and add only the values y
 
 `multiAgentEnabled` lets agents start worker sessions in this project. `parentConcurrencyLimit` is a whole number of 1 or more that caps how many runs one parent session's direct workers can have going at once. It does not limit how many conversations you keep. See [Hives](/docs/using-openwaggle/hives-and-sessions).
 
+## Providers
+
+A `providers` entry says which model providers this project's sessions may use. It outranks every provider restriction you set in the app, so a team can pin a repository to one account. This project allows only the `acme-corp` provider:
+
+```json
+{
+  "$schema": "https://openwaggle.ai/schemas/project-settings.schema.json",
+  "providers": {
+    "only": ["acme-corp"]
+  }
+}
+```
+
+Each key is a provider's id, and the value is `true` or `false`. `true` allows that provider, `false` refuses it, and a provider you leave out follows the app's restrictions. The reserved `only` key takes a list instead: when it is present, exactly the providers it names are allowed and every other one is refused in this project, whatever the app says.
+
+A session in a restricted project offers only the models of allowed providers, and a request that names a model from any other provider is refused with an error, whether it comes from the app, the command line, MCP or an agent spawning a worker. A model OpenWaggle picks itself resolves again inside the allowed providers instead of failing. Set the app-wide and folder scopes in **Settings > Connections > Provider Restrictions**.
+
 A value in the file wins over a value an older version saved in the app, and that wins over the app-wide default. **Settings > Agents** changes the defaults. Its **Saved project overrides** list can clear values the app saved, but it never edits your project file.
 
 OpenWaggle also writes to this file. When you pick a mode under **Settings > Permissions > Selected project**, or choose **Always allow** on an approval request, it saves that here. So keep your real `.openwaggle/settings.json` out of version control. If your team wants a shared example, commit a separate template that has no personal choices or credentials in it.
