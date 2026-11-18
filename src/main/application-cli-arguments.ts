@@ -5,12 +5,21 @@ const ELECTRON_RUNTIME_PREFIX_SWITCHES = new Set([
   '--log-level=3',
   // Credential store switches QA starts the GUI with, which the GUI forwards to its Host.
   '--use-mock-keychain',
+  // The GPU-off switch the GUI forwards to its Host, the common workaround for a broken GPU
+  // or Vulkan stack (same class as the Ozone backend switches below).
+  '--disable-gpu',
 ])
 /** Linux Chromium's credential store choice, such as --password-store=basic. */
 const PASSWORD_STORE_SWITCH = /^--password-store=[a-z0-9-]+$/
+/** Linux Chromium's display backend selection, such as --ozone-platform=x11 or its -hint form. */
+const OZONE_PLATFORM_SWITCH = /^--ozone-platform(?:-hint)?=[a-z0-9-]+$/
 
 function isRuntimePrefixSwitch(argument: string) {
-  return ELECTRON_RUNTIME_PREFIX_SWITCHES.has(argument) || PASSWORD_STORE_SWITCH.test(argument)
+  return (
+    ELECTRON_RUNTIME_PREFIX_SWITCHES.has(argument) ||
+    PASSWORD_STORE_SWITCH.test(argument) ||
+    OZONE_PLATFORM_SWITCH.test(argument)
+  )
 }
 
 function afterRuntimePrefix(argv: readonly string[], start: number) {

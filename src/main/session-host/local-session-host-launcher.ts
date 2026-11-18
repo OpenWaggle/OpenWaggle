@@ -28,12 +28,13 @@ export { sessionHostLaunchCommand } from './session-host-launch-command'
 
 /** The command that launches a Host with the switches this process was started with. */
 export function currentSessionHostLaunchCommand() {
+  const appImagePath = env.APPIMAGE
   return sessionHostLaunchCommandFor({
     platform: process.platform,
     isPackaged: appLifecycle.isPackaged(),
     executablePath: process.execPath,
     appPath: appPaths.appRoot(),
-    appImagePath: env.APPIMAGE,
+    ...(appImagePath ? { appImagePath } : {}),
     commandLine: appLifecycle.commandLine,
   })
 }

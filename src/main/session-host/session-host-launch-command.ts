@@ -32,6 +32,31 @@ export function sessionHostLaunchArguments(input: {
     : [input.appPath, SESSION_HOST_INTERNAL_COMMAND]
 }
 
+/**
+ * The Linux display backend switches the GUI was started with, which its detached Host needs too:
+ * the Host is the same Electron runtime on the same display servers, so a backend the user
+ * escaped (a broken Wayland or Vulkan stack, the Ubuntu 26.04 report) otherwise kills the Host at
+ * startup while the GUI runs fine, and the window stays on its startup-timeout screen.
+ */
+function parentDisplayBackendSwitches(input: {
+  readonly platform: NodeJS.Platform
+  /** The value of the GUI's --ozone-platform switch (x11, wayland). */
+  readonly parentOzonePlatform?: string
+  /** The value of the GUI's --ozone-platform-hint switch, Electron's backend auto-selection. */
+  readonly parentOzonePlatformHint?: string
+  /** Chromium's --disable-gpu on the GUI: the Host composites through the same GPU stack. */
+  readonly parentDisableGpu?: boolean
+}) {
+  if (input.platform !== 'linux') return []
+  return [
+    ...(input.parentOzonePlatform ? [`--ozone-platform=${input.parentOzonePlatform}`] : []),
+    ...(input.parentOzonePlatformHint
+      ? [`--ozone-platform-hint=${input.parentOzonePlatformHint}`]
+      : []),
+    ...(input.parentDisableGpu ? ['--disable-gpu'] : []),
+  ]
+}
+
 export function sessionHostLaunchCommand(input: {
   readonly platform: NodeJS.Platform
   readonly isPackaged: boolean
@@ -43,6 +68,12 @@ export function sessionHostLaunchCommand(input: {
   readonly parentUseMockKeychain?: boolean
   /** The value of the GUI's --password-store switch, which only Linux Chromium reads. */
   readonly parentPasswordStore?: string
+  /** The value of the GUI's --ozone-platform switch, which only Linux Chromium reads. */
+  readonly parentOzonePlatform?: string
+  /** The value of the GUI's --ozone-platform-hint switch, which only Linux Chromium reads. */
+  readonly parentOzonePlatformHint?: string
+  /** Chromium's --disable-gpu on the GUI: the Host composites through the same GPU stack. */
+  readonly parentDisableGpu?: boolean
 }) {
   // Restricted Linux environments may launch the GUI with this explicit Electron switch.
   // Its detached authority needs the same policy; never disable the sandbox by default.
@@ -53,6 +84,7 @@ export function sessionHostLaunchCommand(input: {
     ...(input.platform === 'linux' && input.parentPasswordStore
       ? [`--password-store=${input.parentPasswordStore}`]
       : []),
+    ...parentDisplayBackendSwitches(input),
   ]
   if (
     input.platform === 'linux' &&
@@ -83,10 +115,12 @@ export function sessionHostLaunchCommandFor(input: {
   readonly isPackaged: boolean
   readonly executablePath: string
   readonly appPath: string
-  readonly appImagePath: string | undefined
+  readonly appImagePath?: string
   readonly commandLine: SessionHostLaunchSwitches
 }) {
   const passwordStore = input.commandLine.getSwitchValue('password-store')
+  const ozonePlatform = input.commandLine.getSwitchValue('ozone-platform')
+  const ozonePlatformHint = input.commandLine.getSwitchValue('ozone-platform-hint')
   return sessionHostLaunchCommand({
     platform: input.platform,
     isPackaged: input.isPackaged,
@@ -95,6 +129,9 @@ export function sessionHostLaunchCommandFor(input: {
     parentNoSandbox: input.commandLine.hasSwitch('no-sandbox'),
     parentUseMockKeychain: input.commandLine.hasSwitch('use-mock-keychain'),
     ...(passwordStore ? { parentPasswordStore: passwordStore } : {}),
+    ...(ozonePlatform ? { parentOzonePlatform: ozonePlatform } : {}),
+    ...(ozonePlatformHint ? { parentOzonePlatformHint: ozonePlatformHint } : {}),
+    ...(input.commandLine.hasSwitch('disable-gpu') ? { parentDisableGpu: true } : {}),
     ...(input.appImagePath ? { appImagePath: input.appImagePath } : {}),
   })
 }
