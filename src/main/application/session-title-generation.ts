@@ -1,6 +1,12 @@
-import { SESSION_TITLE_MODEL_OFF } from '@shared/session-title-model'
+import {
+  SESSION_TITLE_MODEL_AUTOMATIC,
+  SESSION_TITLE_MODEL_OFF,
+  type SessionTitleModelSetting,
+} from '@shared/session-title-model'
 import type { SessionTitleSource } from '@shared/session-title-source'
 import { type SessionId, SupportedModelId } from '@shared/types/brand'
+import { parseModelRef } from '@shared/types/llm'
+import { resolveProviderRestriction } from '@shared/utils/provider-restriction'
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { lastAnsweringModelReference } from '../domain/session-model-fallback'
@@ -8,6 +14,7 @@ import type { SessionTitleContextAttachment } from '../domain/session-title/sess
 import { parseGeneratedSessionTitle } from '../domain/session-title/session-title-output'
 import { buildSessionTitlePrompt } from '../domain/session-title/session-title-prompts'
 import { SessionTitleGenerationError } from '../errors'
+import { loadProjectConfig } from '../config/project-config'
 import { SessionTitleGenerator } from '../ports/session-title-generator'
 import type { SessionTitleState } from '../ports/session-title-repository'
 import { SettingsService } from '../services/settings-service'
@@ -74,6 +81,34 @@ export function isWithinTitleWorkWindow(at: number, now: number) {
   return now - at <= TITLE_WORK_WINDOW_MS
 }
 
+/**
+ * A Title model the project's provider restrictions disallow falls back to Automatic, because
+ * Automatic already follows the Session's own provider and a title is cosmetic (CONTEXT.md,
+ * "Provider restriction"). A Session without a project is never restricted.
+ */
+export function titleModelWithinProviderRestrictions(
+  titleModel: SessionTitleModelSetting,
+  projectPath: string | null,
+) {
+  return Effect.gen(function* () {
+    const parsed = parseModelRef(titleModel)
+    if (!parsed || !projectPath) return titleModel
+    const settings = yield* (yield* SettingsService).get().pipe(Effect.orElseSucceed(() => null))
+    if (settings === null) return titleModel
+    const projectConfig = yield* Effect.promise(() => loadProjectConfig(projectPath)).pipe(
+      Effect.orElseSucceed(() => null),
+    )
+    const restriction = resolveProviderRestriction({
+      projectPath,
+      byPath: settings.providerRestrictionsByPath,
+      ...(projectConfig?.providers ? { projectOverride: projectConfig.providers } : {}),
+      appWide: settings.providerRestrictions,
+      ...(settings.projectPathAliases ? { aliases: settings.projectPathAliases } : {}),
+    })
+    return restriction.allows(parsed.provider) ? titleModel : SESSION_TITLE_MODEL_AUTOMATIC
+  })
+}
+
 /** The fallback a Title request of a loaded Session carries: the model that answered it last. */
 export function sessionTitleFallbackModel(session: Pick<SessionDetail, 'messages'>) {
   const fallbackModel = lastAnsweringModelReference(session)
@@ -111,11 +146,20 @@ export function generateTitle(input: {
           new SessionTitleGenerationError({ reason: 'off', message: 'The Title model is Off.' }),
         )
       }
+      // A provider restriction the project disallows moves an explicit Title model to Automatic;
+      // the request's Title model type excludes Off, which an explicit setting never is here.
+      const effectiveTitleModel = yield* titleModelWithinProviderRestrictions(
+        titleModel,
+        input.state.projectPath,
+      )
       return yield* generator.generate({
         projectPath: input.state.projectPath,
         sessionModel: input.sessionModel ?? input.state.executionModel,
         ...(input.fallbackModel ? { fallbackModel: input.fallbackModel } : {}),
-        titleModel,
+        titleModel:
+          effectiveTitleModel === SESSION_TITLE_MODEL_OFF
+            ? SESSION_TITLE_MODEL_AUTOMATIC
+            : effectiveTitleModel,
         ...prompt,
         ...(input.priority === 'user' ? { retryRefusedModels: true } : {}),
       })
