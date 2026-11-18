@@ -36,7 +36,7 @@ describe('managed Session resource attachment copies', () => {
     registerAttachmentHandlers()
   })
 
-  it('registers an isolated private copy without exposing the managed store path', async () => {
+  it('registers an isolated private copy, named as the person sees it, outside the managed store', async () => {
     const bytes = Buffer.from('resource-image-bytes')
     const attachment = await prepareRegisteredImageAttachmentFromBytes({
       bytes,
@@ -51,11 +51,11 @@ describe('managed Session resource attachment copies', () => {
       mimeType: 'image/png',
       sizeBytes: bytes.byteLength,
       extractedText: 'OCR extracted text',
+      // The Host names an attachment after its file, so the copy has a directory of its own.
       path: expect.stringMatching(
-        /^\/tmp\/user-data\/temp-attachments\/resource-[0-9a-f-]+\.png$/u,
+        /^\/tmp\/user-data\/temp-attachments\/resource-[0-9a-f-]+\/Architecture diagram\.png$/u,
       ),
     })
-    expect(attachment.path).not.toContain('Architecture diagram')
     expect(parserWorkerMock).toHaveBeenCalledWith(
       { kind: 'image', buffer: bytes },
       expect.any(AbortSignal),

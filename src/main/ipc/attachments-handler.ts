@@ -1,20 +1,14 @@
-import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { preparedAttachmentSchema } from '@shared/schemas/validation'
-import type { AttachmentOrigin } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 import { withArgumentRefusal } from '../application/host-ui-argument-schemas'
-import { dispatchGuiSessionCommand } from '../application/gui-session-command'
 import { decodeSessionOperationArgument } from '../application/host-ui-session-operation-validation'
 import { appPaths } from '../desktop-shell/app-paths'
 import { createLogger } from '../logger'
-import {
-  configurePreparedAttachmentRegistry,
-  rememberPreparedAttachment,
-} from '../utils/attachment-registry'
+import { configurePreparedAttachmentRegistry } from '../utils/attachment-registry'
 import {
   discardRegisteredImageAttachment,
   prepareRegisteredImageAttachmentFromBytes,
@@ -25,6 +19,7 @@ import {
   TEXT_ATTACHMENT_MAX_SIZE_MB,
   writePromptTextFileWithProgress,
 } from './attachment-temp-files'
+import { prepareAttachmentsThroughHost } from './host-attachment-preparation'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
@@ -97,28 +92,6 @@ function describeUnknownError(error: unknown) {
 }
 
 export { hydrateAttachmentSources } from '../utils/attachment-hydration'
-
-function prepareAttachmentsThroughHost(
-  baseDirectory: string,
-  entries: readonly { readonly path: string; readonly origin?: AttachmentOrigin }[],
-) {
-  return Effect.gen(function* () {
-    const result = yield* dispatchGuiSessionCommand({
-      caller: { callerId: 'gui:local-user', workingDirectory: baseDirectory },
-      payload: {
-        contract: 'local-attachments-v1',
-        request: { requestId: randomUUID(), entries },
-      },
-    })
-    if (result.contract !== 'local-attachments-v1') {
-      return yield* Effect.fail(new Error('Session Host rejected attachment preparation.'))
-    }
-    for (const attachment of result.response.attachments) {
-      yield* Effect.promise(() => rememberPreparedAttachment(attachment, attachment.path))
-    }
-    return [...result.response.attachments]
-  })
-}
 
 function registerPrepareAttachmentHandler() {
   typedHandle('attachments:prepare', (_event, rawProjectPath: unknown, rawPaths: unknown) =>
