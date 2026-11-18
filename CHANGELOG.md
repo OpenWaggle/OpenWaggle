@@ -197,6 +197,19 @@ Released builds send anonymous usage statistics and error reports, starting at t
 - 0.x macOS builds were unsigned, and macOS installs an update only when it is signed by the same team as the running app. If you are still on a 0.x build, install 1.0.0 by hand once, from GitHub Releases or with the install script. Updates after that install from the app.
 - On Linux, opening Session links from other apps needs the desktop entry that the install script writes. If you installed before Session links shipped, run the install script again.
 
+## [1.0.0-beta.44] - 2026-11-18
+
+### Features
+
+- **release:** write each release's changelog in its release PR and publish it at /changelog ([#488](https://github.com/OpenWaggle/OpenWaggle/pull/488))
+
+### Fixes
+
+- **composer:** rank exact skill matches first in the slash menu ([#502](https://github.com/OpenWaggle/OpenWaggle/pull/502))
+- **attachments:** prepare a pasted image through the Session Host so it sends ([#495](https://github.com/OpenWaggle/OpenWaggle/pull/495))
+- **sessions:** fork a Session worktree from the picked base ref ([#489](https://github.com/OpenWaggle/OpenWaggle/pull/489))
+- **composer:** send skill references as Pi's /skill: command ([#487](https://github.com/OpenWaggle/OpenWaggle/pull/487))
+
 ## [1.0.0-beta.43] - 2026-11-17
 
 ### Features
