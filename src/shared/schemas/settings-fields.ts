@@ -36,6 +36,16 @@ const togglesByProjectSchema = Schema.Record({
   value: Schema.Record({ key: Schema.String, value: Schema.Boolean }),
 })
 
+/**
+ * One provider-restriction scope as a patch or a stored row carries it: a provider id mapped to
+ * its enabled/disabled choice, with the reserved `only` key carrying the non-empty id list that
+ * permits exactly those providers (CONTEXT.md, "Provider restriction").
+ */
+export const providerRestrictionScopeSchema = Schema.Record({
+  key: Schema.String,
+  value: Schema.Union(Schema.Boolean, Schema.Array(Schema.String)),
+})
+
 /** Syntax theme selection for every present and future app appearance variant. */
 export const syntaxThemeSelectionsSchema = Schema.Struct({
   light: Schema.String,
@@ -85,6 +95,17 @@ export const settingsWireFields = {
   projectDisplayNames: stringRecordSchema,
   /** Per-project selected model refs. Stored in the app DB, never in the repo's project settings file. An empty value is a tombstone: the user explicitly cleared the override. */
   selectedModelsByProject: stringRecordSchema,
+  /**
+   * App-wide provider restrictions: a provider's boolean choice, or the reserved `only` list
+   * that permits exactly the named providers. Restricts which providers a project's Sessions
+   * may use (CONTEXT.md, "Provider restriction").
+   */
+  providerRestrictions: providerRestrictionScopeSchema,
+  /** Path scopes of provider restrictions by canonical absolute path, nearest containing wins. */
+  providerRestrictionsByPath: Schema.Record({
+    key: Schema.String,
+    value: providerRestrictionScopeSchema,
+  }),
   /** Aliased project paths recorded before canonicalization: alias -> canonical target. Lets removals resolve identities after the aliased path stops existing. */
   projectPathAliases: stringRecordSchema,
   /** Default authorization mode applied to new sessions unless a project default overrides it. */

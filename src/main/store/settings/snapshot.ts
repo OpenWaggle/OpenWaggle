@@ -65,6 +65,7 @@ import {
   resolveStoredProjectPathAliases,
   resolveStoredSelectedModels,
 } from './selected-models-snapshot'
+import * as providerRestrictionSettings from './provider-restrictions-settings'
 import {
   resolveNextSessionHostSettings,
   resolveStoredSessionHostSettings,
@@ -175,6 +176,7 @@ export function buildSettingsSnapshot(storedSettings: Readonly<Record<string, un
       agentDefinitionTogglesByProject,
       projectDisplayNames,
       ...resolveStoredSelectedModels(storedSettings),
+      ...providerRestrictionSettings.resolveStoredProviderRestrictionSettings(storedSettings),
       ...resolveStoredProjectPathAliases(storedSettings),
       shortcutRules,
       shortcutBindings,
@@ -212,6 +214,7 @@ export function buildNextSettingsSnapshot(current: Settings, partial: Partial<Se
     ...resolveNextSessionTitleSettings(current, partial),
     ...resolveNextDiffAndAppearanceSettings(current, partial),
     ...resolveNextSelectedModels(current, partial),
+    ...providerRestrictionSettings.resolveNextProviderRestrictionSettings(current, partial),
     ...resolveNextProjectPathAliases(current, partial),
     ...resolveNextBrowserSettings(current, partial),
     ...usageStatisticsSettings.resolveNextUsageStatisticsSettings(current, partial),
