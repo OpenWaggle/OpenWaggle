@@ -120,11 +120,7 @@ export function createSkillItems(
     })
   }
 
-  for (const skill of slashSkills) {
-    if (skill.id === 'visualize') continue
-    if (!skill.enabled || skill.loadStatus !== 'ok') continue
-    if (!skillMatchesQuery(skill, lowerQuery)) continue
-
+  for (const skill of rankedSkillMatches(slashSkills, lowerQuery)) {
     items.push({
       id: `skill-${skill.id}`,
       label: skill.name,
@@ -148,6 +144,53 @@ function visualizeSkillMatchesQuery(lowerQuery: string) {
     'visualize'.includes(lowerQuery) ||
     'create an interactive visualization in this conversation'.includes(lowerQuery)
   )
+}
+
+/**
+ * Slash-menu match tiers, best first: a fully typed skill name, then a name prefix, a name
+ * substring, the folder id, and finally a description hit. Description matching stays so a user
+ * who does not remember a name can still find the skill, but a skill whose name is typed exactly
+ * must lead the list instead of hiding behind description matches discovered earlier.
+ */
+const SKILL_MATCH_TIERS = {
+  EXACT_NAME: 0,
+  NAME_PREFIX: 1,
+  NAME_SUBSTRING: 2,
+  FOLDER_ID: 3,
+  DESCRIPTION: 4,
+} as const
+
+function skillMatchTier(skill: SkillDiscoveryItem, lowerQuery: string) {
+  if (!lowerQuery) return null
+  const name = skill.name.toLowerCase()
+  if (name === lowerQuery) return SKILL_MATCH_TIERS.EXACT_NAME
+  if (name.startsWith(lowerQuery)) return SKILL_MATCH_TIERS.NAME_PREFIX
+  if (name.includes(lowerQuery)) return SKILL_MATCH_TIERS.NAME_SUBSTRING
+  if (skill.id.includes(lowerQuery)) return SKILL_MATCH_TIERS.FOLDER_ID
+  if (skill.description.toLowerCase().includes(lowerQuery)) {
+    return SKILL_MATCH_TIERS.DESCRIPTION
+  }
+  return null
+}
+
+/**
+ * Enabled, loadable skills matching the query, ordered best match first. An empty query keeps
+ * the discovery order (every skill matches with no tier); the sort is stable, so equal tiers
+ * preserve discovery order too.
+ */
+function rankedSkillMatches(slashSkills: readonly SkillDiscoveryItem[], lowerQuery: string) {
+  const eligible = slashSkills.filter(
+    (skill) => skill.id !== 'visualize' && skill.enabled && skill.loadStatus === 'ok',
+  )
+  if (!lowerQuery) return eligible
+  const matches: { skill: SkillDiscoveryItem; tier: number }[] = []
+  for (const skill of eligible) {
+    const tier = skillMatchTier(skill, lowerQuery)
+    if (tier === null) continue
+    matches.push({ skill, tier })
+  }
+  matches.sort((a, b) => a.tier - b.tier)
+  return matches.map((match) => match.skill)
 }
 
 export function createPresetItems(
@@ -189,15 +232,6 @@ export function createConfigureWaggleItem(lowerQuery: string, configureWaggle: (
       action: configureWaggle,
     },
   ]
-}
-
-function skillMatchesQuery(skill: SkillDiscoveryItem, lowerQuery: string) {
-  return (
-    !lowerQuery ||
-    skill.name.toLowerCase().includes(lowerQuery) ||
-    skill.id.includes(lowerQuery) ||
-    skill.description.toLowerCase().includes(lowerQuery)
-  )
 }
 
 function presetMatchesQuery(preset: WagglePreset, lowerQuery: string) {
