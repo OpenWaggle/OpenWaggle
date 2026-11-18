@@ -122,6 +122,20 @@ describe('createBuiltInCommandItems', () => {
 })
 
 describe('createSkillItems', () => {
+  const discoveryItem = (id: string, name: string, description: string) => {
+    const item: SkillDiscoveryItem = {
+      id,
+      name,
+      description,
+      folderPath: `/project/.agents/skills/${id}`,
+      skillPath: `/project/.agents/skills/${id}/SKILL.md`,
+      hasScripts: false,
+      enabled: true,
+      loadStatus: 'ok',
+    }
+    return item
+  }
+
   it('always exposes the bundled Visualize skill through /visualize discovery', () => {
     const selectSkill = vi.fn()
 
@@ -161,6 +175,32 @@ describe('createSkillItems', () => {
 
     items.find((item) => item.id === 'skill-handoff-folder')?.action()
     expect(selectSkill).toHaveBeenCalledWith('handoff', 'handoff')
+  })
+
+  it('ranks a fully typed skill name ahead of every weaker match, in tier order', () => {
+    // Guards the /pr regression: skills discovered earlier matched the query through their
+    // descriptions ("PR", "pull request") and buried the exact-name skill the user typed.
+    const items = createSkillItems(
+      [
+        discoveryItem('babysit', 'babysit', 'Watch a GitHub PR until its checks are green'),
+        discoveryItem('brew-pr-guide', 'brew', 'Brew coffee well'),
+        discoveryItem('depressurize', 'depressurize', 'Lower the pressure'),
+        discoveryItem('prompt-tool', 'prompt tool', 'Reusable prompt library'),
+        discoveryItem('ready', 'ready', 'Mark a PR ready for review'),
+        discoveryItem('pr', 'pr', 'Prepare and open a draft GitHub pull request'),
+      ],
+      'pr',
+      vi.fn(),
+    )
+
+    expect(items.map((item) => item.label)).toEqual([
+      'pr', // exact name
+      'prompt tool', // name prefix
+      'depressurize', // name substring
+      'brew', // folder id
+      'babysit', // description, discovery order kept within the tier
+      'ready',
+    ])
   })
 
   it('shows a disabled diagnostic instead of selecting an unavailable bundled skill', () => {
