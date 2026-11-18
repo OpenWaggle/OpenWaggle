@@ -11,8 +11,19 @@ const ELECTRON_RUNTIME_PREFIX_SWITCHES = new Set([
 ])
 /** Linux Chromium's credential store choice, such as --password-store=basic. */
 const PASSWORD_STORE_SWITCH = /^--password-store=[a-z0-9-]+$/
+/** Chromium's accepted Ozone backend values (x11, wayland), shared with the Host's launcher. */
+const OZONE_PLATFORM_VALUE = /^[a-z0-9-]+$/
 /** Linux Chromium's display backend selection, such as --ozone-platform=x11 or its -hint form. */
 const OZONE_PLATFORM_SWITCH = /^--ozone-platform(?:-hint)?=[a-z0-9-]+$/
+
+/**
+ * Whether an Ozone platform value the GUI carries can also reach the Host as a leading runtime
+ * switch: the launcher forwards a value if and only if the Host's parser recognizes the switch it
+ * builds from it, so the two halves of the #499 fix cannot drift apart again.
+ */
+export function isOzonePlatformValue(value: string) {
+  return OZONE_PLATFORM_VALUE.test(value)
+}
 
 function isRuntimePrefixSwitch(argument: string) {
   return (

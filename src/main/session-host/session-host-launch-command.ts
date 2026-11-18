@@ -6,6 +6,8 @@
  */
 import path from 'node:path'
 
+import { isOzonePlatformValue } from '../application-cli-arguments'
+
 /** The internal argument that turns an OpenWaggle process into the detached Session Host. */
 export const SESSION_HOST_INTERNAL_COMMAND = 'session-host-internal'
 
@@ -49,8 +51,12 @@ function parentDisplayBackendSwitches(input: {
 }) {
   if (input.platform !== 'linux') return []
   return [
-    ...(input.parentOzonePlatform ? [`--ozone-platform=${input.parentOzonePlatform}`] : []),
-    ...(input.parentOzonePlatformHint
+    // A value the Host's parser cannot recognize as a runtime prefix would kill it at parse time,
+    // so forward exactly the values that parser accepts (applicationCliArguments).
+    ...(input.parentOzonePlatform && isOzonePlatformValue(input.parentOzonePlatform)
+      ? [`--ozone-platform=${input.parentOzonePlatform}`]
+      : []),
+    ...(input.parentOzonePlatformHint && isOzonePlatformValue(input.parentOzonePlatformHint)
       ? [`--ozone-platform-hint=${input.parentOzonePlatformHint}`]
       : []),
     ...(input.parentDisableGpu ? ['--disable-gpu'] : []),

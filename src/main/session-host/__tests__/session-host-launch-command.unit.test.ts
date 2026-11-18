@@ -123,6 +123,17 @@ describe('Session Host inherited Linux display backend switches', () => {
     })
   })
 
+  it("does not forward an Ozone value the Host's parser would reject", () => {
+    const { args } = sessionHostLaunchCommandFor({
+      ...packagedAppImage,
+      commandLine: switchesOf({ 'ozone-platform': 'x11;rm -rf' }),
+    })
+
+    // A forwarded value outside applicationCliArguments' recognized charset would be a usage
+    // error before session-host-internal and kill the Host at parse time (the #499 failure mode).
+    expect(args).toEqual(['session-host-internal'])
+  })
+
   it.each([false, true])(
     'still routes the forwarded launch to the Host when packaged=%s',
     (isPackaged) => {
