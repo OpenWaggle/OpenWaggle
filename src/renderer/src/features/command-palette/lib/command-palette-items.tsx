@@ -160,8 +160,12 @@ const SKILL_MATCH_TIERS = {
   DESCRIPTION: 4,
 } as const
 
+/**
+ * Match tier for a skill against a non-empty lowercased query, best first; null when nothing
+ * matches. Callers decide the empty-query convention (an empty query matches every skill), so
+ * this must never be consulted with one.
+ */
 function skillMatchTier(skill: SkillDiscoveryItem, lowerQuery: string) {
-  if (!lowerQuery) return null
   const name = skill.name.toLowerCase()
   if (name === lowerQuery) return SKILL_MATCH_TIERS.EXACT_NAME
   if (name.startsWith(lowerQuery)) return SKILL_MATCH_TIERS.NAME_PREFIX
