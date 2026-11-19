@@ -114,3 +114,20 @@ Load when touching provider auth, `features/providers`, model or thinking-level 
 - `sessions:set-thinking-level` publishes `session-list-changed` as soon as the Session write
   commits, then writes Pi's default; a failed default write is logged and never reported as a failed
   Session change (`default-thinking-level-changed` is published only on success).
+
+## Provider restrictions bind every surface that resolves a model (November 2026, ADR 0071)
+
+`resolveProviderRestriction` (`@shared/utils/provider-restriction`) is the one resolver, used by
+the main process, the renderer and the Settings form. Scope values are
+`Record<providerId, boolean>` with the reserved `only` key carrying a non-empty id list that
+closes the scope to exactly those providers; nearest containing path scope wins per provider, the
+project file's `providers` key outranks all app scopes, and `projectPathAliases` keep a moved scope
+matching. A model the caller named (GUI `specialization.modelId` — the desktop app passes its
+pick explicitly at create — an Agent definition's `model`, CLI/MCP `--model`) is refused at the
+lifecycle choke point (`session-lifecycle-model-enforcement.ts`, operation
+`enforce-provider-restriction`); a derived one (global/project default, spawn inheritance, fork's
+source model) re-derives to the first enabled model of an allowed provider, so cross-scope spawns
+keep working. The Title model falls back to Automatic. The renderer keeps its selection inside
+the restriction at project open and catalog load (`project-model-selection.ts`
+`selectionAfterRestriction`), because the GUI's pick is named and would otherwise be refused.
+Never write a restriction into `enabledModels`: the picker is the intersection only.

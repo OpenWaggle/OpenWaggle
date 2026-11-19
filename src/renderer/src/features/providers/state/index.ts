@@ -1,6 +1,6 @@
 export { useAuthStore } from './auth-store'
+export { firstRunnableModel } from './project-model-selection'
 export {
-  firstRunnableModel,
   isModelActionable,
   latestAnsweringModel,
   modelActionError,

@@ -13,6 +13,8 @@ interface ModelSelectorDropdownProps {
   readonly selectedModel: FlatModel | undefined
   readonly onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void
   readonly onSelectModel: (model: FlatModel) => void
+  /** Present when a provider restriction narrows the project, so an empty list can say why. */
+  readonly restriction?: { readonly allowedProviders: readonly string[] }
 }
 
 const DROPDOWN_CLASS =
@@ -24,9 +26,30 @@ const DROPDOWN_STYLE = {
   maxHeight: DROPDOWN_MAX_HEIGHT,
 }
 
-/** Why the picker has no models: the provider catalog failed to load, or none is enabled. */
-function ModelSelectorEmptyState({ id }: { readonly id: string }) {
+/**
+ * Why the picker has no models: the provider catalog failed to load, a provider restriction
+ * narrowed the project to providers with no enabled model, or none is enabled.
+ */
+function ModelSelectorEmptyState({
+  id,
+  restriction,
+}: {
+  readonly id: string
+  readonly restriction?: { readonly allowedProviders: readonly string[] }
+}) {
   const catalogLoadError = useProviderStore((s) => s.loadError)
+  if (restriction) {
+    const allowed = restriction.allowedProviders.join(', ')
+    return (
+      <div id={id} className="px-3 py-4 text-center">
+        <p className="text-xs text-text-tertiary">No enabled model for this project's providers.</p>
+        <p className="mt-1 text-xs text-text-muted">
+          This project allows {allowed.length > 0 ? allowed : 'no provider'}. Enable one of their
+          models in Settings → Connections, or adjust its provider restrictions.
+        </p>
+      </div>
+    )
+  }
   if (catalogLoadError !== null) {
     return (
       <div id={id} className="px-3 py-4 text-center">
@@ -49,6 +72,7 @@ export function ModelSelectorDropdown({
   selectedModel,
   onKeyDown,
   onSelectModel,
+  restriction,
 }: ModelSelectorDropdownProps) {
   const isEmpty = models.length === 0
   const emptyStateId = useId()
@@ -77,7 +101,7 @@ export function ModelSelectorDropdown({
           onKeyDown={onKeyDown}
           className="static m-0 w-full border-0 bg-transparent p-0 text-inherit"
         >
-          <ModelSelectorEmptyState id={emptyStateId} />
+          <ModelSelectorEmptyState id={emptyStateId} {...(restriction ? { restriction } : {})} />
         </dialog>
       </div>
     )

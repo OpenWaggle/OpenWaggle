@@ -88,4 +88,16 @@ describe('a Waggle Run whose model is gone', () => {
     })
     expect(runMock).not.toHaveBeenCalled()
   })
+
+  it("refuses, naming the agent, when an agent's own model uses a refused provider", async () => {
+    harnessState.providerRestrictions = { anthropic: false }
+
+    const result = await startWaggle(waggleConfig, ANSWERED_BY)
+
+    expect(result).toMatchObject({
+      outcome: 'validation-error',
+      message: expect.stringContaining("whose provider this project's provider restrictions"),
+    })
+    expect(runMock).not.toHaveBeenCalled()
+  })
 })

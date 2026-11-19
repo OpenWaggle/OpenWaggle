@@ -6,6 +6,7 @@ import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { SettingsSectionContainer } from '../SettingsSectionContainer'
 import { AvailableModelsSection } from './connections/AvailableModelsSection'
+import { ProviderRestrictionsSection } from './connections/ProviderRestrictionsSection'
 import { OAuthProviderRow } from './connections/OAuthProviderRow'
 import { ProviderRow } from './connections/ProviderRow'
 import { SourceControlSection } from './connections/SourceControlSection'
@@ -204,6 +205,8 @@ export function ConnectionsSection() {
       <SourceControlSection />
 
       <AvailableModelsSection />
+
+      <ProviderRestrictionsSection />
 
       <TitleModelSection />
 

@@ -110,7 +110,7 @@ function prepareWaggleRun(input: WaggleRunInput) {
     if (!session) return { ok: false as const, outcome: waggleSessionNotFoundOutcome() }
     if (!session.projectPath) return { ok: false as const, outcome: waggleNoProjectOutcome() }
 
-    const models = yield* resolveWaggleRunModels({ ...input, session })
+    const models = yield* resolveWaggleRunModels({ ...input, session, settings })
     if (!models.ok) return { ok: false as const, outcome: models.outcome }
 
     const assignedTitle = yield* assignPreparedTitle(input, session)

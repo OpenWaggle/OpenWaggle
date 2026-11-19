@@ -122,6 +122,30 @@ describe('Session run execution profile', () => {
     expect(identityJson(typed.runIdentityContext)).not.toHaveProperty('scheduledTask')
   })
 
+  it("names a Heartbeat's own model so provider restrictions can refuse it", () => {
+    const task = { id: 'task-1', name: 'Morning triage', firedAt: 1, nominalAt: 1 }
+    const context = JSON.stringify({
+      runNumber: 1,
+      consecutiveIdleRuns: 0,
+      idlePauseAfter: 3,
+      stopWhen: null,
+      indefinite: true,
+      endsAt: null,
+      maxRuns: null,
+      remainingRuns: null,
+      modelId: 'amazon-bedrock/claude',
+    })
+    const heartbeat = resolveSessionRunExecution(
+      row({ scheduled_task_json: JSON.stringify({ ...task, kind: 'heartbeat', context }) }),
+      'run-1',
+    )
+    expect(heartbeat).toMatchObject({
+      model: 'amazon-bedrock/claude',
+      scheduledTaskModelId: 'amazon-bedrock/claude',
+    })
+    expect(resolveSessionRunExecution(row(), 'run-1')).not.toHaveProperty('scheduledTaskModelId')
+  })
+
   it('gives the Run the Scheduled task its prompt message records', () => {
     const task = { id: 'task-1', name: 'Morning triage', firedAt: 1, nominalAt: 1 }
     expect(

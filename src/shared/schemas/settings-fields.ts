@@ -20,6 +20,7 @@ import {
 } from '@shared/types/settings'
 import { UPDATE_CHANNELS } from '@shared/types/update-channel'
 import { desktopNotificationSettingsSchema } from './desktop-notification'
+import { providerRestrictionScopeSchema } from './provider-restriction-scope'
 import {
   extensionPanelShortcutBindingsSchema,
   shortcutBindingsSchema,
@@ -85,6 +86,17 @@ export const settingsWireFields = {
   projectDisplayNames: stringRecordSchema,
   /** Per-project selected model refs. Stored in the app DB, never in the repo's project settings file. An empty value is a tombstone: the user explicitly cleared the override. */
   selectedModelsByProject: stringRecordSchema,
+  /**
+   * App-wide provider restrictions: a provider's boolean choice, or the reserved `only` list
+   * that permits exactly the named providers. Restricts which providers a project's Sessions
+   * may use (CONTEXT.md, "Provider restriction").
+   */
+  providerRestrictions: providerRestrictionScopeSchema,
+  /** Path scopes of provider restrictions by canonical absolute path, nearest containing wins. */
+  providerRestrictionsByPath: Schema.Record({
+    key: Schema.String,
+    value: providerRestrictionScopeSchema,
+  }),
   /** Aliased project paths recorded before canonicalization: alias -> canonical target. Lets removals resolve identities after the aliased path stops existing. */
   projectPathAliases: stringRecordSchema,
   /** Default authorization mode applied to new sessions unless a project default overrides it. */

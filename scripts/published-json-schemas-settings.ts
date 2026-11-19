@@ -52,6 +52,10 @@ const SETTINGS_OVERLAY: JsonSchemaOverlay = {
     maximum: Number.MAX_SAFE_INTEGER,
     description: 'Most direct Worker runs one parent session can have at the same time.',
   },
+  '/properties/providers': {
+    description:
+      'Which model providers this project may use. Each key is a provider id mapped to true (allowed) or false (refused); the reserved "only" key takes a list of provider ids, and exactly those are allowed.',
+  },
   '/properties/authorizationGrants': {
     description:
       'Saved approvals, written when you choose Always allow. Revoke them in Settings > Permissions.',
