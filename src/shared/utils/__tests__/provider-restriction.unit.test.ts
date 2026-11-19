@@ -35,8 +35,8 @@ describe('Provider restriction', () => {
 
   it('closes a scope to exactly the providers its only list names', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: '/projects/DTD/TC-mapping',
-      byPath: { '/projects/DTD': { only: ['amazon-bedrock'] } },
+      projectPath: '/projects/acme/test-mapping',
+      byPath: { '/projects/acme': { only: ['amazon-bedrock'] } },
     })
 
     expect(restriction.allows('amazon-bedrock')).toBe(true)
@@ -46,8 +46,8 @@ describe('Provider restriction', () => {
 
   it('lets an only scope refuse a provider an outer scope allows', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: '/projects/DTD/TC-mapping',
-      byPath: { '/projects/DTD': { only: ['amazon-bedrock'] } },
+      projectPath: '/projects/acme/test-mapping',
+      byPath: { '/projects/acme': { only: ['amazon-bedrock'] } },
       appWide: { openrouter: true },
     })
 
@@ -56,10 +56,10 @@ describe('Provider restriction', () => {
 
   it('lets the nearest containing scope decide a provider', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: '/projects/DTD/TC-mapping',
+      projectPath: '/projects/acme/test-mapping',
       byPath: {
         '/projects': { 'amazon-bedrock': false },
-        '/projects/DTD': { 'amazon-bedrock': true },
+        '/projects/acme': { 'amazon-bedrock': true },
       },
     })
 
@@ -69,7 +69,7 @@ describe('Provider restriction', () => {
   it('ignores a scope that does not contain the project', () => {
     const restriction = resolveProviderRestriction({
       projectPath: '/projects/personal/repo',
-      byPath: { '/projects/DTD': { only: ['amazon-bedrock'] } },
+      byPath: { '/projects/acme': { only: ['amazon-bedrock'] } },
     })
 
     expect(restriction.allows('amazon-bedrock')).toBe(true)
@@ -78,8 +78,8 @@ describe('Provider restriction', () => {
 
   it('lets the project file outrank the path map', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: '/projects/DTD/TC-mapping',
-      byPath: { '/projects/DTD/TC-mapping': { 'amazon-bedrock': false } },
+      projectPath: '/projects/acme/test-mapping',
+      byPath: { '/projects/acme/test-mapping': { 'amazon-bedrock': false } },
       projectOverride: { 'amazon-bedrock': true },
     })
 
@@ -88,10 +88,10 @@ describe('Provider restriction', () => {
 
   it('lets a deeper grant add a provider an only scope refuses, without reopening the rest', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: '/projects/DTD/TC-mapping',
+      projectPath: '/projects/acme/test-mapping',
       byPath: {
-        '/projects/DTD': { only: ['amazon-bedrock'] },
-        '/projects/DTD/TC-mapping': { openrouter: true },
+        '/projects/acme': { only: ['amazon-bedrock'] },
+        '/projects/acme/test-mapping': { openrouter: true },
       },
     })
 
@@ -102,9 +102,9 @@ describe('Provider restriction', () => {
 
   it('applies a scope recorded under a project path alias to the canonical project', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: '/projects/DTD/renamed-repo',
-      byPath: { '/projects/DTD/old-repo': { 'amazon-bedrock': false } },
-      aliases: { '/projects/DTD/old-repo': '/projects/DTD/renamed-repo' },
+      projectPath: '/projects/acme/renamed-repo',
+      byPath: { '/projects/acme/old-repo': { 'amazon-bedrock': false } },
+      aliases: { '/projects/acme/old-repo': '/projects/acme/renamed-repo' },
     })
 
     // A refusal, not the allow that an unmatched scope would also produce.
@@ -113,9 +113,9 @@ describe('Provider restriction', () => {
 
   it('applies a scope to a project reached through its own alias path', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: '/projects/DTD/old-repo',
-      byPath: { '/projects/DTD/renamed-repo': { 'amazon-bedrock': false } },
-      aliases: { '/projects/DTD/old-repo': '/projects/DTD/renamed-repo' },
+      projectPath: '/projects/acme/old-repo',
+      byPath: { '/projects/acme/renamed-repo': { 'amazon-bedrock': false } },
+      aliases: { '/projects/acme/old-repo': '/projects/acme/renamed-repo' },
     })
 
     expect(restriction.allows('amazon-bedrock')).toBe(false)
@@ -123,8 +123,8 @@ describe('Provider restriction', () => {
 
   it('matches a Windows scope path against a Windows project path', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: 'C:\\projects\\DTD\\repo',
-      byPath: { 'C:\\projects\\DTD': { 'amazon-bedrock': false } },
+      projectPath: 'C:\\projects\\acme\\repo',
+      byPath: { 'C:\\projects\\acme': { 'amazon-bedrock': false } },
     })
 
     expect(restriction.allows('amazon-bedrock')).toBe(false)
@@ -132,8 +132,8 @@ describe('Provider restriction', () => {
 
   it('refuses every provider when the reserved only key is not a list', () => {
     const restriction = resolveProviderRestriction({
-      projectPath: '/projects/DTD/repo',
-      byPath: { '/projects/DTD': { only: true } },
+      projectPath: '/projects/acme/repo',
+      byPath: { '/projects/acme': { only: true } },
     })
 
     expect(restriction.allows('amazon-bedrock')).toBe(false)

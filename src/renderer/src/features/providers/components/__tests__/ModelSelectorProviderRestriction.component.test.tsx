@@ -128,7 +128,7 @@ describe('ModelSelector provider restrictions', () => {
   it('names the allowed providers when the restriction leaves no enabled model', () => {
     seedStore({
       settings: {
-        projectPath: '/projects/DTD/repo',
+        projectPath: '/projects/acme/repo',
         selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
         enabledModels: [
           SupportedModelId('anthropic/claude-sonnet-4-5'),

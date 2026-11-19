@@ -8,7 +8,7 @@ describe('Provider restrictions in settings', () => {
     const { settings } = buildSettingsSnapshot({
       providerRestrictions: { 'amazon-bedrock': false },
       providerRestrictionsByPath: {
-        '/projects/DTD': { only: ['amazon-bedrock'] },
+        '/projects/acme': { only: ['amazon-bedrock'] },
         '/projects/personal': { openrouter: true, 'anthropic)': 'nope', '': true },
         '/projects/bad': { 'amazon-bedrock': 'nope' },
         '/projects/not-a-scope': 'nope',
@@ -18,7 +18,7 @@ describe('Provider restrictions in settings', () => {
 
     expect(settings.providerRestrictions).toEqual({ 'amazon-bedrock': false })
     expect(settings.providerRestrictionsByPath).toEqual({
-      '/projects/DTD': { only: ['amazon-bedrock'] },
+      '/projects/acme': { only: ['amazon-bedrock'] },
       '/projects/personal': { openrouter: true },
       // A folder added before any provider was chosen for it stays, choosing nothing.
       '/projects/bad': {},
@@ -30,19 +30,19 @@ describe('Provider restrictions in settings', () => {
   it('writes changed scopes and leaves other settings alone', () => {
     const partial = {
       providerRestrictions: { 'amazon-bedrock': false },
-      providerRestrictionsByPath: { '/projects/DTD': { only: ['amazon-bedrock'] } },
+      providerRestrictionsByPath: { '/projects/acme': { only: ['amazon-bedrock'] } },
     }
     const next = buildNextSettingsSnapshot(DEFAULT_SETTINGS, partial)
 
     expect(next.providerRestrictions).toEqual({ 'amazon-bedrock': false })
     expect(next.providerRestrictionsByPath).toEqual({
-      '/projects/DTD': { only: ['amazon-bedrock'] },
+      '/projects/acme': { only: ['amazon-bedrock'] },
     })
     expect(collectSettingsPatchWrites(partial, next)).toEqual([
       { key: 'providerRestrictions', value: { 'amazon-bedrock': false } },
       {
         key: 'providerRestrictionsByPath',
-        value: { '/projects/DTD': { only: ['amazon-bedrock'] } },
+        value: { '/projects/acme': { only: ['amazon-bedrock'] } },
       },
     ])
   })

@@ -108,7 +108,7 @@ describe('provider restrictions in the selection store', () => {
     if (!openAi) throw new Error('missing fixture')
     const settings = {
       ...DEFAULT_SETTINGS,
-      projectPath: '/projects/DTD/repo',
+      projectPath: '/projects/acme/repo',
       selectedModel: SupportedModelId('openai/gpt-4.1-mini'),
       enabledModels: [SupportedModelId('openai/gpt-4.1-mini')],
       providerRestrictions: { openai: false },
