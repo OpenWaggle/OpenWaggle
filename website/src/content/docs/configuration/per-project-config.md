@@ -37,7 +37,7 @@ Create `.openwaggle/settings.json` in the project root and add only the values y
 
 ## Providers
 
-A `providers` entry says which model providers this project's sessions may use. It outranks every provider restriction you set in the app, so a team can pin a repository to one account. Each key is a provider's id, the part before the slash in a model's name, and each value says whether this project allows it. This project runs its sessions on Anthropic and OpenRouter and never on the company's Amazon Bedrock account:
+A `providers` entry says which model providers this project's sessions may use. It outranks every provider restriction you set in the app, so a team can pin a repository to one account. Each key is a provider's id, the part before the slash in a model's name, and each value says whether this project allows it. This project allows Anthropic and OpenRouter and refuses the company's Amazon Bedrock account. Every other provider follows the app's restrictions:
 
 ```json
 {
@@ -50,8 +50,6 @@ A `providers` entry says which model providers this project's sessions may use. 
 }
 ```
 
-A provider the file leaves out follows the app's restrictions.
-
 | Value | What this scope says |
 | --- | --- |
 | `"anthropic": true` | Allows `anthropic` |
@@ -59,7 +57,7 @@ A provider the file leaves out follows the app's restrictions.
 | No entry for a provider | Says nothing about it, so the next scope decides |
 | `"only": ["anthropic", "openrouter"]` | Allows exactly these providers and refuses every other one |
 
-The reserved `only` key closes the list to exactly the providers it names. Here are all three scopes working together, keeping an employer's Amazon Bedrock account out of personal projects. In **Settings > Connections > Provider Restrictions**, set `amazon-bedrock` to **Blocked** under **Every project (app-wide)**. Then choose **Add folder scope**, pick your work folder, and set `amazon-bedrock` to **Allowed** there. Every project inside that folder can use Bedrock again, and everything outside it cannot. A repository that should only ever use two providers pins itself with its own file, which outranks both:
+The reserved `only` key closes the list to exactly the providers it names. Here are all three scopes working together, keeping an employer's Amazon Bedrock account out of personal projects. In **Settings > Connections > Provider Restrictions**, set Amazon Bedrock to **Blocked** under **Every project (app-wide)**. Then choose **Add folder scope**, pick your work folder, and set Amazon Bedrock to **Allowed** there. Every project inside that folder can use Bedrock again, and everything outside it cannot. A repository that should only ever use two providers pins itself with its own file, which outranks both:
 
 ```json
 {
