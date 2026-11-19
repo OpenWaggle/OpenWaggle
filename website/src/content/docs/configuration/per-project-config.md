@@ -59,7 +59,7 @@ Each key is a provider's id. Each value says what this scope allows.
 
 An `only` list outranks the `true` and `false` entries beside it.
 
-OpenWaggle reads scopes from nearest to farthest, and the nearest scope that mentions a provider decides it.
+OpenWaggle reads scopes from nearest to farthest, and the nearest scope that mentions a provider decides it. A provider no scope mentions is allowed.
 
 | Scope | Where you set it | Covers |
 | --- | --- | --- |
@@ -67,7 +67,7 @@ OpenWaggle reads scopes from nearest to farthest, and the nearest scope that men
 | Folder | **Settings > Connections > Provider Restrictions** | Every project inside the folder |
 | App-wide | The same screen | Every project |
 
-A scope never seals the scopes below it. A folder scope can allow a provider that an app-wide `only` refuses, and a project file outranks every scope set in the app.
+A scope never seals the scopes inside it. A folder scope can allow a provider that an app-wide `only` list refuses, and a project file outranks every scope set in the app.
 
 A session in a restricted project offers only the models of allowed providers, and a request that names a model from any other provider is refused with an error, whether it comes from the app, the command line, MCP, an agent spawning a worker, a Heartbeat's own model or a Waggle agent's model. A model OpenWaggle picks itself resolves again inside the allowed providers instead of failing.
 
