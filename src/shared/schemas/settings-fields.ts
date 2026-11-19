@@ -20,6 +20,7 @@ import {
 } from '@shared/types/settings'
 import { UPDATE_CHANNELS } from '@shared/types/update-channel'
 import { desktopNotificationSettingsSchema } from './desktop-notification'
+import { providerRestrictionScopeSchema } from './provider-restriction-scope'
 import {
   extensionPanelShortcutBindingsSchema,
   shortcutBindingsSchema,
@@ -34,16 +35,6 @@ const stringRecordSchema = Schema.Record({ key: Schema.String, value: Schema.Str
 const togglesByProjectSchema = Schema.Record({
   key: Schema.String,
   value: Schema.Record({ key: Schema.String, value: Schema.Boolean }),
-})
-
-/**
- * One provider-restriction scope as a patch or a stored row carries it: a provider id mapped to
- * its enabled/disabled choice, with the reserved `only` key carrying the non-empty id list that
- * permits exactly those providers (CONTEXT.md, "Provider restriction").
- */
-export const providerRestrictionScopeSchema = Schema.Record({
-  key: Schema.String,
-  value: Schema.Union(Schema.Boolean, Schema.Array(Schema.String)),
 })
 
 /** Syntax theme selection for every present and future app appearance variant. */

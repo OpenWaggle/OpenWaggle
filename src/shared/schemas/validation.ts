@@ -21,7 +21,7 @@ import {
   BROWSER_PREVIEW_CAPTURE_LIMITS,
 } from '@shared/types/browser-preview-controls'
 import { storedProjectActionsSchema } from './project-actions'
-import { providerRestrictionScopeSchema } from './settings-fields'
+import { providerRestrictionScopeSchema } from './provider-restriction-scope'
 import {
   sessionInputIdSchema,
   sessionInputItemTextSchema,
