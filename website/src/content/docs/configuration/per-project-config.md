@@ -59,7 +59,7 @@ A provider the file leaves out follows the app's restrictions.
 | No entry for a provider | Says nothing about it, so the next scope decides |
 | `"only": ["anthropic", "openrouter"]` | Allows exactly these providers and refuses every other one |
 
-To close the list, the reserved `only` key names exactly the providers allowed. This project can only ever use these two, whatever the app allows:
+The reserved `only` key closes the list to exactly the providers it names. Here are all three scopes working together, keeping an employer's Amazon Bedrock account out of personal projects. In **Settings > Connections > Provider Restrictions**, set `amazon-bedrock` to **Blocked** under **Every project (app-wide)**. Then choose **Add folder scope**, pick your work folder, and set `amazon-bedrock` to **Allowed** there. Every project inside that folder can use Bedrock again, and everything outside it cannot. A repository that should only ever use two providers pins itself with its own file, which outranks both:
 
 ```json
 {
