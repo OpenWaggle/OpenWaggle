@@ -37,25 +37,38 @@ Create `.openwaggle/settings.json` in the project root and add only the values y
 
 ## Providers
 
-A `providers` entry says which model providers this project's sessions may use. It outranks every provider restriction you set in the app, so a team can pin a repository to one account. This project allows only the `acme-corp` provider:
+A `providers` entry says which model providers this project's sessions may use. It outranks every provider restriction you set in the app, so a team can pin a repository to one account. Each key is a provider's id, the part before the slash in a model's name, and each value says whether this project allows it. This project runs its sessions on Anthropic and OpenRouter and never on the company's Amazon Bedrock account:
 
 ```json
 {
   "$schema": "https://openwaggle.ai/schemas/project-settings.schema.json",
   "providers": {
-    "only": ["acme-corp"]
+    "anthropic": true,
+    "openrouter": true,
+    "amazon-bedrock": false
   }
 }
 ```
 
-Each key is a provider's id. Each value says what this scope allows.
+A provider the file leaves out follows the app's restrictions.
 
 | Value | What this scope says |
 | --- | --- |
-| `"acme-corp": true` | Allows `acme-corp` |
-| `"acme-corp": false` | Refuses `acme-corp` |
+| `"anthropic": true` | Allows `anthropic` |
+| `"anthropic": false` | Refuses `anthropic` |
 | No entry for a provider | Says nothing about it, so the next scope decides |
-| `"only": ["acme-corp", "acme-ai"]` | Allows exactly these providers and refuses every other one |
+| `"only": ["anthropic", "openrouter"]` | Allows exactly these providers and refuses every other one |
+
+To close the list, the reserved `only` key names exactly the providers allowed. This project can only ever use these two, whatever the app allows:
+
+```json
+{
+  "$schema": "https://openwaggle.ai/schemas/project-settings.schema.json",
+  "providers": {
+    "only": ["anthropic", "github-copilot"]
+  }
+}
+```
 
 An `only` list outranks the `true` and `false` entries beside it.
 
