@@ -23,14 +23,33 @@ export type ProviderRestrictionsByPath = Readonly<Record<string, ProviderRestric
 export const PROVIDER_RESTRICTION_ONLY_KEY = 'only'
 
 /**
+ * A path to compare scopes with: separators normalized to `/` (Windows paths arrive with
+ * backslashes) and trailing separators dropped, as `formatWorktreePathForDisplay` does. The
+ * util is shared with the renderer bundle, so it does not import `node:path`.
+ */
+function normalizePath(value: string) {
+  const slashed = value.replace(/\\/gu, '/')
+  return slashed.length > 1 ? slashed.replace(/\/+$/u, '') : slashed
+}
+
+/**
  * Why a path cannot be a **Provider scope**, or null when it can: the home directory itself is the
  * app-wide setting, anything above or outside it would restate a broader scope instead of
- * naming one, and OpenWaggle's own folders are not project folders. Both processes use the same
- * check, so the Settings form and the settings update refuse identically.
+ * naming one, a path that is not normalized would never match a canonical project, and
+ * OpenWaggle's own folders are not project folders. The settings update applies it, and the
+ * Settings form shows the refusal it returns.
  */
 export function providerScopePathRejection(scopePath: string, homeDir: string) {
-  const scoped = scopePath !== '/' && scopePath.endsWith('/') ? scopePath.slice(0, -1) : scopePath
-  const home = homeDir.endsWith('/') ? homeDir.slice(0, -1) : homeDir
+  if (
+    scopePath
+      .trim()
+      .split(/[/\\]+/u)
+      .includes('..')
+  ) {
+    return `"${scopePath}" is not a normalized path; a provider scope must name a folder without ".." in it.`
+  }
+  const scoped = normalizePath(scopePath)
+  const home = normalizePath(homeDir)
   if (scoped === home || !scoped.startsWith(`${home}/`)) {
     return `A provider scope must be a folder inside your home directory, not "${scopePath}": the home directory itself is the app-wide restriction.`
   }
@@ -55,8 +74,8 @@ export interface ProviderRestrictionInput {
 
 /** Whether `scopePath` is `projectPath` itself or an ancestor directory of it. */
 function contains(scopePath: string, projectPath: string) {
-  const scoped = scopePath.endsWith('/') ? scopePath.slice(0, -1) : scopePath
-  const project = projectPath.endsWith('/') ? projectPath.slice(0, -1) : projectPath
+  const scoped = normalizePath(scopePath)
+  const project = normalizePath(projectPath)
   return scoped === project || project.startsWith(`${scoped}/`)
 }
 
@@ -105,13 +124,18 @@ export function resolveModelWithinProviderRestriction(input: {
 }
 
 export function resolveProviderRestriction(input: ProviderRestrictionInput) {
+  const aliases = input.aliases ?? {}
+  // A scope recorded under a path a project was opened through before it was canonicalized must
+  // keep matching, and a project reached through such a path must still find its scopes.
+  const projectPath = aliases[input.projectPath] ?? input.projectPath
   const scopes: ProviderRestrictionScope[] = []
   // Most specific first: the project's own file, then its containing scopes deepest-first,
   // then the app-wide choice.
   if (input.projectOverride) scopes.push(input.projectOverride)
   scopes.push(
     ...Object.entries(input.byPath ?? {})
-      .filter(([scopePath]) => contains(scopePath, input.projectPath))
+      .map(([scopePath, scope]) => [aliases[scopePath] ?? scopePath, scope] as const)
+      .filter(([scopePath]) => contains(scopePath, projectPath))
       .sort(([left], [right]) => right.length - left.length)
       .map(([, scope]) => scope),
   )
@@ -122,8 +146,12 @@ export function resolveProviderRestriction(input: ProviderRestrictionInput) {
       // The reserved key is scope syntax, never a provider id.
       if (provider === PROVIDER_RESTRICTION_ONLY_KEY) return true
       for (const scope of scopes) {
-        const only = scope[PROVIDER_RESTRICTION_ONLY_KEY]
-        if (Array.isArray(only)) return only.includes(provider)
+        // A malformed `only` value fails closed: it refuses every provider rather than
+        // silently reopening the scope the person meant to close.
+        if (PROVIDER_RESTRICTION_ONLY_KEY in scope) {
+          const only = scope[PROVIDER_RESTRICTION_ONLY_KEY]
+          return Array.isArray(only) && only.includes(provider)
+        }
         const choice = scope[provider]
         if (typeof choice === 'boolean') return choice
       }

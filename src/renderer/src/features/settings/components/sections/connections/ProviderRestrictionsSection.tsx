@@ -98,7 +98,6 @@ interface ScopeEditorProps {
   readonly scope: ProviderRestrictionScope
   readonly providerModels: readonly ProviderInfo[]
   readonly effect: ScopeEffect
-  readonly error: string | null
   readonly onChange: (next: ProviderRestrictionScope) => void
   readonly onRemove?: () => void
 }
@@ -108,7 +107,6 @@ function ScopeEditor({
   scope,
   providerModels,
   effect,
-  error,
   onChange,
   onRemove,
 }: ScopeEditorProps) {
@@ -174,7 +172,6 @@ function ScopeEditor({
           widen the scope.
         </p>
       ) : null}
-      {error ? <p className="px-4 py-2 text-xs text-error-text">{error}</p> : null}
     </div>
   )
 }
@@ -188,7 +185,6 @@ export function ProviderRestrictionsSection() {
   const settings = usePreferencesStore((state) => state.settings)
   const { providerModels } = useProviders()
   const [error, setError] = useState<string | null>(null)
-  const [scopeErrors, setScopeErrors] = useState<Record<string, string>>({})
 
   async function apply(patch: {
     providerRestrictions?: Record<string, boolean | readonly string[]>
@@ -197,25 +193,24 @@ export function ProviderRestrictionsSection() {
     const result = await api.updateSettings(patch)
     if (!result.ok) {
       setError(result.error)
-      return false
+      return
     }
     setError(null)
     usePreferencesStore.setState((state) => ({
       settings: { ...state.settings, ...patch },
     }))
-    return true
   }
 
   async function addScope() {
     const picked = await api.selectProjectFolder()
     if (!picked) return
-    const result = await apply({
+    // A refused folder never joins the list, so its reason shows with the section's error.
+    await apply({
       providerRestrictionsByPath: {
         ...settings.providerRestrictionsByPath,
         [picked]: {},
       },
     })
-    if (!result) setScopeErrors((errors) => ({ ...errors, [picked]: error ?? '' }))
   }
 
   async function removeScope(scopePath: string) {
@@ -241,6 +236,11 @@ export function ProviderRestrictionsSection() {
           Add folder scope
         </Button>
       </div>
+      {error ? (
+        <p role="alert" className="text-xs text-error-text">
+          {error}
+        </p>
+      ) : null}
 
       <ScopeEditor
         label="Every project (app-wide)"
@@ -261,7 +261,6 @@ export function ProviderRestrictionsSection() {
           ),
           anyEnabled: settings.enabledModels.length > 0,
         }}
-        error={error}
         onChange={(next) => void apply({ providerRestrictions: next })}
       />
 
@@ -288,7 +287,6 @@ export function ProviderRestrictionsSection() {
             ),
             anyEnabled: settings.enabledModels.length > 0,
           }}
-          error={scopeErrors[scopePath] ?? null}
           onChange={(next) =>
             void apply({
               providerRestrictionsByPath: {

@@ -9,6 +9,7 @@ import {
 import * as Effect from 'effect/Effect'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { PrepareSessionLifecycleInput } from '../ports/session-lifecycle-preparation-service'
+import { validateProjectPath } from '../utils/project-path-validation'
 import {
   buildLifecycleExecutionProfile,
   type ParentExecutionSelection,
@@ -61,18 +62,27 @@ export function resolveSessionModels(input: {
       parent: input.parent,
       definition: input.definition,
     })
+    // Scopes are keyed by canonical path, but a CLI or MCP caller may pass a symlinked or
+    // non-normalized one; match against its real path so a folder scope still covers it.
+    const canonicalProjectPath = yield* validateProjectPath(input.projectPath).pipe(
+      Effect.map((resolved) => resolved ?? input.projectPath),
+      Effect.orElseSucceed(() => input.projectPath),
+    )
     const restriction = resolveProviderRestriction({
-      projectPath: input.projectPath,
+      projectPath: canonicalProjectPath,
       byPath: input.settings.providerRestrictionsByPath,
       ...(input.projectProviders ? { projectOverride: input.projectProviders } : {}),
       appWide: input.settings.providerRestrictions,
       ...(input.settings.projectPathAliases ? { aliases: input.settings.projectPathAliases } : {}),
     })
-    const namedByCaller =
-      input.command.operation !== 'fork' && input.command.specialization?.modelId !== undefined
+    // A fork carries its source Session's resolved snapshot as its definition: this request named
+    // none of it, so a model pinned there is derived and resolves again instead of refusing.
+    const forking = input.command.operation === 'fork'
+    const namedByCaller = !forking && input.command.specialization?.modelId !== undefined
+    const namedByDefinition = !forking && input.definition?.model !== undefined
     const resolution: ProviderRestrictedModel = resolveModelWithinProviderRestriction({
       modelId: builtProfile.modelId,
-      named: namedByCaller || input.definition?.model !== undefined,
+      named: namedByCaller || namedByDefinition,
       restriction,
       enabledModels: input.settings.enabledModels,
     })

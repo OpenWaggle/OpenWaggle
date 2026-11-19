@@ -175,17 +175,28 @@ export function prepareForkWhenForking(input: {
   readonly attemptId: string
   readonly onForkFile: (file: string) => void
 }) {
-  return Effect.suspend(() =>
-    input.command.operation === 'fork'
-      ? prepareLifecycleFork({
-          sql: input.sql,
-          kernel: input.kernel,
-          command: input.command,
-          callerId: input.callerId,
-          modelId: input.forkModelId ?? '',
-          attemptId: input.attemptId,
-          onForkFile: input.onForkFile,
-        })
-      : Effect.succeed(undefined),
-  )
+  return Effect.suspend(() => {
+    if (input.command.operation !== 'fork') return Effect.succeed(undefined)
+    // Preparation resolves the fork's model, so an absent one means it was refused: forking with
+    // an empty model would let Pi pick its own default and bypass the restriction.
+    if (input.forkModelId === undefined) {
+      return Effect.fail(
+        new SessionLifecyclePreparationError({
+          operation: 'enforce-provider-restriction',
+          cause: new Error(
+            "The fork's model could not be resolved inside this project's providers.",
+          ),
+        }),
+      )
+    }
+    return prepareLifecycleFork({
+      sql: input.sql,
+      kernel: input.kernel,
+      command: input.command,
+      callerId: input.callerId,
+      modelId: input.forkModelId,
+      attemptId: input.attemptId,
+      onForkFile: input.onForkFile,
+    })
+  })
 }

@@ -96,14 +96,44 @@ describe('Provider restriction', () => {
     expect(restriction.allows('anthropic')).toBe(false)
   })
 
-  it('matches a scope recorded under a project path alias', () => {
+  it('applies a scope recorded under a project path alias to the canonical project', () => {
     const restriction = resolveProviderRestriction({
       projectPath: '/projects/DTD/renamed-repo',
-      byPath: { '/projects/DTD/old-repo': { 'amazon-bedrock': true } },
+      byPath: { '/projects/DTD/old-repo': { 'amazon-bedrock': false } },
       aliases: { '/projects/DTD/old-repo': '/projects/DTD/renamed-repo' },
     })
 
-    expect(restriction.allows('amazon-bedrock')).toBe(true)
+    // A refusal, not the allow that an unmatched scope would also produce.
+    expect(restriction.allows('amazon-bedrock')).toBe(false)
+  })
+
+  it('applies a scope to a project reached through its own alias path', () => {
+    const restriction = resolveProviderRestriction({
+      projectPath: '/projects/DTD/old-repo',
+      byPath: { '/projects/DTD/renamed-repo': { 'amazon-bedrock': false } },
+      aliases: { '/projects/DTD/old-repo': '/projects/DTD/renamed-repo' },
+    })
+
+    expect(restriction.allows('amazon-bedrock')).toBe(false)
+  })
+
+  it('matches a Windows scope path against a Windows project path', () => {
+    const restriction = resolveProviderRestriction({
+      projectPath: 'C:\\projects\\DTD\\repo',
+      byPath: { 'C:\\projects\\DTD': { 'amazon-bedrock': false } },
+    })
+
+    expect(restriction.allows('amazon-bedrock')).toBe(false)
+  })
+
+  it('refuses every provider when the reserved only key is not a list', () => {
+    const restriction = resolveProviderRestriction({
+      projectPath: '/projects/DTD/repo',
+      byPath: { '/projects/DTD': { only: true } },
+    })
+
+    expect(restriction.allows('amazon-bedrock')).toBe(false)
+    expect(restriction.allows('openrouter')).toBe(false)
   })
 })
 
@@ -118,6 +148,14 @@ describe('provider scope path guardrails', () => {
     expect(providerScopePathRejection(home, home)).toContain('app-wide restriction')
     expect(providerScopePathRejection('/', home)).toContain('app-wide restriction')
     expect(providerScopePathRejection('/Users/other/projects', home)).toContain('app-wide')
+  })
+
+  it('refuses a path that is not normalized, which would never match a project', () => {
+    expect(providerScopePathRejection(`${home}/../outside`, home)).toContain('not a normalized')
+  })
+
+  it('accepts a Windows scope path under the home directory', () => {
+    expect(providerScopePathRejection('C:\\Users\\dev\\projects', 'C:\\Users\\dev')).toBeNull()
   })
 
   it('refuses OpenWaggle own configuration folders', () => {

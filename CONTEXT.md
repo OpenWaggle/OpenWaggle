@@ -2146,14 +2146,14 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A **Review comment** anchors to a diff line and carries its **Hunk** snippet; a **Review** gathers pending Review comments plus an optional **Review summary** and submits them to the agent as one message, never touching the composer.
 - A **Review** targets the agent, whereas a **Change request** targets a remote (GitHub/GitLab); they share no state.
 - A **Provider restriction** never changes **Enabled models**: restricting a scope only removes models from what that scope's composer offers, and opening a restricted project never edits the person's app-wide list.
-- A scope whose **Provider restriction** leaves no **Enabled model** available offers no model rather than silence: Settings warns while that combination is configured, and the composer names the providers the scope allows and links to Settings. Nothing is re-enabled on the person's behalf.
+- A scope whose **Provider restriction** leaves no **Enabled model** available offers no model rather than silence: Settings warns while that combination is configured, and the composer's empty picker says the project's provider restrictions allow no enabled model. Nothing is re-enabled on the person's behalf.
 - **Provider scopes** are one list keyed by canonical absolute path: a Session's nearest containing scope decides each provider, so a folder entry covers every project beneath it and a deeper entry overrides a shallower one for the providers it names.
 - A Session worktree is never a **Provider scope**. A Session resolves its scopes from its own project path, so a worktree under a managed worktree root keeps its project's scopes.
 - A **Provider scope** at the home directory, above it, or inside a managed root is refused, because it would silently restate a broader scope instead of naming one.
-- A **Provider scope** whose directory is renamed or moved keeps matching through the project path alias mechanism and is reported in Settings, rather than silently ceasing to match.
+- A **Provider scope** recorded under a path the project path alias mechanism maps to a canonical one keeps matching through that alias, and a project reached through an alias still finds its scopes. A scope whose folder no longer exists simply matches nothing.
 - A **Provider restriction** refuses a model the caller named, and never a model OpenWaggle derived: a stored default, a per-project default, and a spawned child's inherited model all resolve again inside the child's own scopes, so inheriting across a scope boundary keeps a multi-agent spawn working instead of failing it.
 - A **Title model** the scope disallows falls back to Automatic rather than failing, because Automatic already follows the Session's own provider and a title is cosmetic.
-- Narrowing a scope's providers reports any stored default model it now disallows while the change is being made, so the contradiction is resolved in Settings instead of surfacing as a refused launch.
+- Narrowing a scope never refuses a launch through a stored default: the default is derived, so it resolves again inside the scope, and the composer moves its own selection inside the scope when the project opens or the catalog loads.
 
 ## Example dialogue
 
