@@ -5,6 +5,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { registerAgentLoopInteractionDeadline } from '../application/agent-loop-interaction-broker'
 import { prepareSessionForRun } from '../application/pi-session-projection-refresh'
+import { enforceScheduledTaskModel } from '../application/project-provider-restriction'
 import {
   preserveOutcomeAfterAttachmentCleanup,
   withSessionAttachmentTransition,
@@ -155,12 +156,14 @@ function prepareRun(sql: SqlClient.SqlClient, input: SessionControlRunExecutionI
       ...(input.intent.thinkingLevel ? { thinkingLevel: input.intent.thinkingLevel } : {}),
     })
     const execution = yield* loadRunExecutionProfile(sql, input)
+    const settings = yield* settingsService.get()
+    yield* enforceScheduledTaskModel({
+      modelId: execution.scheduledTaskModelId,
+      projectPath: execution.projectPath,
+      settings,
+    })
     const authoritySnapshot = yield* loadSessionAuthoritySnapshot(sql, input.sessionId)
-    const allowModelMultiAgent = yield* modelMultiAgentEnabled(
-      yield* settingsService.get(),
-      execution,
-      input.runId,
-    )
+    const allowModelMultiAgent = yield* modelMultiAgentEnabled(settings, execution, input.runId)
     return { execution, authoritySnapshot, allowModelMultiAgent }
   })
 }

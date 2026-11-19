@@ -52,6 +52,22 @@ describe('Title model within provider restrictions', () => {
     expect(titleModel).toBe(SupportedModelId('openrouter/deepseek/deepseek-v4.1-flash'))
   })
 
+  it('falls back to Automatic when the project settings file cannot be read', async () => {
+    await fs.mkdir(path.join(temporaryRoot, '.openwaggle'))
+    await fs.writeFile(
+      path.join(temporaryRoot, '.openwaggle', 'settings.json'),
+      JSON.stringify({ providers: { only: 'openrouter' } }),
+    )
+    const titleModel = await Effect.runPromise(
+      titleModelWithinProviderRestrictions(
+        SupportedModelId('amazon-bedrock/eu.anthropic.claude-haiku-5-5'),
+        temporaryRoot,
+      ).pipe(Effect.provide(layer({}))),
+    )
+
+    expect(titleModel).toBe(SESSION_TITLE_MODEL_AUTOMATIC)
+  })
+
   it('keeps the Title model when the Session has no project', async () => {
     const titleModel = await Effect.runPromise(
       titleModelWithinProviderRestrictions(

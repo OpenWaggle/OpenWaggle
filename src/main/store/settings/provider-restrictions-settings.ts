@@ -14,20 +14,22 @@ import type { SettingsPatchWrite } from './persistence-plan'
 
 /**
  * One scope entry as stored: a provider's boolean choice, or the reserved `only` id list. An
- * `only` list with any non-string or empty entry fails closed as empty, which the resolver reads
+ * `only` value that is not a list of provider ids fails closed as empty, which the resolver reads
  * as permitting no provider, rather than dropping the key and silently reopening the scope.
  */
 function sanitizeScopeEntry(key: string, value: unknown) {
-  if (typeof value === 'boolean') return value
-  if (key === PROVIDER_RESTRICTION_ONLY_KEY && Array.isArray(value)) {
-    const ids: string[] = []
-    for (const entry of value) {
-      if (typeof entry !== 'string' || entry.trim().length === 0) return []
-      ids.push(entry.trim())
-    }
-    return ids
+  if (key === PROVIDER_RESTRICTION_ONLY_KEY) return sanitizeOnlyList(value)
+  return typeof value === 'boolean' ? value : null
+}
+
+function sanitizeOnlyList(value: unknown) {
+  if (!Array.isArray(value)) return []
+  const ids: string[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'string' || entry.trim().length === 0) return []
+    ids.push(entry.trim())
   }
-  return null
+  return ids
 }
 
 /** A stored scope's valid entries; anything else, such as a hand edit, is dropped. */
@@ -43,7 +45,11 @@ export function sanitizeProviderRestrictionScope(raw: unknown) {
   return scope
 }
 
-/** The stored app-wide and path scopes; a path scope whose entries all fail is dropped. */
+/**
+ * The stored app-wide and path scopes. A path scope keeps its folder even with no valid entry,
+ * because Settings adds a folder before any provider is chosen for it; an empty scope only falls
+ * through to the next one.
+ */
 export function sanitizeProviderRestrictions(raw: unknown) {
   return sanitizeProviderRestrictionScope(raw)
 }
@@ -53,9 +59,8 @@ export function sanitizeProviderRestrictionsByPath(raw: unknown) {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return result
   for (const [rawPath, scope] of Object.entries(raw)) {
     const path = rawPath.trim()
-    if (!path) continue
-    const sanitized = sanitizeProviderRestrictionScope(scope)
-    if (Object.keys(sanitized).length > 0) result[path] = sanitized
+    if (!path || typeof scope !== 'object' || scope === null || Array.isArray(scope)) continue
+    result[path] = sanitizeProviderRestrictionScope(scope)
   }
   return result
 }

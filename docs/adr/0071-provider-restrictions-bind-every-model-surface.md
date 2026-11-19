@@ -28,15 +28,18 @@ surface leaves the other three as leaks.
   A scope may close itself with the reserved `only` list, permitting exactly the providers it
   names; otherwise `true` grants, `false` withdraws, and a provider no scope mentions is allowed.
 - **Refuse what the caller named; re-derive what OpenWaggle derived.** A model the caller named —
-  a specialization, an Agent definition's `model`, a CLI or MCP `--model` — fails the request with
-  the provider it refuses. A model OpenWaggle derived — the global default, a project default, a
+  a specialization, an Agent definition's `model`, a CLI or MCP `--model`, a Heartbeat's own
+  model, a Waggle agent's own model — fails the request with the provider it refuses. A model OpenWaggle derived — the global default, a project default, a
   spawned child's inheritance, a fork's source model — resolves again inside the project's
   restriction to the first enabled model of an allowed provider, so a multi-agent spawn crossing a
   scope boundary keeps working. The Title model falls back to Automatic rather than failing,
   because titles are cosmetic.
 - **Every surface goes through one choke point.** Session lifecycle preparation resolves the model
   for create, launch, spawn and fork from GUI, CLI, MCP and the Hive tool alike, so the
-  restriction is enforced there once, and a running session is never retroactively affected.
+  restriction is enforced there once, and a running session is never retroactively affected. The
+  two places a Run swaps in a model of its own check it as well: a Heartbeat's model when it
+  fires, since a scope can narrow after it was scheduled, and a Waggle agent's model when the
+  Waggle Run starts.
 - **The home directory is the app-wide setting, not a scope.** A path scope must name a folder
   inside the home directory and outside OpenWaggle's own configuration, or the settings update is
   refused; the Settings form and the update share one check.

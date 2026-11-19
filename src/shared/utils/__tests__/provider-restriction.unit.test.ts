@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { providerScopePathRejection, resolveProviderRestriction } from '../provider-restriction'
+import {
+  providerScopePathRejection,
+  resolveModelWithinProviderRestriction,
+  resolveProviderRestriction,
+} from '../provider-restriction'
 
 describe('Provider restriction', () => {
   it('refuses a provider the app-wide scope disabled', () => {
@@ -163,5 +167,43 @@ describe('provider scope path guardrails', () => {
     expect(providerScopePathRejection(`${home}/.openwaggle/worktrees/x`, home)).toContain(
       "OpenWaggle's own",
     )
+  })
+})
+
+describe('resolving a model within a provider restriction', () => {
+  const restriction = resolveProviderRestriction({
+    projectPath: '/projects/personal/repo',
+    appWide: { 'amazon-bedrock': false },
+  })
+  const enabledModels = ['amazon-bedrock/claude', 'openrouter/deepseek']
+
+  it('refuses a named model from a refused provider, even with surrounding whitespace', () => {
+    for (const modelId of ['amazon-bedrock/claude', ' amazon-bedrock/claude ']) {
+      expect(
+        resolveModelWithinProviderRestriction({ modelId, named: true, restriction, enabledModels }),
+      ).toMatchObject({ kind: 'refused' })
+    }
+  })
+
+  it('resolves a derived model again to the first enabled model of an allowed provider', () => {
+    expect(
+      resolveModelWithinProviderRestriction({
+        modelId: 'amazon-bedrock/claude',
+        named: false,
+        restriction,
+        enabledModels,
+      }),
+    ).toEqual({ kind: 'allowed', modelId: 'openrouter/deepseek' })
+  })
+
+  it('refuses a derived model when no enabled model uses an allowed provider', () => {
+    expect(
+      resolveModelWithinProviderRestriction({
+        modelId: 'amazon-bedrock/claude',
+        named: false,
+        restriction,
+        enabledModels: ['amazon-bedrock/claude'],
+      }),
+    ).toMatchObject({ kind: 'refused' })
   })
 })

@@ -4,12 +4,12 @@ import type { Settings } from '@shared/types/settings'
 import {
   type ProviderRestrictedModel,
   resolveModelWithinProviderRestriction,
-  resolveProviderRestriction,
+  type ResolvedProviderRestriction,
 } from '@shared/utils/provider-restriction'
 import * as Effect from 'effect/Effect'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { PrepareSessionLifecycleInput } from '../ports/session-lifecycle-preparation-service'
-import { validateProjectPath } from '../utils/project-path-validation'
+import { projectProviderRestriction } from '../application/project-provider-restriction'
 import {
   buildLifecycleExecutionProfile,
   type ParentExecutionSelection,
@@ -62,18 +62,10 @@ export function resolveSessionModels(input: {
       parent: input.parent,
       definition: input.definition,
     })
-    // Scopes are keyed by canonical path, but a CLI or MCP caller may pass a symlinked or
-    // non-normalized one; match against its real path so a folder scope still covers it.
-    const canonicalProjectPath = yield* validateProjectPath(input.projectPath).pipe(
-      Effect.map((resolved) => resolved ?? input.projectPath),
-      Effect.orElseSucceed(() => input.projectPath),
-    )
-    const restriction = resolveProviderRestriction({
-      projectPath: canonicalProjectPath,
-      byPath: input.settings.providerRestrictionsByPath,
-      ...(input.projectProviders ? { projectOverride: input.projectProviders } : {}),
-      appWide: input.settings.providerRestrictions,
-      ...(input.settings.projectPathAliases ? { aliases: input.settings.projectPathAliases } : {}),
+    const restriction = yield* projectProviderRestriction({
+      settings: input.settings,
+      projectPath: input.projectPath,
+      projectProviders: input.projectProviders,
     })
     // A fork carries its source Session's resolved snapshot as its definition: this request named
     // none of it, so a model pinned there is derived and resolves again instead of refusing.
@@ -112,7 +104,7 @@ export function resolveSessionModels(input: {
  * inside the fork's project, and only a project with no allowed enabled model fails the fork. */
 function enforceForkModel(
   modelId: string,
-  restriction: ReturnType<typeof resolveProviderRestriction>,
+  restriction: ResolvedProviderRestriction,
   enabledModels: readonly string[],
 ) {
   return Effect.suspend(() => {

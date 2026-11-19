@@ -6,7 +6,7 @@ import {
 import type { SessionTitleSource } from '@shared/session-title-source'
 import { type SessionId, SupportedModelId } from '@shared/types/brand'
 import { parseModelRef } from '@shared/types/llm'
-import { resolveProviderRestriction } from '@shared/utils/provider-restriction'
+import { loadProjectProviderRestriction } from './project-provider-restriction'
 import type { SessionDetail } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import { lastAnsweringModelReference } from '../domain/session-model-fallback'
@@ -14,7 +14,6 @@ import type { SessionTitleContextAttachment } from '../domain/session-title/sess
 import { parseGeneratedSessionTitle } from '../domain/session-title/session-title-output'
 import { buildSessionTitlePrompt } from '../domain/session-title/session-title-prompts'
 import { SessionTitleGenerationError } from '../errors'
-import { loadProjectConfig } from '../config/project-config'
 import { SessionTitleGenerator } from '../ports/session-title-generator'
 import type { SessionTitleState } from '../ports/session-title-repository'
 import { SettingsService } from '../services/settings-service'
@@ -95,16 +94,12 @@ export function titleModelWithinProviderRestrictions(
     if (!parsed || !projectPath) return titleModel
     const settings = yield* (yield* SettingsService).get().pipe(Effect.orElseSucceed(() => null))
     if (settings === null) return titleModel
-    const projectConfig = yield* Effect.promise(() => loadProjectConfig(projectPath)).pipe(
+    // A settings file that cannot be read falls back to Automatic, which follows the Session's
+    // own provider, rather than lifting the project's own scope.
+    const restriction = yield* loadProjectProviderRestriction(settings, projectPath).pipe(
       Effect.orElseSucceed(() => null),
     )
-    const restriction = resolveProviderRestriction({
-      projectPath,
-      byPath: settings.providerRestrictionsByPath,
-      ...(projectConfig?.providers ? { projectOverride: projectConfig.providers } : {}),
-      appWide: settings.providerRestrictions,
-      ...(settings.projectPathAliases ? { aliases: settings.projectPathAliases } : {}),
-    })
+    if (restriction === null) return SESSION_TITLE_MODEL_AUTOMATIC
     return restriction.allows(parsed.provider) ? titleModel : SESSION_TITLE_MODEL_AUTOMATIC
   })
 }

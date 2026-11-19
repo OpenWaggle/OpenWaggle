@@ -11,6 +11,8 @@ describe('Provider restrictions in settings', () => {
         '/projects/DTD': { only: ['amazon-bedrock'] },
         '/projects/personal': { openrouter: true, 'anthropic)': 'nope', '': true },
         '/projects/bad': { 'amazon-bedrock': 'nope' },
+        '/projects/not-a-scope': 'nope',
+        '/projects/hand-edited': { only: 'amazon-bedrock' },
       },
     })
 
@@ -18,6 +20,10 @@ describe('Provider restrictions in settings', () => {
     expect(settings.providerRestrictionsByPath).toEqual({
       '/projects/DTD': { only: ['amazon-bedrock'] },
       '/projects/personal': { openrouter: true },
+      // A folder added before any provider was chosen for it stays, choosing nothing.
+      '/projects/bad': {},
+      // An `only` that is not a list closes the scope rather than vanishing and reopening it.
+      '/projects/hand-edited': { only: [] },
     })
   })
 
@@ -41,11 +47,11 @@ describe('Provider restrictions in settings', () => {
     ])
   })
 
-  it('resolves each scope entry and drops a scope whose entries all fail', () => {
+  it('keeps a folder whose entries all fail as a scope that chooses nothing', () => {
     const { settings } = buildSettingsSnapshot({
       providerRestrictionsByPath: { '/projects/empty': { weird: 1 } },
     })
 
-    expect(settings.providerRestrictionsByPath).toEqual({})
+    expect(settings.providerRestrictionsByPath).toEqual({ '/projects/empty': {} })
   })
 })

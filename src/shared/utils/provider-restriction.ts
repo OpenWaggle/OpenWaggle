@@ -100,7 +100,8 @@ export function resolveModelWithinProviderRestriction(input: {
   readonly restriction: ResolvedProviderRestriction
   readonly enabledModels: readonly string[]
 }) {
-  const parsed = parseModelRef(input.modelId)
+  // Pi resolves a trimmed reference, so the provider it will run is the trimmed one's.
+  const parsed = parseModelRef(input.modelId.trim())
   if (!parsed || input.restriction.allows(parsed.provider)) {
     return { kind: 'allowed', modelId: input.modelId } satisfies ProviderRestrictedModel
   }

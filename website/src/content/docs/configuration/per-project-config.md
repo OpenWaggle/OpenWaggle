@@ -50,7 +50,7 @@ A `providers` entry says which model providers this project's sessions may use. 
 
 Each key is a provider's id, and the value is `true` or `false`. `true` allows that provider, `false` refuses it, and a provider you leave out follows the app's restrictions. The reserved `only` key takes a list instead: when it is present, exactly the providers it names are allowed and every other one is refused in this project, whatever the app says.
 
-A session in a restricted project offers only the models of allowed providers, and a request that names a model from any other provider is refused with an error, whether it comes from the app, the command line, MCP or an agent spawning a worker. A model OpenWaggle picks itself resolves again inside the allowed providers instead of failing. Set the app-wide and folder scopes in **Settings > Connections > Provider Restrictions**.
+A session in a restricted project offers only the models of allowed providers, and a request that names a model from any other provider is refused with an error, whether it comes from the app, the command line, MCP, an agent spawning a worker, a Heartbeat's own model or a Waggle agent's model. A model OpenWaggle picks itself resolves again inside the allowed providers instead of failing. Set the app-wide and folder scopes in **Settings > Connections > Provider Restrictions**.
 
 A value in the file wins over a value an older version saved in the app, and that wins over the app-wide default. **Settings > Agents** changes the defaults. Its **Saved project overrides** list can clear values the app saved, but it never edits your project file.
 
