@@ -14,7 +14,7 @@
       "quantum": 262144
     },
     "main.boot.bytes": {
-      "value": 26368,
+      "value": 25600,
       "quantum": 256
     },
     "main.startup.gui.bytes": {

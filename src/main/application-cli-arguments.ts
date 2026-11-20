@@ -5,31 +5,25 @@ const ELECTRON_RUNTIME_PREFIX_SWITCHES = new Set([
   '--log-level=3',
   // Credential store switches QA starts the GUI with, which the GUI forwards to its Host.
   '--use-mock-keychain',
-  // The GPU-off switch the GUI forwards to its Host, the common workaround for a broken GPU
-  // or Vulkan stack (same class as the Ozone backend switches below).
-  '--disable-gpu',
 ])
 /** Linux Chromium's credential store choice, such as --password-store=basic. */
 const PASSWORD_STORE_SWITCH = /^--password-store=[a-z0-9-]+$/
-/** Chromium's accepted Ozone backend values (x11, wayland), shared with the Host's launcher. */
-const OZONE_PLATFORM_VALUE = /^[a-z0-9-]+$/
-/** Linux Chromium's display backend selection, such as --ozone-platform=x11 or its -hint form. */
-const OZONE_PLATFORM_SWITCH = /^--ozone-platform(?:-hint)?=[a-z0-9-]+$/
-
 /**
- * Whether an Ozone platform value the GUI carries can also reach the Host as a leading runtime
- * switch: the launcher forwards a value if and only if the Host's parser recognizes the switch it
- * builds from it, so the two halves of the #499 fix cannot drift apart again.
+ * A Linux display backend switch a GUI hands to its detached Host, and the value charset this
+ * process's parser accepts. `--ozone-platform` and `--ozone-platform-hint` pick the backend (x11,
+ * wayland); `--disable-gpu` is the GPU-off workaround for a broken Vulkan stack. The Host is the
+ * same Electron runtime on the same display servers, so without the forwarding it dies on the
+ * backend the user escaped while the GUI runs fine and the window sits on its startup-timeout
+ * screen (#499). The launcher forwards exactly what this matches, from the same argv this parser
+ * reads, so the two halves cannot drift apart.
  */
-export function isOzonePlatformValue(value: string) {
-  return OZONE_PLATFORM_VALUE.test(value)
-}
+export const FORWARDED_DISPLAY_SWITCH = /^--(?:ozone-platform(?:-hint)?=[\w-]+|disable-gpu)$/
 
 function isRuntimePrefixSwitch(argument: string) {
   return (
     ELECTRON_RUNTIME_PREFIX_SWITCHES.has(argument) ||
     PASSWORD_STORE_SWITCH.test(argument) ||
-    OZONE_PLATFORM_SWITCH.test(argument)
+    FORWARDED_DISPLAY_SWITCH.test(argument)
   )
 }
 

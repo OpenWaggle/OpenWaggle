@@ -83,7 +83,8 @@ describe('Session Host inherited Linux display backend switches', () => {
     expect(
       sessionHostLaunchCommandFor({
         ...packagedAppImage,
-        commandLine: switchesOf({ 'ozone-platform': 'x11' }),
+        commandLine: switchesOf({}),
+        argv: ['/opt/OpenWaggle.AppImage', '--ozone-platform=x11'],
       }),
     ).toEqual({
       command: '/opt/OpenWaggle.AppImage',
@@ -92,20 +93,33 @@ describe('Session Host inherited Linux display backend switches', () => {
   })
 
   it.each([
-    ['an --ozone-platform-hint', { 'ozone-platform-hint': 'auto' }, ['--ozone-platform-hint=auto']],
+    ['an --ozone-platform-hint', ['--ozone-platform-hint=auto'], ['--ozone-platform-hint=auto']],
     [
       'an --ozone-platform with --disable-gpu',
-      { 'ozone-platform': 'x11', 'disable-gpu': '' },
+      ['--ozone-platform=x11', '--disable-gpu'],
       ['--ozone-platform=x11', '--disable-gpu'],
     ],
-  ])('forwards %s to the Host', (_label, values, expectedSwitches) => {
+  ])('forwards %s to the Host', (_label, argv, expectedSwitches) => {
     const { command, args } = sessionHostLaunchCommandFor({
       ...packagedAppImage,
-      commandLine: switchesOf(values),
+      commandLine: switchesOf({}),
+      argv,
     })
 
     expect(command).toBe('/opt/OpenWaggle.AppImage')
     expect(args).toEqual([...expectedSwitches, 'session-host-internal'])
+  })
+
+  it('reads the switches from this process when the caller injects no argv', () => {
+    const originalArgv = process.argv
+    process.argv = ['/opt/OpenWaggle.AppImage', '--ozone-platform=x11']
+    try {
+      expect(
+        sessionHostLaunchCommandFor({ ...packagedAppImage, commandLine: switchesOf({}) }).args,
+      ).toEqual(['--ozone-platform=x11', 'session-host-internal'])
+    } finally {
+      process.argv = originalArgv
+    }
   })
 
   it('keeps the display switches in a development launch, before the app path', () => {
@@ -115,7 +129,12 @@ describe('Session Host inherited Linux display backend switches', () => {
         isPackaged: false,
         executablePath: '/workspace/node_modules/electron/dist/electron',
         appPath: '/workspace/OpenWaggle',
-        commandLine: switchesOf({ 'ozone-platform': 'x11' }),
+        commandLine: switchesOf({}),
+        argv: [
+          '/workspace/node_modules/electron/dist/electron',
+          '/workspace/OpenWaggle',
+          '--ozone-platform=x11',
+        ],
       }),
     ).toEqual({
       command: '/workspace/node_modules/electron/dist/electron',
@@ -126,7 +145,8 @@ describe('Session Host inherited Linux display backend switches', () => {
   it("does not forward an Ozone value the Host's parser would reject", () => {
     const { args } = sessionHostLaunchCommandFor({
       ...packagedAppImage,
-      commandLine: switchesOf({ 'ozone-platform': 'x11;rm -rf' }),
+      commandLine: switchesOf({}),
+      argv: ['/opt/OpenWaggle.AppImage', '--ozone-platform=x11;rm -rf'],
     })
 
     // A forwarded value outside applicationCliArguments' recognized charset would be a usage
@@ -143,7 +163,8 @@ describe('Session Host inherited Linux display backend switches', () => {
         executablePath: '/tmp/.mount_openwaggle/openwaggle',
         appPath: '/workspace/OpenWaggle',
         appImagePath: '/opt/OpenWaggle.AppImage',
-        commandLine: switchesOf({ 'ozone-platform': 'x11', 'disable-gpu': '' }),
+        commandLine: switchesOf({}),
+        argv: ['/opt/OpenWaggle.AppImage', '--ozone-platform=x11', '--disable-gpu'],
       })
 
       expect(applicationCliArguments([launch.command, ...launch.args], { isPackaged })).toEqual([
@@ -159,11 +180,13 @@ describe('Session Host inherited Linux display backend switches', () => {
         isPackaged: true,
         executablePath: '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
         appPath: '/Applications/OpenWaggle.app/Contents/Resources/app.asar',
-        commandLine: switchesOf({
-          'ozone-platform': 'x11',
-          'ozone-platform-hint': 'auto',
-          'disable-gpu': '',
-        }),
+        commandLine: switchesOf({}),
+        argv: [
+          '/Applications/OpenWaggle.app/Contents/MacOS/OpenWaggle',
+          '--ozone-platform=x11',
+          '--ozone-platform-hint=auto',
+          '--disable-gpu',
+        ],
       }).args,
     ).toEqual(['session-host-internal'])
   })
