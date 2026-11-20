@@ -44,18 +44,6 @@ index 5b9ef8eb316345a5af018d6d65d69a97b814b23c..f0ae3a1dc844419059788f843d61e9cf
              output.stopReason = options?.signal?.aborted ? "aborted" : "error";
              output.errorMessage = error instanceof Error ? withCauseDetail(error) : JSON.stringify(error);
              stream.push({ type: "error", reason: output.stopReason, error: output });
-diff --git a/dist/api/azure-openai-responses.js b/dist/api/azure-openai-responses.js
-index 837fdb43c986af72b0f9c49ce6e7ec4412838322..f3b792af38307a406fc7cb07d05ea92c126ddcf5 100644
---- a/dist/api/azure-openai-responses.js
-+++ b/dist/api/azure-openai-responses.js
-@@ -3,6 +3,7 @@ import { clampThinkingLevel } from "../models.js";
- import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { headersToRecord } from "../utils/headers.js";
-+import { parseStreamingJson } from "../utils/json-parse.js";
- import { getIdentityHeaders } from "../utils/identity.js";
- import { retryProviderRequest } from "../utils/provider-retry.js";
- import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
 diff --git a/dist/api/bedrock-converse-stream.d.ts b/dist/api/bedrock-converse-stream.d.ts
 index 5d44bf071e84329250385366c0e6f623c7d910dd..29f9d3c47e3dea5f126af1686440187a5ff3c7a9 100644
 --- a/dist/api/bedrock-converse-stream.d.ts
