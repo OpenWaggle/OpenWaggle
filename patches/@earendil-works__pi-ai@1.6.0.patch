@@ -74,7 +74,7 @@ index 5d44bf071e84329250385366c0e6f623c7d910dd..29f9d3c47e3dea5f126af1686440187a
  //# sourceMappingURL=bedrock-converse-stream.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index 2f4d57c12f029a46a731e6c26a1212300ae00019..de4eecfdaa99a208b4dc67040b638bdcaf8f165a 100644
+index 2f4d57c12f029a46a731e6c26a1212300ae00019..dbab42d0e5517f5b40c720b7c14ed01651ec27fe 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
 @@ -1,5 +1,7 @@
@@ -384,13 +384,14 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..de4eecfdaa99a208b4dc67040b638bdc
  }
  export const streamSimple = (model, context, options) => {
      const base = {
-@@ -561,8 +723,13 @@ function flushRedactedContent(open, output) {
+@@ -561,8 +723,14 @@ function flushRedactedContent(open, output) {
  }
  /** Ends the stream state of blocks a stream settled without stopping. */
  function flushOpenBlocks(openBlocks, output) {
 -    for (const open of openBlocks.values())
 +    for (const open of openBlocks.values()) {
-+        // A stream that settled without stopping the block still holds rate-limited arguments.
++        // A stream that settled without stopping the block still holds only the arguments parsed
++        // so far: Pi's `ToolCallArgumentsStream` settles the complete text when the block closes.
 +        const block = output.content[open.contentIndex];
 +        if (block?.type === "toolCall" && open.arguments !== undefined)
 +            Object.assign(block, open.arguments.finish());
@@ -399,7 +400,7 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..de4eecfdaa99a208b4dc67040b638bdc
      openBlocks.clear();
  }
  function handleMetadata(event, model, output) {
-@@ -611,15 +778,7 @@ function getModelMatchCandidates(modelId, modelName) {
+@@ -611,15 +779,7 @@ function getModelMatchCandidates(modelId, modelName) {
      });
  }
  function supportsAdaptiveThinking(modelId, modelName) {
@@ -416,7 +417,7 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..de4eecfdaa99a208b4dc67040b638bdc
  }
  function supportsNativeXhighEffort(model) {
      const candidates = getModelMatchCandidates(model.id, model.name);
-@@ -735,17 +894,50 @@ function supportsPromptCaching(model, env) {
+@@ -735,17 +895,50 @@ function supportsPromptCaching(model, env) {
  function supportsThinkingSignature(model) {
      return isAnthropicClaudeModel(model);
  }
@@ -475,7 +476,7 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..de4eecfdaa99a208b4dc67040b638bdc
  }
  function normalizeToolCallId(id) {
      const sanitized = id.replace(/[^a-zA-Z0-9_-]/g, "_");
-@@ -944,7 +1136,7 @@ function convertMessages(context, model, cacheRetention, env) {
+@@ -944,7 +1137,7 @@ function convertMessages(context, model, cacheRetention, env) {
      }
      return result;
  }
@@ -484,7 +485,7 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..de4eecfdaa99a208b4dc67040b638bdc
      if (!tools?.length || toolChoice === "none")
          return { toolConfig: undefined, hasPreferredStrictTools: false };
      let hasPreferredStrictTools = false;
-@@ -964,6 +1156,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode, disablePreferr
+@@ -964,6 +1157,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode, disablePreferr
              },
          };
      });
@@ -495,7 +496,7 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..de4eecfdaa99a208b4dc67040b638bdc
      switch (toolChoice) {
          case "auto":
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index b7016e398acac3560ce58cc6cbb46e2cdfcae2a6..b12e8ab9660bfbcf7e8e396db19bf57d1cf19e57 100644
+index b7016e398acac3560ce58cc6cbb46e2cdfcae2a6..8ff886bdb7ff1df30eb2b2c42f8190b2a101f9e2 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
 @@ -233,7 +233,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
@@ -509,14 +510,15 @@ index b7016e398acac3560ce58cc6cbb46e2cdfcae2a6..b12e8ab9660bfbcf7e8e396db19bf57d
                      }
                  }
                  else if (block.type === "text") {
-@@ -381,6 +383,17 @@ export async function processResponsesStream(openaiStream, output, stream, model
+@@ -381,6 +383,18 @@ export async function processResponsesStream(openaiStream, output, stream, model
          const slot = outputSlots.get(outputIndex);
          return slot?.type === type ? slot : undefined;
      };
 +    /**
-+     * Parse the full arguments of every tool call whose stream never closed. Pi parses them at a
-+     * bounded rate, so a stream that fails or ends without output_item.done must settle them here
-+     * or a tool runs with truncated arguments. The refusal below reads the call, not its arguments.
++     * Parse the full arguments of every tool call whose stream never closed. Pi's
++     * `ToolCallArgumentsStream` parses the complete text only when the provider closes the block, so
++     * a stream that fails or ends without output_item.done must settle them here or a tool runs
++     * with truncated arguments. The refusal below reads the call, not its arguments.
 +     */
 +    const finishOpenToolCalls = () => {
 +        for (const slot of outputSlots.values()) {
@@ -527,7 +529,7 @@ index b7016e398acac3560ce58cc6cbb46e2cdfcae2a6..b12e8ab9660bfbcf7e8e396db19bf57d
      const pushToolCallDelta = (slot, delta) => {
          if (delta === undefined)
              return;
-@@ -684,6 +697,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
+@@ -684,6 +698,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
              finalizeResponse(event.response);
          }
          else if (event.type === "error") {
@@ -535,7 +537,7 @@ index b7016e398acac3560ce58cc6cbb46e2cdfcae2a6..b12e8ab9660bfbcf7e8e396db19bf57d
              throw new Error(`Error Code ${event.code}: ${event.message}` || "Unknown error");
          }
          else if (event.type === "response.failed") {
-@@ -696,10 +710,12 @@ export async function processResponsesStream(openaiStream, output, stream, model
+@@ -696,10 +711,12 @@ export async function processResponsesStream(openaiStream, output, stream, model
                  : details?.reason
                      ? `incomplete: ${details.reason}`
                      : "Unknown error (no error details in response)";
@@ -548,12 +550,12 @@ index b7016e398acac3560ce58cc6cbb46e2cdfcae2a6..b12e8ab9660bfbcf7e8e396db19bf57d
          throw new Error("OpenAI Responses stream ended before a terminal response event");
      }
      // The agent runs every tool call in the final message. Refuse to hand over calls whose
-@@ -710,6 +726,9 @@ export async function processResponsesStream(openaiStream, output, stream, model
+@@ -710,6 +727,9 @@ export async function processResponsesStream(openaiStream, output, stream, model
              throw new Error(`OpenAI Responses stream completed with an unfinished tool call: ${toolCall.name} (${toolCall.id})`);
          }
      }
 +    // A call whose output_item.done never arrived, such as a message that stops on length, still
-+    // holds rate-limited arguments.
++    // holds only the arguments parsed so far.
 +    finishOpenToolCalls();
  }
  /**

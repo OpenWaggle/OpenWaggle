@@ -92,7 +92,7 @@ export function releaseAgeExclusionProblems(
   const problems: string[] = [...inexactProblems]
   if (missing.length > 0 || unneeded.length > 0) {
     problems.push(
-      `minimumReleaseAgeExcludes must be empty or contain exactly the ${expected.size} matched Pi packages the lockfile resolves at ${version}: ${[
+      `minimumReleaseAgeExcludes must be empty or contain exactly the ${expected.size} Pi release and companion packages the lockfile resolves at ${version}: ${[
         ...missing.map((entry) => `missing ${entry}`),
         ...unneeded.map((entry) => `unneeded ${entry}`),
       ].join(', ')}.`,

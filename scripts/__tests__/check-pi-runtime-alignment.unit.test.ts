@@ -72,7 +72,7 @@ describe('Pi runtime alignment', () => {
         bunfig: input.bunfig.replace(`  "@earendil-works/pi-tui@${version}",\n`, ''),
       }),
       expected:
-        'minimumReleaseAgeExcludes must be empty or contain exactly the 7 matched Pi packages',
+        'minimumReleaseAgeExcludes must be empty or contain exactly the 7 Pi release and companion packages',
     },
     {
       drift: 'release-age exclusion for a package the lockfile does not resolve',

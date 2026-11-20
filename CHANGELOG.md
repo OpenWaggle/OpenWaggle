@@ -140,7 +140,7 @@ From 1.0 the `--json` and `--jsonl` output of the `hive`, `access`, `schedules`,
 
 ### Pi, MCP and providers
 
-- OpenWaggle runs on Pi 1.4.0.
+- OpenWaggle runs on Pi 1.6.0.
 - Sessions you started with the `pi` command line in a project's folder are listed with that project's sessions and get titles the same way. Before you continue one that `pi` used last, OpenWaggle asks whether to continue in OpenWaggle or keep running in `pi`. Pi extension commands show in the slash menu.
 - MCP servers run through Pi's built-in MCP support. OpenWaggle reads `~/.pi/agent/mcp.json`, `~/.openwaggle/mcp.json`, and the project's `.mcp.json`, `.pi/mcp.json` and `.openwaggle/mcp.json`. Existing OpenWaggle MCP settings are migrated once, with a backup.
 - MCP now works as it does in `pi`. Adding a project trusts the MCP servers its files configure. The Global MCP switch, the per-server trust step and the MCP sandbox are gone, so local servers run with your user's permissions. In Ask for Approval mode every MCP tool call still asks first. In YOLO mode, the default, they run without asking.
