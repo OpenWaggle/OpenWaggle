@@ -35,6 +35,53 @@ Create `.openwaggle/settings.json` in the project root and add only the values y
 
 `multiAgentEnabled` lets agents start worker sessions in this project. `parentConcurrencyLimit` is a whole number of 1 or more that caps how many runs one parent session's direct workers can have going at once. It does not limit how many conversations you keep. See [Hives](/docs/using-openwaggle/hives-and-sessions).
 
+## Providers
+
+A `providers` entry says which model providers this project's sessions may use. It outranks every provider restriction you set in the app, so a team can pin a repository to one account. Each key is a provider's id, the part before the slash in a model's name, and each value says whether this project allows it. This project allows Anthropic and OpenRouter and refuses the company's Amazon Bedrock account. Every other provider follows the app's restrictions:
+
+```json
+{
+  "$schema": "https://openwaggle.ai/schemas/project-settings.schema.json",
+  "providers": {
+    "anthropic": true,
+    "openrouter": true,
+    "amazon-bedrock": false
+  }
+}
+```
+
+| Value | What this scope says |
+| --- | --- |
+| `"anthropic": true` | Allows `anthropic` |
+| `"anthropic": false` | Refuses `anthropic` |
+| No entry for a provider | Says nothing about it, so the next scope decides |
+| `"only": ["anthropic", "openrouter"]` | Allows exactly these providers and refuses every other one |
+
+The reserved `only` key closes the list to exactly the providers it names. Here are all three scopes working together, keeping an employer's Amazon Bedrock account out of personal projects. In **Settings > Connections > Provider Restrictions**, set Amazon Bedrock to **Blocked** under **Every project (app-wide)**. Then choose **Add folder scope**, pick your work folder, and set Amazon Bedrock to **Allowed** there. Every project inside that folder can use Bedrock again, and everything outside it cannot. A repository that should only ever use two providers pins itself with its own file, which outranks both:
+
+```json
+{
+  "$schema": "https://openwaggle.ai/schemas/project-settings.schema.json",
+  "providers": {
+    "only": ["anthropic", "github-copilot"]
+  }
+}
+```
+
+An `only` list outranks the `true` and `false` entries beside it.
+
+OpenWaggle reads scopes from nearest to farthest, and the nearest scope that mentions a provider decides it. A provider no scope mentions is allowed.
+
+| Scope | Where you set it | Covers |
+| --- | --- | --- |
+| Project file | `providers` in `.openwaggle/settings.json` | This repository |
+| Folder | **Settings > Connections > Provider Restrictions** | Every project inside the folder |
+| App-wide | The same screen | Every project |
+
+A scope never seals the scopes inside it. A folder scope can allow a provider that an app-wide `only` list refuses, and a project file outranks every scope set in the app.
+
+A session in a restricted project offers only the models of allowed providers, and a request that names a model from any other provider is refused with an error, whether it comes from the app, the command line, MCP, an agent spawning a worker, a Heartbeat's own model or a Waggle agent's model. A model OpenWaggle picks itself resolves again inside the allowed providers instead of failing.
+
 A value in the file wins over a value an older version saved in the app, and that wins over the app-wide default. **Settings > Agents** changes the defaults. Its **Saved project overrides** list can clear values the app saved, but it never edits your project file.
 
 OpenWaggle also writes to this file. When you pick a mode under **Settings > Permissions > Selected project**, or choose **Always allow** on an approval request, it saves that here. So keep your real `.openwaggle/settings.json` out of version control. If your team wants a shared example, commit a separate template that has no personal choices or credentials in it.

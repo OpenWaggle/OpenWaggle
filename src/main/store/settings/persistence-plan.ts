@@ -37,6 +37,7 @@ import {
   SETTINGS_KEY_UPDATE_CHANNEL,
 } from './keys'
 import { appendPiRuntimeSettingsWrites } from './pi-runtime-settings'
+import { appendProviderRestrictionSettingsWrites } from './provider-restrictions-settings'
 import { appendPiSessionContinuationSettingsWrites } from './pi-session-continuation-settings'
 import { appendSessionTitleSettingsWrites } from './session-title-settings'
 import { appendChangedSetting, type SettingsPatchWrite } from './settings-patch-writes'
@@ -277,6 +278,7 @@ export function collectSettingsPatchWrites(partial: Partial<Settings>, next: Set
   appendDesktopNotificationSettingsWrites(writes, partial, next)
   appendPiRuntimeSettingsWrites(writes, partial, next)
   appendSessionTitleSettingsWrites(writes, partial, next)
+  appendProviderRestrictionSettingsWrites(writes, partial, next)
   appendPiSessionContinuationSettingsWrites(writes, partial, next)
   appendSourceControlSettingsWrites(writes, partial, next)
 

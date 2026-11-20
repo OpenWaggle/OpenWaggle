@@ -21,6 +21,8 @@ export interface ProjectConfig {
     readonly multiAgentEnabled?: boolean
     readonly parentConcurrencyLimit?: number
   }
+  /** The project's own provider restriction scope, outranking every app-side scope. */
+  readonly providers?: Readonly<Record<string, boolean | readonly string[]>>
   readonly authorizationGrants?: readonly ScopedAuthorizationGrant[]
   readonly pi?: JsonObject
   readonly actions?: readonly ProjectAction[]
@@ -68,6 +70,7 @@ export function parseProjectConfig(settings: ParsedProjectSettingsFile | null) {
   const config: ProjectConfig = {
     ...(preferences ? { preferences } : {}),
     ...(settings.sessionHost ? { sessionHost: parseSessionHostPolicy(settings.sessionHost) } : {}),
+    ...(settings.providers ? { providers: settings.providers } : {}),
     ...(grants.length > 0 ? { authorizationGrants: grants } : {}),
     ...(settings.pi ? { pi: settings.pi } : {}),
     ...(actions.length > 0 ? { actions } : {}),

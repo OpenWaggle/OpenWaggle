@@ -502,6 +502,18 @@ _Avoid_: steering message, deferred steer
 The thinking level a Session's next run uses, kept by Pi with the Session like the Session's model. It can be changed only while the Session has no active run, and is never stored as a project preference. When the desktop user changes it, it also becomes the default for Sessions created afterwards (Pi's global default), without changing any existing Session. New Sessions start from that global default only; a project-level Pi default is never used.
 _Avoid_: message thinking level, project thinking preference
 
+**Provider scope**:
+One level at which a **Provider restriction** is set: the whole app, a parent folder, or a single project. A project's effective restriction resolves through its scopes from the most specific to the least.
+_Avoid_: provider profile, provider group, permission level, project group
+
+**Provider restriction**:
+The Pi providers one project permits its Sessions to use, set at a **Provider scope**. A provider may be enabled or disabled at any scope, so a narrower scope can both withdraw and grant a provider, and no scope seals its descendants. The nearest **Provider scope** that mentions a provider decides that provider. A scope may close itself to only the providers it names, refusing every other provider there, including one an outer scope allows; a provider no scope mentions or closes is allowed. A Session's model must resolve to one of them, so a request that names a model from any other provider is refused rather than having its choice silently replaced. It binds every surface that resolves a model for a new Session in that project, and leaves a Session already running untouched; the composer shows those providers' models instead of refusing a pick.
+_Avoid_: model allowlist (the unit is the provider, not the model), provider filter (a picker is filtered, but a named model is refused), enabled provider (OpenWaggle enables no provider individually)
+
+**Enabled model**:
+A model the person has curated into the composer's model picker. OpenWaggle keeps one app-wide list of them, which a project's **Provider restriction** narrows for that project.
+_Avoid_: available model (Pi decides what can run from auth and its catalog), allowed model (the allowed unit is the provider), model allowlist
+
 **Run start**:
 An operation that begins a new run from submitted input while the target session is idle.
 _Avoid_: send, resume
@@ -1720,7 +1732,7 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - Child-specific model, thinking, instructions, or agent-profile specialization may replace inherited defaults, while sandbox, approval, Authorization ceiling, filesystem, network, and credential settings may only stay equal or become more restrictive.
 - **Spawn profile inheritance** applies only to a new child; messaging an existing session resolves that session's own **Target execution profile**.
 - Internal **Launch profile seeding** copies the initiating Session's model, thinking level, tools, MCP, and skills when launch supplies no explicit values, while the new root's authorization resolves independently from the caller profile and **Authorization ceiling**.
-- GUI launch uses the selected composer execution settings, while CLI launch resolves explicit flags before project and app-global defaults; neither path creates parent inheritance or a derived grant.
+- GUI launch uses the selected composer execution settings, while CLI launch resolves explicit flags before app-global defaults; neither path consults a project-level default model, and neither creates parent inheritance or a derived grant. Both hold their resolved model to the project's **Provider restriction** (ADR 0071).
 - Multi-agent tools are enabled by default, but an OpenWaggle-hosted agent launches or spawns another Session only after a direct user request or an applicable project or skill instruction authorizes delegation; requests for depth, research, or thoroughness alone do not authorize additional agent work.
 - Matching Codex, users may disable model multi-agent capability globally or for a project; disabling it removes Session-launch and Session-spawn operations from the OpenWaggle-hosted agent's **Hive tool** but does not disable GUI, CLI, or external MCP session discovery and management.
 - OpenWaggle requires no named **Agent definition** for normal launch or spawn behavior and provides no mandatory implementer, explorer, reviewer, Queen, or Worker classes.
@@ -2133,6 +2145,15 @@ _Avoid_: search (it narrows in place rather than producing results), sidebar vie
 - A recovered **Focused file edit** never replaces a changed file without an explicit choice.
 - A **Review comment** anchors to a diff line and carries its **Hunk** snippet; a **Review** gathers pending Review comments plus an optional **Review summary** and submits them to the agent as one message, never touching the composer.
 - A **Review** targets the agent, whereas a **Change request** targets a remote (GitHub/GitLab); they share no state.
+- A **Provider restriction** never changes **Enabled models**: restricting a scope only removes models from what that scope's composer offers, and opening a restricted project never edits the person's app-wide list.
+- A scope whose **Provider restriction** leaves no **Enabled model** available offers no model rather than silence: Settings warns while that combination is configured, and the composer's empty picker says the project's provider restrictions allow no enabled model. Nothing is re-enabled on the person's behalf.
+- **Provider scopes** are one list keyed by canonical absolute path: a Session's nearest containing scope decides each provider, so a folder entry covers every project beneath it and a deeper entry overrides a shallower one for the providers it names.
+- A Session worktree is never a **Provider scope**. A Session resolves its scopes from its own project path, so a worktree under a managed worktree root keeps its project's scopes.
+- A **Provider scope** at the home directory, above it, or inside a managed root is refused, because it would silently restate a broader scope instead of naming one.
+- A **Provider scope** recorded under a path the project path alias mechanism maps to a canonical one keeps matching through that alias, and a project reached through an alias still finds its scopes. A scope whose folder no longer exists simply matches nothing.
+- A **Provider restriction** refuses a model the caller named (including a Heartbeat's or a Waggle agent's own model), and never a model OpenWaggle derived: a stored default, a per-project default, and a spawned child's inherited model all resolve again inside the child's own scopes, so inheriting across a scope boundary keeps a multi-agent spawn working instead of failing it.
+- A **Title model** the scope disallows falls back to Automatic rather than failing, because Automatic already follows the Session's own provider and a title is cosmetic.
+- Narrowing a scope never refuses a launch through a stored default: the default is derived, so it resolves again inside the scope, and the composer moves its own selection inside the scope when the project opens or the catalog loads.
 
 ## Example dialogue
 

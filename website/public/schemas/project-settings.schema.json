@@ -47,6 +47,24 @@
       "additionalProperties": false,
       "description": "Worker limits for this project."
     },
+    "providers": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "description": "Which model providers this project may use. Each key is a provider id mapped to true (allowed) or false (refused); the reserved \"only\" key takes a list of provider ids, and exactly those are allowed."
+    },
     "authorizationGrants": {
       "type": "array",
       "items": {
