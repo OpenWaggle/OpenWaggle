@@ -197,6 +197,12 @@ Released builds send anonymous usage statistics and error reports, starting at t
 - 0.x macOS builds were unsigned, and macOS installs an update only when it is signed by the same team as the running app. If you are still on a 0.x build, install 1.0.0 by hand once, from GitHub Releases or with the install script. Updates after that install from the app.
 - On Linux, opening Session links from other apps needs the desktop entry that the install script writes. If you installed before Session links shipped, run the install script again.
 
+## [1.0.0-beta.46] - 2026-11-20
+
+### Fixes
+
+- **linux:** pass the display backend switches through to the Session Host ([#500](https://github.com/OpenWaggle/OpenWaggle/pull/500))
+
 ## [1.0.0-beta.45] - 2026-11-19
 
 ### Features
