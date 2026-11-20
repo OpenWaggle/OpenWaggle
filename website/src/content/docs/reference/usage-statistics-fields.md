@@ -190,8 +190,8 @@ These headers do not depend on the switch:
 
 | Requests | Header |
 | --- | --- |
-| Most providers | `User-Agent` naming Pi, with the Pi version, operating system, runtime and processor architecture, such as `pi/1.4.0 (darwin; node/v24.0.0; arm64)` |
-| Amazon Bedrock | `pi/1.4.0` added to the AWS SDK's own `User-Agent` |
+| Most providers | `User-Agent` naming Pi, with the Pi version, operating system, runtime and processor architecture, such as `pi/1.6.0 (darwin; node/v24.0.0; arm64)` |
+| Amazon Bedrock | `pi/1.6.0` added to the AWS SDK's own `User-Agent` |
 | GitHub Copilot | Copilot's own `User-Agent` |
 | Claude subscription | Anthropic's command-line client `User-Agent`, `claude-cli` |
 | ChatGPT subscription | Pi's `User-Agent` and `originator: pi` |

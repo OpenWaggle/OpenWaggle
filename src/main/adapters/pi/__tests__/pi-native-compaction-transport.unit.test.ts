@@ -16,16 +16,20 @@ describe('Pi Responses native compaction transport', () => {
 
   it('uses the public compact endpoint and returns its canonical replacement items', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toMatchObject({
+      // Pi 1.6.0 carries the system prompt as the leading developer item of `input`, as a normal
+      // Responses request does, and never as top-level `instructions`.
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '')
+      expect(body).toMatchObject({
         model: 'native-model',
-        instructions: 'System instructions',
         input: [
+          { role: 'developer', content: 'System instructions' },
           {
             role: 'user',
             content: [{ type: 'input_text', text: 'Keep this context' }],
           },
         ],
       })
+      expect(body).not.toHaveProperty('instructions')
       return makeCompactResponse([
         { role: 'user', content: [{ type: 'input_text', text: 'Keep this context' }] },
         { type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' },
@@ -177,9 +181,13 @@ describe('Pi Responses native compaction transport', () => {
 
   it('includes manual compaction instructions in the Native request', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      expect(JSON.parse(typeof init?.body === 'string' ? init.body : '')).toMatchObject({
-        instructions: expect.stringContaining('Preserve schema decisions'),
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '')
+      expect(body).toMatchObject({
+        input: expect.arrayContaining([
+          { role: 'developer', content: expect.stringContaining('Preserve schema decisions') },
+        ]),
       })
+      expect(body).not.toHaveProperty('instructions')
       return makeCompactResponse([
         { type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-checkpoint' },
       ])

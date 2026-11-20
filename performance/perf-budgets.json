@@ -18,35 +18,35 @@
       "quantum": 256
     },
     "main.startup.gui.bytes": {
-      "value": 16252928,
+      "value": 16908288,
       "quantum": 65536
     },
     "main.startup.session-host.bytes": {
-      "value": 16252928,
+      "value": 16908288,
       "quantum": 65536
     },
     "main.startup.hive.bytes": {
-      "value": 16252928,
+      "value": 16908288,
       "quantum": 65536
     },
     "main.startup.run.bytes": {
-      "value": 16252928,
+      "value": 16908288,
       "quantum": 65536
     },
     "main.startup.mcp.bytes": {
-      "value": 16252928,
+      "value": 16908288,
       "quantum": 65536
     },
     "main.startup.modules": {
-      "value": 6336,
+      "value": 6448,
       "quantum": 16
     },
     "main.startup.package-modules": {
-      "value": 3728,
+      "value": 3840,
       "quantum": 16
     },
     "main.workers.bytes": {
-      "value": 145408,
+      "value": 146432,
       "quantum": 1024
     },
     "preload.bytes": {

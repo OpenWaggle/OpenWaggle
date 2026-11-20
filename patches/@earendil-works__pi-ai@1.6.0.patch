@@ -1,46 +1,51 @@
 diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
-index 841da8964d2b403c45a18d4d1735c1fabc441a9a..c7d85b76062469a73c1de8f23e78569a1adae33f 100644
+index 5b9ef8eb316345a5af018d6d65d69a97b814b23c..f0ae3a1dc844419059788f843d61e9cf0aa0cd2e 100644
 --- a/dist/api/anthropic-messages.js
 +++ b/dist/api/anthropic-messages.js
-@@ -5,7 +5,7 @@ import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { headersToRecord } from "../utils/headers.js";
- import { getIdentityHeaders } from "../utils/identity.js";
--import { parseJsonWithRepair, parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
-+import { finishStreamingToolCalls, parseJsonWithRepair, parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments, } from "../utils/json-parse.js";
- import { getProviderEnvValue } from "../utils/provider-env.js";
- import { retryProviderRequest } from "../utils/provider-retry.js";
- import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
-@@ -585,7 +585,7 @@ export const stream = (model, context, options) => {
-                         const block = blocks[index];
-                         if (block && block.type === "toolCall") {
-                             block.partialJson += event.delta.partial_json;
--                            block.arguments = parseStreamingJson(block.partialJson);
-+                            block.arguments = parseStreamingToolArguments(block, block.partialJson);
-                             stream.push({
-                                 type: "toolcall_delta",
-                                 contentIndex: index,
-@@ -704,12 +704,18 @@ export const stream = (model, context, options) => {
+@@ -572,6 +572,18 @@ export const stream = (model, context, options) => {
+             stopReason: "pending",
+             timestamp: Date.now(),
+         };
++        // Stream state per Anthropic block index, kept off the content blocks so it never reaches
++        // partials. Declared here so the catch can settle a block the stream never stopped.
++        const openBlocks = new Map();
++        /** Parse the full arguments of every tool block the stream never stopped. */
++        const finishOpenToolCalls = () => {
++            for (const open of openBlocks.values()) {
++                const block = output.content[open.contentIndex];
++                if (block?.type === "toolCall" && open.arguments !== undefined)
++                    Object.assign(block, open.arguments.finish());
++            }
++            openBlocks.clear();
++        };
+         try {
+             let client;
+             let isOAuth;
+@@ -666,8 +678,6 @@ export const stream = (model, context, options) => {
+             }
+             await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
+             stream.push({ type: "start", partial: output });
+-            // Stream state per Anthropic block index, kept off the content blocks so it never reaches partials.
+-            const openBlocks = new Map();
+             const openBlock = (anthropicIndex) => {
+                 const open = openBlocks.get(anthropicIndex);
+                 return open === undefined ? undefined : { ...open, block: output.content[open.contentIndex] };
+@@ -892,10 +902,13 @@ export const stream = (model, context, options) => {
                      },
                  });
              }
-+            // A tool block the stream never stopped still holds rate-limited arguments.
-+            finishStreamingToolCalls(output.content);
++            // message_stop can arrive without a content_block_stop for the tool block.
++            finishOpenToolCalls();
              stream.push({ type: "done", reason: output.stopReason, message: output });
              stream.end();
          }
          catch (error) {
-             for (const block of output.content) {
-                 delete block.index;
-+                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
-+                if (block.type === "toolCall" && block.partialJson !== undefined) {
-+                    block.arguments = parseStreamingJson(block.partialJson);
-+                }
-                 // partialJson is only a streaming scratch buffer; never persist it.
-                 delete block.partialJson;
-             }
++            finishOpenToolCalls();
+             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
+             output.errorMessage = error instanceof Error ? withCauseDetail(error) : JSON.stringify(error);
+             stream.push({ type: "error", reason: output.stopReason, error: output });
 diff --git a/dist/api/azure-openai-responses.js b/dist/api/azure-openai-responses.js
-index c88f27ee93a6f267f6abf9f69b13d0ad2303c8b2..faa0efa09c31101ad04bcd25c7bc10906bc8c85d 100644
+index 837fdb43c986af72b0f9c49ce6e7ec4412838322..f3b792af38307a406fc7cb07d05ea92c126ddcf5 100644
 --- a/dist/api/azure-openai-responses.js
 +++ b/dist/api/azure-openai-responses.js
 @@ -3,6 +3,7 @@ import { clampThinkingLevel } from "../models.js";
@@ -51,17 +56,6 @@ index c88f27ee93a6f267f6abf9f69b13d0ad2303c8b2..faa0efa09c31101ad04bcd25c7bc1090
  import { getIdentityHeaders } from "../utils/identity.js";
  import { retryProviderRequest } from "../utils/provider-retry.js";
  import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
-@@ -87,6 +88,10 @@ export const stream = (model, context, options) => {
-         catch (error) {
-             for (const block of output.content) {
-                 delete block.index;
-+                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
-+                if (block.type === "toolCall" && block.partialJson !== undefined) {
-+                    block.arguments = parseStreamingJson(block.partialJson);
-+                }
-                 // Streaming scratch buffers are only used during parsing; never persist them.
-                 delete block.partialJson;
-                 delete block.customInput;
 diff --git a/dist/api/bedrock-converse-stream.d.ts b/dist/api/bedrock-converse-stream.d.ts
 index 5d44bf071e84329250385366c0e6f623c7d910dd..29f9d3c47e3dea5f126af1686440187a5ff3c7a9 100644
 --- a/dist/api/bedrock-converse-stream.d.ts
@@ -80,7 +74,7 @@ index 5d44bf071e84329250385366c0e6f623c7d910dd..29f9d3c47e3dea5f126af1686440187a
  //# sourceMappingURL=bedrock-converse-stream.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0984ee70d 100644
+index 2f4d57c12f029a46a731e6c26a1212300ae00019..de4eecfdaa99a208b4dc67040b638bdcaf8f165a 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
 @@ -1,5 +1,7 @@
@@ -92,22 +86,19 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
  import { HttpProxyAgent } from "http-proxy-agent";
  import { HttpsProxyAgent } from "https-proxy-agent";
  import { calculateCost } from "../models.js";
-@@ -8,11 +10,12 @@ import { normalizeProviderError } from "../utils/error-body.js";
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { providerHeadersToRecord } from "../utils/headers.js";
+@@ -10,9 +12,10 @@ import { providerHeadersToRecord } from "../utils/headers.js";
  import { getClientVersion } from "../utils/identity.js";
--import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
-+import { parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments } from "../utils/json-parse.js";
  import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
 +import { claudeUsesAdaptiveThinking, isClaudeModelRef } from "../utils/claude-capabilities.js";
  import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+ import { ToolCallArgumentsStream } from "../utils/streaming-json.js";
 -import { getSystemMessageText } from "../utils/text.js";
 +import { contentText, getSystemMessageText } from "../utils/text.js";
  import { collapseSystemMessages, getCurrentTools, getInitialSystemMessage, withoutInitialSystemMessage, } from "../utils/transcript.js";
- import { getJsonSchemaToolParameters, resolveJsonSchemaStrictSampling } from "./constrained-sampling.js";
+ import { getJsonSchemaToolParameters, prefersJsonSchemaStrictSampling, resolveJsonSchemaStrictSampling, } from "./constrained-sampling.js";
  import { adjustMaxTokensForThinking, buildBaseOptions, clampMaxTokensToContext, clampReasoning, } from "./simple-options.js";
-@@ -50,6 +53,9 @@ export const stream = (model, context, options = {}) => {
+@@ -51,6 +54,9 @@ export const stream = (model, context, options = {}) => {
          // chain already prefers a configured profile over env keys, but only when
          // `credentials` is not set on the client config. See #6957.
          const optionsProfile = options.profile || options.env?.AWS_PROFILE;
@@ -117,7 +108,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
          const config = {
              profile: optionsProfile || getProviderEnvValue("AWS_PROFILE", options.env),
              customUserAgent: bedrockUserAgent(options.identity),
-@@ -105,14 +111,31 @@ export const stream = (model, context, options = {}) => {
+@@ -106,14 +112,31 @@ export const stream = (model, context, options = {}) => {
                  // Bedrock runtime uses NodeHttp2Handler by default since v3.798.0, which is based
                  // on `http2` module and has no support for http agent.
                  // Use NodeHttpHandler to support HTTP(S) proxy agents.
@@ -154,7 +145,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
              }
          }
          else {
-@@ -128,32 +151,27 @@ export const stream = (model, context, options = {}) => {
+@@ -129,31 +152,24 @@ export const stream = (model, context, options = {}) => {
          // Kept outside the try so the catch can still correlate a mid-stream failure:
          // exceptions delivered as stream events carry no HTTP metadata of their own.
          let responseRequestId;
@@ -179,40 +170,40 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
              const initialSystemMessage = getInitialSystemMessage(normalizedContext.messages);
 -            const initialSystemPrompt = initialSystemMessage ? getSystemMessageText(initialSystemMessage) : undefined;
 +            const promptCaching = cacheRetention !== "none" && supportsPromptCaching(model, options.env);
-             let commandInput = {
-                 modelId: model.id,
-                 messages: convertMessages(normalizedContext, model, cacheRetention, options.env),
--                system: buildSystemPrompt(initialSystemPrompt, model, cacheRetention, options.env),
-+                system: buildSystemPrompt(initialSystemMessage, promptCaching ? cacheRetention : "none", options.systemCacheBoundary),
-                 inferenceConfig: {
-                     ...(inferenceMaxTokens !== undefined && { maxTokens: inferenceMaxTokens }),
-                     ...(options.temperature !== undefined && { temperature: options.temperature }),
-                 },
--                toolConfig: convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode),
-+                // Bedrock documents tool cache checkpoints for Claude models only; others, such as Nova, take
-+                // them in system and messages. AWS_BEDROCK_FORCE_CACHE caches any model, so check here.
-+                toolConfig: convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode, promptCaching && isClaudeModelRef(model.id, model.name) ? cacheRetention : "none"),
-                 additionalModelRequestFields: buildAdditionalModelRequestFields(model, options),
-                 ...(options.requestMetadata !== undefined && { requestMetadata: options.requestMetadata }),
-             };
-@@ -162,6 +180,16 @@ export const stream = (model, context, options = {}) => {
-                 commandInput = nextCommandInput;
-             }
-             const command = new ConverseStreamCommand(commandInput);
-+            // Per-request middleware goes on the command: the client is shared between requests.
-+            if (options.onResponse) {
-+                addResponseHeadersMiddleware(command, options.onResponse, model, () => {
-+                    observedRawResponse = true;
-+                });
-+            }
-+            const customHeaders = providerHeadersToRecord(options.headers);
-+            if (customHeaders) {
-+                addCustomHeadersMiddleware(command, customHeaders);
-+            }
-             const response = await client.send(command, { abortSignal: options.signal });
-             responseRequestId = normalizeDiagnosticValue(response.$metadata.requestId);
-             if (!observedRawResponse && response.$metadata.httpStatusCode !== undefined) {
-@@ -242,9 +270,144 @@ export const stream = (model, context, options = {}) => {
+             let disablePreferredStrictTools = hasExceededStrictToolLimits(options.sessionId);
+             let response;
+             for (;;) {
+-                const tools = convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode, disablePreferredStrictTools);
++                const tools = convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode, disablePreferredStrictTools, promptCaching && isClaudeModelRef(model.id, model.name) ? cacheRetention : "none");
+                 let commandInput = {
+                     modelId: model.id,
+                     messages: convertMessages(normalizedContext, model, cacheRetention, options.env),
+-                    system: buildSystemPrompt(initialSystemPrompt, model, cacheRetention, options.env),
++                    system: buildSystemPrompt(initialSystemMessage, promptCaching ? cacheRetention : "none", options.systemCacheBoundary),
+                     inferenceConfig: {
+                         ...(inferenceMaxTokens !== undefined && { maxTokens: inferenceMaxTokens }),
+                         ...(options.temperature !== undefined && { temperature: options.temperature }),
+@@ -167,7 +183,18 @@ export const stream = (model, context, options = {}) => {
+                     commandInput = nextCommandInput;
+                 }
+                 try {
+-                    response = await client.send(new ConverseStreamCommand(commandInput), { abortSignal: options.signal });
++                    const command = new ConverseStreamCommand(commandInput);
++                    // Per-request middleware goes on the command: the client is shared between requests.
++                    if (options.onResponse) {
++                        addResponseHeadersMiddleware(command, options.onResponse, model, () => {
++                            observedRawResponse = true;
++                        });
++                    }
++                    const customHeaders = providerHeadersToRecord(options.headers);
++                    if (customHeaders) {
++                        addCustomHeadersMiddleware(command, customHeaders);
++                    }
++                    response = await client.send(command, { abortSignal: options.signal });
+                     break;
+                 }
+                 catch (error) {
+@@ -266,9 +293,144 @@ export const stream = (model, context, options = {}) => {
              stream.push({ type: "error", reason: output.stopReason, error: output });
              stream.end();
          }
@@ -357,7 +348,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
  /**
   * Human-readable prefixes for Bedrock SDK exception names.
   * The downstream retry logic in agent-session matches patterns like
-@@ -356,7 +519,7 @@ function bedrockUserAgent(identity) {
+@@ -380,7 +542,7 @@ function bedrockUserAgent(identity) {
   * SigV4 / auth headers (`x-amz-*`, `authorization`, `host`) are silently skipped;
   * all other caller headers override any existing same-named header on the request.
   */
@@ -366,7 +357,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
      const middleware = (next) => async (args) => {
          const request = args.request;
          if (request && typeof request === "object" && "headers" in request) {
-@@ -369,7 +532,7 @@ function addCustomHeadersMiddleware(client, headers) {
+@@ -393,7 +555,7 @@ function addCustomHeadersMiddleware(client, headers) {
          }
          return next(args);
      };
@@ -375,7 +366,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
  }
  function isSmithyHttpResponse(response) {
      if (!response || typeof response !== "object")
-@@ -388,7 +551,7 @@ function toProviderResponse(response) {
+@@ -412,7 +574,7 @@ function toProviderResponse(response) {
   * `onResponse`. Capture the raw Smithy HTTP response at the deserialize step,
   * after the SDK receives the response but before the event stream is consumed.
   */
@@ -384,7 +375,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
      const middleware = (next) => async (args) => {
          const result = await next(args);
          const providerResponse = toProviderResponse(result.response);
-@@ -398,7 +561,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
+@@ -422,7 +584,7 @@ function addResponseHeadersMiddleware(client, onResponse, model, onObserved) {
          }
          return result;
      };
@@ -393,27 +384,22 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
  }
  export const streamSimple = (model, context, options) => {
      const base = {
-@@ -473,7 +636,7 @@ function handleContentBlockDelta(event, blocks, output, stream) {
-     }
-     else if (delta?.toolUse && block?.type === "toolCall") {
-         block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
--        block.arguments = parseStreamingJson(block.partialJson);
-+        block.arguments = parseStreamingToolArguments(block, block.partialJson);
-         stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
-     }
-     else if (delta?.reasoningContent) {
-@@ -540,6 +703,10 @@ function flushRedactedContent(block) {
-  */
- function finalizeStreamingBlock(block) {
-     delete block.index;
-+    // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
-+    if (block.type === "toolCall" && block.partialJson !== undefined) {
-+        block.arguments = parseStreamingJson(block.partialJson);
+@@ -561,8 +723,13 @@ function flushRedactedContent(open, output) {
+ }
+ /** Ends the stream state of blocks a stream settled without stopping. */
+ function flushOpenBlocks(openBlocks, output) {
+-    for (const open of openBlocks.values())
++    for (const open of openBlocks.values()) {
++        // A stream that settled without stopping the block still holds rate-limited arguments.
++        const block = output.content[open.contentIndex];
++        if (block?.type === "toolCall" && open.arguments !== undefined)
++            Object.assign(block, open.arguments.finish());
+         flushRedactedContent(open, output);
 +    }
-     // partialJson is only a streaming scratch buffer; never persist it.
-     delete block.partialJson;
-     flushRedactedContent(block);
-@@ -591,15 +758,7 @@ function getModelMatchCandidates(modelId, modelName) {
+     openBlocks.clear();
+ }
+ function handleMetadata(event, model, output) {
+@@ -611,15 +778,7 @@ function getModelMatchCandidates(modelId, modelName) {
      });
  }
  function supportsAdaptiveThinking(modelId, modelName) {
@@ -430,7 +416,7 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
  }
  function supportsNativeXhighEffort(model) {
      const candidates = getModelMatchCandidates(model.id, model.name);
-@@ -715,17 +874,50 @@ function supportsPromptCaching(model, env) {
+@@ -735,17 +894,50 @@ function supportsPromptCaching(model, env) {
  function supportsThinkingSignature(model) {
      return isAnthropicClaudeModel(model);
  }
@@ -489,16 +475,16 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
  }
  function normalizeToolCallId(id) {
      const sanitized = id.replace(/[^a-zA-Z0-9_-]/g, "_");
-@@ -924,7 +1116,7 @@ function convertMessages(context, model, cacheRetention, env) {
+@@ -944,7 +1136,7 @@ function convertMessages(context, model, cacheRetention, env) {
      }
      return result;
  }
--function convertToolConfig(tools, toolChoice, supportsStrictMode) {
-+function convertToolConfig(tools, toolChoice, supportsStrictMode, cacheRetention = "none") {
-     if (!tools?.length)
-         return undefined;
-     if (toolChoice === "none")
-@@ -940,6 +1132,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode) {
+-function convertToolConfig(tools, toolChoice, supportsStrictMode, disablePreferredStrictTools) {
++function convertToolConfig(tools, toolChoice, supportsStrictMode, disablePreferredStrictTools, cacheRetention = "none") {
+     if (!tools?.length || toolChoice === "none")
+         return { toolConfig: undefined, hasPreferredStrictTools: false };
+     let hasPreferredStrictTools = false;
+@@ -964,6 +1156,9 @@ function convertToolConfig(tools, toolChoice, supportsStrictMode, disablePreferr
              },
          };
      });
@@ -508,108 +494,11 @@ index 422dfcf07f641cc39b8c3be95e16cd64e9d3a03b..c3b827dc3322fe3720fa9f7e4a3f0be0
      let bedrockToolChoice;
      switch (toolChoice) {
          case "auto":
-diff --git a/dist/api/mistral-conversations.js b/dist/api/mistral-conversations.js
-index 193e8e42a40402a33d208e1f9c18e7cff893ce47..a2b5253659ea4ae144b7e33519c23a4d9f83c88d 100644
---- a/dist/api/mistral-conversations.js
-+++ b/dist/api/mistral-conversations.js
-@@ -4,7 +4,7 @@ import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { shortHash } from "../utils/hash.js";
- import { headersToRecord } from "../utils/headers.js";
- import { getIdentityHeaders } from "../utils/identity.js";
--import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
-+import { parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments } from "../utils/json-parse.js";
- import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
- import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
- import { getCurrentTools, resolveTranscript } from "../utils/transcript.js";
-@@ -50,6 +50,10 @@ export const stream = (model, context, options) => {
-         }
-         catch (error) {
-             for (const block of output.content) {
-+                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
-+                if (block.type === "toolCall" && block.partialArgs !== undefined) {
-+                    block.arguments = parseStreamingJson(block.partialArgs);
-+                }
-                 // partialArgs is only a streaming scratch buffer; never persist it.
-                 delete block.partialArgs;
-             }
-@@ -570,7 +574,7 @@ async function consumeChatStream(model, output, stream, mistralStream, onProvide
-                 ? toolCall.function.arguments
-                 : JSON.stringify(toolCall.function.arguments || {});
-             block.partialArgs = (block.partialArgs || "") + argsDelta;
--            block.arguments = parseStreamingJson(block.partialArgs);
-+            block.arguments = parseStreamingToolArguments(block, block.partialArgs);
-             stream.push({
-                 type: "toolcall_delta",
-                 contentIndex: toolBlocksByKey.get(key),
-diff --git a/dist/api/openai-codex-responses.js b/dist/api/openai-codex-responses.js
-index 45bcd08b85b478f0f96006881d489820f1264d2c..e7cd47cf44f268296237cefc6ecadbac5b861bfa 100644
---- a/dist/api/openai-codex-responses.js
-+++ b/dist/api/openai-codex-responses.js
-@@ -6,6 +6,7 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { headersToRecord } from "../utils/headers.js";
- import { getIdentityHeaders } from "../utils/identity.js";
-+import { parseStreamingJson } from "../utils/json-parse.js";
- import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.js";
- import { getSystemMessageText } from "../utils/text.js";
- import { getDeclaredTools, getInitialSystemMessage, normalizeContext, resolveTranscript, resolveTranscriptTools, } from "../utils/transcript.js";
-@@ -342,6 +343,10 @@ export const stream = (model, context, options) => {
-         }
-         catch (error) {
-             for (const block of output.content) {
-+                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
-+                if (block.type === "toolCall" && block.partialJson !== undefined) {
-+                    block.arguments = parseStreamingJson(block.partialJson);
-+                }
-                 // Streaming scratch buffers are only used during parsing; never persist them.
-                 delete block.partialJson;
-                 delete block.customInput;
-diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index 793ed0a6060e5d2e61b09e2d93514610527873df..db54467170b98d0602c262d61dbc7c26cab844ce 100644
---- a/dist/api/openai-completions.js
-+++ b/dist/api/openai-completions.js
-@@ -5,7 +5,7 @@ import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { shortHash } from "../utils/hash.js";
- import { headersToRecord } from "../utils/headers.js";
- import { getIdentityHeaders } from "../utils/identity.js";
--import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
-+import { parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments } from "../utils/json-parse.js";
- import { getProviderEnvValue } from "../utils/provider-env.js";
- import { retryProviderRequest } from "../utils/provider-retry.js";
- import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
-@@ -453,7 +453,7 @@ export const stream = (model, context, options) => {
-                             if (toolCall.function?.arguments) {
-                                 delta = toolCall.function.arguments;
-                                 block.partialArgs = (block.partialArgs ?? "") + toolCall.function.arguments;
--                                block.arguments = parseStreamingJson(block.partialArgs);
-+                                block.arguments = parseStreamingToolArguments(block, block.partialArgs);
-                             }
-                             else if (toolCall.custom?.input) {
-                                 const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
-@@ -496,6 +496,10 @@ export const stream = (model, context, options) => {
-                     applyStreamedReasoningDetails(block);
-                 }
-                 delete block.index;
-+                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
-+                if (block.type === "toolCall" && block.partialArgs !== undefined) {
-+                    block.arguments = parseStreamingJson(block.partialArgs);
-+                }
-                 // Streaming scratch buffers are only used during parsing; never persist them.
-                 delete block.partialArgs;
-                 delete block.customInput;
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index b7b27ca98c8f4069a806a01913632a2d9200379c..78502aae06b970bb799eb8734d5c25c7360e9aa0 100644
+index b7016e398acac3560ce58cc6cbb46e2cdfcae2a6..b12e8ab9660bfbcf7e8e396db19bf57d1cf19e57 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
-@@ -1,6 +1,6 @@
- import { calculateCost } from "../models.js";
- import { shortHash } from "../utils/hash.js";
--import { parseStreamingJson, parseToolCallArguments } from "../utils/json-parse.js";
-+import { finishStreamingToolCalls, parseStreamingJson, parseStreamingToolArguments, parseToolCallArguments, } from "../utils/json-parse.js";
- import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
- import { getSystemMessageText, renderSystemMessageUpdate } from "../utils/text.js";
- import { resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
-@@ -235,7 +235,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
+@@ -233,7 +233,9 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                  if (block.type === "thinking") {
                      if (block.thinkingSignature) {
                          const reasoningItem = JSON.parse(block.thinkingSignature);
@@ -620,25 +509,55 @@ index b7b27ca98c8f4069a806a01913632a2d9200379c..78502aae06b970bb799eb8734d5c25c7
                      }
                  }
                  else if (block.type === "text") {
-@@ -613,7 +615,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
-             if (!slot || slot.block.partialJson === undefined)
-                 continue;
-             slot.block.partialJson += event.delta;
--            slot.block.arguments = parseStreamingJson(slot.block.partialJson);
-+            slot.block.arguments = parseStreamingToolArguments(slot.block, slot.block.partialJson);
-             pushToolCallDelta(slot, event.delta);
+@@ -381,6 +383,17 @@ export async function processResponsesStream(openaiStream, output, stream, model
+         const slot = outputSlots.get(outputIndex);
+         return slot?.type === type ? slot : undefined;
+     };
++    /**
++     * Parse the full arguments of every tool call whose stream never closed. Pi parses them at a
++     * bounded rate, so a stream that fails or ends without output_item.done must settle them here
++     * or a tool runs with truncated arguments. The refusal below reads the call, not its arguments.
++     */
++    const finishOpenToolCalls = () => {
++        for (const slot of outputSlots.values()) {
++            if (slot.type === "toolCall" && slot.input.kind === "json")
++                Object.assign(slot.block, slot.input.arguments.finish());
++        }
++    };
+     const pushToolCallDelta = (slot, delta) => {
+         if (delta === undefined)
+             return;
+@@ -684,6 +697,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
+             finalizeResponse(event.response);
          }
-         else if (event.type === "response.function_call_arguments.done") {
-@@ -736,6 +738,9 @@ export async function processResponsesStream(openaiStream, output, stream, model
-             }
+         else if (event.type === "error") {
++            finishOpenToolCalls();
+             throw new Error(`Error Code ${event.code}: ${event.message}` || "Unknown error");
+         }
+         else if (event.type === "response.failed") {
+@@ -696,10 +710,12 @@ export async function processResponsesStream(openaiStream, output, stream, model
+                 : details?.reason
+                     ? `incomplete: ${details.reason}`
+                     : "Unknown error (no error details in response)";
++            finishOpenToolCalls();
+             throw new Error(msg);
          }
      }
-+    // A function call the response never finished still holds rate-limited arguments. This runs
-+    // after the refusal above, which needs the scratch buffers to see unfinished calls.
-+    finishStreamingToolCalls(output.content);
+     if (!sawTerminalResponseEvent) {
++        finishOpenToolCalls();
+         throw new Error("OpenAI Responses stream ended before a terminal response event");
+     }
+     // The agent runs every tool call in the final message. Refuse to hand over calls whose
+@@ -710,6 +726,9 @@ export async function processResponsesStream(openaiStream, output, stream, model
+             throw new Error(`OpenAI Responses stream completed with an unfinished tool call: ${toolCall.name} (${toolCall.id})`);
+         }
+     }
++    // A call whose output_item.done never arrived, such as a message that stops on length, still
++    // holds rate-limited arguments.
++    finishOpenToolCalls();
  }
- function mapStopReason(status, incompleteReason) {
-     if (!status)
+ /**
+  * Record the replayed reasoning items the API withheld from the model, with the reason for each.
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
 index 41267bd50904069aa0879cc8634ea94bc1045236..704ac20ba0429b4408caaf7de149f2c52f93faa8 100644
 --- a/dist/api/openai-responses.d.ts
@@ -666,19 +585,15 @@ index 41267bd50904069aa0879cc8634ea94bc1045236..704ac20ba0429b4408caaf7de149f2c5
  //# sourceMappingURL=openai-responses.d.ts.map
 \ No newline at end of file
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3dbe066eb5 100644
+index 0977a46594d2caa8c92b90e267158ee5efb74938..3bdd08842bff815c4b94d9a5374e63aa5d3070ae 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
-@@ -3,16 +3,19 @@ import { clampThinkingLevel } from "../models.js";
- import { formatProviderError, normalizeProviderError } from "../utils/error-body.js";
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { headersToRecord } from "../utils/headers.js";
-+import { parseStreamingJson } from "../utils/json-parse.js";
+@@ -6,13 +6,15 @@ import { headersToRecord } from "../utils/headers.js";
  import { getIdentityHeaders } from "../utils/identity.js";
  import { getProviderEnvValue } from "../utils/provider-env.js";
  import { retryProviderRequest } from "../utils/provider-retry.js";
 -import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../utils/transcript.js";
-+import { getCurrentSystemPrompt, getDeclaredTools, normalizeContext, resolveTranscript, resolveTranscriptTools, } from "../utils/transcript.js";
++import { getDeclaredTools, normalizeContext, resolveTranscript, resolveTranscriptTools, } from "../utils/transcript.js";
  import { createGrammarToolInputProperties } from "./constrained-sampling.js";
  import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
  import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
@@ -690,7 +605,7 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3d
  // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
  const OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16;
  const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
-@@ -29,6 +32,10 @@ function isChatGPTSignIn(model, apiKey) {
+@@ -29,6 +31,10 @@ function isChatGPTSignIn(model, apiKey) {
          apiKey !== undefined &&
          !apiKey.startsWith("sk-"));
  }
@@ -701,7 +616,7 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3d
  function hasHeader(headers, name) {
      if (!headers)
          return false;
-@@ -46,6 +53,24 @@ function getClientApiKey(provider, apiKey, headers) {
+@@ -46,6 +52,24 @@ function getClientApiKey(provider, apiKey, headers) {
          return "unused";
      throw new Error(`No API key for provider: ${provider}`);
  }
@@ -726,7 +641,7 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3d
  function detectSessionAffinityFormat(model) {
      return model.provider === "openrouter" || model.baseUrl.includes("openrouter.ai") ? "openrouter" : "openai";
  }
-@@ -64,6 +89,7 @@ function resolveCacheRetention(cacheRetention, env) {
+@@ -64,6 +88,7 @@ function resolveCacheRetention(cacheRetention, env) {
  }
  function getCompat(model) {
      return {
@@ -734,18 +649,7 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3d
          supportsDeveloperRole: model.compat?.supportsDeveloperRole ?? true,
          supportsMidConvoSystemMessages: model.compat?.supportsMidConvoSystemMessages ?? false,
          sessionAffinityFormat: model.compat?.sessionAffinityFormat ?? detectSessionAffinityFormat(model),
-@@ -174,6 +200,10 @@ export const stream = (model, context, options) => {
-         catch (error) {
-             for (const block of output.content) {
-                 delete block.index;
-+                // Delta parsing is rate-limited, so bring unfinished arguments up to date first.
-+                if (block.type === "toolCall" && block.partialJson !== undefined) {
-+                    block.arguments = parseStreamingJson(block.partialJson);
-+                }
-                 // Streaming scratch buffers are only used during parsing; never persist them.
-                 delete block.partialJson;
-                 delete block.customInput;
-@@ -210,7 +240,52 @@ export const streamSimple = (model, context, options) => {
+@@ -205,7 +230,53 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
@@ -760,8 +664,10 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3d
 +    const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
 +    const compat = getCompat(model);
 +    const client = createClient(model, transcript, apiKey, options?.headers, options?.identity, options?.fetch, cacheSessionId, compat.compactionBaseUrl);
++    // Pi 1.6.0 carries the system prompt as the leading developer item inside `input` (as Codex
++    // does) instead of top-level `instructions`, so the compaction request matches a normal
++    // Responses request and never sends the same instructions twice.
 +    const input = convertResponsesMessages(model, transcript, OPENAI_TOOL_CALL_PROVIDERS, {
-+        includeSystemPrompt: false,
 +        toolOptions: {
 +            supportsStrictMode: compat.supportsStrictMode,
 +            supportsOpenAIGrammarTools: compat.supportsOpenAIGrammarTools,
@@ -770,7 +676,6 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3d
 +    let params = {
 +        model: model.id,
 +        input,
-+        instructions: getCurrentSystemPrompt(transcript.messages) || undefined,
 +        prompt_cache_key: cacheRetention === "none" ? undefined : clampOpenAIPromptCacheKey(options?.sessionId),
 +        // Sign in with ChatGPT rejects this request field, as it does for streamed responses.
 +        prompt_cache_retention: isChatGPTSignIn(model, options?.apiKey) ? undefined : getPromptCacheRetention(compat, cacheRetention),
@@ -799,7 +704,7 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3d
      const compat = getCompat(model);
      const headers = { ...getIdentityHeaders(model, identity), ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -236,9 +311,19 @@ function createClient(model, context, apiKey, optionsHeaders, identity, fetch, s
+@@ -231,9 +302,19 @@ function createClient(model, context, apiKey, optionsHeaders, identity, fetch, s
      if (optionsHeaders) {
          Object.assign(headers, optionsHeaders);
      }
@@ -821,57 +726,38 @@ index b418bfb7ca4e378b5b5c3115b79a6bcc7af17775..3160db908254ac8d0822ad50a9ca5f3d
          fetch,
          defaultHeaders: headers,
 diff --git a/dist/api/pi-messages.js b/dist/api/pi-messages.js
-index d58f22e64ee924dcc69b504580457590d343bfef..8fa132ac1cd36990b0be42a57552b3ddb121e324 100644
+index d6638a8d7a79a6f262b6a5da9cd6e15a51077fb6..4a384b3000205f60e254cfff40af74e4a72c7098 100644
 --- a/dist/api/pi-messages.js
 +++ b/dist/api/pi-messages.js
-@@ -12,7 +12,7 @@ import { appendAssistantMessageDiagnostic, createAssistantMessageDiagnostic } fr
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { headersToRecord, providerHeadersToRecord } from "../utils/headers.js";
- import { getIdentityHeaders } from "../utils/identity.js";
--import { parseStreamingJson } from "../utils/json-parse.js";
-+import { parseStreamingJson, parseStreamingToolArguments } from "../utils/json-parse.js";
- import { getProviderEnvValue } from "../utils/provider-env.js";
- export class PiMessagesResponseError extends Error {
-     code;
-@@ -92,7 +92,17 @@ function createEventConverter(model) {
+@@ -93,7 +93,16 @@ function createEventConverter(model) {
          timestamp: Date.now(),
      };
-     const toolJson = new Map();
-+    // Delta parsing is rate-limited, so bring unfinished arguments up to date at the end.
-+    const finishToolJson = () => {
-+        for (const [contentIndex, json] of toolJson) {
-+            partial.content[contentIndex].arguments = parseStreamingJson(json);
-+        }
-+        toolJson.clear();
+     const toolArguments = new Map();
++    /** Parse the full arguments of every tool call the stream never ended. */
++    const finishToolArguments = () => {
++        for (const [contentIndex, args] of toolArguments)
++            Object.assign(partial.content[contentIndex], args.finish());
++        toolArguments.clear();
 +    };
      return (event) => {
-+        if (event.type === "done" || event.type === "error") {
-+            finishToolJson();
-+        }
-         switch (event.type) {
-             case "done":
-                 Object.assign(partial, {
-@@ -157,7 +167,7 @@ function createEventConverter(model) {
-                 const json = `${toolJson.get(event.contentIndex) ?? ""}${event.delta}`;
-                 toolJson.set(event.contentIndex, json);
-                 partial.content[event.contentIndex].arguments =
--                    parseStreamingJson(json);
-+                    parseStreamingToolArguments(partial.content[event.contentIndex], json);
-                 break;
-             }
-             case "toolcall_end":
++        // A `done` or `error` event can arrive without a toolcall_end for the call it streamed.
++        if (event.type === "done" || event.type === "error")
++            finishToolArguments();
+         if ("contentIndex" in event) {
+             // The index comes from the wire and keys the content array: `__proto__` would reach Array.prototype, and a huge
+             // index would make a sparse array of billions of holes. A start adds the next block; other events need one.
 diff --git a/dist/api/simple-options.js b/dist/api/simple-options.js
-index ed753df7ea29238c5ef2f1543c3568173be00df7..f1c8392a48a169dd32f6c31b09d8ed14907813ab 100644
+index a119bf912008e77ec051af6d9701e24c9f2b468b..ae3c1f5d6473280a30905c8b405e8f464f386823 100644
 --- a/dist/api/simple-options.js
 +++ b/dist/api/simple-options.js
-@@ -27,6 +27,7 @@ export function buildBaseOptions(model, context, options, apiKey) {
+@@ -40,6 +40,7 @@ export function buildBaseOptions(model, context, options, apiKey) {
          fetch: options?.fetch,
          transport: options?.transport,
          cacheRetention: options?.cacheRetention,
 +        systemCacheBoundary: options?.systemCacheBoundary,
          sessionId: options?.sessionId,
+         disableContinuation: options?.disableContinuation,
          headers: options?.headers,
-         identity: options?.identity,
 diff --git a/dist/bedrock-provider.d.ts b/dist/bedrock-provider.d.ts
 index a60900ad2becaa711ee76ed0d01f8a47bfadb080..05ba73b5edc3b55ee7c7a346ce6cb62df2c05e4c 100644
 --- a/dist/bedrock-provider.d.ts
@@ -891,11 +777,77 @@ index cb66f6ffd9dfab26428509bb9b553abff21e6014..51ee723f1076efa8c41099d9b786aa85
  export const bedrockProviderModule = {
      stream,
      streamSimple,
+diff --git a/dist/cache-warming.d.ts b/dist/cache-warming.d.ts
+index d93b9ade9a913dc14e1822349fa7a301c7a23ef0..1b52e586c5de61cea30140ed481cbd45199f83cb 100644
+--- a/dist/cache-warming.d.ts
++++ b/dist/cache-warming.d.ts
+@@ -34,13 +34,15 @@ export declare const CACHE_WARMING_IDLE_CONTINUATION_PROBABILITY = 0.15;
+ export declare function getCacheWarmingDelayMs(ttlMs: number): number | undefined;
+ /**
+  * Lifetime of the prompt cache entry a request writes, from the model's `promptCache` tier for the retention the
+- * request used. Undefined when the model has no lifetime for that tier or caching is off.
++ * request used. Bedrock models from a remote catalog or models.json derive their lifetimes from the cache points the
++ * Bedrock transport writes. Undefined when the model has no lifetime for that tier or caching is off.
+  */
+ export declare function getPromptCacheTtlMs(model: Model<Api>, options: SimpleStreamOptions | undefined): number | undefined;
+ /**
+- * Whether replaying the request with a one-token output cap leaves its cache entry untouched. Anthropic's budget-based
+- * thinking (Claude models without adaptive thinking) derives `budget_tokens` from `max_tokens`; the replay would get a
+- * different budget, which Anthropic keys the message cache on, and the model could still think for thousands of tokens.
++ * Whether replaying the request with a one-token output cap leaves its cache entry untouched. Anthropic's and
++ * Bedrock's budget-based thinking (Claude models without adaptive thinking) derives `budget_tokens` from `max_tokens`;
++ * the replay would get a different budget, which the provider keys the message cache on, and the model could still
++ * think for thousands of tokens.
+  */
+ export declare function isCacheWarmingReplayable(model: Model<Api>, options: SimpleStreamOptions | undefined): boolean;
+ /**
+diff --git a/dist/cache-warming.js b/dist/cache-warming.js
+index a8d20590fee1d1adc82dae66230c92bc9d03620c..11241279aa39e4666e73bccc806149ed6923764a 100644
+--- a/dist/cache-warming.js
++++ b/dist/cache-warming.js
+@@ -1,6 +1,7 @@
+ // Prompt cache warming policy shared by pi's hosts: when a refresh is due, whether a request can be replayed, and
+ // whether a refresh pays for itself. Hosts own the scheduling; this module owns the numbers.
+ import { calculateCost } from "./models.js";
++import { bedrockClaudePromptCache, claudeUsesAdaptiveThinking, isClaudeModelRef } from "./utils/claude-capabilities.js";
+ import { getProviderEnvValue } from "./utils/provider-env.js";
+ /** Streaming warming never continues past this long after the real request that started it. */
+ export const CACHE_WARMING_MAX_AGE_MS = 60 * 60_000;
+@@ -28,7 +29,11 @@ export function getPromptCacheTtlMs(model, options) {
+         (getProviderEnvValue("PI_CACHE_RETENTION", options?.env) === "long" ? "long" : "short");
+     if (retention === "none")
+         return undefined;
+-    const seconds = model.promptCache?.[retention];
++    // Bedrock models from a remote catalog or models.json carry no lifetimes; derive the ones the
++    // Bedrock transport writes cache points for.
++    const promptCache = model.promptCache ??
++        (model.api === "bedrock-converse-stream" ? bedrockClaudePromptCache(model.id, model.name) : undefined);
++    const seconds = promptCache?.[retention];
+     return seconds === undefined ? undefined : seconds * 1000;
+ }
+ /**
+@@ -37,9 +42,14 @@ export function getPromptCacheTtlMs(model, options) {
+  * different budget, which Anthropic keys the message cache on, and the model could still think for thousands of tokens.
+  */
+ export function isCacheWarmingReplayable(model, options) {
+-    if (!options?.reasoning || model.api !== "anthropic-messages")
++    if (!options?.reasoning)
+         return true;
+-    return model.compat?.forceAdaptiveThinking === true;
++    if (model.api === "anthropic-messages")
++        return model.compat?.forceAdaptiveThinking === true;
++    // Bedrock derives budget-based Claude thinking from maxTokens the same way.
++    if (model.api === "bedrock-converse-stream" && isClaudeModelRef(model.id, model.name))
++        return claudeUsesAdaptiveThinking(model.id, model.name);
++    return true;
+ }
+ /**
+  * The options of a refresh: the request's own, capped at one output token, without retries, and without replacing the
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 226fa3e6578dacc5744ce5c9271dd20d4a3b5b23..247b386beacd4349e50cf9d469440ec9c2daa140 100644
+index 9c19bb0fd38cc51e814d3680e8e06519908874b5..9807e61fb05504a06dcd9478bb1cc38c1e4ac0e1 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -22,6 +22,7 @@ export * from "./models-store.ts";
+@@ -21,6 +21,7 @@ export * from "./models-store.ts";
  export * from "./providers/faux.ts";
  export * from "./session-resources.ts";
  export * from "./types.ts";
@@ -904,7 +856,7 @@ index 226fa3e6578dacc5744ce5c9271dd20d4a3b5b23..247b386beacd4349e50cf9d469440ec9
  export * from "./utils/event-stream.ts";
  export * from "./utils/identity.ts";
 diff --git a/dist/index.js b/dist/index.js
-index d8d81e85328ff551562c9da1d645339a2ddf9f93..e57d5b29f6701d9d093a45515fc052fdf0e91237 100644
+index a45b61643634b192fb41453b8869e1be3eaab658..7140a4230850cb8082349e6317fb26353360deda 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -9,6 +9,7 @@ export * from "./models-store.js";
@@ -916,7 +868,7 @@ index d8d81e85328ff551562c9da1d645339a2ddf9f93..e57d5b29f6701d9d093a45515fc052fd
  export * from "./utils/event-stream.js";
  export * from "./utils/identity.js";
 diff --git a/dist/providers/amazon-bedrock.models.js b/dist/providers/amazon-bedrock.models.js
-index 6c16daf36b5c0b6f00499a7af7d892504faadcaa..e2286feb5cc51b8935ac4172d4b2194e61a3125e 100644
+index e05d25a8d3862d5aea5a1805a039d35620a9689e..ef31fc9d4b63b9e0b36f4f519fa70eb48d49f0ba 100644
 --- a/dist/providers/amazon-bedrock.models.js
 +++ b/dist/providers/amazon-bedrock.models.js
 @@ -2,7 +2,18 @@
@@ -941,10 +893,10 @@ index 6c16daf36b5c0b6f00499a7af7d892504faadcaa..e2286feb5cc51b8935ac4172d4b2194e
  //# sourceMappingURL=amazon-bedrock.models.js.map
 \ No newline at end of file
 diff --git a/dist/providers/compat-schema.d.ts b/dist/providers/compat-schema.d.ts
-index 681c7d626372d485351672fc7e4c11e3ed2351ee..b963fcd41972068665c7e70747020147008b6be5 100644
+index 1cfa6b8c642e57e6f46eb17c1219ca9737bb02bb..5ee1d3a51652f64e0985391141ac5e191f95a19e 100644
 --- a/dist/providers/compat-schema.d.ts
 +++ b/dist/providers/compat-schema.d.ts
-@@ -492,6 +492,10 @@ export interface OpenAICompletionsCompat extends Static<typeof OpenAICompletions
+@@ -483,6 +483,10 @@ export interface OpenAICompletionsCompat extends Static<typeof OpenAICompletions
  }
  /** Compatibility settings for OpenAI Responses APIs. */
  export interface OpenAIResponsesCompat extends Static<typeof OpenAIResponsesCompatSchema> {
@@ -956,7 +908,7 @@ index 681c7d626372d485351672fc7e4c11e3ed2351ee..b963fcd41972068665c7e70747020147
  /** Compatibility settings for Anthropic Messages-compatible APIs. */
  export interface AnthropicMessagesCompat extends Static<typeof AnthropicMessagesCompatSchema> {
 diff --git a/dist/providers/openai-codex.models.js b/dist/providers/openai-codex.models.js
-index 9a584e73fefc749226d29f78000564b41cf214bb..b85455b7cc5869d3f4207ed7a8d5cb9193bb7d5a 100644
+index 5ee3f3e30c4d9cc765e2c17c3b2133b407bf95e3..e2ffe34d76b88f5c707ce4e3dec0c530b42fef1b 100644
 --- a/dist/providers/openai-codex.models.js
 +++ b/dist/providers/openai-codex.models.js
 @@ -2,7 +2,25 @@
@@ -988,7 +940,7 @@ index 9a584e73fefc749226d29f78000564b41cf214bb..b85455b7cc5869d3f4207ed7a8d5cb91
  //# sourceMappingURL=openai-codex.models.js.map
 \ No newline at end of file
 diff --git a/dist/providers/openai.models.js b/dist/providers/openai.models.js
-index d1a99cf32531f99472ad88352fb4c329132a335b..34cc4ca5343eed7078d6cb27854d95a14dcb5d82 100644
+index 3dcbfb83dd8e52068d18f9416f96ad06327ae16a..758888b263705d20f70be1061598a385e67fbf31 100644
 --- a/dist/providers/openai.models.js
 +++ b/dist/providers/openai.models.js
 @@ -2,7 +2,11 @@
@@ -1006,7 +958,7 @@ index d1a99cf32531f99472ad88352fb4c329132a335b..34cc4ca5343eed7078d6cb27854d95a1
  //# sourceMappingURL=openai.models.js.map
 \ No newline at end of file
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index e92eefd0889876a84929584675ef2ec441051a2b..ec3567680c2815e732fcd41d960e914c93b1220a 100644
+index b410a7bab16c395090ab63e362288306950dec64..6de4f3478a5819b8873087c15a4b6ae1290b1c1a 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
 @@ -136,6 +136,13 @@ export interface StreamOptions extends ProviderRequestOptions<Model<Api>> {
@@ -1097,98 +1049,6 @@ index 0000000000000000000000000000000000000000..85821b6ab60544e7ffbb3a978867bc63
 +    return claudeSupportsOneHourCache(candidates) ? { short: 300, long: 3600 } : { short: 300 };
 +}
 +//# sourceMappingURL=claude-capabilities.js.map
-diff --git a/dist/utils/json-parse.d.ts b/dist/utils/json-parse.d.ts
-index ec52a744f1001a3ebb8169f7d8df1524ba1de5a9..7323ce54492d7f0ed54911b0652b423d9cda05e3 100644
---- a/dist/utils/json-parse.d.ts
-+++ b/dist/utils/json-parse.d.ts
-@@ -23,4 +23,19 @@ export declare function parseToolCallArguments(json: string | undefined): Pick<T
-  * @returns Parsed object or empty object if parsing fails
-  */
- export declare function parseStreamingJson<T = Record<string, unknown>>(partialJson: string | undefined): T;
-+/**
-+ * Returns the arguments for a streaming tool-call block whose accumulated JSON is
-+ * `partialJson`, re-parsing it only at a bounded rate. Small arguments are parsed on
-+ * every call; larger ones only after enough growth or time, otherwise the block's current
-+ * `arguments` are returned. Parse the complete JSON with `parseStreamingJson` when the
-+ * block ends.
-+ */
-+export declare function parseStreamingToolArguments<T = Record<string, unknown>>(block: {
-+    arguments: T;
-+}, partialJson: string | undefined): T;
-+/**
-+ * Parses the complete JSON of every tool call in `content` that still holds its streaming
-+ * buffer under `bufferKey` (default `partialJson`), then drops the buffer.
-+ */
-+export declare function finishStreamingToolCalls(content: readonly object[], bufferKey?: string): void;
- //# sourceMappingURL=json-parse.d.ts.map
-\ No newline at end of file
-diff --git a/dist/utils/json-parse.js b/dist/utils/json-parse.js
-index c282e3076956f09a062f9fe7cc2b5a9b8a5ff5a9..5c0fda5ad68f1c464eb9979ec3978ac674d87b5c 100644
---- a/dist/utils/json-parse.js
-+++ b/dist/utils/json-parse.js
-@@ -135,4 +135,61 @@ export function parseStreamingJson(partialJson) {
-         }
-     }
- }
-+/**
-+ * Streamed tool-call arguments up to this length are re-parsed on every delta, exactly
-+ * as before; a parse this small costs well under a millisecond.
-+ */
-+const STREAMING_TOOL_ARGUMENTS_EAGER_BYTES = 8 * 1024;
-+/** Beyond the eager size, re-parse once the JSON grew by this fraction of the last parse. */
-+const STREAMING_TOOL_ARGUMENTS_GROWTH_RATIO = 1 / 8;
-+/** ...or once this much time has passed, so a slow stream still refreshes its preview. */
-+const STREAMING_TOOL_ARGUMENTS_MIN_INTERVAL_MS = 50;
-+/** The time trigger never spends more than about 1/N of the stream's wall time parsing. */
-+const STREAMING_TOOL_ARGUMENTS_INTERVAL_PER_PARSE_MS = 10;
-+const streamingToolArgumentsState = new WeakMap();
-+function streamingParseClock() {
-+    return typeof performance !== "undefined" ? performance.now() : Date.now();
-+}
-+/**
-+ * Returns the arguments for a streaming tool-call block whose accumulated JSON is
-+ * `partialJson`, re-parsing it only at a bounded rate.
-+ *
-+ * Re-parsing the whole partial JSON on every delta costs O(n) per delta and O(n^2) per
-+ * tool call: a 200 KB argument streamed in 20-byte deltas took ~15 s of synchronous CPU.
-+ * Small arguments are still parsed on every delta. Larger ones are parsed when the JSON
-+ * grew by 1/8 since the last parse (O(n) total) or when enough time passed, and the
-+ * block's current `arguments` are returned otherwise. Callers must still parse the
-+ * complete JSON with `parseStreamingJson` when the block ends, so final arguments stay
-+ * exact.
-+ */
-+export function parseStreamingToolArguments(block, partialJson) {
-+    const length = partialJson?.length ?? 0;
-+    const state = streamingToolArgumentsState.get(block);
-+    const now = streamingParseClock();
-+    if (state !== undefined && length > STREAMING_TOOL_ARGUMENTS_EAGER_BYTES) {
-+        const grownEnough = length - state.length >= state.length * STREAMING_TOOL_ARGUMENTS_GROWTH_RATIO;
-+        const interval = Math.max(STREAMING_TOOL_ARGUMENTS_MIN_INTERVAL_MS, state.parseMs * STREAMING_TOOL_ARGUMENTS_INTERVAL_PER_PARSE_MS);
-+        if (!grownEnough && now - state.parsedAt < interval) {
-+            return block.arguments;
-+        }
-+    }
-+    const value = parseStreamingJson(partialJson);
-+    const parsedAt = streamingParseClock();
-+    streamingToolArgumentsState.set(block, { length, parsedAt, parseMs: parsedAt - now });
-+    return value;
-+}
-+/**
-+ * Parses the complete JSON of every tool call in `content` that still holds its streaming
-+ * buffer under `bufferKey`, then drops the buffer. `parseStreamingToolArguments` may have
-+ * skipped the latest deltas, so a stream that ends without closing a tool block must call
-+ * this before it hands the message out.
-+ */
-+export function finishStreamingToolCalls(content, bufferKey = "partialJson") {
-+    for (const block of content) {
-+        if (block.type !== "toolCall" || typeof block[bufferKey] !== "string")
-+            continue;
-+        block.arguments = parseStreamingJson(block[bufferKey]);
-+        delete block[bufferKey];
-+    }
-+}
- //# sourceMappingURL=json-parse.js.map
-\ No newline at end of file
 diff --git a/dist/utils/provider-retry.d.ts b/dist/utils/provider-retry.d.ts
 index 5c9cfa3f773b48c32db3a78d69b280a80f48ae99..d779066ff55ab72a2304e9d6d87653a3074a46d2 100644
 --- a/dist/utils/provider-retry.d.ts
@@ -1286,10 +1146,10 @@ index f59c2eca472e81072afe7eddf87c5823cffe50eb..35d05a8678dfffc4a2c0b8df366070cd
  //# sourceMappingURL=retry.d.ts.map
 \ No newline at end of file
 diff --git a/dist/utils/retry.js b/dist/utils/retry.js
-index 1ae291c296dc5d35a7b827e1098977e0d0db32cf..b66e472141a97895d5c4263192a86350345cdd17 100644
+index a5ade342625bef6c0c871a752f218b9cb0e5818f..91736d2262711d6478193b286e3f4dfeb9b00d3e 100644
 --- a/dist/utils/retry.js
 +++ b/dist/utils/retry.js
-@@ -202,8 +202,13 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
+@@ -219,8 +219,13 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
  export function isRetryableAssistantError(message) {
      if (message.stopReason !== "error" || !message.errorMessage)
          return false;
@@ -1306,7 +1166,7 @@ index 1ae291c296dc5d35a7b827e1098977e0d0db32cf..b66e472141a97895d5c4263192a86350
      return RETRYABLE_PROVIDER_ERROR_PATTERN.test(errorMessage);
  }
 diff --git a/dist/utils/transcript.js b/dist/utils/transcript.js
-index eceaf8b295ca5c0cef1795e40b5e0979b3e757eb..7266b03311d441f87ee7bdde50965c87f8e90626 100644
+index ac638f499d0fa924fc5a468709f674940565f514..6d1cf6e55b073061d9414409888910993980cbd2 100644
 --- a/dist/utils/transcript.js
 +++ b/dist/utils/transcript.js
 @@ -3,6 +3,13 @@ import { contentText, getSystemMessageText } from "./text.js";

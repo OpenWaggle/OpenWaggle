@@ -20,6 +20,10 @@ export const EXPECTED_PATCH_PATHS = {
     'dist/api/simple-options.js',
     'dist/bedrock-provider.d.ts',
     'dist/bedrock-provider.js',
+    // Pi 1.6.0 moved the prompt-cache warming policy here from pi-coding-agent; Bedrock models
+    // without catalog lifetimes are still kept warm.
+    'dist/cache-warming.d.ts',
+    'dist/cache-warming.js',
     'dist/index.d.ts',
     'dist/index.js',
     // Bedrock Claude models declare prompt cache lifetimes so their cache entries can be kept warm.
@@ -31,8 +35,6 @@ export const EXPECTED_PATCH_PATHS = {
     'dist/types.d.ts',
     'dist/utils/claude-capabilities.d.ts',
     'dist/utils/claude-capabilities.js',
-    'dist/utils/json-parse.d.ts',
-    'dist/utils/json-parse.js',
     'dist/utils/provider-retry.d.ts',
     'dist/utils/provider-retry.js',
     'dist/utils/retry.d.ts',
@@ -43,7 +45,8 @@ export const EXPECTED_PATCH_PATHS = {
   'pi-coding-agent': [
     'dist/core/agent-session.d.ts',
     'dist/core/agent-session.js',
-    // Bedrock models without catalog prompt cache lifetimes are still kept warm.
+    // Idle-compaction warmers carry the last request; the Bedrock prompt-cache policy moved to
+    // pi-ai's dist/cache-warming.js in 1.6.0.
     'dist/core/cache-warmer.d.ts',
     'dist/core/cache-warmer.js',
     // Pi 1.4.0 derives provider attribution from the client identity of each request.

@@ -25,6 +25,13 @@ const PI_PACKAGES = [
 /** The matched release: since Pi 1.2.0, exactly the catalog packages. */
 const PI_RELEASE_SET = PI_PACKAGES
 /**
+ * Pi packages the matched release pulls in that OpenWaggle does not pin in the catalog. Since
+ * 1.5.0, `pi-ai` depends on `@earendil-works/pi-schema` at an exact version that ships with the
+ * release but can be published again on its own, so it stays out of the matched set and still
+ * needs its own release-age entry while the release is young.
+ */
+const PI_RELEASE_COMPANION_PACKAGES = ['pi-schema'] as const
+/**
  * Packages earlier Pi releases included that Pi 1.2.0 removed (`pi-client`, `pi-protocol`,
  * `pi-server`) or stopped depending on (`chord`). Nothing may pin or resolve them any more.
  */
@@ -243,11 +250,16 @@ export function collectPiRuntimeAlignmentProblems(input: PiRuntimeAlignmentInput
   problems.push(...piWasmPackageProblems(input))
   problems.push(...extensionHostPackageProblems(input))
 
-  const expectedAgeEntries = new Set(
-    PI_RELEASE_SET.filter((packageName) => versionsFor(input.lockfile, packageName).size > 0).map(
-      (packageName) => `${packageRef(packageName)}@${version}`,
+  const expectedAgeEntries = new Set([
+    ...PI_RELEASE_SET.filter(
+      (packageName) => versionsFor(input.lockfile, packageName).size > 0,
+    ).map((packageName) => `${packageRef(packageName)}@${version}`),
+    ...PI_RELEASE_COMPANION_PACKAGES.flatMap((packageName) =>
+      [...versionsFor(input.lockfile, packageName)].map(
+        (resolved) => `${packageRef(packageName)}@${resolved}`,
+      ),
     ),
-  )
+  ])
   problems.push(...releaseAgeExclusionProblems(input, version, expectedAgeEntries))
 
   for (const packageName of PI_RELEASE_SET) {

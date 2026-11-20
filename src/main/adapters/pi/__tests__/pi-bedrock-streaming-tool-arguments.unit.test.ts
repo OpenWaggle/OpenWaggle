@@ -7,9 +7,11 @@ import {
 } from './bedrock-event-stream.test-utils'
 
 /**
- * Pi's patched Bedrock Converse stream must not re-parse the whole partial tool-call JSON
- * on every delta (quadratic CPU, a source of multi-second event-loop stalls), yet must
- * still emit one `toolcall_delta` per Bedrock delta and finish with exact arguments.
+ * Pi 1.6.0 parses streamed tool-call arguments with `StreamingJsonParser`, which reads each delta
+ * once and copies only the containers still open, so a large argument costs linear time instead of
+ * the quadratic whole-text re-parse the earlier per-delta `parseStreamingJson` did. The Bedrock
+ * Converse stream must still emit one `toolcall_delta` per Bedrock delta, keep a live preview, and
+ * finish with exact arguments.
  */
 
 async function streamToolCall(frames: readonly Buffer[]) {
@@ -34,17 +36,20 @@ async function streamToolCall(frames: readonly Buffer[]) {
 }
 
 describe('Pi Bedrock streaming tool-call arguments', () => {
-  it('emits every delta but parses a large argument a bounded number of times, ending exact', async () => {
+  it('emits every delta for a large argument, ending exact and quickly', async () => {
     const json = writeFileArguments(200 * 1024)
     const deltas = splitIntoDeltas(json)
 
+    const startedAt = performance.now()
     const result = await streamToolCall(toolCallFrames(deltas, { stopBlock: true }))
+    const elapsedMs = performance.now() - startedAt
 
     expect(result.message.stopReason).toBe('toolUse')
     expect(result.deltaTexts).toHaveLength(deltas.length)
     expect(result.deltaTexts.join('')).toBe(json)
-    // One new arguments object per full parse. Unpatched Pi parsed on every delta.
-    expect(result.argumentObjects.size).toBeLessThan(deltas.length / 10)
+    // A coarse guard on the parser's linearity: this input re-parsed per delta took about 15 s
+    // (the quadratic cost the old patch removed) and streams in a few milliseconds on Pi 1.6.0.
+    expect(elapsedMs).toBeLessThan(2_000)
     expect(result.endArguments).toEqual(JSON.parse(json))
     expect(result.toolCall).toEqual({
       type: 'toolCall',
@@ -54,7 +59,7 @@ describe('Pi Bedrock streaming tool-call arguments', () => {
     })
   })
 
-  it('still parses a small argument on every delta', async () => {
+  it('keeps the preview of a small argument fresh on every delta', async () => {
     const json = writeFileArguments(2 * 1024)
     const deltas = splitIntoDeltas(json)
 
