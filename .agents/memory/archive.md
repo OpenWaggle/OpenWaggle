@@ -37,3 +37,20 @@ Fixes shipped: Fast gate per push (static checks split into Unit / Integration &
 ## Filed under "Startup compatibility needs persisted-profile tests"
 
 The same Enter rule applies to direct preload `writeTerminal` calls in Electron E2E. A replacement-shell usability probe that appends LF can successfully write bytes on Windows without submitting its command. Preserve the real restart, generation, offset, and marker assertions; send CR as xterm does for Enter.
+
+## Pi re-parsed a streaming tool call's whole JSON on every delta (1.4.0-1.5.x; gone in 1.6.0)
+
+Pi's Bedrock tool-call streaming reparsed the whole partial JSON on every delta, which is
+quadratic: a 190 KB call cost 3 to 11 s of CPU (the largest stored assistant message was only
+38 KB). The pi-ai patch rate-limited that parse (`parseStreamingToolArguments` in
+`dist/utils/json-parse.js`, used by the delta paths of Bedrock, Anthropic, OpenAI
+Responses/Azure/Codex, OpenAI Completions, Mistral and the `pi-messages` client): every delta up
+to 8 KiB, then after 1/8 growth or max(50 ms, 10x the last parse time), so a block's `arguments`
+lagged its raw JSON and `finishStreamingToolCalls` had to close the terminal paths itself. A
+217 KB call in 20-byte deltas went from 14.5 s of parsing (10,884 parses, 4.5 s event-loop lag end
+to end) to 51 ms (436 parses, 48 ms lag). Streams could end normally without closing the tool
+block (Anthropic `message_stop` without `content_block_stop`, Responses `response.completed`
+without `output_item.done`, Bedrock without `contentBlockStop`, pi-messages `done` without
+`toolcall_end`); the first patch missed the Anthropic and Responses success paths, so a `write`
+tool ran with 63,536 of 65,562 bytes. Pi 1.6.0 replaced all of it with `StreamingJsonParser`
+(`utils/streaming-json.js`); session-host.md carries the current rule.

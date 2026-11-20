@@ -47,9 +47,10 @@ describe('Pi Bedrock streaming tool-call arguments', () => {
     expect(result.message.stopReason).toBe('toolUse')
     expect(result.deltaTexts).toHaveLength(deltas.length)
     expect(result.deltaTexts.join('')).toBe(json)
-    // A coarse guard on the parser's linearity: this input re-parsed per delta took about 15 s
-    // (the quadratic cost the old patch removed) and streams in a few milliseconds on Pi 1.6.0.
-    expect(elapsedMs).toBeLessThan(2_000)
+    // A coarse guard on the parser's linearity, with room for a loaded runner: this input
+    // re-parsed per delta took about 15 s (the quadratic cost the old patch removed) and streams
+    // in a few milliseconds on Pi 1.6.0.
+    expect(elapsedMs).toBeLessThan(5_000)
     expect(result.endArguments).toEqual(JSON.parse(json))
     expect(result.toolCall).toEqual({
       type: 'toolCall',

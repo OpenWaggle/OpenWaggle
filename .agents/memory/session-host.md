@@ -157,32 +157,27 @@ log per 10 s, plus a trailing summary of folded stalls). The Host's report inclu
 newest in-flight command names and liveness owners, so the next stall names its process. The stall source itself was not
 reproduced. Measured against a 565 MB user DB copy: `persistSessionSnapshot` took at most 0.21 s
 (7,929-node Session), `getSessionTree` 0.14 s, lexical search 0.37 s, and a WAL commit 30 ms under
-heavy I/O, so SQLite work does not explain multi-second stalls. Pi's Bedrock tool-call streaming
-reparses the whole partial JSON on every delta, which is quadratic: a 190 KB call costs 3 to 11 s
-of CPU. The largest stored assistant message was only 38 KB, though. The pi-ai patch now rate-limits
-that parse (`parseStreamingToolArguments` in `dist/utils/json-parse.js`, used by the delta paths
-of Bedrock, Anthropic, OpenAI Responses/Azure/Codex, OpenAI Completions, Mistral and the
-`pi-messages` client): every delta up to 8 KiB, then after 1/8 growth or max(50 ms, 10x the last
-parse time). A block's `arguments` therefore lag its raw JSON, and every terminal path must parse
-the full JSON itself: block stop, `done`, `error` and abort. Streams can end normally without
-closing the tool block (Anthropic `message_stop` without `content_block_stop`, Responses
-`response.completed` without `output_item.done`, Bedrock without `contentBlockStop`, pi-messages
-`done` without `toolcall_end`); the first patch missed the Anthropic and Responses success paths,
-so a `write` tool ran with 63,536 of 65,562 bytes. `finishStreamingToolCalls` now closes those
-paths, and `pi-streaming-tool-arguments-terminal-paths.unit.test.ts` streams every patched
-provider through a loopback server, ending normally without a close and failing after the
-deltas, and checks the final arguments are exact. Any new provider path that pushes `done` or
-`error` needs the same. A 217 KB call in 20-byte deltas
-went from 14.5 s of parsing (10,884 parses, 4.5 s event-loop lag end to end) to 51 ms (436
-parses, 48 ms lag). `pi-bedrock-streaming-tool-arguments.unit.test.ts` drives Pi's real Bedrock
-stream against a loopback AWS event-stream server (`bedrock-event-stream.test-utils.ts`).
+heavy I/O, so SQLite work does not explain multi-second stalls. Pi's streamed tool-call arguments
+are parsed linearly since Pi 1.6.0: `StreamingJsonParser` (`utils/streaming-json.js`) reads each
+delta once and copies only the containers still open, and `ToolCallArgumentsStream.finish()`
+parses the complete text once when the provider closes the block. The patch keeps only the full
+parse on the terminal paths Pi's close events miss, because a stream can end without closing the
+tool block (Anthropic, Responses, Bedrock and the `pi-messages` client each have such a path):
+`finishOpenToolCalls`, `finishToolArguments` and `flushOpenBlocks`, exercised by
+`pi-streaming-tool-arguments-terminal-paths.unit.test.ts` (every patched provider through a
+loopback server, ending normally without a close and failing after the deltas, checking the final
+arguments are exact). Any new provider path that pushes `done` or `error` needs the same.
+`pi-bedrock-streaming-tool-arguments.unit.test.ts` drives Pi's real Bedrock stream against a
+loopback AWS event-stream server (`bedrock-event-stream.test-utils.ts`).
 OpenWaggle's own projection copied the whole input into every `toolcall_delta` transport event,
 and each copy is stringified for the Host socket, parsed by the GUI, cloned over IPC, and
-re-stringified by the renderer: about 1.2 GB for that one call. `emitToolCallDeltaUpdate` now
-emits a `toolcall_delta` only when Pi replaced the call's `arguments` object (a re-parse); held
-raw deltas ride on the next emitted event, and the tail after the last re-parse is superseded by
-`toolcall_end`'s exact input. That cut it to 436 events and 4 MB (renderer apply 830 ms -> 4 ms).
-A Pi provider that mutated `arguments` in place would freeze the live preview until the call ends.
+re-stringified by the renderer: about 1.2 GB for one 200 KB Bedrock call. `emitToolCallDeltaUpdate`
+emits one only when Pi replaced the call's `arguments` object, and past 8 KiB of input it batches
+raw deltas until 8 KiB accumulated, because 1.6.0 refreshes a large call's `arguments` on every
+delta: 11,043 events carrying 1.2 GB become 435 carrying 4.6 MB (renderer apply 830 ms -> 4 ms).
+Held raw deltas ride on the next emitted event, and the tail after the last emit is superseded by
+`toolcall_end`'s exact input. A Pi provider that mutated `arguments` in place would freeze the live
+preview until the call ends.
 
 ## Session Host stalls had measurable sources: unindexed foreign keys and leaked abort listeners (October 2026)
 

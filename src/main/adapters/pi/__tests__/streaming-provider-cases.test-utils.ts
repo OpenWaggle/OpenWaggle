@@ -206,7 +206,7 @@ const bedrockCase: ProviderCase = {
     ),
 }
 
-/** Every Pi provider whose delta path uses `parseStreamingToolArguments`. */
+/** Every Pi provider whose delta path parses streamed arguments with `ToolCallArgumentsStream`. */
 export const STREAMING_TOOL_CALL_PROVIDERS: readonly ProviderCase[] = [
   anthropicCase,
   openAiResponsesCase,

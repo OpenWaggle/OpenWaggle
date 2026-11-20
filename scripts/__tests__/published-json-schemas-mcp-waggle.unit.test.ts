@@ -54,6 +54,10 @@ describe('the mcp.json schema agrees with the runtime merge', () => {
       },
     ],
     [
+      'an auto OAuth registration',
+      { s: { url: 'https://x.dev/mcp', oauth: { clientRegistration: 'auto' } } },
+    ],
+    [
       'an override of a server an earlier file defines',
       { base: { enabled: false, exposure: 'hidden' } },
     ],

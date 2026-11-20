@@ -50,7 +50,10 @@ export interface McpOAuthConfig {
   callbackUrl?: string
   scope?: string
   clientName?: string
-  /** Pi 1.6.0 added `"auto"` (register when `clientName` or a non-default `callbackUrl` is set) as the default. */
+  /**
+   * Pi 1.6.0 added `"auto"`, the default: identify with a client ID metadata document when one is
+   * available, and register when `clientName` is set or the documents do not list the callback.
+   */
   clientRegistration?: 'auto' | 'dcr' | 'cimd'
   authServerMetadataUrl?: string
 }

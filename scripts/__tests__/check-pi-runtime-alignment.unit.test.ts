@@ -94,6 +94,31 @@ describe('Pi runtime alignment', () => {
       expected: 'missing @earendil-works/pi-mcp@1.2.0',
     },
     {
+      drift: 'missing release-age exclusion for a companion package',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        lockfile: {
+          ...input.lockfile,
+          packages: [
+            ...input.lockfile.packages,
+            lockedPackage('@earendil-works/pi-schema', version),
+          ],
+        },
+      }),
+      expected: 'missing @earendil-works/pi-schema@1.2.0',
+    },
+    {
+      drift: 'release-age exclusion for a companion package the lockfile does not resolve',
+      breakInput: (input: PiRuntimeAlignmentInput) => ({
+        ...input,
+        bunfig: input.bunfig.replace(
+          `  "@earendil-works/pi-tui@${version}",\n`,
+          `  "@earendil-works/pi-tui@${version}",\n  "@earendil-works/pi-schema@${version}",\n`,
+        ),
+      }),
+      expected: 'unneeded @earendil-works/pi-schema@1.2.0',
+    },
+    {
       drift: 'catalog entry for a package Pi no longer releases',
       breakInput: (input: PiRuntimeAlignmentInput) => ({
         ...input,
