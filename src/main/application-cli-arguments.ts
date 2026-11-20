@@ -14,8 +14,8 @@ const PASSWORD_STORE_SWITCH = /^--password-store=[a-z0-9-]+$/
  * wayland); `--disable-gpu` is the GPU-off workaround for a broken Vulkan stack. The Host is the
  * same Electron runtime on the same display servers, so without the forwarding it dies on the
  * backend the user escaped while the GUI runs fine and the window sits on its startup-timeout
- * screen (#499). The launcher forwards exactly what this matches, from the same argv this parser
- * reads, so the two halves cannot drift apart.
+ * screen (#499). The launcher forwards a switch only if it matches, and this parser skips a leading
+ * argument only if it matches, so the two halves cannot drift apart.
  */
 export const FORWARDED_DISPLAY_SWITCH = /^--(?:ozone-platform(?:-hint)?=[\w-]+|disable-gpu)$/
 
