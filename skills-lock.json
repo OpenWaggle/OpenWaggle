@@ -46,8 +46,8 @@
           "hash": "sha256-39d722bc48a75d35a21a5b141165ea23752ce296e757bca43281d5a47a0c8081"
         }
       ],
-      "hash": "sha256-90c6faf91fb465a0685450967bcf2bdc1655d62c9413141e29a53e3e941c7d88",
-      "localEdits": "references/patterns.md describes the push guard as a generic agent command gate instead of one agent's hook API."
+      "hash": "sha256-36c8eac1d5223c841b07bb293ef11612c87b408293de17eefcd5f907c0f02f33",
+      "localEdits": "Updated from a newer fallow release (114 plugins, the `explain` command, PR-comment formats); references/patterns.md describes the push guard as a generic agent command gate instead of one agent's hook API."
     },
     "frontend-design": {
       "upstream": [
@@ -104,7 +104,8 @@
           "hash": "sha256-89e42a4f238cd58759444390daf812185a5afed012acbe234aefb5dd8f833d3a"
         }
       ],
-      "hash": "sha256-89e42a4f238cd58759444390daf812185a5afed012acbe234aefb5dd8f833d3a"
+      "hash": "sha256-f5f12e3fd9f42d6d2b53fa0968a9d92c91d844df02ca92624da8d411ac5e6b69",
+      "localEdits": "Adds a step that writes a concise prompt for the next agent after the handoff document."
     },
     "improve-codebase-architecture": {
       "upstream": [
