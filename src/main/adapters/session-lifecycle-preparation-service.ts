@@ -10,7 +10,6 @@ import { SessionLifecyclePreparationError } from '../errors'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import {
   type PreparedSessionLifecycleAttempt,
-  type PrepareSessionLifecycleInput,
   SessionLifecyclePreparationService,
 } from '../ports/session-lifecycle-preparation-service'
 import {
@@ -19,38 +18,21 @@ import {
 } from '../ports/thinking-level-default-service'
 import { SettingsService } from '../services/settings-service'
 import {
-  buildLifecycleExecutionProfile,
   deriveChildCapabilities,
   reduceAuthorizationCeiling,
   resolveLifecycleExecutionContext,
   resolveLifecycleSessionCapabilities,
 } from './session-lifecycle-execution-profile'
 import {
-  prepareLifecycleFork,
+  prepareForkWhenForking,
   recordPreparedSessionFile,
 } from './session-lifecycle-fork-preparation'
+import { resolveSessionModels } from './session-lifecycle-model-enforcement'
 import { lifecyclePreparationError } from './session-lifecycle-refusal'
 import {
   prepareLifecycleWorkspacePlan,
   projectPathForLifecycleCommand,
 } from './session-lifecycle-workspace-plan'
-
-/** Launch and spawn start a Run at once, so they cannot proceed without a model. */
-function requireRunModel(
-  command: PrepareSessionLifecycleInput['request']['command'],
-  modelId: string,
-) {
-  const startsRun = command.operation === 'launch' || command.operation === 'spawn'
-  if (!startsRun || modelId.trim().length > 0) return Effect.void
-  return Effect.fail(
-    preparationError(
-      'resolve-model',
-      new Error(
-        'No model is selected. Pass --model <provider/model>, or choose a model in the OpenWaggle desktop app.',
-      ),
-    ),
-  )
-}
 
 function preparationError(operation: string, cause: unknown) {
   return new SessionLifecyclePreparationError({ operation, cause })
@@ -165,9 +147,10 @@ function loadLifecyclePolicy(
         cause,
       }),
   }).pipe(
-    Effect.map((projectConfig) =>
-      resolveSessionHostProjectPolicy(settings, projectPath, projectConfig.sessionHost),
-    ),
+    Effect.map((projectConfig) => ({
+      policy: resolveSessionHostProjectPolicy(settings, projectPath, projectConfig.sessionHost),
+      providers: projectConfig.providers,
+    })),
   )
 }
 
@@ -204,7 +187,10 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
             })
             const projectPath = yield* projectPathForLifecycleCommand(sql, input.request.command)
             const settings = yield* settingsService.get()
-            const policy = yield* loadLifecyclePolicy(settings, projectPath)
+            const { policy, providers: projectProviders } = yield* loadLifecyclePolicy(
+              settings,
+              projectPath,
+            )
             const { parent, definition } = yield* resolveLifecycleExecutionContext(
               sql,
               projectPath,
@@ -214,30 +200,26 @@ export const SessionLifecyclePreparationServiceLive = Layer.effect(
             )
             const plan = yield* prepareLifecycleWorkspacePlan(sql, input, projectPath, definition)
             const command = input.request.command
-            const profile = buildLifecycleExecutionProfile({
+            const { profile, forkModelId } = yield* resolveSessionModels({
               command,
-              defaults: {
-                selectedModel: settings.selectedModel,
-                thinkingLevel: yield* defaultThinkingLevel(thinkingLevelDefaults),
-              },
               parent,
               definition,
+              thinkingLevel: yield* defaultThinkingLevel(thinkingLevelDefaults),
+              settings,
+              projectPath,
+              projectProviders,
             })
-            yield* requireRunModel(command, profile.modelId)
-            const forked =
-              command.operation === 'fork'
-                ? yield* prepareLifecycleFork({
-                    sql,
-                    kernel,
-                    command,
-                    callerId: input.callerId,
-                    modelId: parent?.profile.modelId ?? settings.selectedModel,
-                    attemptId,
-                    onForkFile: (file) => {
-                      piSessionFile = file
-                    },
-                  })
-                : undefined
+            const forked = yield* prepareForkWhenForking({
+              sql,
+              kernel,
+              command,
+              callerId: input.callerId,
+              forkModelId,
+              attemptId,
+              onForkFile: (file) => {
+                piSessionFile = file
+              },
+            })
             const piSession = forked?.result ?? (yield* kernel.createSession({ projectPath }))
             piSessionFile = piSession.piSessionFile
             yield* recordPreparedSessionFile(sql, attemptId, piSession.piSessionFile)

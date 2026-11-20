@@ -47,6 +47,8 @@ export interface SessionRunExecutionProfileRow {
 export interface ResolvedSessionRunExecution {
   /** The Session's model, or a Heartbeat's own model for its Runs (#388). */
   readonly model: ReturnType<typeof SupportedModelId>
+  /** A Heartbeat's own model, which its scheduler named and provider restrictions may refuse. */
+  readonly scheduledTaskModelId?: string
   /** A Heartbeat's own thinking level for this Run only; the Session's setting is unchanged. */
   readonly thinkingLevel?: ThinkingLevel
   readonly authorizationCeiling: AgentAuthorizationMode
@@ -289,6 +291,7 @@ export function resolveSessionRunExecution(row: SessionRunExecutionProfileRow, r
   const taskModel = scheduledTaskModelChoice(row.scheduled_task_json)
   return {
     model: SupportedModelId(taskModel.modelId ?? profile.modelId),
+    ...(taskModel.modelId ? { scheduledTaskModelId: taskModel.modelId } : {}),
     ...(taskModel.thinkingLevel ? { thinkingLevel: taskModel.thinkingLevel } : {}),
     authorizationCeiling: row.authorization_ceiling,
     ...(agentSnapshot ? { agentInstructions: agentSnapshot.instructions } : {}),

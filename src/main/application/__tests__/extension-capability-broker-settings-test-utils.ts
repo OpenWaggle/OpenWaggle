@@ -48,6 +48,11 @@ function mergeGeneralSettings(current: Settings, partial: Partial<Settings>) {
       current.selectedModelsByProject,
       partial.selectedModelsByProject,
     ),
+    providerRestrictions: nextSetting(current.providerRestrictions, partial.providerRestrictions),
+    providerRestrictionsByPath: nextSetting(
+      current.providerRestrictionsByPath,
+      partial.providerRestrictionsByPath,
+    ),
     projectPathAliases: nextSetting(current.projectPathAliases, partial.projectPathAliases),
     defaultAuthorizationMode: nextSetting(
       current.defaultAuthorizationMode,

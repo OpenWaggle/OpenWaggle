@@ -13,6 +13,8 @@ import type { IpcEventMethod, IpcInvokeMethod } from './ipc-api-methods'
 export interface ProjectPreferencesPayload {
   model?: string
   authorizationMode?: AgentAuthorizationMode
+  /** The project file's own provider restriction scope, which outranks every app-side scope. */
+  providers?: Readonly<Record<string, boolean | readonly string[]>>
 }
 
 /**

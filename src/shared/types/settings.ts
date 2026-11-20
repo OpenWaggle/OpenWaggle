@@ -88,6 +88,8 @@ export const DEFAULT_SETTINGS: Settings = {
   agentDefinitionTogglesByProject: {},
   projectDisplayNames: {},
   selectedModelsByProject: {},
+  providerRestrictions: {},
+  providerRestrictionsByPath: {},
   projectPathAliases: {},
   shortcutRules: DEFAULT_SHORTCUT_RULES,
   shortcutBindings: shortcutBindingsFromRules(DEFAULT_SHORTCUT_RULES),

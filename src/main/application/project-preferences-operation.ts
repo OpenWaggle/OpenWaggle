@@ -3,9 +3,9 @@ import { projectPreferencesUpdateSchema } from '@shared/schemas/validation'
 import { isAgentAuthorizationMode } from '@shared/types/agent-authorization'
 import * as Effect from 'effect/Effect'
 import {
-  getProjectPreferencesStrict,
   type ProjectPreferences,
   type ProjectPreferencesUpdate,
+  loadProjectConfigStrict,
   setProjectPreferences,
 } from '../config/project-config'
 import { SettingsService, type SettingsServiceShape } from '../services/settings-service'
@@ -60,6 +60,33 @@ function validateProjectPreferences(preferences: unknown) {
 }
 
 /**
+ * The wire payload for one project's stored overrides: the file's preferences beside the app
+ * DB's model, which wins over a legacy file value. Presence, not truthiness: an empty-string
+ * tombstone means the user explicitly cleared this project's model, and it must suppress a
+ * legacy file value rather than fall back to it.
+ */
+function projectPreferencesPayload(input: {
+  readonly prefs: ProjectPreferences | undefined
+  readonly hasDbEntry: boolean
+  readonly dbModel: string | undefined
+  readonly providers: Readonly<Record<string, boolean | readonly string[]>> | undefined
+}) {
+  const { prefs, hasDbEntry, dbModel, providers } = input
+  if (!prefs && !hasDbEntry && !providers) return null
+  if (hasDbEntry && !dbModel) {
+    const { model: _legacy, ...prefsWithoutModel } = prefs ?? {}
+    const withoutModel = Object.keys(prefsWithoutModel).length > 0 ? prefsWithoutModel : null
+    if (!withoutModel && !providers) return null
+    return { ...withoutModel, ...(providers ? { providers } : {}) }
+  }
+  return {
+    ...prefs,
+    ...(dbModel ? { model: dbModel } : {}),
+    ...(providers ? { providers } : {}),
+  }
+}
+
+/**
  * Reads one project's preference overrides as the wire payload.
  *
  * The selected model lives in the app's SQLite settings store, keyed by project path — never in the
@@ -75,18 +102,14 @@ export function getProjectPreferencesOperation(rawProjectPath: unknown) {
     if (requestedPath && requestedPath !== projectPath && settings.recordProjectPathAlias) {
       yield* settings.recordProjectPathAlias(requestedPath, projectPath)
     }
-    const prefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
+    const config = yield* Effect.promise(() => loadProjectConfigStrict(projectPath))
     const modelByProject = (yield* settings.get()).selectedModelsByProject
-    // Presence, not truthiness: an empty-string tombstone means the user explicitly cleared this
-    // project's model, and it must suppress a legacy file value rather than fall back to it.
-    const hasDbEntry = Object.hasOwn(modelByProject, projectPath)
-    const dbModel = modelByProject[projectPath]
-    if (!prefs && !hasDbEntry) return null
-    if (hasDbEntry && !dbModel) {
-      const { model: _legacy, ...prefsWithoutModel } = prefs ?? {}
-      return Object.keys(prefsWithoutModel).length > 0 ? prefsWithoutModel : null
-    }
-    return { ...prefs, ...(dbModel ? { model: dbModel } : {}) }
+    return projectPreferencesPayload({
+      prefs: config.preferences,
+      hasDbEntry: Object.hasOwn(modelByProject, projectPath),
+      dbModel: modelByProject[projectPath],
+      providers: config.providers,
+    })
   })
 }
 
@@ -117,7 +140,8 @@ export function setProjectPreferencesOperation(rawProjectPath: unknown, rawPrefe
     if (requestedPath && requestedPath !== projectPath && settings.recordProjectPathAlias) {
       yield* settings.recordProjectPathAlias(requestedPath, projectPath)
     }
-    const filePrefs = yield* Effect.promise(() => getProjectPreferencesStrict(projectPath))
+    const filePrefs = (yield* Effect.promise(() => loadProjectConfigStrict(projectPath)))
+      .preferences
     yield* persistModelWithLegacyMigration(settings, projectPath, model, filePrefs)
 
     // The file writer strips any legacy model, so an explicit model write against a file that

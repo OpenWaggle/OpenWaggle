@@ -7,6 +7,7 @@ import { reserveSessionTreeMutation } from '../application/active-session-runs'
 import { attributeCopiedVisualizationSources } from '../application/inline-visualization-ownership'
 import { SessionLifecyclePreparationError } from '../errors'
 import type { AgentKernelServiceShape } from '../ports/agent-kernel-service'
+import type { PrepareSessionLifecycleInput } from '../ports/session-lifecycle-preparation-service'
 import { discoveredPiEntryNodeIdPrefix } from '../store/session-details/discovered-pi-entry-node-ids'
 
 interface ForkSourceRow {
@@ -161,5 +162,41 @@ export function prepareLifecycleFork(input: {
       )
       return { result: { ...result, sessionSnapshot }, targetNodeId }
     }).pipe(Effect.ensuring(Effect.sync(writer.release)))
+  })
+}
+
+/** Prepares the fork's Pi session file when the command is a fork, else nothing. */
+export function prepareForkWhenForking(input: {
+  readonly sql: SqlClient.SqlClient
+  readonly kernel: AgentKernelServiceShape
+  readonly command: PrepareSessionLifecycleInput['request']['command']
+  readonly callerId: string
+  readonly forkModelId: string | undefined
+  readonly attemptId: string
+  readonly onForkFile: (file: string) => void
+}) {
+  return Effect.suspend(() => {
+    if (input.command.operation !== 'fork') return Effect.succeed(undefined)
+    // Preparation resolves the fork's model, so an absent one means it was refused: forking with
+    // an empty model would let Pi pick its own default and bypass the restriction.
+    if (input.forkModelId === undefined) {
+      return Effect.fail(
+        new SessionLifecyclePreparationError({
+          operation: 'enforce-provider-restriction',
+          cause: new Error(
+            "The fork's model could not be resolved inside this project's providers.",
+          ),
+        }),
+      )
+    }
+    return prepareLifecycleFork({
+      sql: input.sql,
+      kernel: input.kernel,
+      command: input.command,
+      callerId: input.callerId,
+      modelId: input.forkModelId,
+      attemptId: input.attemptId,
+      onForkFile: input.onForkFile,
+    })
   })
 }

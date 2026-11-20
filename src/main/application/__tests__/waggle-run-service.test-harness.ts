@@ -68,7 +68,11 @@ const assistantMessage: Message = {
 }
 
 /** What the Run reads: the Session, and the models its project's catalog lacks. */
-export const harnessState = { session, modelsNotInCatalog: new Set<string>() }
+export const harnessState = {
+  session,
+  modelsNotInCatalog: new Set<string>(),
+  providerRestrictions: DEFAULT_SETTINGS.providerRestrictions,
+}
 
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.sync(() => harnessState.session),
@@ -97,15 +101,16 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
 
 const TestSettingsLayer = Layer.succeed(SettingsService, {
   get: () =>
-    Effect.succeed({
+    Effect.sync(() => ({
       ...DEFAULT_SETTINGS,
       selectedModel,
+      providerRestrictions: harnessState.providerRestrictions,
       skillTogglesByProject: {
         [projectPath]: {
           'code-review': false,
         },
       },
-    }),
+    })),
   update: () => Effect.void,
   initialize: () => Effect.void,
   flushForTests: () => Effect.void,
@@ -279,6 +284,7 @@ export const TestLayer = Layer.mergeAll(
 export function resetWaggleRunServiceMocks() {
   harnessState.session = session
   harnessState.modelsNotInCatalog.clear()
+  harnessState.providerRestrictions = DEFAULT_SETTINGS.providerRestrictions
   runMock.mockReset()
   persistSnapshotMock.mockReset()
   getTreeMock.mockReset()

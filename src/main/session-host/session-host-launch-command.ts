@@ -6,6 +6,8 @@
  */
 import path from 'node:path'
 
+import { FORWARDED_DISPLAY_SWITCH } from '../application-cli-arguments'
+
 /** The internal argument that turns an OpenWaggle process into the detached Session Host. */
 export const SESSION_HOST_INTERNAL_COMMAND = 'session-host-internal'
 
@@ -32,6 +34,23 @@ export function sessionHostLaunchArguments(input: {
     : [input.appPath, SESSION_HOST_INTERNAL_COMMAND]
 }
 
+/**
+ * The Linux display backend switches this process was started with, read from Electron's parsed
+ * command line: the same source as the sibling forwarded switches, so an application argument that
+ * merely reads like a switch (a prompt word after `--`, say) is never mistaken for one.
+ */
+function displayBackendSwitches(commandLine: SessionHostLaunchSwitches) {
+  const valueSwitches = ['ozone-platform', 'ozone-platform-hint'].map(
+    (name) => `--${name}=${commandLine.getSwitchValue(name)}`,
+  )
+  // A switch the Host's parser cannot recognize as a runtime prefix would kill it at parse time,
+  // so forward exactly the values that parser accepts (applicationCliArguments).
+  return [
+    ...valueSwitches,
+    ...(commandLine.hasSwitch('disable-gpu') ? ['--disable-gpu'] : []),
+  ].filter((argument) => FORWARDED_DISPLAY_SWITCH.test(argument))
+}
+
 export function sessionHostLaunchCommand(input: {
   readonly platform: NodeJS.Platform
   readonly isPackaged: boolean
@@ -43,6 +62,8 @@ export function sessionHostLaunchCommand(input: {
   readonly parentUseMockKeychain?: boolean
   /** The value of the GUI's --password-store switch, which only Linux Chromium reads. */
   readonly parentPasswordStore?: string
+  /** The GUI's display backend switches, which its Host must repeat on Linux (FORWARDED_DISPLAY_SWITCH). */
+  readonly parentDisplaySwitches?: readonly string[]
 }) {
   // Restricted Linux environments may launch the GUI with this explicit Electron switch.
   // Its detached authority needs the same policy; never disable the sandbox by default.
@@ -53,6 +74,7 @@ export function sessionHostLaunchCommand(input: {
     ...(input.platform === 'linux' && input.parentPasswordStore
       ? [`--password-store=${input.parentPasswordStore}`]
       : []),
+    ...(input.platform === 'linux' ? (input.parentDisplaySwitches ?? []) : []),
   ]
   if (
     input.platform === 'linux' &&
@@ -83,7 +105,7 @@ export function sessionHostLaunchCommandFor(input: {
   readonly isPackaged: boolean
   readonly executablePath: string
   readonly appPath: string
-  readonly appImagePath: string | undefined
+  readonly appImagePath?: string
   readonly commandLine: SessionHostLaunchSwitches
 }) {
   const passwordStore = input.commandLine.getSwitchValue('password-store')
@@ -95,6 +117,7 @@ export function sessionHostLaunchCommandFor(input: {
     parentNoSandbox: input.commandLine.hasSwitch('no-sandbox'),
     parentUseMockKeychain: input.commandLine.hasSwitch('use-mock-keychain'),
     ...(passwordStore ? { parentPasswordStore: passwordStore } : {}),
+    parentDisplaySwitches: displayBackendSwitches(input.commandLine),
     ...(input.appImagePath ? { appImagePath: input.appImagePath } : {}),
   })
 }

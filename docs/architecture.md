@@ -97,6 +97,8 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0068-follow-pi-prompt-image-limits-and-decode-heic-in-openwaggle.md`
 - `docs/adr/0069-windows-builds-ship-unsigned-until-a-signer-is-funded.md`
 - `docs/adr/0070-release-prs-write-the-changelog.md`
+- `docs/adr/0071-provider-restrictions-bind-every-model-surface.md`
+- `docs/adr/0072-linux-installs-from-a-tarball-instead-of-an-appimage.md`
 
 ## Testing
 

@@ -1,4 +1,5 @@
-import { safeDecodeUnknown } from '@shared/schema'
+import { homedir } from 'node:os'
+import { type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { settingsUpdateSchema } from '@shared/schemas/settings'
 import { parseSessionTitleModelSetting } from '@shared/session-title-model'
 import { SupportedModelId } from '@shared/types/brand'
@@ -17,6 +18,7 @@ import {
   shortcutScopesOverlap,
 } from '@shared/types/shortcuts'
 import { extensionPanelShortcutUpdateError } from '@shared/utils/extension-panel-shortcuts'
+import { providerScopePathRejection } from '@shared/utils/provider-restriction'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { ActiveProjectChangeService } from '../ports/active-project-change-service'
@@ -176,15 +178,43 @@ export function getSettingsOperation() {
   return SettingsService.pipe(Effect.flatMap((settings) => settings.get()))
 }
 
+/**
+ * Why a provider-restriction path-scope update is refused, or null when every scope path is a
+ * folder inside the home directory (CONTEXT.md, "Provider scope").
+ */
+function providerRestrictionScopeRejection(byPath: unknown) {
+  if (typeof byPath !== 'object' || byPath === null) return null
+  for (const scopePath of Object.keys(byPath)) {
+    const rejection = providerScopePathRejection(scopePath, homedir())
+    if (rejection !== null) return rejection
+  }
+  return null
+}
+
+/** The decoded update and its rejections, so the operation's generator stays linear. */
+function decodeSettingsUpdate(raw: unknown) {
+  const result = safeDecodeUnknown(settingsUpdateSchema, raw)
+  if (!result.success) {
+    const error = result.issues.join('; ')
+    logger.warn('Invalid settings update payload', { error })
+    return { ok: false, error } satisfies { ok: false; error: string }
+  }
+  const scopeRejection = providerRestrictionScopeRejection(result.data.providerRestrictionsByPath)
+  if (scopeRejection !== null) {
+    logger.warn('Invalid provider restriction scope path', { error: scopeRejection })
+    return { ok: false, error: scopeRejection } satisfies { ok: false; error: string }
+  }
+  return { ok: true, data: result.data } satisfies {
+    ok: true
+    data: SchemaType<typeof settingsUpdateSchema>
+  }
+}
+
 export function updateSettingsOperation(raw: unknown) {
   return Effect.gen(function* () {
-    const result = safeDecodeUnknown(settingsUpdateSchema, raw)
-    if (!result.success) {
-      const error = result.issues.join('; ')
-      logger.warn('Invalid settings update payload', { error })
-      return { ok: false, error } satisfies { ok: false; error: string }
-    }
-    const projectPathValidation = yield* validateSettingsProjectPath(result.data.projectPath)
+    const decoded = decodeSettingsUpdate(raw)
+    if (!decoded.ok) return decoded
+    const projectPathValidation = yield* validateSettingsProjectPath(decoded.data.projectPath)
     if (!projectPathValidation.ok) {
       logger.warn('Invalid settings project path', { error: projectPathValidation.error })
       return { ok: false, error: projectPathValidation.error } satisfies {
@@ -192,9 +222,9 @@ export function updateSettingsOperation(raw: unknown) {
         error: string
       }
     }
-    const recentProjects = yield* validateRecentProjectPaths(result.data.recentProjects)
+    const recentProjects = yield* validateRecentProjectPaths(decoded.data.recentProjects)
     const settings = yield* SettingsService
-    const shortcuts = yield* validateShortcutSettingsUpdate(result.data)
+    const shortcuts = yield* validateShortcutSettingsUpdate(decoded.data)
     if (!shortcuts.ok) {
       return { ok: false, error: shortcuts.error } satisfies { ok: false; error: string }
     }
@@ -206,7 +236,7 @@ export function updateSettingsOperation(raw: unknown) {
       favoriteModels,
       enabledModels,
       ...unchanged
-    } = result.data
+    } = decoded.data
     const titleModel =
       sessionTitleModel === undefined ? null : parseSessionTitleModelSetting(sessionTitleModel)
     yield* settings.update({
@@ -223,14 +253,14 @@ export function updateSettingsOperation(raw: unknown) {
         : { enabledModels: enabledModels.map(SupportedModelId) }),
       ...(shortcutBindings === undefined ? {} : { shortcutBindings }),
     })
-    if (result.data.projectPath !== undefined) {
+    if (decoded.data.projectPath !== undefined) {
       if (projectPathValidation.value !== null) {
         yield* recordUsageStatisticsObservation({ kind: 'project-opened' })
       }
       const projectChanges = yield* ActiveProjectChangeService
       yield* projectChanges.reconcileTrustedMainExtensions(projectPathValidation.value)
     }
-    if (result.data.defaultAuthorizationMode !== undefined) {
+    if (decoded.data.defaultAuthorizationMode !== undefined) {
       yield* Effect.promise(() =>
         grantPendingAuthorizationsWhereFullAccess(resolveEffectiveAuthorizationMode),
       )

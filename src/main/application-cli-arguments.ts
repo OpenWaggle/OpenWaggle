@@ -8,9 +8,23 @@ const ELECTRON_RUNTIME_PREFIX_SWITCHES = new Set([
 ])
 /** Linux Chromium's credential store choice, such as --password-store=basic. */
 const PASSWORD_STORE_SWITCH = /^--password-store=[a-z0-9-]+$/
+/**
+ * A Linux display backend switch a GUI hands to its detached Host, and the value charset this
+ * process's parser accepts. `--ozone-platform` and `--ozone-platform-hint` pick the backend (x11,
+ * wayland); `--disable-gpu` is the GPU-off workaround for a broken Vulkan stack. The Host is the
+ * same Electron runtime on the same display servers, so without the forwarding it dies on the
+ * backend the user escaped while the GUI runs fine and the window sits on its startup-timeout
+ * screen (#499). The launcher forwards a switch only if it matches, and this parser skips a leading
+ * argument only if it matches, so the two halves cannot drift apart.
+ */
+export const FORWARDED_DISPLAY_SWITCH = /^--(?:ozone-platform(?:-hint)?=[\w-]+|disable-gpu)$/
 
 function isRuntimePrefixSwitch(argument: string) {
-  return ELECTRON_RUNTIME_PREFIX_SWITCHES.has(argument) || PASSWORD_STORE_SWITCH.test(argument)
+  return (
+    ELECTRON_RUNTIME_PREFIX_SWITCHES.has(argument) ||
+    PASSWORD_STORE_SWITCH.test(argument) ||
+    FORWARDED_DISPLAY_SWITCH.test(argument)
+  )
 }
 
 function afterRuntimePrefix(argv: readonly string[], start: number) {

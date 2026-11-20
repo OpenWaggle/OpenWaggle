@@ -1,11 +1,14 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
+import type { ResolvedProviderRestriction } from '@shared/utils/provider-restriction'
 import { ChevronDown } from 'lucide-react'
 import { type RefObject, useEffect, useId, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { formatContextWindow } from '@/shared/lib/format-tokens'
 import { Button } from '@/shared/ui/Button'
+import { resolveProjectProviderRestriction } from '../../state/project-model-selection'
+import { useProviderStore } from '../../state/provider-store'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
 import { ProviderModelIcon } from './provider-icon'
 import type { FlatModel } from './types'
@@ -74,7 +77,11 @@ function sortModelsByProvider(models: FlatModel[]) {
   })
 }
 
-function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Settings) {
+function buildFlatModels(
+  providerModels: readonly ProviderInfo[],
+  settings: Settings,
+  providerRestriction: ResolvedProviderRestriction | null,
+) {
   if (settings.enabledModels.length === 0) return []
 
   const modelLookup = buildAvailableModelLookup(providerModels)
@@ -83,7 +90,11 @@ function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Sett
 
   for (const key of settings.enabledModels) {
     const model = readEnabledModel(key, modelLookup, seen)
-    if (model) models.push(model)
+    // A provider restriction only removes: the project offers its enabled models of allowed
+    // providers, and never edits the app-wide enabled list (CONTEXT.md, "Provider restriction").
+    if (model && (!providerRestriction || providerRestriction.allows(model.provider))) {
+      models.push(model)
+    }
   }
 
   return sortModelsByProvider(models)
@@ -186,7 +197,9 @@ export function ModelSelector({
     triggerRef,
   })
 
-  const flatModels = buildFlatModels(providerModels, settings)
+  const projectProviderOverride = useProviderStore((state) => state.projectProviderOverride)
+  const providerRestriction = resolveProjectProviderRestriction(settings, projectProviderOverride)
+  const flatModels = buildFlatModels(providerModels, settings, providerRestriction)
   const selectedModel = flatModels.find((m) => m.id === value)
 
   function closeList() {
@@ -261,6 +274,15 @@ export function ModelSelector({
           selectedModel={selectedModel}
           onKeyDown={handleKeyDown}
           onSelectModel={selectModel}
+          {...(providerRestriction && settings.enabledModels.length > 0
+            ? {
+                restriction: {
+                  allowedProviders: providerModels
+                    .filter((group) => providerRestriction.allows(group.provider))
+                    .map((group) => group.displayName),
+                },
+              }
+            : {})}
         />
       )}
     </div>

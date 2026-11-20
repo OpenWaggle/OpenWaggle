@@ -47,6 +47,44 @@ describe('application CLI argument routing', () => {
     ).toEqual(['hive', 'list', '--all'])
   })
 
+  it.each([false, true])(
+    'recognizes the Linux display backend switches the GUI forwards to its Host when packaged=%s',
+    (isPackaged) => {
+      expect(
+        applicationCliArguments(
+          [
+            '/path/to/electron',
+            '--ozone-platform=x11',
+            '--ozone-platform-hint=auto',
+            '--disable-gpu',
+            ...(isPackaged ? [] : ['/workspace/OpenWaggle']),
+            'session-host-internal',
+          ],
+          { isPackaged },
+        ),
+      ).toEqual(['session-host-internal'])
+    },
+  )
+
+  it('does not treat a valueless Ozone switch as a recognized runtime prefix', () => {
+    expect(
+      applicationCliArguments(['/path/to/electron', '--ozone-platform', 'session-host-internal'], {
+        isPackaged: true,
+      }),
+    ).toEqual(['--ozone-platform', 'session-host-internal'])
+  })
+
+  it('does not treat a malformed Ozone switch as a recognized runtime prefix', () => {
+    expect(
+      applicationCliArguments(
+        ['/path/to/electron', '--ozone-platform=x11;rm -rf', 'hive', 'list'],
+        {
+          isPackaged: true,
+        },
+      ),
+    ).toEqual(['--ozone-platform=x11;rm -rf', 'hive', 'list'])
+  })
+
   it('accepts known runtime switches between the development app path and command', () => {
     expect(
       applicationCliArguments(
