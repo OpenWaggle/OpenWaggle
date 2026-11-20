@@ -34,6 +34,23 @@ export function sessionHostLaunchArguments(input: {
     : [input.appPath, SESSION_HOST_INTERNAL_COMMAND]
 }
 
+/**
+ * The Linux display backend switches this process was started with, read from Electron's parsed
+ * command line: the same source as the sibling forwarded switches, so an application argument that
+ * merely reads like a switch (a prompt word after `--`, say) is never mistaken for one.
+ */
+function displayBackendSwitches(commandLine: SessionHostLaunchSwitches) {
+  const valueSwitches = ['ozone-platform', 'ozone-platform-hint'].map(
+    (name) => `--${name}=${commandLine.getSwitchValue(name)}`,
+  )
+  // A switch the Host's parser cannot recognize as a runtime prefix would kill it at parse time,
+  // so forward exactly the values that parser accepts (applicationCliArguments).
+  return [
+    ...valueSwitches,
+    ...(commandLine.hasSwitch('disable-gpu') ? ['--disable-gpu'] : []),
+  ].filter((argument) => FORWARDED_DISPLAY_SWITCH.test(argument))
+}
+
 export function sessionHostLaunchCommand(input: {
   readonly platform: NodeJS.Platform
   readonly isPackaged: boolean
@@ -90,8 +107,6 @@ export function sessionHostLaunchCommandFor(input: {
   readonly appPath: string
   readonly appImagePath?: string
   readonly commandLine: SessionHostLaunchSwitches
-  /** This process's argv: the display switches the Host repeats come straight from it. */
-  readonly argv?: readonly string[]
 }) {
   const passwordStore = input.commandLine.getSwitchValue('password-store')
   return sessionHostLaunchCommand({
@@ -102,9 +117,7 @@ export function sessionHostLaunchCommandFor(input: {
     parentNoSandbox: input.commandLine.hasSwitch('no-sandbox'),
     parentUseMockKeychain: input.commandLine.hasSwitch('use-mock-keychain'),
     ...(passwordStore ? { parentPasswordStore: passwordStore } : {}),
-    parentDisplaySwitches: (input.argv ?? process.argv).filter((argument) =>
-      FORWARDED_DISPLAY_SWITCH.test(argument),
-    ),
+    parentDisplaySwitches: displayBackendSwitches(input.commandLine),
     ...(input.appImagePath ? { appImagePath: input.appImagePath } : {}),
   })
 }
