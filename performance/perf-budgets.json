@@ -38,7 +38,7 @@
       "quantum": 65536
     },
     "main.startup.modules": {
-      "value": 6448,
+      "value": 6464,
       "quantum": 16
     },
     "main.startup.package-modules": {
