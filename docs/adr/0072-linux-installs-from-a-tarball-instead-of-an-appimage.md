@@ -1,10 +1,12 @@
 ---
-status: accepted
+status: proposed
 ---
 
 # Linux installs from a tarball instead of an AppImage
 
-The Linux artifact is a `.tar.gz` extracted into a versioned directory under `~/.local/lib/openwaggle/<version>` with a `current` symlink, and `install.sh` owns installing, updating and migrating it. The AppImage is a type-2 image whose runtime mounts its payload through the FUSE 2 kernel API, and Ubuntu 22.04 or later and Debian 12 or later no longer install `libfuse.so.2` by default, so a current Ubuntu cannot run the AppImage at all until the user installs a legacy library that the installation docs never mentioned. Linux therefore joins macOS in the bundled-installer update mode: an in-app **Restart to update** and `openwaggle update` both run `install.sh` with the resolved release tag, which downloads, verifies, extracts the new version beside the old one, flips `current`, and relaunches. Update detection moves off electron-updater, whose Linux updater is AppImage-shaped and reports itself inactive without `APPIMAGE`, to a Linux `UpdateEngine` adapter that reads the GitHub release listing the app already fetches.
+The Linux artifact is a `.tar.gz` extracted into a versioned directory under `~/.local/lib/openwaggle/<version>` with a `current` symlink, and `install.sh` owns installing, updating and migrating it. The AppImage is a type-2 image whose runtime mounts its payload through the FUSE 2 kernel API, and Ubuntu 22.04 or later and Debian 12 or later no longer install `libfuse.so.2` by default, so a current Ubuntu cannot run the AppImage at all until the user installs a legacy library that the installation docs never mentioned. Linux therefore takes the bundled-installer update mode, which macOS uses today for `openwaggle update` alone: on Linux both that command and the in-app **Restart to update** run `install.sh` with the resolved release tag, which downloads, verifies, extracts the new version beside the old one, flips `current`, and relaunches. Update detection moves off electron-updater, whose Linux updater is AppImage-shaped and reports itself inactive without `APPIMAGE`, to a Linux `UpdateEngine` adapter that reads the GitHub release listing the app already fetches.
+
+Nothing above is implemented yet: `electron-builder.ts` still targets the AppImage, `install.sh` still installs one, the platform-floor guard still looks for one, and the user docs still describe that install. This record therefore stays `proposed` until the change that implements it lands here, in this pull request.
 
 ## Considered Options
 
