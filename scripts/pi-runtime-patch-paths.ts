@@ -6,13 +6,9 @@
 export const EXPECTED_PATCH_PATHS = {
   'pi-ai': [
     'dist/api/anthropic-messages.js',
-    'dist/api/azure-openai-responses.js',
     // Bedrock client reuse (clearBedrockClients) and the system cache boundary.
     'dist/api/bedrock-converse-stream.d.ts',
     'dist/api/bedrock-converse-stream.js',
-    'dist/api/mistral-conversations.js',
-    'dist/api/openai-codex-responses.js',
-    'dist/api/openai-completions.js',
     'dist/api/openai-responses-shared.js',
     'dist/api/openai-responses.d.ts',
     'dist/api/openai-responses.js',
