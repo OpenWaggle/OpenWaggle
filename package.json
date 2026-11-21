@@ -1,6 +1,6 @@
 {
   "name": "openwaggle",
-  "version": "1.0.0-beta.46",
+  "version": "1.0.0-beta.45",
   "description": "Desktop coding agent with multi-model waggle mode",
   "license": "GPL-3.0-only",
   "main": "./out/main/boot.js",
@@ -169,7 +169,7 @@
     "smol-toml": "1.8.0",
     "tesseract.js": "7.0.0",
     "typebox": "catalog:pi-extension-host",
-    "undici": "8.10.2",
+    "undici": "8.12.4",
     "unified": "11.0.5",
     "unpdf": "1.8.1",
     "ws": "8.21.3",
@@ -285,13 +285,13 @@
     ],
     "catalogs": {
       "pi-runtime": {
-        "@earendil-works/pi-agent-core": "1.4.0",
-        "@earendil-works/pi-ai": "1.4.0",
-        "@earendil-works/pi-codemode": "1.4.0",
-        "@earendil-works/pi-coding-agent": "1.4.0",
-        "@earendil-works/pi-mcp": "1.4.0",
-        "@earendil-works/pi-telemetry": "1.4.0",
-        "@earendil-works/pi-tui": "1.4.0"
+        "@earendil-works/pi-agent-core": "1.6.0",
+        "@earendil-works/pi-ai": "1.6.0",
+        "@earendil-works/pi-codemode": "1.6.0",
+        "@earendil-works/pi-coding-agent": "1.6.0",
+        "@earendil-works/pi-mcp": "1.6.0",
+        "@earendil-works/pi-telemetry": "1.6.0",
+        "@earendil-works/pi-tui": "1.6.0"
       },
       "pi-extension-host": {
         "typebox": "1.3.27"
@@ -341,14 +341,14 @@
     "@tanstack/virtual-file-routes": "1.162.0"
   },
   "patchedDependencies": {
-    "@earendil-works/pi-ai@1.4.0": "patches/@earendil-works__pi-ai@1.4.0.patch",
-    "@earendil-works/pi-coding-agent@1.4.0": "patches/@earendil-works__pi-coding-agent@1.4.0.patch",
+    "@earendil-works/pi-ai@1.6.0": "patches/@earendil-works__pi-ai@1.6.0.patch",
+    "@earendil-works/pi-coding-agent@1.6.0": "patches/@earendil-works__pi-coding-agent@1.6.0.patch",
     "babel-plugin-react-compiler@1.0.0": "patches/babel-plugin-react-compiler@1.0.0.patch",
     "dmg-builder@26.17.0": "patches/dmg-builder@26.17.0.patch",
     "node-pty@1.1.0": "patches/node-pty@1.1.0.patch"
   },
   "packageExtensions": {
-    "@earendil-works/pi-ai@1.4.0": {
+    "@earendil-works/pi-ai@1.6.0": {
       "dependencies": {
         "@aws-sdk/credential-provider-node": "^3.972.82"
       }
