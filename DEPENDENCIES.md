@@ -9,13 +9,13 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 
 ## Held by a check, a patch, an override or a migration
 
-- `@earendil-works/pi-agent-core@1.4.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
-- `@earendil-works/pi-ai@1.4.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md), re-porting `patches/@earendil-works__pi-ai@1.4.0.patch` first.
-- `@earendil-works/pi-codemode@1.4.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
-- `@earendil-works/pi-coding-agent@1.4.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md), re-porting `patches/@earendil-works__pi-coding-agent@1.4.0.patch` first.
-- `@earendil-works/pi-mcp@1.4.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
-- `@earendil-works/pi-telemetry@1.4.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
-- `@earendil-works/pi-tui@1.4.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
+- `@earendil-works/pi-agent-core@1.6.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
+- `@earendil-works/pi-ai@1.6.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md), re-porting `patches/@earendil-works__pi-ai@1.6.0.patch` first.
+- `@earendil-works/pi-codemode@1.6.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
+- `@earendil-works/pi-coding-agent@1.6.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md), re-porting `patches/@earendil-works__pi-coding-agent@1.6.0.patch` first.
+- `@earendil-works/pi-mcp@1.6.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
+- `@earendil-works/pi-telemetry@1.6.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
+- `@earendil-works/pi-tui@1.6.0`. Held: the matched Pi release in the `pi-runtime` catalog, checked by `check:pi-runtime`. Unblocked by: the next Pi release (docs/pi-runtime-upgrades.md).
 - `@effect/platform-node@0.108.2`. Held: `latest` is Effect 4, a major migration; this is the Effect 3 line. Unblocked by: the Effect 4 migration, moving every `@effect/*` package with `effect`.
 - `@effect/sql-sqlite-node@0.53.0`. Held: `latest` is Effect 4, a major migration; this is the Effect 3 line. Its `better-sqlite3` is overridden to the root pin. Unblocked by: the Effect 4 migration, moving every `@effect/*` package with `effect`.
 - `@huggingface/transformers@4.3.0`. Held: nothing; the root override pins its `onnxruntime-node` to `1.23.2`. Unblocked by: the next monthly batch (docs/dependency-updates.md), checking the `onnxruntime-node` override.
@@ -109,7 +109,7 @@ Each line reads ``- `name@version`. Held: why it stays. Unblocked by: what lets 
 - `smol-toml@1.8.0`. Held: nothing. Unblocked by: the next monthly batch.
 - `tailwindcss@4.3.3`. Held: nothing. Unblocked by: the next monthly batch.
 - `tsx@4.23.13`. Held: nothing. Unblocked by: the next monthly batch.
-- `undici@8.10.2`. Held: nothing. Unblocked by: the next monthly batch.
+- `undici@8.12.4`. Held: Pi 1.6.0 pins it exactly for `pi-coding-agent`, and the root pin must match so `openai`'s optional `undici` peer resolves to one copy; at 8.10.2 the lockfile installed two `@earendil-works/pi-ai` copies and `tsc` failed with TS2883. Unblocked by: the next monthly batch, once `undici` 8.13 is seven days old and a Pi release moves with it.
 - `unpdf@1.8.1`. Held: nothing. Unblocked by: the next monthly batch.
 - `vitest@4.1.11`. Held: nothing. Unblocked by: the next monthly batch.
 - `ws@8.21.3`. Held: nothing. Unblocked by: the next monthly batch.

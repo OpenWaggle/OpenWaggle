@@ -23,7 +23,7 @@ Always preview with `--dry-run` before applying. This is a destructive operation
 
 ## Don't Create Config Unless Needed
 
-Fallow works with zero configuration for most projects thanks to 90 auto-detecting framework plugins. Creating an unnecessary config file can mask issues or override detection behavior.
+Fallow works with zero configuration for most projects thanks to 114 auto-detecting framework plugins. Creating an unnecessary config file can mask issues or override detection behavior.
 
 ```bash
 # WRONG: creating config for a standard Next.js project
@@ -297,9 +297,9 @@ This is separate from the dead code suppression tokens. See the full list of val
 
 ---
 
-## Decorated Members Are Skipped
+## Decorated Members Are Skipped By Default
 
-Class members with decorators (NestJS `@Get()`, Angular `@Input()`, TypeORM `@Column()`, etc.) are automatically excluded from unused member detection. Decorator-driven frameworks consume these via reflection at runtime.
+Class members with decorators (NestJS `@Get()`, Angular `@Input()`, TypeORM `@Column()`, etc.) are excluded from unused member detection by default. Decorator-driven frameworks consume these via reflection at runtime, so reporting them as unused would be a false positive.
 
 ```typescript
 class UserController {
@@ -308,7 +308,20 @@ class UserController {
 }
 ```
 
-This is handled automatically. No suppression needed.
+### Opt specific decorators out via `ignoreDecorators`
+
+If you use utility decorators that DO NOT imply reflective use (Playwright's `@step("label")`, internal labeling decorators like `@measure`, `@log`, `@retry`), list their names in the `ignoreDecorators` config option so the methods carrying them are checked for usage like undecorated methods.
+
+```jsonc
+// .fallowrc.json
+{
+  "ignoreDecorators": ["@step"]
+}
+```
+
+Conservative semantics: a method carrying any decorator NOT in the list still gets skipped. So `@step` + `@Inject` on the same method stays treated as framework-managed. Matching rule: entries containing `.` (`"decorators.log"`) match the full dotted path; bare entries (`"step"` or `"decorators"`) match the leftmost segment, so a single bare `"decorators"` entry collapses an entire `@decorators.*` namespace. Both `"@step"` and `"step"` round-trip equivalently. Unmatched entries (a decorator name in the config that never appears in your codebase) surface as a one-time warning at end of run.
+
+The default empty list preserves today's skip-all behavior, so existing NestJS / Angular / TypeORM projects see no change.
 
 ---
 
@@ -429,9 +442,29 @@ Fallow marks `static/style.css` and `static/app.js` as reachable. Root-relative 
 
 ---
 
+## GraphQL `#import` Documents Are Tracked
+
+GraphQL `.graphql` and `.gql` files can keep nearby fragment documents reachable with relative `#import` comments. Fallow tracks `./` and `../` specifiers, including extensionless imports that resolve through `.graphql` and `.gql`; package-style specifiers are ignored.
+
+```graphql
+# src/query.graphql
+
+#import "./fragments/user-fields"
+
+query CurrentUser {
+  currentUser {
+    ...UserFields
+  }
+}
+```
+
+Fallow marks `src/fragments/user-fields.graphql` or `src/fragments/user-fields.gql` as reachable when either file exists. A typo in the relative path is reported as an unresolved import instead of silently dropping the edge.
+
+---
+
 ## Library Packages: Use `publicPackages` Instead of Visibility Tags
 
-In monorepos, shared library packages have exports consumed by external consumers not visible to fallow. Instead of annotating every export with `/** @public */` (or `@internal`, `@beta`, `@alpha`), use the `publicPackages` config to mark entire workspace packages as public libraries. All exports from these packages are excluded from unused export detection.
+In monorepos, shared library packages have exported APIs consumed by external consumers not visible to fallow. Instead of annotating every export with `/** @public */` (or `@internal`, `@beta`, `@alpha`), use the `publicPackages` config to mark entire workspace packages as public libraries. Exports and exported enum/class members from these packages are excluded from unused API detection.
 
 ```jsonc
 {

@@ -31,6 +31,8 @@ export interface SessionListenerState {
 export interface ToolCallStreamState {
   readonly arguments: unknown
   pendingDelta: string
+  /** Raw delta characters already emitted for this call; small inputs stay live on every delta. */
+  emittedChars: number
 }
 
 export interface PiAssistantToolCall {

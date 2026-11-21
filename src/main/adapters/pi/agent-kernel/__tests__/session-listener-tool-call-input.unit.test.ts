@@ -14,7 +14,9 @@ import { createSessionListener } from '../session-listener'
  * OpenWaggle's projection copied a streaming tool call's whole input into every
  * `toolcall_delta` transport event, and each copy is serialized to the Host socket, decoded
  * by the GUI, cloned over IPC, and re-stringified by the renderer: O(n) bytes per delta and
- * about 1.2 GB for one 200 KB tool call. The input is now sent only when Pi re-parsed it.
+ * about 1.2 GB for one 200 KB tool call. The input is now sent only when Pi re-parsed it, and a
+ * call past the eager size also batches its raw deltas, so how often Pi refreshes the arguments
+ * object (1.6.0 refreshes it on every delta) no longer decides how much is sent.
  */
 
 const MODEL = SupportedModelId('amazon-bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0')

@@ -116,9 +116,9 @@ const oauth = {
     scope: { type: 'string', description: 'Scopes to request.' },
     clientName: { type: 'string', pattern: '\\S', description: 'Client name to register.' },
     clientRegistration: {
-      enum: ['dcr', 'cimd'],
+      enum: ['auto', 'dcr', 'cimd'],
       description:
-        'dcr: dynamic client registration (default). cimd: a client ID metadata document; it cannot be combined with clientId or clientName.',
+        'auto: identify with a client ID metadata document when one is available, and register when a client name is set or the documents do not list the callback (default). dcr: dynamic client registration. cimd: a client ID metadata document; it cannot be combined with clientId or clientName.',
     },
     authServerMetadataUrl: {
       type: 'string',

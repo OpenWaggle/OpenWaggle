@@ -292,7 +292,10 @@ Pi stores OAuth state (client registration, tokens, PKCE verifier) keyed by
   tokens invalidates the copy the `pi` CLI still holds; that CLI then signs in again.
 - The classes come from the pi-coding-agent patch, which only adds root exports
   (`McpOAuthCredentialStore`, `signInMcpServer`, `createMcpAuthProvider`, `validateMcpServerConfig`,
-  `mcpNamespace`, `getMcpToolExposure`, `resolveConfigValueOrThrow`, `resolveHeadersOrThrow`).
+  `getMcpToolExposure`, `resolveConfigValueOrThrow`, `resolveHeadersOrThrow`, and pi-mcp's
+  `McpAuthProvider`, `McpOAuthServerStore` and `McpOAuthSettings` types). Pi 1.6.0 moved
+  `mcpNamespace` and the other pi-mcp naming helpers to `@earendil-works/pi-mcp`, which OpenWaggle
+  imports directly (`mcp-tool-server.ts`).
 
 Interactive sign-in stays Host-owned: Settings and the CLI ask the Host, which runs Pi's
 `signInMcpServer` against the same store. A Run's `/mcp` sign-in goes through Pi's `openUrl`.

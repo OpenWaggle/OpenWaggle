@@ -1,4 +1,6 @@
-import { type ExtensionAPI, mcpNamespace } from '@earendil-works/pi-coding-agent'
+import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+// Pi 1.6.0 moved the MCP tool namespace helpers from pi-coding-agent into pi-mcp.
+import { mcpNamespace } from '@earendil-works/pi-mcp'
 import type { McpRuntimeConfig } from '../../mcp/config/mcp-runtime-config'
 
 const MCP_TOOL_NAME = /^mcp__(.+?)__/

@@ -65,8 +65,12 @@ const clientNameRule: OAuthRule = ({ clientName }) =>
 
 const clientRegistrationRule: OAuthRule = (value) => {
   const registration = value.clientRegistration
-  if (registration === undefined || registration === 'dcr') return undefined
-  if (registration !== 'cimd') return 'oauth.clientRegistration must be "dcr" or "cimd"'
+  if (registration === undefined || registration === 'auto' || registration === 'dcr') {
+    return undefined
+  }
+  if (registration !== 'cimd') {
+    return 'oauth.clientRegistration must be "auto", "dcr", or "cimd"'
+  }
   if (value.clientId !== undefined || value.clientName !== undefined) {
     return 'oauth.clientRegistration "cimd" cannot be combined with oauth.clientId or oauth.clientName'
   }
@@ -114,7 +118,11 @@ function oauthConfig(value: OAuthFields) {
   if (typeof value.callbackUrl === 'string') config.callbackUrl = value.callbackUrl
   if (typeof value.scope === 'string') config.scope = value.scope
   if (typeof value.clientName === 'string') config.clientName = value.clientName
-  if (value.clientRegistration === 'dcr' || value.clientRegistration === 'cimd') {
+  if (
+    value.clientRegistration === 'auto' ||
+    value.clientRegistration === 'dcr' ||
+    value.clientRegistration === 'cimd'
+  ) {
     config.clientRegistration = value.clientRegistration
   }
   if (typeof value.authServerMetadataUrl === 'string') {

@@ -23,7 +23,21 @@ minimumReleaseAge = 604800
 # Remove an entry once that version is seven days old; it exempts nothing after that. Pi entries
 # are dated by a `pi-runtime-release-age-exclusions-expire` marker line, which check:pi-runtime
 # enforces (docs/pi-runtime-upgrades.md).
-minimumReleaseAgeExcludes = []
+minimumReleaseAgeExcludes = [
+  # Pi 1.6.0 is the matched release the patches are ported to; the marker below dates the entries.
+  "@earendil-works/pi-agent-core@1.6.0",
+  "@earendil-works/pi-ai@1.6.0",
+  "@earendil-works/pi-codemode@1.6.0",
+  "@earendil-works/pi-coding-agent@1.6.0",
+  "@earendil-works/pi-mcp@1.6.0",
+  # pi-ai 1.6.0 depends on it exactly; it ships with the release but is not catalog-pinned.
+  "@earendil-works/pi-schema@1.6.0",
+  "@earendil-works/pi-telemetry@1.6.0",
+  "@earendil-works/pi-tui@1.6.0",
+  # Pinned exactly by pi-ai 1.6.0. Remove once 7.59.0 is seven days old (2026-11-24T22:54:04Z).
+  "openai@7.59.0",
+]
+# pi-runtime-release-age-exclusions-expire: 2026-11-27T11:09:16Z
 
 [run]
 # `bun run <script>` does not echo `$ <command>`: agents read this output, and the script name
