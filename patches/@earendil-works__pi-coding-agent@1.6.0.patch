@@ -1,17 +1,17 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a47fc3e01 100644
+index f61225f2da158f995127d6df58161937aa47afb3..679c33328ed25e5231940ee1a0e21ab8609cd27a 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -13,7 +13,7 @@
   * Modes use this class and add their own I/O layer on top.
   */
- import { type Agent, type AgentEvent, type AgentMessage, type AgentState, type AgentTool, type ThinkingLevel } from "@earendil-works/pi-agent-core";
+ import { type Agent, type AgentEvent, type AgentMessage, type AgentState, type AgentTool, type StreamFn, type ThinkingLevel } from "@earendil-works/pi-agent-core";
 -import type { ImageContent, Model, TextContent } from "@earendil-works/pi-ai/compat";
 +import type { ImageContent, Model, TextContent, Usage } from "@earendil-works/pi-ai/compat";
  import { type BashResult } from "./bash-executor.ts";
  import type { CacheWarmer, CacheWarmingStatus } from "./cache-warmer.ts";
  import { type CompactionResult } from "./compaction/index.ts";
-@@ -111,6 +111,10 @@ export type AgentSessionEvent = WithParentToolCallId<Exclude<AgentEvent, {
+@@ -113,6 +113,10 @@ export type AgentSessionEvent = WithParentToolCallId<Exclude<AgentEvent, {
  export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
  export interface AgentSessionConfig {
      agent: Agent;
@@ -22,7 +22,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
      sessionManager: SessionManager;
      settingsManager: SettingsManager;
      cwd: string;
-@@ -185,6 +189,14 @@ export interface PromptOptions {
+@@ -187,6 +191,14 @@ export interface PromptOptions {
      source?: InputSource;
      /** Internal hook used by RPC mode to observe how an accepted prompt was dispatched. Not called if the prompt is rejected. */
      preflightResult?: (disposition: PromptDisposition) => void;
@@ -37,7 +37,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
  }
  /** Options for model/thinking mutations. */
  export interface ModelMutationOptions {
-@@ -217,6 +229,30 @@ export interface SessionStats {
+@@ -219,6 +231,30 @@ export interface SessionStats {
      cost: number;
      contextUsage?: ContextUsage;
  }
@@ -68,15 +68,26 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
  export declare class AgentSession {
      readonly agent: Agent;
      readonly sessionManager: SessionManager;
-@@ -225,6 +261,7 @@ export declare class AgentSession {
-     private _unsubscribeAgent?;
+@@ -228,6 +264,7 @@ export declare class AgentSession {
      private _eventListeners;
      private _isAgentRunActive;
+     private _promptPreflightCount;
 +    private _requestRequiresReconstructionFit;
      private _agentRunAbortRequested;
      private _idleWaitPromise;
      private _resolveIdleWait;
-@@ -257,6 +294,8 @@ export declare class AgentSession {
+@@ -243,6 +280,10 @@ export declare class AgentSession {
+     private _pendingCustomMessages;
+     private _compactionAbortController;
+     private _autoCompactionAbortController;
++    /** OpenWaggle patch: the proposal messages a compaction transform sees on overflow recovery. */
++    private _compactionReferenceMessages;
++    /** OpenWaggle patch: the compaction computed while idle, installed before the next turn. */
++    private _pendingCompaction;
+     private _overflowRecoveryAttempted;
+     private _branchSummaryAbortController;
+     private _retryAbortController;
+@@ -262,6 +303,8 @@ export declare class AgentSession {
      private _lastActivityOutcome;
      private _isBeforeSettle;
      private _abortDuringBeforeSettle;
@@ -85,16 +96,16 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
      private _isEmittingAgentSettled;
      private readonly _deferredSettledActions;
      private _resourceLoader;
-@@ -291,6 +330,8 @@ export declare class AgentSession {
-     private _extensionErrorListener?;
+@@ -299,6 +342,8 @@ export declare class AgentSession {
      private _extensionErrorUnsubscriber?;
+     private _extensionsBound;
      private _modelRuntime;
 +    private _selectedModel;
 +    private _usesModelRuntimeStream;
      private _cacheWarmer?;
      private _toolRegistry;
      /** Created on the first `ctx.executeTool()` call. */
-@@ -307,6 +348,9 @@ export declare class AgentSession {
+@@ -315,6 +360,9 @@ export declare class AgentSession {
      get modelRuntime(): ModelRuntime;
      private _getRequiredRequestAuth;
      private _getSummarizationRequestAuth;
@@ -104,7 +115,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
      /**
       * The model whose limits apply to `message`, or undefined when the message came from another
       * model. Under a virtual selection, that is the physical model that produced it.
-@@ -395,6 +439,20 @@ export declare class AgentSession {
+@@ -412,6 +460,20 @@ export declare class AgentSession {
      get state(): AgentState;
      /** Current cache-warming state and the policy inputs that produced it. */
      get cacheWarmingStatus(): CacheWarmingStatus | undefined;
@@ -125,7 +136,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
      /** Persist the cache-warming mode and immediately reconcile active warming. */
      setCacheWarmingMode(mode: CacheWarmingMode): void;
      /** Current model (may be undefined if not yet selected) */
-@@ -537,6 +595,7 @@ export declare class AgentSession {
+@@ -557,6 +619,7 @@ export declare class AgentSession {
       * system patch first when the prompt changed.
       */
      private _prepareRun;
@@ -133,7 +144,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
      private _handlePostAgentRun;
      private _runBeforeSettleBoundary;
      private _runInputHandlers;
-@@ -550,7 +609,8 @@ export declare class AgentSession {
+@@ -570,7 +633,8 @@ export declare class AgentSession {
       * @throws Error if streaming and no streamingBehavior specified
       * @throws Error if no model selected or no API key available (when not streaming)
       */
@@ -141,9 +152,9 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
 +    /** Resolves to the exact expanded text when the prompt was queued during streaming. */
 +    prompt(text: string, options?: PromptOptions): Promise<string | undefined>;
      /**
-      * Try to execute an extension command. Returns true if command was found and executed.
-      */
-@@ -574,6 +634,11 @@ export declare class AgentSession {
+      * Run input hooks, expand templates, queue while streaming, and validate model and auth.
+      * Returns the run trigger, or undefined when the prompt was handled or queued.
+@@ -599,6 +663,11 @@ export declare class AgentSession {
      steer(text: string, images?: ImageContent[], options?: {
          source?: InputSource;
      }): Promise<QueuedInputDisposition>;
@@ -156,7 +167,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..52949b3d39b5a66553491b65f443e79a
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5f74d2850 100644
+index 009632bb5679380e48ec2473c6128163d9cde7eb..c2246194b1f70fe01c52e32681a5a6bc19025fba 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -15,7 +15,7 @@
@@ -164,22 +175,21 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
  import { basename, dirname } from "node:path";
  import { runToolCall, } from "@earendil-works/pi-agent-core";
 -import { contentText, getCurrentSystemMessage, getCurrentTools, retryDelayMs } from "@earendil-works/pi-ai";
-+import { contentText, getCurrentSystemMessage, getCurrentTools, getOpenCodeSessionHeaders, retryDelayMs } from "@earendil-works/pi-ai";
++import { contentText, getCurrentSystemMessage, getCurrentTools, getOpenCodeSessionHeaders, isCacheWarmingReplayable, retryDelayMs } from "@earendil-works/pi-ai";
  import { clampThinkingLevel, cleanupSessionResources, getSupportedThinkingLevels, isContextOverflow, isRecoverableLength, isRetryableAssistantError, modelsAreEqual, resetApiProviders, streamSimple, } from "@earendil-works/pi-ai/compat";
  import { getThemeByName, theme } from "../modes/interactive/theme/theme.js";
  import { stripFrontmatter } from "../utils/frontmatter.js";
-@@ -25,7 +25,9 @@ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
+@@ -25,7 +25,8 @@ import { normalizeToolResultImages } from "../utils/tool-result-images.js";
  import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
  import { executeBashWithOperations } from "./bash-executor.js";
  import { generateBugReportSummary } from "./bug-report.js";
 -import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimateProjectedContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, shouldCompact, } from "./compaction/index.js";
-+import { isReplayable } from "./cache-warmer.js";
 +import { computeFileLists, formatFileOperations } from "./compaction/utils.js";
 +import { calculateContextTokens, collectEntriesForBranchSummary, compact, estimateContextTokens, estimatePortableCompactionRequestOverheadTokens, estimateProjectedContextTokens, estimateTokens, generateBranchSummary, prepareCompaction, selectCompactionMechanism, shouldCompact } from "./compaction/index.js";
  import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "./defaults.js";
  import { exportSessionToHtml } from "./export-html/index.js";
  import { createToolHtmlRenderer } from "./export-html/tool-renderer.js";
-@@ -37,7 +39,7 @@ import { ModelRegistry } from "./model-registry.js";
+@@ -37,7 +38,7 @@ import { ModelRegistry } from "./model-registry.js";
  import { NestedToolCallRunner } from "./nested-tool-calls.js";
  import { expandPromptTemplate } from "./prompt-templates.js";
  import { exportSessionToJsonl } from "./session-export.js";
@@ -188,7 +198,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
  import { applyToolModifiers, DEFAULT_TOOL_NAMES, } from "./settings-manager.js";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath } from "./source-info.js";
  import { buildSystemPrompt, buildSystemPromptSections, diffSystemPromptSections, normalizeBuildSystemPromptOptions, } from "./system-prompt.js";
-@@ -64,6 +66,14 @@ export function parseSkillBlock(text) {
+@@ -74,6 +75,14 @@ export function parseSkillBlock(text) {
  // ============================================================================
  // Types
  // ============================================================================
@@ -203,7 +213,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
  function withoutDeletedHeaders(headers) {
      return headers
          ? Object.fromEntries(Object.entries(headers).filter((entry) => entry[1] !== null))
-@@ -76,9 +86,77 @@ function estimateMessagesTokens(messages) {
+@@ -86,6 +95,53 @@ function estimateMessagesTokens(messages) {
      }
      return tokens;
  }
@@ -257,6 +267,10 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
  // ============================================================================
  // AgentSession Class
  // ============================================================================
+@@ -103,6 +159,27 @@ function getNextCycleIndex(currentIndex, length, direction) {
+         return undefined;
+     return direction === "forward" ? (currentIndex + 1) % length : (currentIndex - 1 + length) % length;
+ }
 +/** OpenWaggle patch: the idle compaction request's output cap (the summary, plus any thinking). */
 +const IDLE_COMPACTION_MAX_TOKENS = 32_000;
 +/** OpenWaggle patch: the instruction appended to the conversation for an idle compaction. */
@@ -281,15 +295,15 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
  export class AgentSession {
      agent;
      sessionManager;
-@@ -88,6 +166,7 @@ export class AgentSession {
-     _unsubscribeAgent;
+@@ -113,6 +190,7 @@ export class AgentSession {
      _eventListeners = [];
      _isAgentRunActive = false;
+     _promptPreflightCount = 0;
 +    _requestRequiresReconstructionFit = false;
      _agentRunAbortRequested = false;
      _idleWaitPromise;
      _resolveIdleWait;
-@@ -125,6 +204,8 @@ export class AgentSession {
+@@ -152,6 +230,8 @@ export class AgentSession {
      _lastActivityOutcome = "completed";
      _isBeforeSettle = false;
      _abortDuringBeforeSettle = false;
@@ -298,16 +312,16 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      _isEmittingAgentSettled = false;
      _deferredSettledActions = [];
      _resourceLoader;
-@@ -159,6 +240,8 @@ export class AgentSession {
-     _extensionErrorListener;
-     _extensionErrorUnsubscriber;
+@@ -190,6 +270,8 @@ export class AgentSession {
+     // Set by bindExtensions(): reload() restarts extensions only if the host started them.
+     _extensionsBound = false;
      _modelRuntime;
 +    _selectedModel;
 +    _usesModelRuntimeStream;
      _cacheWarmer;
      // Tool registry for extension getTools/setTools
      _toolRegistry = new Map();
-@@ -181,6 +264,8 @@ export class AgentSession {
+@@ -212,6 +294,8 @@ export class AgentSession {
          this._customTools = config.customTools ?? [];
          this._cwd = config.cwd;
          this._modelRuntime = config.modelRuntime;
@@ -316,7 +330,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          this._cacheWarmer = config.cacheWarmer;
          if (this._cacheWarmer) {
              this._cacheWarmer.onWarmed = (entry) => this._emit({ type: "entry_appended", entry });
-@@ -229,11 +314,13 @@ export class AgentSession {
+@@ -260,11 +344,13 @@ export class AgentSession {
              throw error;
          }
          if (result && (result.auth.apiKey || result.auth.headers)) {
@@ -332,8 +346,8 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                  env: result.env,
              };
          }
-@@ -258,15 +345,13 @@ export class AgentSession {
-             return { ...(await this._getRequiredRequestAuth(model, signal)), thinkingLevel };
+@@ -292,15 +378,13 @@ export class AgentSession {
+             return { model, thinkingLevel };
          }
          try {
 -            const result = await this._modelRuntime.getAuth(model, { signal });
@@ -354,7 +368,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                  thinkingLevel,
              };
          }
-@@ -276,6 +361,98 @@ export class AgentSession {
+@@ -310,6 +394,118 @@ export class AgentSession {
              return { model, thinkingLevel };
          }
      }
@@ -433,12 +447,32 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
 +        return identityChanged;
 +    }
 +    async _prepareCompactionRequestAuth(model, signal) {
-+        const requestAuth = await this._getSummarizationRequestAuth(model, signal);
++        let requestAuth = await this._getSummarizationRequestAuth(model, signal);
 +        // A virtual selection routes each request, so a native checkpoint bound to one routed
 +        // endpoint could not be replayed reliably; summarize it with the portable mechanism.
 +        if (isVirtualModel(model)) {
 +            const portableModel = { ...requestAuth.model, compat: { ...requestAuth.model.compat, supportsCompaction: false } };
 +            return { ...requestAuth, model: withNativeCredentialFingerprint(portableModel, requestAuth.apiKey, requestAuth.headers) };
++        }
++        // A marked runtime stream resolves its own auth per request, so summaries stay
++        // unresolved (#11520). Native compaction bypasses ModelRuntime and prepares the
++        // credential-resolved endpoint and headers itself.
++        if (this._usesModelRuntimeStream && selectCompactionMechanism(requestAuth.model) === "native") {
++            try {
++                const prepared = await this._modelRuntime.prepareModelRequest(requestAuth.model, { signal });
++                const headers = withoutDeletedHeaders(prepared.resolution.auth.headers);
++                requestAuth = {
++                    ...requestAuth,
++                    model: withNativeCredentialFingerprint(prepared.model, prepared.resolution.auth.apiKey, headers),
++                    apiKey: prepared.resolution.auth.apiKey,
++                    headers,
++                    env: prepared.resolution.env,
++                };
++            }
++            catch (error) {
++                if (signal?.aborted)
++                    throw error;
++            }
 +        }
 +        let nativeRequestHeaders;
 +        if (selectCompactionMechanism(requestAuth.model) === "native") {
@@ -453,7 +487,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      /**
       * The model whose limits apply to `message`, or undefined when the message came from another
       * model. Under a virtual selection, that is the physical model that produced it.
-@@ -420,26 +597,28 @@ export class AgentSession {
+@@ -479,26 +675,28 @@ export class AgentSession {
              return false;
          return shouldCompact(estimateProjectedContextTokens(projection, this.sessionManager.getBranch()).tokens, model.contextWindow, this.settingsManager.getCompactionSettings(this.model));
      }
@@ -489,7 +523,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                      // Messages declare the provider-visible loadout; context.tools keeps executable implementations.
                      tools: this.agent.state.tools.slice(),
                  };
-@@ -479,7 +658,7 @@ export class AgentSession {
+@@ -538,7 +736,7 @@ export class AgentSession {
              // the projection.
              if (this._exceedsCompactionThreshold(route.model, projection)) {
                  await this._runAutoCompaction("threshold", false);
@@ -498,7 +532,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              }
              return { ...previous, context, model: route.model, thinkingLevel: route.thinkingLevel };
          };
-@@ -532,12 +711,18 @@ export class AgentSession {
+@@ -591,12 +789,18 @@ export class AgentSession {
          };
      }
      _installAgentNextTurnRefresh() {
@@ -518,7 +552,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
              const nextContext = previousSnapshot?.context ?? context;
              const runOptions = this._runSystemPromptOptions ?? this._baseSystemPromptOptions;
-@@ -563,12 +748,18 @@ export class AgentSession {
+@@ -622,12 +826,18 @@ export class AgentSession {
                  thinkingLevel: this.agent.state.thinkingLevel,
              };
          };
@@ -539,7 +573,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          for (const entry of projection.entries) {
              for (const message of entry.messages)
                  this._entryIdsByMessage.set(message, entry.sourceEntry.id);
-@@ -590,7 +781,7 @@ export class AgentSession {
+@@ -649,7 +859,7 @@ export class AgentSession {
                      entryId = manager.appendContextEdit(draft.targetId, draft.replacement);
                      break;
                  case "compaction": {
@@ -548,7 +582,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                      entryId = manager.appendCompaction(draft.summary, draft.firstKeptEntryId, tokensBefore, draft.details, true, draft.usage);
                      break;
                  }
-@@ -613,7 +804,7 @@ export class AgentSession {
+@@ -672,7 +882,7 @@ export class AgentSession {
          return [...this.agent.peekQueuedMessages(), ...this._pendingCustomMessages];
      }
      _buildBoundaryContext(drafts, boundary) {
@@ -557,7 +591,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          const pendingMessages = this._getPendingBoundaryMessages();
          const llmMessages = convertToLlm(projection.messages);
          const finalRole = llmMessages[llmMessages.length - 1]?.role;
-@@ -822,7 +1013,7 @@ export class AgentSession {
+@@ -885,7 +1095,7 @@ export class AgentSession {
          const messageIndex = this.agent.state.messages.indexOf(message);
          if (messageIndex < 0)
              return undefined;
@@ -566,7 +600,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          let projectedIndex = 0;
          for (const entry of projection.entries) {
              for (let i = 0; i < entry.messages.length; i++) {
-@@ -1043,6 +1234,125 @@ export class AgentSession {
+@@ -1106,6 +1316,125 @@ export class AgentSession {
      get cacheWarmingStatus() {
          return this._cacheWarmer?.status;
      }
@@ -596,7 +630,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
 +        if (!request || !request.isCurrent() || this.isStreaming || this.isCompacting)
 +            return undefined;
 +        const model = request.model;
-+        if (!isReplayable(model, request.options) || selectCompactionMechanism(model) === "native")
++        if (!isCacheWarmingReplayable(model, request.options) || selectCompactionMechanism(model) === "native")
 +            return undefined;
 +        const settings = this.settingsManager.getCompactionSettings(model);
 +        if (!settings.enabled)
@@ -692,7 +726,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      /** Persist the cache-warming mode and immediately reconcile active warming. */
      setCacheWarmingMode(mode) {
          this.settingsManager.setCacheWarmingMode(mode);
-@@ -1424,15 +1734,29 @@ export class AgentSession {
+@@ -1497,15 +1826,29 @@ export class AgentSession {
          this._isAgentRunActive = true;
          this._agentRunAbortRequested = false;
          let messages;
@@ -727,7 +761,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          }
          // Messages held while the run was starting go before its starting messages, as they would
          // have while idle. No run exists yet, so they cannot split a tool call from its result.
-@@ -1445,7 +1769,19 @@ export class AgentSession {
+@@ -1518,7 +1861,19 @@ export class AgentSession {
          // The run records the loadout in the transcript; restored tools that did not register by now
          // are dropped, so a tool that never registers does not stay pending.
          this._pendingToolNames.clear();
@@ -747,7 +781,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              await this.agent.prompt(messages);
              while (!this._agentRunAbortRequested) {
                  if (await this._handlePostAgentRun()) {
-@@ -1462,6 +1798,8 @@ export class AgentSession {
+@@ -1535,6 +1890,8 @@ export class AgentSession {
              }
          }
          finally {
@@ -756,7 +790,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              if (this._agentRunAbortRequested)
                  this._finishCancelledRetry();
              this._failedResponse = undefined;
-@@ -1472,18 +1810,12 @@ export class AgentSession {
+@@ -1545,18 +1902,12 @@ export class AgentSession {
          }
      }
      /**
@@ -777,7 +811,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          const selectedToolsBefore = this._baseSystemPromptOptions.selectedTools;
          const result = await this._extensionRunner.emitBeforeAgentStart(trigger, this._baseSystemPromptOptions);
          // Handlers may edit event.systemPromptOptions.selectedTools or call setActiveTools(),
-@@ -1493,6 +1825,19 @@ export class AgentSession {
+@@ -1566,6 +1917,19 @@ export class AgentSession {
              result.systemPromptOptions.selectedTools.some((name, index) => name !== selectedToolsBefore[index]);
          if (!handlerEditedTools)
              result.systemPromptOptions.selectedTools = this.getActiveToolNames();
@@ -797,7 +831,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          const messages = [];
          if (trigger.messageType === "custom") {
              messages.push(trigger.message);
-@@ -1526,8 +1871,23 @@ export class AgentSession {
+@@ -1599,8 +1963,23 @@ export class AgentSession {
          this._runSystemPromptOptions = result.systemPromptOptions;
          if (updateMessage)
              messages.unshift(updateMessage);
@@ -821,7 +855,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      async _handlePostAgentRun() {
          const message = this._lastAssistantMessage;
          this._lastAssistantMessage = undefined;
-@@ -1556,7 +1916,8 @@ export class AgentSession {
+@@ -1629,7 +2008,8 @@ export class AgentSession {
              });
              this._retryAttempt = 0;
          }
@@ -831,7 +865,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              return !this._agentRunAbortRequested;
          }
          // The low-level loop drains both queues before agent_end. Messages queued by
-@@ -1568,6 +1929,7 @@ export class AgentSession {
+@@ -1641,6 +2021,7 @@ export class AgentSession {
              return this.agent.hasQueuedMessages();
          this._isBeforeSettle = true;
          this._abortDuringBeforeSettle = false;
@@ -839,7 +873,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          try {
              const result = await this._extensionRunner.emitBoundary({ type: "agent_before_settle", outcome: this._lastActivityOutcome }, (entries) => this._buildBoundaryContext(entries, "agent_before_settle"));
              this._commitBoundaryDrafts(result.entries);
-@@ -1585,6 +1947,7 @@ export class AgentSession {
+@@ -1658,6 +2039,7 @@ export class AgentSession {
          }
          finally {
              this._isBeforeSettle = false;
@@ -847,39 +881,76 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          }
      }
      async _runInputHandlers(text, images, source, streamingBehavior) {
-@@ -1635,10 +1998,17 @@ export class AgentSession {
+@@ -1706,54 +2088,60 @@ export class AgentSession {
+             this._deferredSettledActions.push(async () => await this.prompt(text, options));
+             return;
          }
-         const expandPromptTemplates = options?.expandPromptTemplates ?? true;
+-        const expandPromptTemplates = options?.expandPromptTemplates ?? true;
          const preflightResult = options?.preflightResult;
 -        // Handle extension commands first (execute immediately, even during streaming)
 -        // Extension commands manage their own LLM interaction via pi.sendMessage()
 -        if (expandPromptTemplates && text.startsWith("/")) {
 -            const handled = await this._tryExecuteExtensionCommand(text);
+-            if (handled) {
+-                // Extension command executed, no prompt to send
+-                preflightResult?.("handled");
+-                return;
+-            }
+-        }
+-        if (this._compactionAbortController !== undefined || this._branchSummaryAbortController !== undefined) {
+-            throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
+-        }
+         // Reserve the context through async input hooks and auth checks so tree navigation cannot
+         // start meanwhile (#9154). _startRun marks the run active synchronously, so there is no gap.
+         this._promptPreflightCount++;
+-        let trigger;
++        let prepared;
+         try {
+-            trigger = await this._preparePrompt(text, options);
++            prepared = await this._preparePrompt(text, options);
+         }
+         finally {
+             this._promptPreflightCount--;
+         }
+-        if (trigger)
+-            await this._startRun(trigger, () => preflightResult?.("started"));
++        // A prompt queued into the active turn resolves to the exact text it queued.
++        if (typeof prepared === "string")
++            return prepared;
++        if (prepared)
++            await this._startRun(prepared, () => preflightResult?.("started"));
+     }
+     /**
+-     * Run input hooks, expand templates, queue while streaming, and validate model and auth.
+-     * Returns the run trigger, or undefined when the prompt was handled or queued.
++     * Run input hooks, dispatch extension commands from the transformed input, expand templates,
++     * queue while streaming, and validate model and auth. Returns the run trigger, the exact
++     * expanded text when it was queued while streaming, or undefined when the prompt was handled.
+      */
+     async _preparePrompt(text, options) {
+         const expandPromptTemplates = options?.expandPromptTemplates ?? true;
+         const preflightResult = options?.preflightResult;
+-        // Emit input event for extension interception (before skill/template expansion)
 +        // Emit input event for extension interception (before command dispatch and skill/template expansion)
-+        const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
-+        if (!processedInput) {
-+            preflightResult?.("handled");
-+            return;
-+        }
-+        const { text: currentText, images: currentImages } = processedInput;
+         const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
+         if (!processedInput) {
+             preflightResult?.("handled");
+             return undefined;
+         }
+         const { text: currentText, images: currentImages } = processedInput;
 +        // Transformed input decides command dispatch so extensions can stop or rewrite active work.
 +        // Extension commands execute immediately, even during streaming, and manage their own LLM interaction.
 +        if (expandPromptTemplates && currentText.startsWith("/")) {
 +            const handled = await this._tryExecuteExtensionCommand(currentText);
-             if (handled) {
-                 // Extension command executed, no prompt to send
-                 preflightResult?.("handled");
-@@ -1648,19 +2018,15 @@ export class AgentSession {
-         if (this._compactionAbortController !== undefined) {
-             throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
-         }
--        // Emit input event for extension interception (before skill/template expansion)
--        const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
--        if (!processedInput) {
--            preflightResult?.("handled");
--            return;
--        }
--        const { text: currentText, images: currentImages } = processedInput;
++            if (handled) {
++                // Extension command executed, no prompt to send
++                preflightResult?.("handled");
++                return undefined;
++            }
++        }
++        if (this._compactionAbortController !== undefined || this._branchSummaryAbortController !== undefined) {
++            throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
++        }
          // Expand skill commands (/skill:name args) and prompt templates (/template args)
          let expandedText = currentText;
          if (expandPromptTemplates) {
@@ -892,11 +963,11 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          // If streaming, queue via steer() or followUp() based on option
          if (this.isStreaming) {
              if (!options?.streamingBehavior) {
-@@ -1673,7 +2039,12 @@ export class AgentSession {
+@@ -1766,7 +2154,12 @@ export class AgentSession {
                  await this._queueSteer(expandedText, currentImages);
              }
              preflightResult?.("queued");
--            return;
+-            return undefined;
 +            return expandedText;
 +        }
 +        // The caller only wanted to steer the active turn, which ended while input handlers ran:
@@ -906,7 +977,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          }
          // Validate model
          if (!this.model) {
-@@ -1749,22 +2120,24 @@ export class AgentSession {
+@@ -1842,22 +2235,24 @@ export class AgentSession {
              return text; // Return original on error
          }
      }
@@ -934,7 +1005,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      }
      /**
       * Queue a steering message while the agent is running.
-@@ -1776,7 +2149,13 @@ export class AgentSession {
+@@ -1869,7 +2264,13 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async steer(text, images, options) {
@@ -949,7 +1020,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1787,7 +2166,7 @@ export class AgentSession {
+@@ -1880,7 +2281,7 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async followUp(text, images, options) {
@@ -958,7 +1029,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      }
      /**
       * Internal: Queue a steering message (already expanded, no extension command check).
-@@ -1975,8 +2354,10 @@ export class AgentSession {
+@@ -2086,8 +2487,10 @@ export class AgentSession {
          this.abortRetry();
          this.abortCompaction();
          this.abortBranchSummary();
@@ -970,7 +1041,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          this.agent.abort();
          await this.waitForIdle();
      }
-@@ -2005,14 +2386,29 @@ export class AgentSession {
+@@ -2116,14 +2519,29 @@ export class AgentSession {
       * Persists to global defaults only when options.persist is true.
       * @throws Error if no auth is configured for the model
       */
@@ -1002,7 +1073,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
              this._addPersistedDefaultToNonEmptyScope(model);
-@@ -2021,7 +2417,7 @@ export class AgentSession {
+@@ -2132,7 +2550,7 @@ export class AgentSession {
          // Per-model thinking level overrides take priority over the global default.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -1011,9 +1082,9 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      }
      _addPersistedDefaultToNonEmptyScope(model) {
          if (this._scopedModels.length === 0)
-@@ -2061,10 +2457,13 @@ export class AgentSession {
-         const len = scopedModels.length;
-         const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
+@@ -2169,10 +2587,13 @@ export class AgentSession {
+         if (nextIndex === undefined)
+             return undefined;
          const next = scopedModels[nextIndex];
 +        const requestModel = await this._requestModelForSelection(next.model);
          const thinkingLevel = this._getThinkingLevelForModelSwitch(next.model, next.thinkingLevel);
@@ -1026,7 +1097,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(next.model.provider, next.model.id);
              this._addPersistedDefaultToNonEmptyScope(next.model);
-@@ -2075,8 +2474,8 @@ export class AgentSession {
+@@ -2183,8 +2604,8 @@ export class AgentSession {
          // setThinkingLevel clamps to model capabilities.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -1037,9 +1108,9 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      }
      async _cycleAvailableModel(direction, options) {
          const availableModels = this._modelRuntime.getAvailableSnapshot();
-@@ -2089,9 +2488,12 @@ export class AgentSession {
-         const len = availableModels.length;
-         const nextIndex = direction === "forward" ? (currentIndex + 1) % len : (currentIndex - 1 + len) % len;
+@@ -2194,9 +2615,12 @@ export class AgentSession {
+         if (nextIndex === undefined)
+             return undefined;
          const nextModel = availableModels[nextIndex];
 +        const requestModel = await this._requestModelForSelection(nextModel);
          const thinkingLevel = this._getThinkingLevelForModelSwitch(nextModel);
@@ -1051,7 +1122,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          if (options.persist) {
              this.settingsManager.setDefaultModelAndProvider(nextModel.provider, nextModel.id);
              this._addPersistedDefaultToNonEmptyScope(nextModel);
-@@ -2099,8 +2501,8 @@ export class AgentSession {
+@@ -2204,8 +2628,8 @@ export class AgentSession {
          // Apply thinking level for the new model.
          // Model persistence does not implicitly rewrite the global thinking default.
          this.setThinkingLevel(thinkingLevel);
@@ -1062,7 +1133,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      }
      // =========================================================================
      // Thinking Level Management
-@@ -2203,10 +2605,42 @@ export class AgentSession {
+@@ -2308,10 +2732,42 @@ export class AgentSession {
      // Compaction
      // =========================================================================
      /** Generate Pi's built-in compaction summary for manual and automatic compaction. */
@@ -1109,7 +1180,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      }
      _clearManualCompactionState() {
          this._compactionAbortController = undefined;
-@@ -2238,9 +2672,26 @@ export class AgentSession {
+@@ -2343,9 +2799,26 @@ export class AgentSession {
              if (!model) {
                  throw new Error(formatNoModelSelectedMessage());
              }
@@ -1138,7 +1209,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              if (!preparation) {
                  // Check why we can't compact
                  const lastEntry = pathEntries[pathEntries.length - 1];
-@@ -2284,7 +2735,7 @@ export class AgentSession {
+@@ -2389,7 +2862,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by automatic compaction.
@@ -1147,7 +1218,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                  summary = result.summary;
                  firstKeptEntryId = result.firstKeptEntryId;
                  tokensBefore = result.tokensBefore;
-@@ -2294,12 +2745,11 @@ export class AgentSession {
+@@ -2399,12 +2872,11 @@ export class AgentSession {
              if (this._compactionAbortController.signal.aborted) {
                  throw new Error("Compaction cancelled");
              }
@@ -1164,7 +1235,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -2310,6 +2760,7 @@ export class AgentSession {
+@@ -2415,6 +2887,7 @@ export class AgentSession {
                  });
              }
              const compactionResult = {
@@ -1172,7 +1243,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -2388,7 +2839,7 @@ export class AgentSession {
+@@ -2493,7 +2966,7 @@ export class AgentSession {
       * @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
       * @returns Whether the post-run loop should call `agent.continue()` for overflow recovery or queued messages
       */
@@ -1181,7 +1252,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          const settings = this.settingsManager.getCompactionSettings(this.model);
          if (!settings.enabled)
              return false;
-@@ -2414,7 +2865,7 @@ export class AgentSession {
+@@ -2519,7 +2992,7 @@ export class AgentSession {
          // Automatic cases 1 and 2: context overflow.
          // A length stop is recoverable when output ended below the model's original desired limit,
          // independent of the configured context size or any context-clamped provider request limit.
@@ -1190,7 +1261,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          const assistantEntryId = this._findPersistedMessageEntryId(assistantMessage);
          const assistantIsProjected = assistantEntryId === undefined ||
              currentProjection.entries.some((entry) => entry.sourceEntry.id === assistantEntryId &&
-@@ -2440,7 +2891,10 @@ export class AgentSession {
+@@ -2545,7 +3018,10 @@ export class AgentSession {
              // Case 2: the response completed successfully. Compact, but do not retry because
              // agent.continue() cannot continue from a completed assistant response.
              if (!willRetry) {
@@ -1202,7 +1273,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              }
              if (this._overflowRecoveryAttempted) {
                  const errorMessage = contextOverflow
-@@ -2465,8 +2919,9 @@ export class AgentSession {
+@@ -2570,8 +3046,9 @@ export class AgentSession {
              }
              // Persistently omit the selected final attempt before post-run recovery compaction.
              this._overflowRecoveryAttempted = true;
@@ -1213,7 +1284,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              if (retry)
                  this._failedResponse = assistantMessage;
              return retry;
-@@ -2503,8 +2958,8 @@ export class AgentSession {
+@@ -2608,8 +3085,8 @@ export class AgentSession {
          else {
              contextTokens = directContextTokens;
          }
@@ -1224,7 +1295,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          }
          return false;
      }
-@@ -2518,27 +2973,42 @@ export class AgentSession {
+@@ -2623,27 +3100,42 @@ export class AgentSession {
       * @param willRetry Whether to continue the interrupted turn after overflow compaction
       * @returns Whether the post-run loop should call `agent.continue()`
       */
@@ -1275,7 +1346,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              let extensionCompaction;
              if (this._extensionRunner.hasHandlers("session_before_compact")) {
                  const extensionResult = (await this._extensionRunner.emit({
-@@ -2575,7 +3045,7 @@ export class AgentSession {
+@@ -2680,7 +3172,7 @@ export class AgentSession {
              }
              else {
                  // Shared default summary generator, also used by manual compaction.
@@ -1284,7 +1355,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                  summary = compactResult.summary;
                  firstKeptEntryId = compactResult.firstKeptEntryId;
                  tokensBefore = compactResult.tokensBefore;
-@@ -2583,12 +3053,12 @@ export class AgentSession {
+@@ -2688,12 +3180,12 @@ export class AgentSession {
                  details = compactResult.details;
              }
              abortController.signal.throwIfAborted();
@@ -1302,7 +1373,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              if (this._extensionRunner && savedCompactionEntry) {
                  await this._extensionRunner.emit({
                      type: "session_compact",
-@@ -2599,6 +3069,7 @@ export class AgentSession {
+@@ -2704,6 +3196,7 @@ export class AgentSession {
                  });
              }
              const result = {
@@ -1310,7 +1381,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                  summary,
                  firstKeptEntryId,
                  tokensBefore,
-@@ -2641,10 +3112,16 @@ export class AgentSession {
+@@ -2746,10 +3239,16 @@ export class AgentSession {
              return false;
          }
          finally {
@@ -1330,7 +1401,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          }
      }
      /**
-@@ -2737,7 +3214,7 @@ export class AgentSession {
+@@ -2843,7 +3342,7 @@ export class AgentSession {
          if (!refreshedModel || refreshedModel === currentModel) {
              return;
          }
@@ -1339,7 +1410,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
      }
      _bindExtensionCore(runner) {
          const getCommands = () => {
-@@ -2815,7 +3292,9 @@ export class AgentSession {
+@@ -2921,7 +3420,9 @@ export class AgentSession {
              getScopedModels: () => this._scopedModels,
              isIdle: () => this.isIdle,
              isProjectTrusted: () => this.settingsManager.isProjectTrusted(),
@@ -1350,8 +1421,8 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
              abort: () => {
                  if (this._extensionAbortHandler) {
                      this._extensionAbortHandler();
-@@ -3332,7 +3811,7 @@ export class AgentSession {
-                 const signal = this._branchSummaryAbortController.signal;
+@@ -3442,7 +3943,7 @@ export class AgentSession {
+                 const signal = abortController.signal;
                  const branchSummarySettings = this.settingsManager.getBranchSummarySettings();
                  const result = await generateBranchSummary(entriesToSummarize, {
 -                    ...(await this._getSummarizationRequestAuth(this.model, signal)),
@@ -1359,7 +1430,7 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
                      signal,
                      customInstructions,
                      replaceInstructions,
-@@ -3507,7 +3986,7 @@ export class AgentSession {
+@@ -3621,7 +4122,7 @@ export class AgentSession {
          // After compaction, the last assistant usage reflects pre-compaction context size.
          // We can only trust usage from an assistant that responded after the latest compaction.
          // If no such assistant exists, context token count is unknown until the next LLM response.
@@ -1369,10 +1440,10 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..672ddfed5f412ec8a17556e758f96ed5
          const latestCompaction = getLatestCompactionEntry(branch);
          if (latestCompaction) {
 diff --git a/dist/core/cache-warmer.d.ts b/dist/core/cache-warmer.d.ts
-index 444f9743f456e691dce238636816031307738bf2..a3b04dae1ef4525807a9c3484a9279be61166734 100644
+index bdf94487f28f0eba5ca9630c0ed6664d56af188a..152c01596ad1f1406d65f6dfea442dc0ab6ff700 100644
 --- a/dist/core/cache-warmer.d.ts
 +++ b/dist/core/cache-warmer.d.ts
-@@ -63,6 +63,8 @@ export interface CacheWarmRequest {
+@@ -30,6 +30,8 @@ export interface CacheWarmRequest {
      model: Model<Api>;
      context: Context;
      options: ModelsSimpleStreamOptions;
@@ -1381,7 +1452,7 @@ index 444f9743f456e691dce238636816031307738bf2..a3b04dae1ef4525807a9c3484a9279be
  }
  /**
   * Keeps one prompt cache entry alive by re-sending its request with a
-@@ -79,6 +81,12 @@ export declare class CacheWarmer {
+@@ -46,6 +48,12 @@ export declare class CacheWarmer {
      private readonly decide;
      /** Called with the persisted usage entry after each successful refresh. */
      onWarmed?: (entry: UsageEntry) => void;
@@ -1395,50 +1466,10 @@ index 444f9743f456e691dce238636816031307738bf2..a3b04dae1ef4525807a9c3484a9279be
      get status(): CacheWarmingStatus;
      /** Keep the prompt cache entry written by `request` warm while `isCurrent` holds. */
 diff --git a/dist/core/cache-warmer.js b/dist/core/cache-warmer.js
-index 6613a864325dae98f212b8b24b23c0a3fa600d3f..cb60aa3f4b40190e04b01a6532ec6be26dab3eab 100644
+index 9312abf8fd01fb48b00f1481077da0955819323e..854fdd5a09fb33a343bb88a8ef2a322e9bdcadc6 100644
 --- a/dist/core/cache-warmer.js
 +++ b/dist/core/cache-warmer.js
-@@ -1,4 +1,4 @@
--import { calculateCost, } from "@earendil-works/pi-ai";
-+import { bedrockClaudePromptCache, calculateCost, claudeUsesAdaptiveThinking, isClaudeModelRef, } from "@earendil-works/pi-ai";
- import { getProviderEnvValue } from "@earendil-works/pi-ai/utils/provider-env";
- /** Streaming warming never continues past this long after the real request that started it. */
- const MAX_WARMING_AGE_MS = 60 * 60_000;
-@@ -28,20 +28,29 @@ export function getPromptCacheTtlMs(model, options) {
-         (getProviderEnvValue("PI_CACHE_RETENTION", options?.env) === "long" ? "long" : "short");
-     if (retention === "none")
-         return undefined;
--    const seconds = model.promptCache?.[retention];
-+    // Bedrock models from a remote catalog or models.json carry no lifetimes; derive the ones the
-+    // Bedrock transport writes cache points for.
-+    const promptCache = model.promptCache ??
-+        (model.api === "bedrock-converse-stream" ? bedrockClaudePromptCache(model.id, model.name) : undefined);
-+    const seconds = promptCache?.[retention];
-     return seconds === undefined ? undefined : seconds * 1000;
- }
- /**
-  * Whether replaying the request with a one-token output cap leaves its cache
-  * entry untouched. Anthropic's budget-based thinking (Claude models without
-- * adaptive thinking) derives `budget_tokens` from `max_tokens`; the replay
-+ * adaptive thinking, on the Anthropic API or Bedrock) derives `budget_tokens` from `max_tokens`; the replay
-  * would get a different budget, which Anthropic keys the message cache on,
-  * and the model could still think for thousands of tokens.
-  */
- export function isReplayable(model, options) {
--    if (!options?.reasoning || model.api !== "anthropic-messages")
-+    if (!options?.reasoning)
-         return true;
--    return model.compat?.forceAdaptiveThinking === true;
-+    if (model.api === "anthropic-messages")
-+        return model.compat?.forceAdaptiveThinking === true;
-+    // Bedrock derives budget-based Claude thinking from maxTokens the same way.
-+    if (model.api === "bedrock-converse-stream" && isClaudeModelRef(model.id, model.name))
-+        return claudeUsesAdaptiveThinking(model.id, model.name);
-+    return true;
- }
- /** Prompt size of the most recent real request on the branch, as reported by the provider. */
- function lastPromptTokens(entries) {
-@@ -81,6 +90,8 @@ export class CacheWarmer {
+@@ -25,6 +25,8 @@ export class CacheWarmer {
      decide;
      /** Called with the persisted usage entry after each successful refresh. */
      onWarmed;
@@ -1447,7 +1478,7 @@ index 6613a864325dae98f212b8b24b23c0a3fa600d3f..cb60aa3f4b40190e04b01a6532ec6be2
      constructor(models, sessionManager, getMode, decide = async (event) => event.action) {
          this.models = models;
          this.sessionManager = sessionManager;
-@@ -111,6 +122,13 @@ export class CacheWarmer {
+@@ -55,6 +57,13 @@ export class CacheWarmer {
      /** Keep the prompt cache entry written by `request` warm while `isCurrent` holds. */
      start(request, isCurrent) {
          this.clearRun();
@@ -2239,7 +2270,7 @@ index bcaeaae631aa9992e07cfc43baca2edbe4d6ab30..c136d2007445beb13113807b903c7682
                      role: "user",
                      content: [
 diff --git a/dist/core/model-runtime.d.ts b/dist/core/model-runtime.d.ts
-index 5bf6433f7061292741966e0b424574730510c765..21e93175f09552b4226da45c4e441931642ca405 100644
+index f0c364a70852ec25a5c44538e1c13d1dd67e4788..d5e2da5f122da94471f2ad5ecde0e1b99bd48ce2 100644
 --- a/dist/core/model-runtime.d.ts
 +++ b/dist/core/model-runtime.d.ts
 @@ -52,6 +52,7 @@ export declare class ModelRuntime implements Models {
@@ -2250,8 +2281,8 @@ index 5bf6433f7061292741966e0b424574730510c765..21e93175f09552b4226da45c4e441931
      private constructor();
      static create(options?: CreateModelRuntimeOptions): Promise<ModelRuntime>;
      private configureRadiusProviders;
-@@ -94,6 +95,10 @@ export declare class ModelRuntime implements Models {
-     removeRuntimeApiKey(providerId: string, options?: AuthOperationOptions): Promise<void>;
+@@ -99,6 +100,10 @@ export declare class ModelRuntime implements Models {
+     settleCredentialWrites(): Promise<void>;
      listCredentials(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]>;
      getProviderAuthStatus(providerId: string): AuthStatus;
 +    prepareModelRequest<TApi extends Api>(model: Model<TApi>, overrides?: ModelRuntimeAuthOverrides): Promise<{
@@ -2262,7 +2293,7 @@ index 5bf6433f7061292741966e0b424574730510c765..21e93175f09552b4226da45c4e441931
      stream<TApi extends Api>(model: Model<TApi>, context: Context, options?: ModelsApiStreamOptions<TApi>): AssistantMessageEventStream;
      complete<TApi extends Api>(model: Model<TApi>, context: Context, options?: ModelsApiStreamOptions<TApi>): Promise<AssistantMessage>;
 diff --git a/dist/core/model-runtime.js b/dist/core/model-runtime.js
-index b54a221e7465da093891e35886798fcd6257f997..3c021d2ab9869156df0cc8d7ac0dcf13e7a17d6d 100644
+index 112c95eea6c4717abf916176aba535c3644ec1ff..a129eae2afaf6d0c7a76ab266f8e4ac48ec642ef 100644
 --- a/dist/core/model-runtime.js
 +++ b/dist/core/model-runtime.js
 @@ -65,6 +65,7 @@ export class ModelRuntime {
@@ -2273,7 +2304,7 @@ index b54a221e7465da093891e35886798fcd6257f997..3c021d2ab9869156df0cc8d7ac0dcf13
      constructor(credentials, config, modelsPath, modelsStore, providers, modelNetworkEnabled) {
          this.credentials = credentials;
          this.config = config;
-@@ -449,15 +450,30 @@ export class ModelRuntime {
+@@ -456,15 +457,30 @@ export class ModelRuntime {
          const check = this.snapshot.auth.get(providerId);
          return check ? { configured: true, source: "environment", label: check.source } : { configured: false };
      }
@@ -2310,7 +2341,7 @@ index b54a221e7465da093891e35886798fcd6257f997..3c021d2ab9869156df0cc8d7ac0dcf13
              throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
          const { transformHeaders, ...rawProviderOptions } = options ?? {};
 diff --git a/dist/core/sdk.js b/dist/core/sdk.js
-index 9d1f2466deab699388e7ced0021500362c6150b6..790330354afdadda73623343b82902b952b779e7 100644
+index d616902a486cec4539bddb715e1cc788f8d38498..0e5d355b354c1a6888ea2527847a40da4ef3f8f3 100644
 --- a/dist/core/sdk.js
 +++ b/dist/core/sdk.js
 @@ -13,7 +13,7 @@ import { convertToLlm } from "./messages.js";
@@ -2434,7 +2465,7 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..790330354afdadda73623343b82902b9
              }
              return modelRuntime.streamSimple(model, context, requestOptions);
          },
-@@ -301,6 +347,8 @@ export async function createAgentSession(options = {}) {
+@@ -303,6 +349,8 @@ export async function createAgentSession(options = {}) {
      }
      const session = new AgentSession({
          agent,
@@ -2444,7 +2475,7 @@ index 9d1f2466deab699388e7ced0021500362c6150b6..790330354afdadda73623343b82902b9
          settingsManager,
          cwd,
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd0776096907e 100644
+index c042aaf3f7aff9aa8dca36a83a6d96cdbbfc949e..538fef0d2f450e07fe0045cf0ac10d02c70b6467 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -1,5 +1,5 @@
@@ -2502,7 +2533,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd077
  export interface SessionInfo {
      path: string;
      id: string;
-@@ -195,11 +221,13 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
+@@ -195,7 +221,9 @@ export declare function sessionEntryToContextMessages(entry: SessionEntry): Agen
   * by the kept entries starting at firstKeptEntryId and all entries after the
   * compaction entry. Older summarized entries are omitted.
   */
@@ -2510,6 +2541,12 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd077
 +export declare function buildContextEntries(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>): SessionEntry[];
 +/** Conservative model-facing token estimate used while fitting reconstructed history. */
 +export declare function estimateReconstructionMessageTokens(message: AgentMessage): number;
+ /**
+  * Build the session context from entries using tree traversal.
+  * If leafId is provided, walks from that entry to root.
+@@ -204,9 +232,9 @@ export declare function buildContextEntries(entries: SessionEntry[], leafId?: st
+ /** Project one entry into model-visible messages, applying its latest context edit if any. */
+ export declare function projectContextEntry(entry: SessionEntry, edit: ContextEditEntry | undefined): AgentMessage[];
  /** Build provenance-preserving, compaction-aware model context. */
 -export declare function buildSessionProjection(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionProjection;
 +export declare function buildSessionProjection(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>, targetModel?: Model<any>, options?: BuildSessionContextOptions): SessionProjection;
@@ -2519,7 +2556,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd077
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
  /** Exported for testing */
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
-@@ -219,6 +247,22 @@ partialSessions?: readonly SessionInfo[]) => void;
+@@ -226,6 +254,22 @@ partialSessions?: readonly SessionInfo[]) => void;
   * Use buildSessionContext() to get the resolved message list for the LLM, which
   * handles compaction summaries and follows the path from root to current leaf.
   */
@@ -2542,7 +2579,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd077
  export declare class SessionManager {
      private sessionId;
      private sessionFile;
-@@ -233,7 +277,7 @@ export declare class SessionManager {
+@@ -240,7 +284,7 @@ export declare class SessionManager {
      private leafId;
      private constructor();
      /** Switch to a different session file (used for resume and branching) */
@@ -2551,7 +2588,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd077
      private _setSessionFile;
      newSession(options?: NewSessionOptions): string | undefined;
      private _loadEntries;
-@@ -268,7 +312,7 @@ export declare class SessionManager {
+@@ -275,7 +319,7 @@ export declare class SessionManager {
      /** Append model-attributed usage that does not participate in LLM context. Returns the appended entry. */
      appendUsage(kind: string, provider: string, model: string, usage: Usage, note?: string): UsageEntry;
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -2560,7 +2597,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd077
      /** Append a custom entry (for extensions) as child of current leaf, then advance leaf. Returns entry id. */
      appendCustomEntry(customType: string, data?: unknown): string;
      /** Append a session info entry (e.g., display name). Returns entry id. */
-@@ -313,13 +357,13 @@ export declare class SessionManager {
+@@ -320,13 +364,13 @@ export declare class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -2577,7 +2614,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd077
      /**
       * Get session header.
       */
-@@ -375,7 +419,7 @@ export declare class SessionManager {
+@@ -382,7 +426,7 @@ export declare class SessionManager {
       * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
       * @param cwdOverride Optional cwd override instead of the session header cwd.
       */
@@ -2587,7 +2624,7 @@ index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..9c00305512d4d16a39869adfc77bd077
       * Continue the most recent session, or create new if none.
       * @param cwd Working directory
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879b048ee4c 100644
+index 92cc26e10130f0b1f61344dd95d8ae4841438bcb..dd34bc42065b8864639262da89ca83cc9572e645 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -1,6 +1,6 @@
@@ -2601,7 +2638,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
  import { basename, join, resolve } from "path";
  import { createInterface } from "readline";
 @@ -9,6 +9,74 @@ import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../
- import { normalizePath, resolvePath } from "../utils/paths.js";
+ import { normalizePath, pathsEqual, resolvePath } from "../utils/paths.js";
  import { createBranchSummaryMessage, createCompactionSummaryMessage, createCustomMessage, } from "./messages.js";
  export const CURRENT_SESSION_VERSION = 3;
 +const NATIVE_CREDENTIAL_FINGERPRINT = Symbol.for("pi.nativeCredentialFingerprint");
@@ -2854,7 +2891,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
  /**
   * Build the session context from entries using tree traversal.
   * If leafId is provided, walks from that entry to root.
-@@ -253,16 +450,20 @@ function projectContextEntry(entry, edit) {
+@@ -254,16 +451,20 @@ export function projectContextEntry(entry, edit) {
      });
  }
  /** Build provenance-preserving, compaction-aware model context. */
@@ -2878,7 +2915,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
          sourceEntry,
          // buildContextEntries() may retain an older compaction entry because its
          // raw ID lies inside the newest retained range. Only the newest compaction
-@@ -271,6 +472,18 @@ export function buildSessionProjection(entries, leafId, byId) {
+@@ -272,6 +473,18 @@ export function buildSessionProjection(entries, leafId, byId) {
              ? []
              : projectContextEntry(sourceEntry, edits.get(sourceEntry.id)),
      }));
@@ -2897,7 +2934,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
      return {
          entries: projectedEntries,
          messages: projectedEntries.flatMap((entry) => entry.messages),
-@@ -279,9 +492,9 @@ export function buildSessionProjection(entries, leafId, byId) {
+@@ -280,9 +493,9 @@ export function buildSessionProjection(entries, leafId, byId) {
      };
  }
  /** Build the finalized model context from the canonical session projection. */
@@ -2910,7 +2947,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
  }
  /**
   * Compute the default session directory for a cwd.
-@@ -367,6 +580,170 @@ export function loadEntriesFromFile(filePath) {
+@@ -368,6 +581,170 @@ export function loadEntriesFromFile(filePath) {
          appendFileSync(resolvedFilePath, "\n");
      return entries;
  }
@@ -3081,7 +3118,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
  /**
   * Inspect a physical line while searching for the first parsed session entry.
   * Blank and malformed lines are skipped to match loadEntriesFromFile().
-@@ -659,8 +1036,10 @@ export class SessionManager {
+@@ -669,8 +1046,10 @@ export class SessionManager {
          }
      }
      /** Switch to a different session file (used for resume and branching) */
@@ -3094,7 +3131,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
      }
      _setSessionFile(sessionFile, preloadedFileEntries) {
          this.sessionFile = resolvePath(sessionFile);
-@@ -877,7 +1256,7 @@ export class SessionManager {
+@@ -898,7 +1277,7 @@ export class SessionManager {
          return entry;
      }
      /** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
@@ -3103,7 +3140,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
          const timestamp = new Date().toISOString();
          const systemMessage = getCurrentSystemMessage(this.buildSessionProjection().messages);
          const id = generateId(this.byId);
-@@ -892,6 +1271,7 @@ export class SessionManager {
+@@ -913,6 +1292,7 @@ export class SessionManager {
              details,
              usage,
              fromHook,
@@ -3111,7 +3148,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
              ...(systemMessage ? { systemMessage: { ...systemMessage, timestamp: new Date(timestamp).getTime() } } : {}),
          };
          this._appendEntry(entry);
-@@ -1074,19 +1454,37 @@ export class SessionManager {
+@@ -1095,19 +1475,37 @@ export class SessionManager {
       * Build the active, compaction-aware entry list for context/rendering.
       * Uses tree traversal from current leaf.
       */
@@ -3157,7 +3194,7 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
      }
      /**
       * Get session header.
-@@ -1323,11 +1721,16 @@ export class SessionManager {
+@@ -1344,11 +1742,16 @@ export class SessionManager {
       * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
       * @param cwdOverride Optional cwd override instead of the session header cwd.
       */
@@ -3178,10 +3215,10 @@ index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..2ef7e1c1827618a75583f486b64b9879
                  header = readSessionHeader(resolvedPath);
              }
 diff --git a/dist/core/settings-manager.d.ts b/dist/core/settings-manager.d.ts
-index a40ba7fa48c51d73a6db798f51b9e4beda56b687..979080a9e99502dd7759a74ae4e11eda7bf9d294 100644
+index 5d05602cf8171b49ed72a8ac579445c261475fac..6233a17528bf136fb17e5dd172cea309aac6bc61 100644
 --- a/dist/core/settings-manager.d.ts
 +++ b/dist/core/settings-manager.d.ts
-@@ -126,11 +126,16 @@ export declare class SettingsManager {
+@@ -128,11 +128,16 @@ export declare class SettingsManager {
      private getCompactionTokenSetting;
      getCompactionReserveTokens(model?: Pick<Model<string>, "provider" | "id">): number;
      getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number;
@@ -3199,10 +3236,10 @@ index a40ba7fa48c51d73a6db798f51b9e4beda56b687..979080a9e99502dd7759a74ae4e11eda
      getBranchSummarySettings(): {
          reserveTokens: number;
 diff --git a/dist/core/settings-manager.js b/dist/core/settings-manager.js
-index d5ce9cd266ebd529469fe19694a66a000b2bd194..686331ab9748d54e4aa95013408b4d393c95ce17 100644
+index 1a0234704ebc861e4ed437c721d0821d45b4b4de..b428bafabf85606f76d67ef5056b7b3213b5b8eb 100644
 --- a/dist/core/settings-manager.js
 +++ b/dist/core/settings-manager.js
-@@ -663,12 +663,22 @@ export class SettingsManager {
+@@ -674,12 +674,22 @@ export class SettingsManager {
      getCompactionKeepRecentTokens(model) {
          return this.getCompactionTokenSetting("keepRecentTokens", model);
      }
@@ -3226,7 +3263,7 @@ index d5ce9cd266ebd529469fe19694a66a000b2bd194..686331ab9748d54e4aa95013408b4d39
      }
      getBranchSummarySettings() {
 diff --git a/dist/core/settings-schema.d.ts b/dist/core/settings-schema.d.ts
-index 28676b7f2d70d5e01c0321dd432ca80afb2f2e10..ec6956cb319f654c202129f54d28ef8d4241b3c0 100644
+index 99113ea6a1921728cd265f3a860e89aef76ffdd6..dcf873a9450636e587af5326a7736ca2ca296703 100644
 --- a/dist/core/settings-schema.d.ts
 +++ b/dist/core/settings-schema.d.ts
 @@ -7,6 +7,8 @@ declare const CompactionSettingsSchema: Type.TObject<{
@@ -3238,7 +3275,7 @@ index 28676b7f2d70d5e01c0321dd432ca80afb2f2e10..ec6956cb319f654c202129f54d28ef8d
      modelOverrides: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
          reserveTokens: Type.TOptional<Type.TInteger>;
          keepRecentTokens: Type.TOptional<Type.TInteger>;
-@@ -88,6 +90,8 @@ export declare const SettingsSchema: Type.TObject<{
+@@ -89,6 +91,8 @@ export declare const SettingsSchema: Type.TObject<{
          enabled: Type.TOptional<Type.TBoolean>;
          reserveTokens: Type.TOptional<Type.TInteger>;
          keepRecentTokens: Type.TOptional<Type.TInteger>;
@@ -3248,7 +3285,7 @@ index 28676b7f2d70d5e01c0321dd432ca80afb2f2e10..ec6956cb319f654c202129f54d28ef8d
              reserveTokens: Type.TOptional<Type.TInteger>;
              keepRecentTokens: Type.TOptional<Type.TInteger>;
 diff --git a/dist/core/settings-schema.js b/dist/core/settings-schema.js
-index 28c00ed743203b6027df2aae8c07d8544deb5022..fe518854f240e207f23c4e4f22156229a032e837 100644
+index 45c3ce8c5659c7f3373b4ff365659f7b3ef0b83b..2bc719ce2fc39c63f713c577b623711ed62edf22 100644
 --- a/dist/core/settings-schema.js
 +++ b/dist/core/settings-schema.js
 @@ -15,6 +15,10 @@ const CompactionSettingsSchema = Type.Object({
@@ -3263,7 +3300,7 @@ index 28c00ed743203b6027df2aae8c07d8544deb5022..fe518854f240e207f23c4e4f22156229
          description: 'Per-model overrides keyed by exact "provider/modelId" strings.',
      })),
 diff --git a/dist/core/tools/bash.js b/dist/core/tools/bash.js
-index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f2799ad54ba 100644
+index 60e7b06fee585cad635d91e924ad7c8b2766fa3e..e9b994c29f94335de5f742e0852b2a95f82c89ae 100644
 --- a/dist/core/tools/bash.js
 +++ b/dist/core/tools/bash.js
 @@ -12,6 +12,13 @@ import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "./truncate.js"
@@ -3280,7 +3317,7 @@ index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f27
  const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
  function resolveTimeoutMs(timeout) {
      if (timeout === undefined)
-@@ -163,7 +170,7 @@ export function createShellToolDefinition(cwd, config, options) {
+@@ -187,7 +194,7 @@ export function createShellToolDefinition(cwd, config, options) {
      return {
          name: config.name,
          label: config.label,
@@ -3289,7 +3326,7 @@ index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f27
          promptSnippet: config.promptSnippet,
          promptGuidelines: exposeSessionEnvironment && config.promptGuidelines ? [...config.promptGuidelines] : undefined,
          parameters: bashSchema,
-@@ -172,7 +179,7 @@ export function createShellToolDefinition(cwd, config, options) {
+@@ -196,7 +203,7 @@ export function createShellToolDefinition(cwd, config, options) {
          async execute(_toolCallId, { command, timeout }, signal, onUpdate, ctx) {
              const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
              const spawnContext = resolveSpawnContext(resolvedCommand, ctx?.cwd || cwd, spawnHook, exposeSessionEnvironment, ctx);
@@ -3298,7 +3335,7 @@ index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f27
              let acceptingOutput = true;
              let updateTimer;
              let updateDirty = false;
-@@ -230,11 +237,17 @@ export function createShellToolDefinition(cwd, config, options) {
+@@ -254,11 +261,17 @@ export function createShellToolDefinition(cwd, config, options) {
                  await output.closeTempFile();
                  return snapshot;
              };
@@ -3318,7 +3355,7 @@ index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f27
                      details = { truncation, fullOutputPath: snapshot.fullOutputPath };
                      const startLine = truncation.totalLines - truncation.outputLines + 1;
                      const endLine = truncation.totalLines;
-@@ -246,7 +259,7 @@ export function createShellToolDefinition(cwd, config, options) {
+@@ -270,7 +283,7 @@ export function createShellToolDefinition(cwd, config, options) {
                          text += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines}. Full output: ${snapshot.fullOutputPath}]`;
                      }
                      else {
@@ -3327,7 +3364,7 @@ index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f27
                      }
                  }
                  return { text, details };
-@@ -266,7 +279,7 @@ export function createShellToolDefinition(cwd, config, options) {
+@@ -290,7 +303,7 @@ export function createShellToolDefinition(cwd, config, options) {
                  }
                  catch (err) {
                      const snapshot = await finishOutput();
@@ -3336,7 +3373,7 @@ index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f27
                      if (err instanceof Error && err.message === "aborted") {
                          throw new Error(appendStatus(text, "Command aborted"));
                      }
-@@ -277,7 +290,7 @@ export function createShellToolDefinition(cwd, config, options) {
+@@ -307,7 +320,7 @@ export function createShellToolDefinition(cwd, config, options) {
                      throw err;
                  }
                  const snapshot = await finishOutput();
@@ -3346,7 +3383,7 @@ index e52c9d779bdb50667083810d946e11da6c7e29ba..781a31528fb2e0d79b3ae734c8807f27
                      throw new Error(appendStatus(outputText, "Command terminated without an exit code"));
                  }
 diff --git a/dist/extensions/codemode/tool.js b/dist/extensions/codemode/tool.js
-index e52df7130d7356589778f5824dfbbce834e57e8c..4abe70b86663cf0b95cb24f5ac22a4d75e8b392e 100644
+index 3b2f9558ea44c0abfb73ec32ecd721c7950be976..f05cc8e8c990ec362824b92120d27200bd050e84 100644
 --- a/dist/extensions/codemode/tool.js
 +++ b/dist/extensions/codemode/tool.js
 @@ -47,7 +47,7 @@ export const codemodeToolSystemPromptContribution = {
@@ -3358,13 +3395,13 @@ index e52df7130d7356589778f5824dfbbce834e57e8c..4abe70b86663cf0b95cb24f5ac22a4d7
  - Optional first line: \`// @options: {"max_output_tokens": 10000, "timeout_ms": 60000}\``;
  /** One line per global. The details live in {@link CODEMODE_DOCS_PATH}. */
  function describeGlobals(models) {
-@@ -192,7 +192,13 @@ function describeOutput(schema) {
+@@ -239,7 +239,13 @@ function followRef(schema, root) {
   * arguments are the tool's declared parameters, so they are not repeated.
   */
  function describeScriptCall(tool) {
--    return `${tool.description.trim()}\n\nCodemode: \`tools.${toCodemodeIdentifier(tool.name)}(args)\` resolves to ${describeOutput(toCodemodeDeclaration(tool).outputSchema)}.`;
+-    return `${tool.description.trim()}\n\nCodemode: \`tools.${toCodemodeIdentifier(tool.name)}(args)\` resolves to ${describeOutput(tool.name, toCodemodeDeclaration(tool).outputSchema)}.`;
 +    const identifier = toCodemodeIdentifier(tool.name);
-+    const output = describeOutput(toCodemodeDeclaration(tool).outputSchema);
++    const output = describeOutput(tool.name, toCodemodeDeclaration(tool).outputSchema);
 +    // The codemode description already says a declared tool is called by its name and resolves to
 +    // a string, so only the exceptions spend tokens on every declared tool.
 +    if (identifier === tool.name && output === "a string")
@@ -3374,7 +3411,7 @@ index e52df7130d7356589778f5824dfbbce834e57e8c..4abe70b86663cf0b95cb24f5ac22a4d7
  /**
   * How the codemode tool presents tools that are both declared and callable from scripts:
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 3821d9f41564a68e990d233b260427d6a5681f42..66f4a0778406ee6cea3e6335084cbd1ba342e50e 100644
+index bb8acdb1b034f89e8fcb86a5933fa513d49a8ef3..db2c238af382365fd82b58e8e6ef3d04772f49c6 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -1,9 +1,9 @@
@@ -3387,7 +3424,7 @@ index 3821d9f41564a68e990d233b260427d6a5681f42..66f4a0778406ee6cea3e6335084cbd1b
 -export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
 +export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimatePortableCompactionRequestOverheadTokens, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getCompactionThresholdTokens, getLastAssistantUsage, prepareBranchEntries, prepareCompaction, selectCompactionMechanism, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
  export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
- export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
+ export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingHints, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownMessageType, MarkdownTransformContext, MarkdownTransformer, MarkdownTransformerOptions, MarkdownTransformerRegistration, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
 @@ -18,8 +18,9 @@ export { DefaultPackageManager } from "./core/package-manager.ts";
  export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./core/resource-loader.ts";
@@ -3400,19 +3437,22 @@ index 3821d9f41564a68e990d233b260427d6a5681f42..66f4a0778406ee6cea3e6335084cbd1b
  export { formatSkillsForPrompt, type LoadSkillsFromDirOptions, type LoadSkillsResult, loadSkills, loadSkillsFromDir, type Skill, type SkillFrontmatter, } from "./core/skills.ts";
  export { createSyntheticSourceInfo } from "./core/source-info.ts";
  export { type EditDiffResult, generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.ts";
-@@ -42,4 +43,9 @@ export { convertToPng } from "./utils/image-convert.ts";
+@@ -42,4 +43,12 @@ export { convertToPng } from "./utils/image-convert.ts";
  export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
  export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.ts";
  export { getPowerShellConfig, getShellConfig } from "./utils/shell.ts";
 +// OpenWaggle: exports only, so OpenWaggle reuses Pi's MCP validation, value resolution, and sign-in code (ADR 0051).
 +export type { AuthStorageBackend } from "./core/auth-storage.ts";
-+export { createMcpAuthProvider, type McpAuthProvider, McpOAuthCredentialStore, type McpOAuthServerStore, type McpOAuthSettings, McpSignInCancelledError, type McpSignInPrompt, signInMcpServer, } from "./extensions/mcp/oauth.ts";
-+export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.ts";
++// Pi 1.6.0 moved these MCP OAuth types to pi-mcp; keep them on pi-coding-agent's surface for ADR 0051.
++export type { McpAuthProvider, McpOAuthServerStore, McpOAuthSettings } from "@earendil-works/pi-mcp/oauth";
++export { createMcpAuthProvider, McpOAuthCredentialStore, type McpSignInPrompt, signInMcpServer, } from "./extensions/mcp/oauth.ts";
++export { McpSignInCancelledError } from "./extensions/mcp/runtime.ts";
++export { getMcpToolExposure, isMcpToolName, validateMcpServerConfig } from "./core/mcp-servers.ts";
 +export { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "./core/resolve-config-value.ts";
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index ab5cfccc3a90939e533b9118122189507a7af326..7250e8978c90b59dc2226e466bc799b4e1e01550 100644
+index ab5cfccc3a90939e533b9118122189507a7af326..4dbfeab88a46d223dd2613d76cdd597d576fd4ac 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -3436,15 +3476,16 @@ index ab5cfccc3a90939e533b9118122189507a7af326..7250e8978c90b59dc2226e466bc799b4
  // Skills
  export { formatSkillsForPrompt, loadSkills, loadSkillsFromDir, } from "./core/skills.js";
  export { createSyntheticSourceInfo } from "./core/source-info.js";
-@@ -51,4 +53,10 @@ export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
+@@ -51,4 +53,11 @@ export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  export { detectSupportedImageMimeTypeFromFile } from "./utils/mime.js";
  // Shell utilities
  export { getPowerShellConfig, getShellConfig } from "./utils/shell.js";
 +// OpenWaggle: exports only, no behaviour change. OpenWaggle supplies the MCP extension's plug-in
 +// points (ADR 0051) and reuses Pi's own server validation, value resolution, and OAuth sign-in
 +// code instead of reimplementing them.
-+export { createMcpAuthProvider, McpOAuthCredentialStore, McpSignInCancelledError, signInMcpServer } from "./extensions/mcp/oauth.js";
-+export { getMcpToolExposure, isMcpToolName, mcpNamespace, validateMcpServerConfig } from "./core/mcp-servers.js";
++export { createMcpAuthProvider, McpOAuthCredentialStore, signInMcpServer } from "./extensions/mcp/oauth.js";
++export { McpSignInCancelledError } from "./extensions/mcp/runtime.js";
++export { getMcpToolExposure, isMcpToolName, validateMcpServerConfig } from "./core/mcp-servers.js";
 +export { resolveConfigValueOrThrow, resolveHeadersOrThrow } from "./core/resolve-config-value.js";
  //# sourceMappingURL=index.js.map
 \ No newline at end of file

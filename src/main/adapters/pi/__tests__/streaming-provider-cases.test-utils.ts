@@ -15,7 +15,11 @@ import {
 import { runOpenAiResponsesToolCall } from './responses-streaming-cases.test-utils'
 import { CONTEXT, DELTAS, finalMessage, sse, USAGE } from './streaming-provider-wire.test-utils'
 
-/** One write call streamed by each patched Pi provider from a loopback server, in its wire format. */
+/**
+ * One write call streamed by each Pi provider whose delta path parses streamed arguments, from a
+ * loopback server, in its wire format. Pi 1.6.0 parses them itself for every provider here, so the
+ * cases prove its own close path suffices wherever the patch adds no hunk.
+ */
 
 export type Ending = 'normal' | 'failure'
 
@@ -206,7 +210,7 @@ const bedrockCase: ProviderCase = {
     ),
 }
 
-/** Every Pi provider whose delta path uses `parseStreamingToolArguments`. */
+/** Every Pi provider whose delta path parses streamed arguments with `ToolCallArgumentsStream`. */
 export const STREAMING_TOOL_CALL_PROVIDERS: readonly ProviderCase[] = [
   anthropicCase,
   openAiResponsesCase,
