@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   prepareLocalSessionHostPaths,
   refreshLocalSessionHostEndpoint,
+  renameThroughTransientLocks,
   resolveLocalSessionHostPaths,
   rotateLocalSessionHostEndpoint,
 } from '../local-session-paths'
@@ -223,5 +224,31 @@ describe('Local Session Host paths', () => {
     expect(rotated.endpoint).not.toBe(prepared.endpoint)
     expect(refreshed.endpoint).toBe(rotated.endpoint)
     expect(secureUserOnly).toHaveBeenCalledTimes(5)
+  })
+
+  it('retries a Windows rename that a short-lived lock refuses, and gives up on other errors', async () => {
+    const sleep = vi.fn(async () => undefined)
+    const locked = Object.assign(new Error('EPERM: operation not permitted, rename'), {
+      code: 'EPERM',
+    })
+    const rename = vi
+      .fn<(from: string, to: string) => Promise<void>>()
+      .mockRejectedValueOnce(locked)
+      .mockRejectedValueOnce(Object.assign(new Error('busy'), { code: 'EBUSY' }))
+      .mockResolvedValueOnce(undefined)
+
+    await renameThroughTransientLocks('from', 'to', rename, sleep)
+
+    expect(rename).toHaveBeenCalledTimes(3)
+    expect(sleep).toHaveBeenCalledTimes(2)
+
+    const missing = Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+    const failing = vi.fn<(from: string, to: string) => Promise<void>>().mockRejectedValue(missing)
+    await expect(renameThroughTransientLocks('from', 'to', failing, sleep)).rejects.toBe(missing)
+    expect(failing).toHaveBeenCalledTimes(1)
+
+    const stuck = vi.fn<(from: string, to: string) => Promise<void>>().mockRejectedValue(locked)
+    await expect(renameThroughTransientLocks('from', 'to', stuck, sleep)).rejects.toBe(locked)
+    expect(stuck.mock.calls.length).toBeGreaterThan(1)
   })
 })
