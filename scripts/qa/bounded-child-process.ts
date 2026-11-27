@@ -39,9 +39,12 @@ export async function runProcess(
     child.once('exit', (code, signal) => {
       finish(() => {
         if (code === 0) return resolve({ stdout, stderr })
+        // Both streams: `--json` puts the error envelope on stdout while Electron's own log noise
+        // fills stderr, and the envelope is the part that says why the command failed.
+        const output = [stderr, stdout].filter((stream) => stream.trim() !== '').join('\n')
         reject(
           new Error(
-            `${path.basename(command)} ${args.join(' ')} failed (${code ?? signal}): ${stderr || stdout}`,
+            `${path.basename(command)} ${args.join(' ')} failed (${code ?? signal}): ${output}`,
           ),
         )
       })

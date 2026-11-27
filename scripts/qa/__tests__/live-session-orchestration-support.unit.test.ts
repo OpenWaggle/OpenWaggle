@@ -51,6 +51,20 @@ describe('live Session orchestration support', { timeout: 12_000 }, () => {
     })
   })
 
+  it('reports the stdout error envelope next to the noise on stderr when a command fails', async () => {
+    const failure = runProcess(
+      process.execPath,
+      [
+        '-e',
+        'console.error(\'dbus noise\'); console.log(\'{"type":"error","kind":"conflict"}\'); process.exit(6)',
+      ],
+      {},
+    )
+
+    await expect(failure).rejects.toThrow('dbus noise')
+    await expect(failure).rejects.toThrow('"kind":"conflict"')
+  })
+
   it('prefers the Linux AppImage when unpacked build output also exists', () => {
     expect(
       selectPackagedExecutable(
