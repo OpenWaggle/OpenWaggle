@@ -201,6 +201,7 @@ Released builds send anonymous usage statistics and error reports, starting at t
 
 ### Fixes
 
+- **providers:** hold existing sessions to provider restrictions and stop the only switch blocking everything ([#517](https://github.com/OpenWaggle/OpenWaggle/pull/517))
 - **sidebar:** sort projects A->Z when the name sort is selected ([#516](https://github.com/OpenWaggle/OpenWaggle/pull/516))
 - **composer:** keep long queued messages from taking over the chat ([#514](https://github.com/OpenWaggle/OpenWaggle/pull/514))
 - **session-host:** stop the nightly canaries failing on Windows file locks, model downloads and macOS capacity ([#513](https://github.com/OpenWaggle/OpenWaggle/pull/513))
