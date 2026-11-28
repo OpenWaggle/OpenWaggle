@@ -36,14 +36,14 @@ describe('QueuedMessages open and closed rows', () => {
     queueMock.snapshot = snapshotOf([FIRST, SECOND])
     const view = render(dock())
 
-    const first = screen.getByRole('button', { name: 'First brief 3 lines' })
-    const second = screen.getByRole('button', { name: 'Second brief 2 lines' })
+    const first = screen.getByRole('button', { name: 'First brief…' })
+    const second = screen.getByRole('button', { name: 'Second brief…' })
     expect(first).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText(/first detail/)).not.toBeInTheDocument()
 
     fireEvent.click(first)
     // The name still says which message the button opens; aria-expanded carries the state.
-    expect(first).toHaveAccessibleName('First brief 3 lines')
+    expect(first).toHaveAccessibleName('First brief…')
     expect(first).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText(/first detail/)).toHaveAttribute(
       'id',
@@ -64,5 +64,17 @@ describe('QueuedMessages open and closed rows', () => {
     fireEvent.click(second)
     expect(second).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText(/second detail/)).not.toBeInTheDocument()
+  })
+
+  it('ends the first line in an ellipsis only when more lines follow it', () => {
+    queueMock.snapshot = snapshotOf([
+      queueItem({ id: 'follow-up-1', text: 'Only line.\n' }),
+      queueItem({ id: 'follow-up-2', text: 'Fix the tests.\nThen push.' }),
+    ])
+    render(dock())
+
+    expect(screen.getByRole('button', { name: 'Only line.' })).toBeInTheDocument()
+    // The closing full stop goes, or the ellipsis after it reads as four dots.
+    expect(screen.getByRole('button', { name: 'Fix the tests…' })).toBeInTheDocument()
   })
 })

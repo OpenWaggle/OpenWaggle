@@ -3,12 +3,13 @@ import { useId } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
-function messageLines(text: string) {
-  return text.trim().split('\n')
-}
-
-function lineCountLabel(count: number) {
-  return count === 1 ? '1 line' : `${String(count)} lines`
+/**
+ * The first line, ending in an ellipsis when more lines follow it. Its closing `.`, `,`, `;` or
+ * `:` goes, so "Fix the tests." reads "Fix the tests…" rather than four dots.
+ */
+function firstLineOf(text: string) {
+  const [first = '', ...rest] = text.trim().split('\n')
+  return rest.length > 0 ? `${first.trim().replace(/[.,;:]+$/u, '')}…` : first.trim()
 }
 
 interface QueuedMessageTextProps {
@@ -19,16 +20,15 @@ interface QueuedMessageTextProps {
 
 /**
  * A queued message's text, one line until opened. A long prompt shown in full pushed the
- * conversation out of view, so a closed row shows its first line and how many lines it has, and
- * an open one scrolls past twelve lines (`max-h-54` is twelve `text-xs` `leading-normal` lines).
+ * conversation out of view, so a closed row shows its first line, and an open one scrolls past
+ * twelve lines (`max-h-54` is twelve `text-xs` `leading-normal` lines). A first line that
+ * overflows ends in the CSS ellipsis, and one with more lines after it ends in its own.
  * The button keeps the same text open or closed: `aria-expanded` carries the state, and a
  * constant name still says which message it opens.
  */
 export function QueuedMessageText({ text, expanded, onToggle }: QueuedMessageTextProps) {
   const bodyId = useId()
-  const lines = messageLines(text)
-  const firstLine = lines[0]?.trim() ?? ''
-  const countLabel = lines.length > 1 ? lineCountLabel(lines.length) : null
+  const firstLine = firstLineOf(text)
 
   return (
     <>
@@ -48,9 +48,6 @@ export function QueuedMessageText({ text, expanded, onToggle }: QueuedMessageTex
           )}
         />
         <span className="min-w-0 flex-1 truncate">{firstLine}</span>
-        {/* The space separates the two in the button's name; flex layout drops it visually. */}
-        {countLabel ? ' ' : null}
-        {countLabel ? <span className="shrink-0 text-text-tertiary">{countLabel}</span> : null}
       </Button>
       {expanded ? (
         <div

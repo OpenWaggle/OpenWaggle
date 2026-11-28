@@ -134,7 +134,7 @@ describe('QueuedMessages drag feedback', () => {
         4,
       )
       renderDock()
-      fireEvent.click(within(list()).getByRole('button', { name: 'line one 5 lines' }))
+      fireEvent.click(within(list()).getByRole('button', { name: 'line one…' }))
       const dataTransfer = makeDataTransfer()
 
       fireDrag('dragStart', grip('line one'), dataTransfer)
