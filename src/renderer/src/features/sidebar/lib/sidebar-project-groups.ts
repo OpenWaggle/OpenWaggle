@@ -1,4 +1,5 @@
 import type { SessionSummary } from '@shared/types/session'
+import { projectName } from '@/shared/lib/format'
 
 const EMPTY_UPDATED_AT = 0
 const EMPTY_CREATED_AT = 0
@@ -58,6 +59,11 @@ interface BuildSidebarProjectGroupsInput {
    * tests keep the unfiltered behaviour.
    */
   readonly excludeUnpinnedWorkers?: boolean
+  /**
+   * The name the sidebar shows for a project, a rename included. The name sort orders projects by
+   * it, so the list reads A->Z as displayed. Defaults to the folder name.
+   */
+  readonly projectLabel?: (projectPath: string) => string
 }
 
 function normalizedProjectPath(path: string | null) {
@@ -103,6 +109,25 @@ function addUniqueProjectPath(paths: string[], path: string | null) {
 }
 
 /**
+ * Name (A->Z) orders the projects too, sessionless ones included: a sort that reordered only the
+ * sessions inside each project left the project list looking unsorted. Recent and Oldest keep the
+ * stable newest-first-session order, so activity never makes projects jump around.
+ */
+function orderProjectPaths(
+  projectPaths: string[],
+  sortMode: SidebarSessionSortMode,
+  projectLabel: (projectPath: string) => string,
+) {
+  if (sortMode !== 'name') {
+    return projectPaths
+  }
+  return projectPaths.sort(
+    (left, right) =>
+      projectLabel(left).localeCompare(projectLabel(right)) || left.localeCompare(right),
+  )
+}
+
+/**
  * Whether the sidebar is narrowed to a status filter or search, which lists matching Workers
  * flat instead of leaving them to the Hive panel (ADR 0051). Remote results are no exception:
  * a narrowed list must never hide a Worker its chip count included.
@@ -122,6 +147,7 @@ export function buildSidebarProjectGroups({
   pinnedSessionIds = [],
   allSessions,
   excludeUnpinnedWorkers = false,
+  projectLabel = projectName,
 }: BuildSidebarProjectGroupsInput) {
   const sessionsByProject = new Map<string, SessionSummary[]>()
 
@@ -153,7 +179,11 @@ export function buildSidebarProjectGroups({
     addUniqueProjectPath(sessionlessProjectPaths, normalizedCurrentProjectPath)
   }
 
-  const projectPaths = [...sessionProjectPaths, ...sessionlessProjectPaths]
+  const projectPaths = orderProjectPaths(
+    [...sessionProjectPaths, ...sessionlessProjectPaths],
+    sortMode,
+    projectLabel,
+  )
   const pinned = new Set(pinnedSessionIds.map(String))
 
   // Keyed by the same normalisation the visible grouping uses, so a project resolves identically.

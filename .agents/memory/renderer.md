@@ -121,6 +121,7 @@ Responsive sidebar layout must retain the main subtree across docked/sheet break
 - Do not show a count of uncommitted files on a session row. Every session sharing a working tree reports the same number, so it says nothing about the session, and a large number implies a severity it does not carry. Divergence (`↑n ↓n`) is the useful part.
 - Provenance icons are a separate family from status icons and share no glyph with them (ADR 0020). At the size line two renders, a user reads silhouette rather than detail, so two node-graph glyphs are the same glyph.
 - Sidebar view preferences (session sort, collapsed projects) persist; sidebar filters (state chip, text query) do not. A filter that subtracts sessions must not outlive the intent behind it.
+- The sidebar sort orders the sessions inside each project, and `name` also orders the projects A->Z by their shown name (rename included). `recent` and `oldest` keep projects in newest-first-session order so activity never reshuffles them. Sorting only the sessions under Name (A->Z) left the project list looking unsorted (#516).
 - `useSessionGitIndicators` keys refreshes by the semantic working-path set. Freshly filtered Session arrays must not restart its effect; route-level Git effects likewise use resolved path values instead of Session DTO identity.
 
 ## Filed under "Access Modes And Authorization Memory"
