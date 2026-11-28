@@ -1,9 +1,12 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionThinkingLevelChange } from '@shared/types/session'
-import type { ThinkingLevel } from '@shared/types/settings'
+import { DEFAULT_SETTINGS, type Settings, type ThinkingLevel } from '@shared/types/settings'
 import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { publishSessionHostEventMock } = vi.hoisted(() => ({
   publishSessionHostEventMock: vi.fn(),
@@ -13,7 +16,9 @@ vi.mock('../../session-host/session-host-events', () => ({
   publishSessionHostEvent: publishSessionHostEventMock,
 }))
 
+import { SessionRepository } from '../../ports/session-repository'
 import { SessionSettingsRepository } from '../../ports/session-settings-repository'
+import { SettingsService } from '../../services/settings-service'
 import { ThinkingLevelDefaultService } from '../../ports/thinking-level-default-service'
 import { dispatchHostBackedSessionGuiOperation } from '../host-ui-session-operation-dispatcher'
 
@@ -22,7 +27,13 @@ const NEXT_MODEL = SupportedModelId('anthropic/claude-sonnet-4-5')
 const CHANGED: SessionThinkingLevelChange = { changed: true }
 const RUN_ACTIVE: SessionThinkingLevelChange = { changed: false, code: 'session_run_active' }
 
-function services(change: SessionThinkingLevelChange = CHANGED) {
+function services(
+  change: SessionThinkingLevelChange = CHANGED,
+  session: { readonly projectPath: string | null; readonly settings: Settings } = {
+    projectPath: null,
+    settings: DEFAULT_SETTINGS,
+  },
+) {
   const setModel = vi.fn(() => Effect.succeed(change))
   const setThinkingLevel = vi.fn(() => Effect.succeed(change))
   let defaultLevel: ThinkingLevel = 'medium'
@@ -43,6 +54,16 @@ function services(change: SessionThinkingLevelChange = CHANGED) {
         Effect.provideService(
           SessionSettingsRepository,
           SessionSettingsRepository.of({ setModel, setThinkingLevel }),
+        ),
+        Effect.provideService(
+          SessionRepository,
+          fromAny({
+            listByIds: () => Effect.succeed([{ id: SESSION_ID, projectPath: session.projectPath }]),
+          }),
+        ),
+        Effect.provideService(
+          SettingsService,
+          fromAny({ get: () => Effect.succeed(session.settings) }),
         ),
         Effect.provideService(
           ThinkingLevelDefaultService,
@@ -85,6 +106,43 @@ describe('sessions:set-model', () => {
       kind: 'session-list-changed',
       sessionId: SESSION_ID,
       change: 'updated',
+    })
+  })
+
+  describe("under its project's provider restriction", () => {
+    let projectPath: string
+
+    beforeEach(async () => {
+      projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'set-model-provider-'))
+    })
+
+    afterEach(async () => {
+      await fs.rm(projectPath, { recursive: true, force: true })
+    })
+
+    function restricted() {
+      return services(CHANGED, {
+        projectPath,
+        settings: { ...DEFAULT_SETTINGS, providerRestrictions: { 'amazon-bedrock': false } },
+      })
+    }
+
+    it('refuses a model whose provider the project refuses, leaving the Session model alone', async () => {
+      const fixture = restricted()
+
+      await expect(
+        run('sessions:set-model', [SESSION_ID, 'amazon-bedrock/claude'], fixture),
+      ).rejects.toThrow('provider "amazon-bedrock"')
+      expect(fixture.setModel).not.toHaveBeenCalled()
+      expect(publishSessionHostEventMock).not.toHaveBeenCalled()
+    })
+
+    it('switches to a model whose provider the project allows', async () => {
+      const fixture = restricted()
+
+      await run('sessions:set-model', [SESSION_ID, NEXT_MODEL], fixture)
+
+      expect(fixture.setModel).toHaveBeenCalledWith(SESSION_ID, NEXT_MODEL)
     })
   })
 
