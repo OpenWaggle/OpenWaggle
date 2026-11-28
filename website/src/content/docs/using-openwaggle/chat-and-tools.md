@@ -148,7 +148,7 @@ If the agent asks for approval, check what it wants to do and to what. Choose **
 
 You can send a message while the agent is busy. It doesn't start a second task alongside the first. It waits as a follow-up and runs when the current work ends. To correct changes already made to files, review them in the [diff panel](/docs/developer-workflow/git-integration#open-the-diff-panel) and send comments from there.
 
-Queued follow-ups wait above the message box, in the order they will go. Each one has these controls:
+Queued follow-ups wait above the message box, in the order they will go. Each shows its first line, ending in … when there is more. Click a message to read all of it, and click it again to close it. One message opens at a time, and a message longer than 12 lines scrolls. Each one has these controls:
 
 - **Steer** sends the message into the work that is running now. The agent reads it at its next step. It doesn't stop a tool that is already running.
 - The pencil edits the message, and the bin deletes it.
