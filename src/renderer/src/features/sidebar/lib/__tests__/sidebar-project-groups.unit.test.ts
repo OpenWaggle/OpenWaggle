@@ -161,6 +161,47 @@ describe('buildSidebarProjectGroups', () => {
     expect(grouped.projects[0]?.sessions.map((session) => session.title)).toEqual(['Alpha', 'Zulu'])
   })
 
+  it('orders projects A->Z by name, sessionless ones included, when sorting by name', () => {
+    const grouped = buildSidebarProjectGroups({
+      currentProjectPath: '/work/OpenWaggle',
+      recentProjects: ['/work/DTD', '/work/club-pi-extensions'],
+      sortMode: 'name',
+      sessions: [
+        makeSession('one', 'Session', '/work/OpenWaggle', UPDATED_AT_NEW, 40),
+        makeSession('two', 'Session', '/work/derkit', UPDATED_AT_NEW, 30),
+        makeSession('three', 'Session', '/work/CLUB', UPDATED_AT_NEW, 20),
+        makeSession('four', 'Session', '/work/gosafe', UPDATED_AT_NEW, 10),
+      ],
+    })
+
+    expect(grouped.projects.map((project) => project.projectPath)).toEqual([
+      '/work/CLUB',
+      '/work/club-pi-extensions',
+      '/work/derkit',
+      '/work/DTD',
+      '/work/gosafe',
+      '/work/OpenWaggle',
+    ])
+  })
+
+  it('sorts projects by the name the sidebar shows, a rename included', () => {
+    const grouped = buildSidebarProjectGroups({
+      currentProjectPath: null,
+      recentProjects: [],
+      sortMode: 'name',
+      projectLabel: (path) => (path === '/repo/zeta' ? 'Alpha app' : path.slice('/repo/'.length)),
+      sessions: [
+        makeSession('one', 'Session', '/repo/beta', UPDATED_AT_NEW),
+        makeSession('two', 'Session', '/repo/zeta', UPDATED_AT_NEW),
+      ],
+    })
+
+    expect(grouped.projects.map((project) => project.projectPath)).toEqual([
+      '/repo/zeta',
+      '/repo/beta',
+    ])
+  })
+
   it('does not expose projectless sessions as a global Chats section', () => {
     const grouped = buildSidebarProjectGroups({
       currentProjectPath: null,
