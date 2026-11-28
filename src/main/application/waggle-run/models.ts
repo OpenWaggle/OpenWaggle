@@ -3,6 +3,7 @@ import { parseModelRef } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
 import type { SessionDetail } from '@shared/types/session'
 import { isInheritedWaggleModelBinding, type WaggleConfig } from '@shared/types/waggle'
+import type { ResolvedProviderRestriction } from '@shared/utils/provider-restriction'
 import * as Effect from 'effect/Effect'
 import { lastAnsweringModelReference } from '../../domain/session-model-fallback'
 import { ProviderService } from '../../ports/provider-service'
@@ -27,6 +28,31 @@ function unavailable(message: string) {
     ok: false as const,
     outcome: { outcome: 'validation-error' as const, message, code: 'validation-error' },
   }
+}
+
+/**
+ * Why the project's provider restrictions refuse this Waggle Run, or null. The Session's model, or
+ * the model it falls back to, was a person's choice, so an agent inheriting it from a refused
+ * provider fails the Run like a classic Run (ADR 0071); so does an agent's own model.
+ */
+function waggleProviderRefusal(
+  config: WaggleConfig,
+  inheritedModel: SupportedModelId,
+  restriction: ResolvedProviderRestriction,
+) {
+  const refused = (model: string) => {
+    const provider = parseModelRef(model.trim())?.provider
+    return provider !== undefined && !restriction.allows(provider) ? provider : null
+  }
+  const inheritedProvider = configRequiresInheritedModel(config) ? refused(inheritedModel) : null
+  if (inheritedProvider !== null) {
+    return `This Session's model ${JSON.stringify(inheritedModel)} uses provider ${JSON.stringify(inheritedProvider)}, which this project's provider restrictions do not allow. Pick a model from an allowed provider before starting Waggle mode.`
+  }
+  for (const agent of config.agents) {
+    if (isInheritedWaggleModelBinding(agent.model) || refused(agent.model) === null) continue
+    return `${agent.label} uses ${agent.model}, whose provider this project's provider restrictions do not allow. Choose another model for ${agent.label}.`
+  }
+  return null
 }
 
 /**
@@ -61,14 +87,12 @@ export function resolveWaggleRunModels(input: {
         )
       : undefined
     if (restriction?._tag === 'Left') return unavailable(restriction.left.message)
+    const refusal = restriction
+      ? waggleProviderRefusal(input.config, inheritedModel, restriction.right)
+      : null
+    if (refusal !== null) return unavailable(refusal)
     for (const agent of input.config.agents) {
       if (isInheritedWaggleModelBinding(agent.model)) continue
-      const provider = parseModelRef(agent.model.trim())?.provider
-      if (provider && restriction && !restriction.right.allows(provider)) {
-        return unavailable(
-          `${agent.label} uses ${agent.model}, whose provider this project's provider restrictions do not allow. Choose another model for ${agent.label}.`,
-        )
-      }
       if (yield* known(agent.model)) continue
       return unavailable(
         `${agent.label} uses ${agent.model}, which is not available in this project. Choose another model for ${agent.label}.`,

@@ -7,6 +7,7 @@ import { invokesExtensionCommand } from '../agent-extension-commands'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
 import { loadSessionForRun } from '../pi-session-projection-refresh'
 import { assignSessionTitleFromUserText, sessionTitleOwed } from '../run-handler-utils'
+import { sessionModelProviderRefusal } from '../project-provider-restriction'
 import { isSessionModelRunnable } from '../session-model-availability'
 import type { AgentRunInput, AgentRunResult } from './types'
 
@@ -34,6 +35,12 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
+    const providerRefusal = yield* sessionModelProviderRefusal({
+      model: input.model,
+      session,
+      settings,
+    }).pipe(Effect.catchAll((error) => Effect.succeed(error.message)))
+    if (providerRefusal !== null) return refusedModel(providerRefusal)
     // An extension command is not the user's request: the title waits for the first real prompt.
     // Neither is a Hive wake, whose prompt the Host wrote.
     const invokesCommand =
@@ -82,6 +89,15 @@ function sessionNotFound() {
   const failure: AgentRunPreflightFailure = {
     ok: false,
     result: { outcome: 'not-found', message: errorInfo.userMessage, code: errorInfo.code },
+  }
+  return failure
+}
+
+/** A Run whose model its project's provider restrictions refuse (ADR 0071). */
+function refusedModel(message: string) {
+  const failure: AgentRunPreflightFailure = {
+    ok: false,
+    result: { outcome: 'invalid-model', message, code: 'provider-restricted' },
   }
   return failure
 }
