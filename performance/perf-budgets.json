@@ -62,7 +62,7 @@
       "quantum": 8192
     },
     "renderer.chat-surface.bytes": {
-      "value": 782336,
+      "value": 786432,
       "quantum": 4096
     },
     "renderer.syntax-worker.bytes": {
