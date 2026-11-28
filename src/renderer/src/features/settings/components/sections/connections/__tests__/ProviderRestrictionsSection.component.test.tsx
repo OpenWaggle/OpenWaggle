@@ -162,6 +162,19 @@ describe('ProviderRestrictionsSection', () => {
     })
   })
 
+  it('keeps the only switch off until the catalog lists the providers', () => {
+    seed({ appWide: {}, byPath: {} })
+    useProviderStore.setState({ providerModels: [] })
+    render(<ProviderRestrictionsSection />)
+
+    const toggle = screen.getByRole('switch', {
+      name: 'Restrict Every project (app-wide) to only the providers allowed here',
+    })
+    expect(toggle).toBeDisabled()
+    fireEvent.click(toggle)
+    expect(updateSettingsMock).not.toHaveBeenCalled()
+  })
+
   it('offers only Allowed and Blocked while a scope is closed to its only list', () => {
     render(<ProviderRestrictionsSection />)
     fireEvent.click(scopeToggle(WORK_FOLDER))

@@ -64,6 +64,24 @@ function withOnly(scope: ProviderRestrictionScope, only: boolean, allowedNow: re
   return { ...rest, [PROVIDER_RESTRICTION_ONLY_KEY]: [...allowedNow] }
 }
 
+/**
+ * The providers a scope allows right now: every catalog provider its resolved restriction allows,
+ * and any it grants explicitly that the catalog does not list.
+ */
+function allowedNow(
+  scope: ProviderRestrictionScope,
+  providerModels: readonly ProviderInfo[],
+  restriction: ResolvedProviderRestriction,
+) {
+  const granted = Object.entries(scope)
+    .filter(([provider, value]) => provider !== PROVIDER_RESTRICTION_ONLY_KEY && value === true)
+    .map(([provider]) => provider)
+  const listed = providerModels
+    .map((group) => group.provider)
+    .filter((provider) => restriction.allows(provider))
+  return [...new Set([...listed, ...granted])]
+}
+
 /** A provider's name as its Settings row shows it, or its id when the catalog lacks it. */
 function providerName(providerModels: readonly ProviderInfo[], provider: string) {
   return providerModels.find((group) => group.provider === provider)?.displayName ?? provider
@@ -157,16 +175,10 @@ export function ScopeEditor({
           </span>
           <ToggleSwitch
             checked={only}
+            // Until the catalog lists the providers, turning only on would seed an empty list.
+            disabled={!only && providerModels.length === 0}
             onCheckedChange={(next) =>
-              onChange(
-                withOnly(
-                  scope,
-                  next,
-                  providerModels
-                    .map((group) => group.provider)
-                    .filter((provider) => effect.restriction.allows(provider)),
-                ),
-              )
+              onChange(withOnly(scope, next, allowedNow(scope, providerModels, effect.restriction)))
             }
             label={`Restrict ${label} to only the providers allowed here`}
           />
@@ -182,7 +194,7 @@ export function ScopeEditor({
           ) : null}
         </div>
       </div>
-      {/* Always rendered, so the toggle's aria-controls names an element that exists. */}
+      {/* Always rendered, so the header button's aria-controls names an element that exists. */}
       <div id={bodyId} hidden={!open}>
         {open ? <ScopeEditorBody {...{ label, scope, providerModels, onChange }} /> : null}
       </div>
