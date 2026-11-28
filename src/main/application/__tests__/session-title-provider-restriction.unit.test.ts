@@ -8,7 +8,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SettingsService } from '../../services/settings-service'
-import { titleModelWithinProviderRestrictions } from '../session-title-generation'
+import { titleRequestWithinProviderRestrictions } from '../session-title-generation'
 
 function layer(providerRestrictions: Record<string, boolean>) {
   return Layer.succeed(SettingsService, {
@@ -19,7 +19,12 @@ function layer(providerRestrictions: Record<string, boolean>) {
   })
 }
 
-describe('Title model within provider restrictions', () => {
+const BEDROCK_HAIKU = SupportedModelId('amazon-bedrock/eu.anthropic.claude-haiku-5-5')
+const BEDROCK_OPUS = SupportedModelId('amazon-bedrock/eu.anthropic.claude-opus-5-5')
+const DEEPSEEK = SupportedModelId('openrouter/deepseek/deepseek-v4.1-flash')
+const CLAUDE = SupportedModelId('anthropic/claude-opus-5-5')
+
+describe('a Title request within provider restrictions', () => {
   let temporaryRoot = ''
 
   beforeEach(async () => {
@@ -30,52 +35,68 @@ describe('Title model within provider restrictions', () => {
     await fs.rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('falls back to Automatic when the project disallows the Title model provider', async () => {
-    const titleModel = await Effect.runPromise(
-      titleModelWithinProviderRestrictions(
-        SupportedModelId('amazon-bedrock/eu.anthropic.claude-haiku-5-5'),
-        temporaryRoot,
-      ).pipe(Effect.provide(layer({ 'amazon-bedrock': false }))),
+  function resolve(
+    request: Omit<Parameters<typeof titleRequestWithinProviderRestrictions>[0], 'projectPath'>,
+    providerRestrictions: Record<string, boolean> = { 'amazon-bedrock': false },
+    projectPath: string | null = temporaryRoot,
+  ) {
+    return Effect.runPromise(
+      titleRequestWithinProviderRestrictions({ ...request, projectPath }).pipe(
+        Effect.provide(layer(providerRestrictions)),
+      ),
     )
+  }
 
-    expect(titleModel).toBe(SESSION_TITLE_MODEL_AUTOMATIC)
+  it('falls back to Automatic when the project disallows the Title model provider', async () => {
+    await expect(resolve({ titleModel: BEDROCK_HAIKU, sessionModel: CLAUDE })).resolves.toEqual({
+      titleModel: SESSION_TITLE_MODEL_AUTOMATIC,
+      sessionModel: CLAUDE,
+    })
   })
 
   it('keeps a Title model the project allows', async () => {
-    const titleModel = await Effect.runPromise(
-      titleModelWithinProviderRestrictions(
-        SupportedModelId('openrouter/deepseek/deepseek-v4.1-flash'),
-        temporaryRoot,
-      ).pipe(Effect.provide(layer({ 'amazon-bedrock': false }))),
-    )
-
-    expect(titleModel).toBe(SupportedModelId('openrouter/deepseek/deepseek-v4.1-flash'))
+    await expect(resolve({ titleModel: DEEPSEEK, sessionModel: CLAUDE })).resolves.toEqual({
+      titleModel: DEEPSEEK,
+      sessionModel: CLAUDE,
+    })
   })
 
-  it('falls back to Automatic when the project settings file cannot be read', async () => {
+  it('writes no title on Automatic when the Session model uses a refused provider', async () => {
+    await expect(
+      resolve({ titleModel: SESSION_TITLE_MODEL_AUTOMATIC, sessionModel: BEDROCK_OPUS }),
+    ).resolves.toBeNull()
+  })
+
+  it('lets an allowed Title model stand in for a Session model from a refused provider', async () => {
+    await expect(resolve({ titleModel: DEEPSEEK, sessionModel: BEDROCK_OPUS })).resolves.toEqual({
+      titleModel: DEEPSEEK,
+      sessionModel: DEEPSEEK,
+    })
+  })
+
+  it('drops a fallback model from a refused provider', async () => {
+    await expect(
+      resolve({
+        titleModel: SESSION_TITLE_MODEL_AUTOMATIC,
+        sessionModel: CLAUDE,
+        fallbackModel: BEDROCK_OPUS,
+      }),
+    ).resolves.toEqual({ titleModel: SESSION_TITLE_MODEL_AUTOMATIC, sessionModel: CLAUDE })
+  })
+
+  it('writes no title when the project settings file cannot be read', async () => {
     await fs.mkdir(path.join(temporaryRoot, '.openwaggle'))
     await fs.writeFile(
       path.join(temporaryRoot, '.openwaggle', 'settings.json'),
       JSON.stringify({ providers: { only: 'openrouter' } }),
     )
-    const titleModel = await Effect.runPromise(
-      titleModelWithinProviderRestrictions(
-        SupportedModelId('amazon-bedrock/eu.anthropic.claude-haiku-5-5'),
-        temporaryRoot,
-      ).pipe(Effect.provide(layer({}))),
-    )
 
-    expect(titleModel).toBe(SESSION_TITLE_MODEL_AUTOMATIC)
+    await expect(resolve({ titleModel: DEEPSEEK, sessionModel: CLAUDE }, {})).resolves.toBeNull()
   })
 
-  it('keeps the Title model when the Session has no project', async () => {
-    const titleModel = await Effect.runPromise(
-      titleModelWithinProviderRestrictions(
-        SupportedModelId('openrouter/deepseek/deepseek-v4.1-flash'),
-        null,
-      ).pipe(Effect.provide(layer({ 'amazon-bedrock': false }))),
-    )
-
-    expect(titleModel).toBe(SupportedModelId('openrouter/deepseek/deepseek-v4.1-flash'))
+  it('leaves the request alone when the Session has no project', async () => {
+    await expect(
+      resolve({ titleModel: BEDROCK_HAIKU, sessionModel: BEDROCK_OPUS }, undefined, null),
+    ).resolves.toEqual({ titleModel: BEDROCK_HAIKU, sessionModel: BEDROCK_OPUS })
   })
 })

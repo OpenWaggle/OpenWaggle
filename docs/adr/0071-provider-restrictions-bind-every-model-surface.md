@@ -36,10 +36,20 @@ surface leaves the other three as leaks.
   because titles are cosmetic.
 - **Every surface goes through one choke point.** Session lifecycle preparation resolves the model
   for create, launch, spawn and fork from GUI, CLI, MCP and the Hive tool alike, so the
-  restriction is enforced there once, and a running session is never retroactively affected. The
-  two places a Run swaps in a model of its own check it as well: a Heartbeat's model when it
-  fires, since a scope can narrow after it was scheduled, and a Waggle agent's model when the
-  Waggle Run starts.
+  restriction is enforced there once. The two places a Run swaps in a model of its own check it
+  as well: a Heartbeat's model when it fires, since a scope can narrow after it was scheduled,
+  and a Waggle agent's model when the Waggle Run starts.
+- **An existing Session is held to the restriction from its next Run.** A Run already in flight
+  is never interrupted, but every Run start, manual compaction and summarizing tree navigation
+  checks the Session's stored model, and switching an existing Session's model is refused on the
+  Host for every caller. The Session's model was a person's choice, so it counts as named: a
+  refused provider fails the request with the provider and a prompt to pick another model,
+  instead of swapping the model silently. A fork, a clone and a plain navigation call no model
+  and stay allowed; the fork's model is derived. A title never bills a refused Session model:
+  Automatic follows the Session's model, so an allowed explicit Title model writes it instead, or
+  no title is written. (Amended 2026-11-28:
+  the original decision left every existing Session untouched, so an unarchived or long-lived
+  Session kept billing a provider its project had since refused.)
 - **The home directory is the app-wide setting, not a scope.** A path scope must name a folder
   inside the home directory and outside OpenWaggle's own configuration, or the settings update is
   refused; the Settings form and the update share one check.
