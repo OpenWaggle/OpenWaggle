@@ -82,7 +82,7 @@ A scope never seals the scopes inside it. A folder scope can allow a provider th
 
 A session in a restricted project offers only the models of allowed providers, and a request that names a model from any other provider is refused with an error, whether it comes from the app, the command line, MCP, an agent spawning a worker, a Heartbeat's own model or a Waggle agent's model. A model OpenWaggle picks itself resolves again inside the allowed providers instead of failing.
 
-A restriction also holds an existing session to it. Once a project refuses a provider, no session there can run or compact on that provider's models, or switch to one. A session already on such a model fails its next message with the provider's name, so pick an allowed model and send it again. A run already in progress finishes on its model.
+A restriction also holds an existing session to it. Once a project refuses a provider, no session there can run or compact on that provider's models, or switch to one. A session already on such a model fails its next message with the provider's name, so pick an allowed model and send it again. A run already in progress finishes on its model. Forking the session still works, and the fork moves to an allowed model. A new title for the session comes from your **Title model** when its provider is allowed. Otherwise the session keeps its current title.
 
 A value in the file wins over a value an older version saved in the app, and that wins over the app-wide default. **Settings > Agents** changes the defaults. Its **Saved project overrides** list can clear values the app saved, but it never edits your project file.
 

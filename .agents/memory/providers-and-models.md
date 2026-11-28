@@ -136,9 +136,12 @@ Existing Sessions are held to the restriction too (ADR 0071, amended November 20
 stored model counts as named. `sessionModelProviderRefusal` (`project-provider-restriction.ts`)
 checks it, and the last-answering-model fallback a gone model would continue on, in the classic
 Run preflight (`agent-run/preflight.ts`, outcome `invalid-model`, code `provider-restricted`),
-in `loadSessionForCommand` (manual compaction, tree navigation) and, for agents inheriting the
+in `compactAgentSession` and a summarizing `navigateAgentSessionTree` (never fork, clone or a
+plain navigation: no model call, and a fork's model is derived) and, for agents inheriting the
 Session model, in `resolveWaggleRunModels`. `sessions:set-model` refuses through
-`sessionModelSwitchRefusal`. The lifecycle choke point alone missed every existing Session, so an
+`sessionModelSwitchRefusal`. Titles go through `titleRequestWithinProviderRestrictions`: Automatic
+follows the Session model, so a refused Session model gets an allowed explicit Title model standing
+in for it, or no title. The lifecycle choke point alone missed every existing Session, so an
 unarchived or long-lived Session kept billing a provider its project had since refused. A folder
 `only` list closes that folder alone: keeping providers to one folder needs an app-wide block too
 (the diagnosis found a user with only the folder scope). In Settings, turning `only` on seeds the

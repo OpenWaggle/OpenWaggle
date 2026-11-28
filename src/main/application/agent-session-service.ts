@@ -16,7 +16,7 @@ import { SettingsService } from '../services/settings-service'
 import { reserveSessionTreeMutation } from './active-session-runs'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
-import { sessionModelProviderRefusal } from './project-provider-restriction'
+import { refuseRestrictedSessionModel } from './project-provider-restriction'
 import { isSessionModelRunnable } from './session-model-availability'
 
 export { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
@@ -69,12 +69,6 @@ function loadSessionForCommand(input: AgentSessionCommandInput) {
     if (!(yield* isSessionModelRunnable(input.model, session))) {
       return yield* Effect.fail(new Error(`Unknown model: ${input.model}`))
     }
-
-    // Compaction and a summarizing tree navigation call the model too, so a provider the project
-    // refuses fails them like a Run (ADR 0071).
-    const settings = yield* (yield* SettingsService).get()
-    const refusal = yield* sessionModelProviderRefusal({ model: input.model, session, settings })
-    if (refusal !== null) return yield* Effect.fail(new Error(refusal))
 
     return session
   })
@@ -244,6 +238,7 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
       skillToggles,
       enabledOpenWaggleExtensionPackagePaths,
     } = yield* loadValidatedAgentSession(input)
+    yield* refuseRestrictedSessionModel(input.model, session)
     const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.compact({
       session,
@@ -278,6 +273,7 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
         skillToggles,
         enabledOpenWaggleExtensionPackagePaths,
       } = yield* loadValidatedAgentSession(input)
+      if (input.summarize === true) yield* refuseRestrictedSessionModel(input.model, session)
       const agentKernel = yield* AgentKernelService
       const navigation = yield* agentKernel
         .navigateTree({

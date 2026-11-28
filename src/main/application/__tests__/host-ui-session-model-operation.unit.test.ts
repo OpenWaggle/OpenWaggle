@@ -137,6 +137,20 @@ describe('sessions:set-model', () => {
       expect(publishSessionHostEventMock).not.toHaveBeenCalled()
     })
 
+    it('fails closed when the project settings file cannot be read', async () => {
+      await fs.mkdir(path.join(projectPath, '.openwaggle'))
+      await fs.writeFile(
+        path.join(projectPath, '.openwaggle', 'settings.json'),
+        JSON.stringify({ providers: { only: 'anthropic' } }),
+      )
+      const fixture = restricted()
+
+      await expect(run('sessions:set-model', [SESSION_ID, NEXT_MODEL], fixture)).rejects.toThrow(
+        'could not be read',
+      )
+      expect(fixture.setModel).not.toHaveBeenCalled()
+    })
+
     it('switches to a model whose provider the project allows', async () => {
       const fixture = restricted()
 

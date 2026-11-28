@@ -11,6 +11,7 @@ import * as Effect from 'effect/Effect'
 import { loadProjectConfigStrict } from '../config/project-config'
 import { lastAnsweringModelReference } from '../domain/session-model-fallback'
 import { ProviderService } from '../ports/provider-service'
+import { SettingsService } from '../services/settings-service'
 import { validateProjectPath } from '../utils/project-path-validation'
 
 /**
@@ -144,5 +145,21 @@ export function sessionModelProviderRefusal(input: {
     const providerService = yield* ProviderService
     if (yield* providerService.isKnownModel(input.model, projectPath)) return null
     return `This Session's model ${JSON.stringify(input.model)} is unavailable, and the model it would continue on, ${JSON.stringify(fallback)}, uses provider ${JSON.stringify(fallbackProvider)}, which this project's provider restrictions do not allow. Pick a model from an allowed provider to continue.`
+  })
+}
+
+/**
+ * Fails when the Session's project refuses `model`, for operations outside a Run that call it:
+ * manual compaction and a summarizing tree navigation (ADR 0071). A fork, a clone and a plain
+ * navigation call no model, and a fork's model is derived, so they never come here.
+ */
+export function refuseRestrictedSessionModel(
+  model: string,
+  session: Pick<SessionDetail, 'messages' | 'projectPath'>,
+) {
+  return Effect.gen(function* () {
+    const settings = yield* (yield* SettingsService).get()
+    const refusal = yield* sessionModelProviderRefusal({ model, session, settings })
+    if (refusal !== null) return yield* Effect.fail(new Error(refusal))
   })
 }

@@ -129,4 +129,20 @@ describe("an existing Session's Run under its project's provider restriction", (
 
     await expect(preflight(REFUSED_MODEL)).resolves.toMatchObject({ ok: true })
   })
+
+  it('fails closed when the project settings file cannot be read', async () => {
+    await fs.mkdir(path.join(projectPath, '.openwaggle'))
+    await fs.writeFile(
+      path.join(projectPath, '.openwaggle', 'settings.json'),
+      JSON.stringify({ providers: { only: 'anthropic' } }),
+    )
+
+    await expect(preflight(ALLOWED_MODEL)).resolves.toMatchObject({
+      ok: false,
+      result: {
+        outcome: 'invalid-model',
+        message: expect.stringContaining('could not be read'),
+      },
+    })
+  })
 })

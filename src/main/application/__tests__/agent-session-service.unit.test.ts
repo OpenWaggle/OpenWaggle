@@ -98,6 +98,20 @@ const TestLayer = Layer.mergeAll(
   EmptyExtensionRuntimeLayer,
 )
 
+const RestrictedLayer = Layer.mergeAll(
+  TestSessionProjectionLayer,
+  sessionServiceProviderLayer,
+  Layer.succeed(SettingsService, {
+    get: () => Effect.succeed({ ...DEFAULT_SETTINGS, providerRestrictions: { openai: false } }),
+    update: () => Effect.void,
+    initialize: () => Effect.void,
+    flushForTests: () => Effect.void,
+  }),
+  TestSessionLayer,
+  TestAgentKernelLayer,
+  EmptyExtensionRuntimeLayer,
+)
+
 describe('agent session commands', () => {
   beforeEach(() => {
     persistSnapshotMock.mockReset()
@@ -242,21 +256,6 @@ describe('agent session commands', () => {
   })
 
   it('refuses manual compaction when the project refuses the Session model provider', async () => {
-    const RestrictedSettingsLayer = Layer.succeed(SettingsService, {
-      get: () => Effect.succeed({ ...DEFAULT_SETTINGS, providerRestrictions: { openai: false } }),
-      update: () => Effect.void,
-      initialize: () => Effect.void,
-      flushForTests: () => Effect.void,
-    })
-    const RestrictedLayer = Layer.mergeAll(
-      TestSessionProjectionLayer,
-      sessionServiceProviderLayer,
-      RestrictedSettingsLayer,
-      TestSessionLayer,
-      TestAgentKernelLayer,
-      EmptyExtensionRuntimeLayer,
-    )
-
     await expect(
       Effect.runPromise(
         compactAgentSession({
@@ -267,5 +266,27 @@ describe('agent session commands', () => {
       ),
     ).rejects.toThrow('provider "openai"')
     expect(compactMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a summarizing tree navigation, but not a plain one, under a refused provider', async () => {
+    navigateTreeMock.mockResolvedValue({
+      cancelled: false,
+      piSessionId: 'pi-session-1',
+      sessionSnapshot: { nodes: [], activeNodeId: 'target' },
+    })
+    const navigate = (summarize: boolean) =>
+      Effect.runPromise(
+        navigateAgentSessionTree({
+          sessionId: SessionId('session-1'),
+          model: SupportedModelId('openai/gpt-5.4'),
+          targetNodeId: SessionNodeId('target'),
+          summarize,
+        }).pipe(Effect.provide(RestrictedLayer)),
+      )
+
+    await expect(navigate(true)).rejects.toThrow('provider "openai"')
+    expect(navigateTreeMock).not.toHaveBeenCalled()
+    await navigate(false)
+    expect(navigateTreeMock).toHaveBeenCalledTimes(1)
   })
 })
