@@ -122,6 +122,8 @@ Type in the sidebar filter to match session titles and project names. `Cmd+F` on
 
 The state chips below the filter show how many sessions are in each state. Select one to find those sessions in every project, including collapsed ones. A collapsed project's heading also shows how many of its sessions are working or need you.
 
+The sort button in the **Projects** heading orders both the projects and the sessions inside them. Under **Sort by**, pick **Date** or **Name**. Under **Order**, pick **Newest first** or **Oldest first** for **Date**, and **A to Z** or **Z to A** for **Name**. **Date** orders sessions by their last activity and projects by when their first session started, so a project stays in place while you work in it. Projects without sessions come last under **Date**. The menu works from the keyboard: the arrow keys, **Home** and **End** move between options, **Enter** picks one, and **Escape** or **Tab** closes it.
+
 Filters reset when you quit. OpenWaggle remembers the sort order and which projects you collapsed.
 
 ## Follow the agent's work

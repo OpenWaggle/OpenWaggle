@@ -99,6 +99,19 @@ describe('sidebar view store', () => {
     expect(isProjectExpanded(state.projectExpandedByPath, PROJECT_B)).toBe(true)
   })
 
+  it('restores the Z to A sort after a relaunch', async () => {
+    useSidebarViewStore.getState().setSessionSortMode('name-desc')
+    await vi.advanceTimersByTimeAsync(WRITE_DRAIN_MS)
+    const onDisk = window.localStorage.getItem(STORAGE_KEY)
+
+    useSidebarViewStore.setState({ sessionSortMode: DEFAULT_SESSION_SORT_MODE })
+    await vi.advanceTimersByTimeAsync(WRITE_DRAIN_MS)
+    window.localStorage.setItem(STORAGE_KEY, onDisk ?? '')
+    await relaunch()
+
+    expect(useSidebarViewStore.getState().sessionSortMode).toBe('name-desc')
+  })
+
   /**
    * localStorage.setItem is synchronous, so writing per click puts JSON serialising in the
    * interaction path. Four quick collapses must cost one write.

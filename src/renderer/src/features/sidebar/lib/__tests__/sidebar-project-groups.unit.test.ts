@@ -202,6 +202,51 @@ describe('buildSidebarProjectGroups', () => {
     ])
   })
 
+  it('orders projects and sessions Z->A when sorting by name descending', () => {
+    const grouped = buildSidebarProjectGroups({
+      currentProjectPath: null,
+      recentProjects: ['/work/DTD'],
+      sortMode: 'name-desc',
+      sessions: [
+        makeSession('one', 'Alpha', '/work/CLUB', UPDATED_AT_NEW, 30),
+        makeSession('two', 'Zulu', '/work/CLUB', UPDATED_AT_OLD, 30),
+        makeSession('three', 'Session', '/work/gosafe', UPDATED_AT_NEW, 20),
+      ],
+    })
+
+    expect(grouped.projects.map((project) => project.projectPath)).toEqual([
+      '/work/gosafe',
+      '/work/DTD',
+      '/work/CLUB',
+    ])
+    expect(grouped.projects[2]?.sessions.map((session) => session.title)).toEqual(['Zulu', 'Alpha'])
+  })
+
+  it('orders projects oldest first, sessionless ones last, when sorting oldest first', () => {
+    const grouped = buildSidebarProjectGroups({
+      currentProjectPath: '/repo/current',
+      recentProjects: ['/repo/sessionless'],
+      sortMode: 'oldest',
+      sessions: [
+        makeSession('current-new', 'Newer', '/repo/current', UPDATED_AT_NEW, 30),
+        makeSession('current-old', 'Older', '/repo/current', UPDATED_AT_OLD, 35),
+        makeSession('newer', 'Newer project', '/repo/newer', UPDATED_AT_MIDDLE, 40),
+        makeSession('older', 'Older project', '/repo/older', UPDATED_AT_OLD, 20),
+      ],
+    })
+
+    expect(grouped.projects.map((project) => project.projectPath)).toEqual([
+      '/repo/older',
+      '/repo/current',
+      '/repo/newer',
+      '/repo/sessionless',
+    ])
+    expect(grouped.projects[1]?.sessions.map((session) => session.title)).toEqual([
+      'Older',
+      'Newer',
+    ])
+  })
+
   it('does not expose projectless sessions as a global Chats section', () => {
     const grouped = buildSidebarProjectGroups({
       currentProjectPath: null,

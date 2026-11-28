@@ -1,11 +1,9 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
-import type { SidebarSessionSortMode } from '../lib/sidebar-project-groups'
+import { SIDEBAR_SORT_MODES, type SidebarSessionSortMode } from '../lib/sidebar-sort'
 
 const STORAGE_KEY = 'openwaggle:sidebar-view:v1'
 const WRITE_DELAY_MS = 500
-
-const SORT_MODES: readonly SidebarSessionSortMode[] = ['recent', 'oldest', 'name']
 
 export const DEFAULT_SESSION_SORT_MODE: SidebarSessionSortMode = 'recent'
 
@@ -111,7 +109,7 @@ function debouncedStorage(inner: StateStorage, delayMs = WRITE_DELAY_MS) {
 }
 
 function sanitizeSortMode(value: unknown) {
-  return SORT_MODES.find((mode) => mode === value) ?? DEFAULT_SESSION_SORT_MODE
+  return SIDEBAR_SORT_MODES.find((mode) => mode === value) ?? DEFAULT_SESSION_SORT_MODE
 }
 
 /** Read one property off an unknown payload without asserting its shape. */
