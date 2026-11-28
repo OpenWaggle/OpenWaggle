@@ -1,10 +1,13 @@
 import type { SessionSummary } from '@shared/types/session'
 import { projectName } from '@/shared/lib/format'
+import {
+  compareSessionsForSort,
+  orderSidebarProjectPaths,
+  type SidebarSessionSortMode,
+} from './sidebar-sort'
 
 const EMPTY_UPDATED_AT = 0
 const EMPTY_CREATED_AT = 0
-
-export type SidebarSessionSortMode = 'recent' | 'oldest' | 'name'
 
 export interface SidebarProjectGroup {
   readonly projectPath: string
@@ -72,17 +75,7 @@ function normalizedProjectPath(path: string | null) {
 }
 
 function sortSessions(sessions: readonly SessionSummary[], sortMode: SidebarSessionSortMode) {
-  const next = [...sessions]
-  next.sort((left, right) => {
-    if (sortMode === 'oldest') {
-      return left.updatedAt - right.updatedAt
-    }
-    if (sortMode === 'name') {
-      return left.title.localeCompare(right.title)
-    }
-    return right.updatedAt - left.updatedAt
-  })
-  return next
+  return [...sessions].sort(compareSessionsForSort(sortMode))
 }
 
 function latestUpdatedAt(sessions: readonly SessionSummary[]) {
@@ -106,25 +99,6 @@ function addUniqueProjectPath(paths: string[], path: string | null) {
   }
   paths.push(normalized)
   return true
-}
-
-/**
- * Name (A->Z) orders the projects too, sessionless ones included: a sort that reordered only the
- * sessions inside each project left the project list looking unsorted. Recent and Oldest keep the
- * stable newest-first-session order, so activity never makes projects jump around.
- */
-function orderProjectPaths(
-  projectPaths: string[],
-  sortMode: SidebarSessionSortMode,
-  projectLabel: (projectPath: string) => string,
-) {
-  if (sortMode !== 'name') {
-    return projectPaths
-  }
-  return projectPaths.sort(
-    (left, right) =>
-      projectLabel(left).localeCompare(projectLabel(right)) || left.localeCompare(right),
-  )
 }
 
 /**
@@ -162,12 +136,6 @@ export function buildSidebarProjectGroups({
     sessionsByProject.set(projectPath, projectSessions)
   }
 
-  const sessionProjectPaths = [...sessionsByProject.keys()].sort((left, right) => {
-    const leftCreatedAt = firstSessionCreatedAt(sessionsByProject.get(left) ?? [])
-    const rightCreatedAt = firstSessionCreatedAt(sessionsByProject.get(right) ?? [])
-    return rightCreatedAt - leftCreatedAt
-  })
-
   const sessionlessProjectPaths: string[] = []
   for (const projectPath of recentProjects) {
     if (!sessionsByProject.has(projectPath)) {
@@ -179,11 +147,15 @@ export function buildSidebarProjectGroups({
     addUniqueProjectPath(sessionlessProjectPaths, normalizedCurrentProjectPath)
   }
 
-  const projectPaths = orderProjectPaths(
-    [...sessionProjectPaths, ...sessionlessProjectPaths],
-    sortMode,
+  // The sort orders the projects as well as the sessions inside them (#516).
+  const projectPaths = orderSidebarProjectPaths({
+    sessionProjectPaths: [...sessionsByProject.keys()],
+    sessionlessProjectPaths,
+    mode: sortMode,
     projectLabel,
-  )
+    firstSessionCreatedAt: (projectPath) =>
+      firstSessionCreatedAt(sessionsByProject.get(projectPath) ?? []),
+  })
   const pinned = new Set(pinnedSessionIds.map(String))
 
   // Keyed by the same normalisation the visible grouping uses, so a project resolves identically.

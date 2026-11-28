@@ -16,8 +16,8 @@ import { SidebarIconButton, SidebarSectionHead } from './SidebarSectionHead'
 const PINNED_SESSION_DRAG_TYPE = 'application/x-openwaggle-pinned-session'
 
 /**
- * Pinned sort options. Deliberately the same labels, icons and popover treatment as the
- * Projects sort control, with `Manual` — the user's dragged order — added as the default.
+ * Pinned sort options, with `Manual`, the user's dragged order, as the default. The Projects
+ * sort splits into a field and an order (`SidebarProjectSortMenu`); Pinned keeps one flat list.
  */
 const PINNED_SORT_OPTIONS: {
   value: PinnedSortMode
