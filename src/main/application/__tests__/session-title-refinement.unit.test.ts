@@ -15,6 +15,17 @@ import {
   world,
 } from './session-title-service.test-harness'
 
+// A Title request reads the project's provider restriction from disk. These tests drive retries
+// with TestClock, and a real read races it on a slow runner, so the restriction allows everything
+// here; session-title-provider-restriction.unit.test.ts covers it.
+vi.mock('../project-provider-restriction', async (importOriginal) => {
+  const { succeed } = await import('effect/Effect')
+  return {
+    ...(await importOriginal<typeof import('../project-provider-restriction')>()),
+    loadProjectProviderRestriction: () => succeed({ allows: () => true }),
+  }
+})
+
 vi.mock('../../session-host/session-host-events', async () => ({
   publishSessionHostEvent: (await import('./session-title-service.test-harness'))
     .publishSessionHostEventMock,

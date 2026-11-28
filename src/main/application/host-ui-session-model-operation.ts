@@ -2,6 +2,7 @@ import type { ThinkingLevel } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { describeError } from '../error-description'
 import { createLogger } from '../logger'
+import { SessionRepository } from '../ports/session-repository'
 import { SessionSettingsRepository } from '../ports/session-settings-repository'
 import { ThinkingLevelDefaultService } from '../ports/thinking-level-default-service'
 import { publishSessionHostEvent } from '../session-host/session-host-events'
@@ -12,7 +13,9 @@ import {
   validateSessionId,
   validateThinkingLevel,
 } from './host-ui-session-operation-validation'
+import { SettingsService } from '../services/settings-service'
 import { forgetRefusedContinuation } from './pi-session-refused-continuations'
+import { sessionModelSwitchRefusal } from './project-provider-restriction'
 
 const TWO_ARGUMENTS = 2
 const logger = createLogger('host-ui-session-settings')
@@ -24,7 +27,9 @@ const logger = createLogger('host-ui-session-settings')
  * changes only while the Session has no active Run (starting, active, or stopping), so it never
  * reaches a Run in flight. It applies to the next Run, whether that Run comes from the composer, a
  * queued Follow-up, or another Session Control caller. Classic and Waggle Runs share this rule.
- * The per-project preferred model for new Sessions is deliberately not touched.
+ * The per-project preferred model for new Sessions is deliberately not touched. A model whose
+ * provider the Session's project refuses is refused for every caller, not only hidden from the
+ * picker (ADR 0071).
  */
 export function setSessionModel(args: readonly unknown[]) {
   return Effect.gen(function* () {
@@ -32,6 +37,13 @@ export function setSessionModel(args: readonly unknown[]) {
     const sessionId = yield* validateSessionId(args[0])
     const model = yield* validateOptionalModel(args[1])
     if (!model) return yield* invalid('Session model is required.')
+    const [summary] = yield* (yield* SessionRepository).listByIds([sessionId])
+    const refusal = yield* sessionModelSwitchRefusal({
+      model,
+      projectPath: summary?.projectPath,
+      settings: yield* (yield* SettingsService).get(),
+    })
+    if (refusal !== null) return yield* invalid(refusal)
     const change = yield* (yield* SessionSettingsRepository).setModel(sessionId, model)
     if (!change.changed) {
       return yield* invalid(

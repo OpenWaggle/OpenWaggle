@@ -100,4 +100,29 @@ describe('a Waggle Run whose model is gone', () => {
     })
     expect(runMock).not.toHaveBeenCalled()
   })
+
+  it('refuses when an agent inherits a Session model whose provider the project refuses', async () => {
+    harnessState.providerRestrictions = { fake: false }
+
+    const result = await startWaggle(inheritingFirstAgent, ANSWERED_BY)
+
+    expect(result).toMatchObject({
+      outcome: 'validation-error',
+      message: expect.stringContaining('provider "fake"'),
+    })
+    expect(runMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses when the inherited model falls back to a model from a refused provider', async () => {
+    answeredBy(ANSWERED_BY)
+    harnessState.providerRestrictions = { fake: false }
+
+    const result = await startWaggle(inheritingFirstAgent)
+
+    expect(result).toMatchObject({
+      outcome: 'validation-error',
+      message: expect.stringContaining('provider "fake"'),
+    })
+    expect(runMock).not.toHaveBeenCalled()
+  })
 })

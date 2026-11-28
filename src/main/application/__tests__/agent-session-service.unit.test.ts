@@ -1,4 +1,5 @@
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +7,7 @@ import { PINNED_SESSION_REPOSITORY_STUB } from '../../ports/__tests__/session-pr
 import { AgentKernelMissingEntryError, AgentKernelService } from '../../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
+import { SettingsService } from '../../services/settings-service'
 import { compactAgentSession, navigateAgentSessionTree } from '../agent-session-service'
 import {
   sessionServiceProviderLayer,
@@ -91,6 +93,20 @@ const TestLayer = Layer.mergeAll(
   TestSessionProjectionLayer,
   sessionServiceProviderLayer,
   sessionServiceSettingsLayer,
+  TestSessionLayer,
+  TestAgentKernelLayer,
+  EmptyExtensionRuntimeLayer,
+)
+
+const RestrictedLayer = Layer.mergeAll(
+  TestSessionProjectionLayer,
+  sessionServiceProviderLayer,
+  Layer.succeed(SettingsService, {
+    get: () => Effect.succeed({ ...DEFAULT_SETTINGS, providerRestrictions: { openai: false } }),
+    update: () => Effect.void,
+    initialize: () => Effect.void,
+    flushForTests: () => Effect.void,
+  }),
   TestSessionLayer,
   TestAgentKernelLayer,
   EmptyExtensionRuntimeLayer,
@@ -237,5 +253,40 @@ describe('agent session commands', () => {
       piSessionId: 'pi-session-1',
       piSessionFile: '/tmp/pi-session-1.jsonl',
     })
+  })
+
+  it('refuses manual compaction when the project refuses the Session model provider', async () => {
+    await expect(
+      Effect.runPromise(
+        compactAgentSession({
+          sessionId: SessionId('session-1'),
+          model: SupportedModelId('openai/gpt-5.4'),
+          onEvent: () => undefined,
+        }).pipe(Effect.provide(RestrictedLayer)),
+      ),
+    ).rejects.toThrow('provider "openai"')
+    expect(compactMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a summarizing tree navigation, but not a plain one, under a refused provider', async () => {
+    navigateTreeMock.mockResolvedValue({
+      cancelled: false,
+      piSessionId: 'pi-session-1',
+      sessionSnapshot: { nodes: [], activeNodeId: 'target' },
+    })
+    const navigate = (summarize: boolean) =>
+      Effect.runPromise(
+        navigateAgentSessionTree({
+          sessionId: SessionId('session-1'),
+          model: SupportedModelId('openai/gpt-5.4'),
+          targetNodeId: SessionNodeId('target'),
+          summarize,
+        }).pipe(Effect.provide(RestrictedLayer)),
+      )
+
+    await expect(navigate(true)).rejects.toThrow('provider "openai"')
+    expect(navigateTreeMock).not.toHaveBeenCalled()
+    await navigate(false)
+    expect(navigateTreeMock).toHaveBeenCalledTimes(1)
   })
 })

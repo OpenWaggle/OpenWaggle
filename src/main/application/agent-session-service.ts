@@ -16,6 +16,7 @@ import { SettingsService } from '../services/settings-service'
 import { reserveSessionTreeMutation } from './active-session-runs'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
+import { refuseRestrictedSessionModel } from './project-provider-restriction'
 import { isSessionModelRunnable } from './session-model-availability'
 
 export { attributeCopiedVisualizationSources } from './inline-visualization-ownership'
@@ -237,6 +238,7 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
       skillToggles,
       enabledOpenWaggleExtensionPackagePaths,
     } = yield* loadValidatedAgentSession(input)
+    yield* refuseRestrictedSessionModel(input.model, session)
     const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.compact({
       session,
@@ -271,6 +273,7 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
         skillToggles,
         enabledOpenWaggleExtensionPackagePaths,
       } = yield* loadValidatedAgentSession(input)
+      if (input.summarize === true) yield* refuseRestrictedSessionModel(input.model, session)
       const agentKernel = yield* AgentKernelService
       const navigation = yield* agentKernel
         .navigateTree({
