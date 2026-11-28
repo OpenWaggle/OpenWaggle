@@ -199,6 +199,10 @@ Released builds send anonymous usage statistics and error reports, starting at t
 
 ## [1.0.0-beta.47] - 2026-11-28
 
+### Features
+
+- **sidebar:** choose the sort order for projects and sessions ([#518](https://github.com/OpenWaggle/OpenWaggle/pull/518))
+
 ### Fixes
 
 - **providers:** hold existing sessions to provider restrictions and stop the only switch blocking everything ([#517](https://github.com/OpenWaggle/OpenWaggle/pull/517))
