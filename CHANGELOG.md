@@ -197,6 +197,19 @@ Released builds send anonymous usage statistics and error reports, starting at t
 - 0.x macOS builds were unsigned, and macOS installs an update only when it is signed by the same team as the running app. If you are still on a 0.x build, install 1.0.0 by hand once, from GitHub Releases or with the install script. Updates after that install from the app.
 - On Linux, opening Session links from other apps needs the desktop entry that the install script writes. If you installed before Session links shipped, run the install script again.
 
+## [1.0.0-beta.47] - 2026-11-28
+
+### Features
+
+- **sidebar:** choose the sort order for projects and sessions ([#518](https://github.com/OpenWaggle/OpenWaggle/pull/518))
+
+### Fixes
+
+- **providers:** hold existing sessions to provider restrictions and stop the only switch blocking everything ([#517](https://github.com/OpenWaggle/OpenWaggle/pull/517))
+- **sidebar:** sort projects A->Z when the name sort is selected ([#516](https://github.com/OpenWaggle/OpenWaggle/pull/516))
+- **composer:** keep long queued messages from taking over the chat ([#514](https://github.com/OpenWaggle/OpenWaggle/pull/514))
+- **session-host:** stop the nightly canaries failing on Windows file locks, model downloads and macOS capacity ([#513](https://github.com/OpenWaggle/OpenWaggle/pull/513))
+
 ## [1.0.0-beta.46] - 2026-11-21
 
 ### Fixes
