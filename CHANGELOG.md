@@ -201,6 +201,7 @@ Released builds send anonymous usage statistics and error reports, starting at t
 
 ### Fixes
 
+- **composer:** keep long queued messages from taking over the chat ([#514](https://github.com/OpenWaggle/OpenWaggle/pull/514))
 - **session-host:** stop the nightly canaries failing on Windows file locks, model downloads and macOS capacity ([#513](https://github.com/OpenWaggle/OpenWaggle/pull/513))
 
 ## [1.0.0-beta.46] - 2026-11-21
