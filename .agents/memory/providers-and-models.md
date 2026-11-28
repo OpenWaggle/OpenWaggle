@@ -131,3 +131,16 @@ keep working. The Title model falls back to Automatic. The renderer keeps its se
 the restriction at project open and catalog load (`project-model-selection.ts`
 `selectionAfterRestriction`), because the GUI's pick is named and would otherwise be refused.
 Never write a restriction into `enabledModels`: the picker is the intersection only.
+
+Existing Sessions are held to the restriction too (ADR 0071, amended November 2026): a Session's
+stored model counts as named. `sessionModelProviderRefusal` (`project-provider-restriction.ts`)
+checks it, and the last-answering-model fallback a gone model would continue on, in the classic
+Run preflight (`agent-run/preflight.ts`, outcome `invalid-model`, code `provider-restricted`),
+in `loadSessionForCommand` (manual compaction, tree navigation) and, for agents inheriting the
+Session model, in `resolveWaggleRunModels`. `sessions:set-model` refuses through
+`sessionModelSwitchRefusal`. The lifecycle choke point alone missed every existing Session, so an
+unarchived or long-lived Session kept billing a provider its project had since refused. A folder
+`only` list closes that folder alone: keeping providers to one folder needs an app-wide block too
+(the diagnosis found a user with only the folder scope). In Settings, turning `only` on seeds the
+list from `effect.restriction` (what the scope resolves to now); seeding from explicit `true`
+entries alone closed an untouched scope to `only: []`, refusing every provider.
