@@ -1,27 +1,9 @@
-import {
-  ArrowDownAZ,
-  Calendar,
-  ChartColumn,
-  Check,
-  Clock,
-  Edit3,
-  FolderPlus,
-  LayoutList,
-  Settings,
-} from 'lucide-react'
+import { ChartColumn, Edit3, FolderPlus, Settings } from 'lucide-react'
 import openwaggleLockup from '@/assets/openwaggle-lockup.png'
-import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
-import { Popover } from '@/shared/ui/Popover'
 import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
-import type { SidebarSessionSortMode } from '../lib/sidebar-project-groups'
-
-const SORT_OPTIONS: { value: SidebarSessionSortMode; label: string; icon: typeof Clock }[] = [
-  { value: 'recent', label: 'Recent', icon: Clock },
-  { value: 'oldest', label: 'Oldest', icon: Calendar },
-  { value: 'name', label: 'Name (A->Z)', icon: ArrowDownAZ },
-]
-
+import type { SidebarSessionSortMode } from '../lib/sidebar-sort'
+import { SidebarProjectSortMenu } from './SidebarProjectSortMenu'
 import { SidebarIconButton, SidebarSectionHead } from './SidebarSectionHead'
 
 export function SidebarBrandArea({ isFullscreen }: { readonly isFullscreen: boolean }) {
@@ -108,42 +90,12 @@ export function SidebarProjectsHeader({
       <SidebarIconButton label="Open project folder" onClick={onOpenProject}>
         <FolderPlus className="size-3.5" />
       </SidebarIconButton>
-      <Popover
+      <SidebarProjectSortMenu
         open={sortMenuOpen}
-        onOpenChange={onSetSortMenuOpen}
-        placement="bottom-end"
-        className="min-w-49 py-1"
-        role="menu"
-        trigger={
-          <SidebarIconButton
-            label="Sort sessions"
-            isActive={sortMenuOpen}
-            onClick={() => onSetSortMenuOpen(!sortMenuOpen)}
-          >
-            <LayoutList className="size-3.5" />
-          </SidebarIconButton>
-        }
-      >
-        {SORT_OPTIONS.map((option) => (
-          <Button
-            variant="row"
-            size="xs"
-            radius="none"
-            key={option.value}
-            aria-checked={sortMode === option.value}
-            role="menuitemradio"
-            onClick={() => {
-              onSetSortMode(option.value)
-              onSetSortMenuOpen(false)
-            }}
-            className={cn('gap-2 px-3 text-xs', sortMode === option.value && 'text-accent')}
-          >
-            <option.icon className="size-3 shrink-0" />
-            <span className="flex-1">{option.label}</span>
-            {sortMode === option.value ? <Check className="size-3 shrink-0" /> : null}
-          </Button>
-        ))}
-      </Popover>
+        sortMode={sortMode}
+        onSetOpen={onSetSortMenuOpen}
+        onSetSortMode={onSetSortMode}
+      />
     </SidebarSectionHead>
   )
 }

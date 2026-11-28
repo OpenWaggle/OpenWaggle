@@ -50,7 +50,7 @@ interface PopoverProps {
    * keys that do nothing, so the two are deliberately not separable.
    */
   role?: 'menu' | 'listbox' | 'dialog'
-  /** Accessible name for non-menu popup panels such as searchable picker dialogs. */
+  /** Accessible name for the panel, such as a menu with grouped items or a picker dialog. */
   ariaLabel?: string
 }
 
@@ -78,6 +78,7 @@ function PopoverPanel({
         ref={input.menuRef}
         popover={popover}
         role="menu"
+        aria-label={input.ariaLabel}
         onKeyDown={input.onKeyDown}
         className={input.className}
       >
