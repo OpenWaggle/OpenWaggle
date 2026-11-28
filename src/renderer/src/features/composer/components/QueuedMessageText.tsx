@@ -21,6 +21,8 @@ interface QueuedMessageTextProps {
  * A queued message's text, one line until opened. A long prompt shown in full pushed the
  * conversation out of view, so a closed row shows its first line and how many lines it has, and
  * an open one scrolls past twelve lines (`max-h-54` is twelve `text-xs` `leading-normal` lines).
+ * The button keeps the same text open or closed: `aria-expanded` carries the state, and a
+ * constant name still says which message it opens.
  */
 export function QueuedMessageText({ text, expanded, onToggle }: QueuedMessageTextProps) {
   const bodyId = useId()
@@ -45,18 +47,10 @@ export function QueuedMessageText({ text, expanded, onToggle }: QueuedMessageTex
             expanded && 'rotate-90',
           )}
         />
-        {expanded ? (
-          <span className="min-w-0 flex-1 truncate text-text-tertiary">
-            Collapse{countLabel ? ` · ${countLabel}` : ''}
-          </span>
-        ) : (
-          <>
-            <span className="min-w-0 flex-1 truncate">{firstLine}</span>
-            {/* The space separates the two in the button's name; flex layout drops it visually. */}
-            {countLabel ? ' ' : null}
-            {countLabel ? <span className="shrink-0 text-text-tertiary">{countLabel}</span> : null}
-          </>
-        )}
+        <span className="min-w-0 flex-1 truncate">{firstLine}</span>
+        {/* The space separates the two in the button's name; flex layout drops it visually. */}
+        {countLabel ? ' ' : null}
+        {countLabel ? <span className="shrink-0 text-text-tertiary">{countLabel}</span> : null}
       </Button>
       {expanded ? (
         <div

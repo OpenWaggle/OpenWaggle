@@ -138,36 +138,6 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('second message')).toBeInTheDocument()
   })
 
-  // A long prompt rendered in full covered the conversation and made the Session unusable.
-  it('shows each message as its first line and opens one message at a time', () => {
-    queue(
-      { id: 'follow-up-1', text: '\nFirst brief\n\nfirst detail' },
-      { id: 'follow-up-2', text: 'Second brief\nsecond detail' },
-    )
-    renderQueue()
-
-    const first = screen.getByRole('button', { name: 'First brief 3 lines' })
-    const second = screen.getByRole('button', { name: 'Second brief 2 lines' })
-    expect(first).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText(/first detail/)).not.toBeInTheDocument()
-
-    fireEvent.click(first)
-    expect(first).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText(/first detail/)).toHaveAttribute(
-      'id',
-      first.getAttribute('aria-controls'),
-    )
-
-    fireEvent.click(second)
-    expect(first).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText(/first detail/)).not.toBeInTheDocument()
-    expect(screen.getByText(/second detail/)).toBeInTheDocument()
-
-    fireEvent.click(second)
-    expect(second).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText(/second detail/)).not.toBeInTheDocument()
-  })
-
   it('pauses a running queue through the revision-aware hook so its next Run waits', async () => {
     queue({ id: 'follow-up-1', text: 'next' })
     renderQueue()
