@@ -158,6 +158,11 @@ export function useSidebarState() {
     sessions: sessions.sessions,
     sortMode: pinnedSortMode,
   }).filter((row) => visibleSessionIds.has(String(row.session.id)))
+
+  function displayProjectName(path: string) {
+    return projectDisplayNames[path]?.trim() || projectName(path)
+  }
+
   /*
    * Workers live in the Hive panel (ADR 0051): an unpinned Worker is hidden from its project
    * group, but a status filter or search that matches one lists it flat, naming its parent.
@@ -172,6 +177,7 @@ export function useSidebarState() {
     // Project-wide actions act on the project, not on what the filter happens to show.
     allSessions: sessions.sessions,
     excludeUnpinnedWorkers: !narrowed,
+    projectLabel: displayProjectName,
   })
   // A Queen's second line reports hidden Workers that need the user (ADR 0051).
   const workerAttention = useMemo(
@@ -194,10 +200,6 @@ export function useSidebarState() {
     if (id === null) return null
     return hiveHomeQueenId(sessions.sessions.find((session) => String(session.id) === String(id)))
   }, [activeSession.activeSessionId, sessions.sessions])
-
-  function displayProjectName(path: string) {
-    return projectDisplayNames[path]?.trim() || projectName(path)
-  }
 
   return {
     activeBranchId: activeSession.activeBranchId,
