@@ -13,6 +13,14 @@ import { secureWindowsUserOnly, type WindowsUserOnlySecurity } from './windows-u
 const WINDOWS_ENDPOINT_CAPABILITY_BYTES = 32
 const WINDOWS_ENDPOINT_CAPABILITY_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const WINDOWS_ENDPOINT_CAPABILITY_FILE = 'endpoint.capability'
+/**
+ * Windows refuses to replace a file another process holds open without delete sharing, which an
+ * antivirus scan or the Windows PowerShell helper that just secured the file does for a moment.
+ * It reports that as EPERM, EBUSY or EACCES, so a rename that hits one of them is tried again.
+ */
+const TRANSIENT_RENAME_CODES = ['EPERM', 'EBUSY', 'EACCES']
+const RENAME_ATTEMPTS = 8
+const RENAME_RETRY_BASE_DELAY_MS = 25
 const OWNER_DIRECTORY_MODE = 0o700
 const OWNER_FILE_MODE = 0o600
 const filesystemConstants = process.getBuiltinModule('node:fs').constants
@@ -75,6 +83,27 @@ export function resolveLocalSessionHostPaths(input: {
 
 function hasErrorCode(error: unknown, code: string) {
   return error instanceof Error && 'code' in error && error.code === code
+}
+
+export async function renameThroughTransientLocks(
+  from: string,
+  to: string,
+  rename: (from: string, to: string) => Promise<void> = fs.rename,
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms)
+    }),
+) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await rename(from, to)
+      return
+    } catch (error) {
+      const transient = TRANSIENT_RENAME_CODES.some((code) => hasErrorCode(error, code))
+      if (!transient || attempt >= RENAME_ATTEMPTS) throw error
+      await sleep(RENAME_RETRY_BASE_DELAY_MS * attempt)
+    }
+  }
 }
 
 async function readWindowsEndpointCapability(capabilityPath: string) {
@@ -255,7 +284,7 @@ export async function rotateLocalSessionHostEndpoint(
     secureUserOnly,
   )
   try {
-    await fs.rename(temporaryPath, capabilityPath)
+    await renameThroughTransientLocks(temporaryPath, capabilityPath)
     await secureUserOnly([{ kind: 'file', path: capabilityPath }])
   } catch (error) {
     await fs.unlink(temporaryPath).catch((cleanupError: unknown) => {

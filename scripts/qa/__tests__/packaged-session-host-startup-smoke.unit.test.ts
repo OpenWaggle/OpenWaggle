@@ -7,6 +7,7 @@ import type { CompleteLiveQaCleanupInput } from '../live-session-orchestration-l
 import {
   assertPackagedSemanticSearch,
   packagedSecondInstanceArguments,
+  retrySemanticSearch,
   runPackagedSessionHostStartupScenario,
 } from '../packaged-session-host-startup-smoke'
 import {
@@ -111,6 +112,34 @@ describe('packaged Session Host startup smoke', () => {
         sessions: [{ sessionId: 'packaged-cutover-session' }],
       }),
     ).toThrow('packaged semantic embedding/search smoke')
+  })
+
+  it('tries the semantic search again while the search model is still arriving', async () => {
+    const sleep = vi.fn(async () => undefined)
+    const search = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('model downloading'))
+      .mockRejectedValueOnce(new Error('model downloading'))
+      .mockResolvedValueOnce(undefined)
+
+    await retrySemanticSearch(search, { attempts: 3, delayMs: 5, sleep })
+
+    expect(search).toHaveBeenCalledTimes(3)
+    expect(sleep).toHaveBeenCalledTimes(2)
+    expect(sleep).toHaveBeenCalledWith(5)
+  })
+
+  it('throws the last semantic search failure once the attempts are spent', async () => {
+    const sleep = vi.fn(async () => undefined)
+    const search = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('first'))
+      .mockRejectedValueOnce(new Error('last'))
+
+    await expect(retrySemanticSearch(search, { attempts: 2, delayMs: 5, sleep })).rejects.toThrow(
+      'last',
+    )
+    expect(sleep).toHaveBeenCalledTimes(1)
   })
 
   it('routes legacy database seeding failures through retained-profile cleanup', async () => {

@@ -145,6 +145,11 @@ jobs:
           - { target: win32-x64, runner: windows-2025 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    # The report gates nothing, and GitHub's macOS arm64 pool is capacity-constrained: a job it never
+    # schedules ("The job was not acquired by Runner of type hosted even after multiple attempts",
+    # after a 15 minute wait) failed the whole scheduled run on 2026-11-18 and 2026-11-24 with no
+    # step ever starting. That is not a regression in main, so it does not turn the run red.
+    continue-on-error: ${{ matrix.target == 'darwin-arm64' }}
     defaults:
       run:
         shell: bash

@@ -31,6 +31,12 @@ const ARGUMENT_SEPARATOR = '--'
 const FIRST_USER_ARGUMENT_INDEX = 2
 const SEMANTIC_SEARCH_TIMEOUT_MS = 30_000
 const SEMANTIC_SEARCH_PROCESS_TIMEOUT_MS = 35_000
+// The search model (~135 MB) downloads from Hugging Face into the fresh profile on first use. A
+// failed or slow download is retried by the Host no sooner than 15 s later
+// (SESSION_EMBEDDING_MODEL_RETRY_BASE_MS), so a single 30 s search turns one slow or failed
+// download on a shared runner into a red nightly. The search is tried again past that delay.
+const SEMANTIC_SEARCH_ATTEMPTS = 3
+const SEMANTIC_SEARCH_RETRY_DELAY_MS = 16_000
 const LEGACY_SESSION_ID = 'packaged-cutover-session'
 const LEGACY_SESSION_CREATED_AT = 10
 const LEGACY_SESSION_UPDATED_AT = 20
@@ -167,25 +173,58 @@ async function assertLegacySessionMigrated(
     throw new Error('The packaged GUI did not migrate the seeded legacy Session.')
   }
 
-  const searchResponse = await runJsonCli(
-    executable,
-    environment,
-    [
-      'hive',
-      'search',
-      'packaged cutover fixture',
-      '--mode',
-      'semantic',
-      '--require-fresh',
-      '--timeout-ms',
-      String(SEMANTIC_SEARCH_TIMEOUT_MS),
-      '--all',
-      '--limit',
-      '10',
-    ],
-    { timeoutMs: SEMANTIC_SEARCH_PROCESS_TIMEOUT_MS },
-  )
-  assertPackagedSemanticSearch(cliOutcome(searchResponse))
+  await retrySemanticSearch(async () => {
+    const searchResponse = await runJsonCli(
+      executable,
+      environment,
+      [
+        'hive',
+        'search',
+        'packaged cutover fixture',
+        '--mode',
+        'semantic',
+        '--require-fresh',
+        '--timeout-ms',
+        String(SEMANTIC_SEARCH_TIMEOUT_MS),
+        '--all',
+        '--limit',
+        '10',
+      ],
+      { timeoutMs: SEMANTIC_SEARCH_PROCESS_TIMEOUT_MS },
+    )
+    assertPackagedSemanticSearch(cliOutcome(searchResponse))
+  })
+}
+
+/** Runs the search again after a failure, up to `attempts` times, and throws the last failure. */
+export async function retrySemanticSearch(
+  search: () => Promise<void>,
+  options: {
+    readonly attempts?: number
+    readonly delayMs?: number
+    readonly sleep?: (ms: number) => Promise<void>
+  } = {},
+) {
+  const attempts = options.attempts ?? SEMANTIC_SEARCH_ATTEMPTS
+  const delayMs = options.delayMs ?? SEMANTIC_SEARCH_RETRY_DELAY_MS
+  const sleep =
+    options.sleep ??
+    ((ms: number) =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, ms)
+      }))
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await search()
+      return
+    } catch (error) {
+      if (attempt >= attempts) throw error
+      console.warn(
+        `Semantic search attempt ${String(attempt)}/${String(attempts)} failed; retrying in ${String(delayMs)}ms: ${error instanceof Error ? error.message : String(error)}`,
+      )
+      await sleep(delayMs)
+    }
+  }
 }
 
 export function assertPackagedSemanticSearch(outcome: CliOutcome) {
