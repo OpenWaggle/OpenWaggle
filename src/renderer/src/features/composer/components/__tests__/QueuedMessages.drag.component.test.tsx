@@ -1,5 +1,5 @@
 import { SessionId } from '@shared/types/brand'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionFollowUpQueueSnapshot } from '@/features/chat/hooks'
 import { useOptimisticSteerStore } from '@/features/chat/state'
@@ -125,7 +125,7 @@ describe('QueuedMessages drag feedback', () => {
       expect(image.querySelector('[id]')).toBeNull()
     })
 
-    it('clamps a long message in the copy, but not in the list', () => {
+    it('clamps an open long message in the copy, but not in the list', () => {
       queueMock.snapshot = snapshotOf(
         [
           queueItem({ id: 'a', text: 'first' }),
@@ -134,6 +134,7 @@ describe('QueuedMessages drag feedback', () => {
         4,
       )
       renderDock()
+      fireEvent.click(within(list()).getByRole('button', { name: 'line one 5 lines' }))
       const dataTransfer = makeDataTransfer()
 
       fireDrag('dragStart', grip('line one'), dataTransfer)

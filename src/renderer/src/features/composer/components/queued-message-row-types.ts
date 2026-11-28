@@ -9,6 +9,8 @@ export interface QueuedMessageRowActions {
   readonly onAdopt: (followUpId: string) => void
   readonly onEdit: (followUpId: string) => void
   readonly onMove: (followUpId: string, anchor: QueuedMessageAnchor) => void
+  /** Opens the message in full, closing any other open one, or closes it again. */
+  readonly onToggleExpanded: (followUpId: string) => void
   /**
    * Starts dragging `followUpId` from its grip: the whole row becomes the drag image and stays in
    * place as a placeholder. Drag bookkeeping lives outside React state: re-rendering mid-gesture

@@ -1,6 +1,7 @@
 import type { SessionId } from '@shared/types/brand'
 import type { FollowUpQueuePauseReason } from '@shared/types/session-control-queue'
 import { Pause, Play, Timer } from 'lucide-react'
+import { useState } from 'react'
 import { useSessionFollowUpQueue } from '@/features/chat/hooks'
 import {
   selectPendingSteerFollowUps,
@@ -178,6 +179,8 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     draftBusyReason(useComposerActivityStore(selectDraftActivity(sessionKey))) !== null
   const branchSummaryOpen = useBranchSummaryStore((state) => state.prompt !== null)
   const canBeginEdit = queuedEdit.edit === null && !composerBusy && !branchSummaryOpen
+  // One message open at a time, so opening a long prompt cannot stack with another.
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   async function dismiss(followUpId: string) {
     try {
@@ -194,6 +197,8 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
     onAdopt: (followUpId) => void controls.sendAsMe(followUpId),
     onEdit: (followUpId) => void queuedEdit.begin(followUpId),
     onMove: arrangement.onMove,
+    onToggleExpanded: (followUpId) =>
+      setExpandedId((current) => (current === followUpId ? null : followUpId)),
     onDragStart: arrangement.onDragStart,
     onDragEnd: arrangement.onDragEnd,
   }
@@ -254,7 +259,10 @@ export function QueuedMessages({ sessionId, onSteer, isStreaming, onToast }: Que
                       previousId: queue[index - 1]?.id ?? null,
                       nextId: queue[index + 1]?.id ?? null,
                     }}
-                    reorderable={queue.length > 1}
+                    display={{
+                      reorderable: queue.length > 1,
+                      expanded: expandedId === item.id,
+                    }}
                     isStreaming={isStreaming}
                     sendAsMe={{
                       inFlight: controls.adoptingId === item.id,
